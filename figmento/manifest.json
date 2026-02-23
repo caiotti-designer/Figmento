@@ -1,0 +1,23 @@
+{
+  "name": "Figmento",
+  "id": "figmento-plugin",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": [
+    "figma"
+  ],
+  "networkAccess": {
+    "allowedDomains": [
+      "https://api.anthropic.com",
+      "https://api.openai.com",
+      "https://generativelanguage.googleapis.com",
+      "https://unpkg.com",
+      "https://fonts.googleapis.com",
+      "https://fonts.gstatic.com"
+    ]
+  },
+  "permissions": [
+    "currentuser"
+  ]
+}
