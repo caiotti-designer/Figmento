@@ -227,5 +227,214 @@ npm run trace -- workflow-name
 - Keep README synchronized with actual behavior
 - Document breaking changes prominently
 
+## Figmento Design Agent Rules
+
+### Core Principles for ALL Figma design work using Figmento MCP:
+
+- **AUTONOMY:** When creating designs, execute ALL steps without asking for approval. Do not pause between commands. Create the complete design in one continuous flow — from frame creation through all elements to completion.
+- **NO EXPORT:** Never call `export_node` at the end of a design. The user will export manually from Figma. Only use `export_node` if the user explicitly asks to see a preview or for self-evaluation purposes.
+- **SINGLE FRAME:** Always create exactly ONE root frame per design. Never create duplicate or test frames. If something fails, fix it on the existing frame rather than creating a new one.
+- **CLEANUP:** If a command fails mid-design, clean up any partial or orphaned elements immediately. Never leave stray nodes (empty text, broken frames) on the canvas. Use `get_page_nodes` + `delete_node` to remove debris before proceeding.
+- **CONNECT FIRST:** Always verify the Figmento connection is active before creating any elements. Call `connect_to_figma` at the start if not already connected.
+- **PARALLEL CALLS:** Batch independent element creation calls in parallel whenever possible (e.g., multiple rectangles or text elements that don't depend on each other's nodeIds).
+- **NAMING:** Name the root frame descriptively (e.g., "Café Noir — Instagram Post") so it's easy to find in Figma's layers panel. Give every element a descriptive layer name. Never leave default names like "Rectangle" or "Text". Use names that describe purpose (e.g., "CTA Button", "Hero Title", "Dark Overlay").
+
+## Design Intelligence
+
+The Figmento MCP server includes a knowledge base at `figmento-mcp-server/knowledge/` that provides design expertise. Consult these files for EVERY design task.
+
+### Knowledge Files
+
+| File | Purpose | When to Use |
+|------|---------|-------------|
+| `size-presets.yaml` | Dimensions for all social, print, presentation, and web formats | Choosing frame size for any design |
+| `typography.yaml` | Type scales, font pairings, line heights, letter spacing, weights | Selecting fonts, sizing text, building hierarchy |
+| `color-system.yaml` | Mood-based palettes, WCAG contrast, safe color combos | Choosing colors for any mood/brand |
+| `layout.yaml` | 8px grid, spacing scale, margins, safe zones, layout patterns | Spacing, padding, margins, element positioning |
+| `brand-kit-schema.yaml` | Brand kit format with Café Noir example | Loading/saving brand identities |
+| `print-design.yaml` | Brochure/folder layout patterns, print typography, spacing | Any print/brochure/folder/catalog design task |
+
+### Standard Design Workflow
+
+Follow this workflow for every design request:
+
+1. **Understand the request** — Parse what the user wants: format (Instagram post? Poster? Presentation? Brochure/folder?), mood/style, content, brand constraints. **For any print/brochure/folder/catalog task, always read `print-design.yaml` first and follow its layout patterns and typography minimums.**
+2. **Pick the size** — Look up the exact pixel dimensions in `size-presets.yaml`. Never guess dimensions.
+3. **Pick the palette** — Match the mood/style to a palette in `color-system.yaml`. If a brand kit exists, use its colors instead.
+4. **Pick the fonts** — Match the mood to a font pairing in `typography.yaml`. Use the recommended heading/body weights.
+5. **Choose a type scale** — Select the appropriate scale ratio from `typography.yaml`:
+   - `minor_third` (1.2) — documents, long reads, subtle hierarchy
+   - `major_third` (1.25) — general purpose, balanced, most designs
+   - `perfect_fourth` (1.333) — marketing, posters, strong hierarchy
+   - `golden_ratio` (1.618) — hero sections, display-heavy, dramatic
+6. **Plan the layout** — Pick a layout pattern from `layout.yaml` (centered-stack, split-half, full-bleed-with-overlay, etc.). Use the spacing scale — never use arbitrary pixel values.
+7. **Create the frame** — Set up the root frame with exact dimensions and background color.
+8. **Build content hierarchy** — Add elements top-down: most important first (headline), then supporting (subheadline, body), then action (CTA). Apply font sizes from the type scale.
+9. **Apply styling** — Colors, effects (shadows, gradients), corner radii, opacity.
+10. **Refine** — Check alignment, spacing consistency, contrast, whitespace balance.
+
+### Typography Selection Guide
+
+**By mood → font pairing:**
+| Mood | Pairing ID | Fonts |
+|------|-----------|-------|
+| Modern, tech, SaaS | `modern` | Inter + Inter |
+| Classic, editorial | `classic` | Playfair Display + Source Serif Pro |
+| Bold, marketing | `bold` | Montserrat + Hind |
+| Luxury, fashion | `luxury` | Cormorant Garamond + Proza Libre |
+| Playful, friendly | `playful` | Poppins + Nunito |
+| Corporate, finance | `corporate` | Roboto + Roboto Slab |
+| Journalistic, blog | `editorial` | Libre Baskerville + Open Sans |
+| Minimal, portfolio | `minimalist` | DM Sans + DM Sans |
+| Creative, agency | `creative` | Space Grotesk + General Sans |
+| Elegant, literary | `elegant` | Lora + Merriweather |
+
+**Line height rules (always apply):**
+- Display/hero text (>48px): line-height 1.1–1.2
+- Headings (H1–H3): line-height 1.3–1.4
+- Body text (14–18px): line-height 1.5–1.6
+- Captions/small (<14px): line-height 1.6–1.8
+
+**Letter spacing rules:**
+- Display text: -0.02em (tighten)
+- Headings: -0.01em
+- Body: 0 (natural)
+- Uppercase labels: +0.05 to +0.15em (open up)
+
+**Weight hierarchy:** 400 body → 500 emphasis → 600 subheadings → 700 headings → 800+ display
+
+**CRITICAL — Font Consistency Rule:**
+- When a prompt specifies a font (e.g., "use Outfit"), use ONLY that font for the ENTIRE design. Never mix it with Inter or any other font unless the prompt explicitly requests multiple fonts.
+- The typography pairing table above is for when NO font is specified. If the user names a font, that font overrides the table completely.
+- Before every `create_text` call, verify you are passing the correct `fontFamily` — do NOT rely on defaults.
+- If a design uses font pairings (heading + body), both fonts must be explicitly stated by the user. If only one font is mentioned, use it for everything.
+
+### Layout Composition Rules
+
+**Always use the 8px grid.** All spacing values must come from the spacing scale:
+`4 | 8 | 12 | 16 | 20 | 24 | 32 | 40 | 48 | 64 | 80 | 96 | 128`
+
+**Margins by format type:**
+- Social media: 40–60px (default 48px)
+- Print: 72–96px (default 72px)
+- Presentation slides: 60–80px (default 64px)
+- Web heroes: 40–80px (default 64px)
+- Posters: 96–128px (default 96px)
+
+**Social media safe zones (keep text inside these):**
+- Instagram: 150px from top/bottom, 60px from sides
+- TikTok: 100px top, 200px bottom, 60px left, 100px right
+- YouTube thumbnails: avoid bottom-right (timestamp overlay)
+
+**Minimum font sizes by format (mandatory — never go below these):**
+
+| Format | Display/Hero | Headline | Subheadline | Body | Caption/Label |
+|--------|-------------|----------|-------------|------|---------------|
+| Instagram/Social (1080px wide) | 72–120px | 48–72px | 32–40px | 28–32px | 22–26px |
+| Print (300dpi) | 80–140px | 56–80px | 36–48px | 24–32px | 18–24px |
+| Presentation (1920px wide) | 64–96px | 40–64px | 28–36px | 20–28px | 16–20px |
+| Web Hero (1440px wide) | 56–96px | 36–56px | 24–32px | 16–20px | 12–16px |
+
+**Visual hierarchy checklist:**
+- Headlines ≥ 2x body size
+- At least 2 weight steps between hierarchy levels
+- Primary text at full color, secondary at muted, tertiary at light muted
+- Section gaps ≥ 2x item gaps
+
+### Color Selection Guide
+
+**By mood → palette ID in `color-system.yaml`:**
+| Mood Keywords | Palette |
+|---------------|---------|
+| moody, dark, coffee, cinematic | `moody-dark` |
+| fresh, light, health, wellness | `fresh-light` |
+| corporate, business, finance | `corporate-professional` |
+| luxury, gold, premium, fashion | `luxury-premium` |
+| playful, fun, colorful, kids | `playful-fun` |
+| nature, organic, eco, botanical | `nature-organic` |
+| tech, digital, AI, startup | `tech-modern` |
+| warm, cozy, autumn, bakery | `warm-cozy` |
+| minimal, clean, monochrome | `minimal-clean` |
+| retro, vintage, nostalgic | `retro-vintage` |
+| ocean, calm, serene, spa | `ocean-calm` |
+| sunset, energy, sport, music | `sunset-energy` |
+
+**Contrast rules (mandatory):**
+- Normal text (<18px): minimum 4.5:1 ratio against background
+- Large text (≥18px): minimum 3:1 ratio against background
+- When in doubt, use the safe combos from `color-system.yaml`
+
+### Self-Evaluation Checklist
+
+After creating any design, mentally verify these 8 points:
+
+1. **Alignment** — Are all elements aligned to a consistent grid? No stray 3px offsets?
+2. **Contrast** — Is all text readable against its background? Does it pass WCAG AA?
+3. **Hierarchy** — Is it immediately clear what to read first, second, third?
+4. **Whitespace** — Is there enough breathing room? Or does it feel cramped?
+5. **Consistency** — Are spacing values, colors, and fonts consistent throughout?
+6. **Safe zones** — Is critical text within the platform's safe zone?
+7. **Balance** — Does the composition feel balanced, not top-heavy or lopsided?
+8. **Intent** — Does the design serve the user's stated goal and mood?
+
+If using `export_node` for self-evaluation, check the screenshot against these 8 points and iterate (max 2–3 passes).
+
+## HTML-to-Figma Pipeline
+
+When asked to create print designs (brochures, folders, flyers, posters) or any complex visual design, follow this pipeline:
+
+**STEP 1** — Read the brief (.md file) and assets (`assets/` folder)
+
+**STEP 2** — Generate a single self-contained HTML file per page:
+- Inline all CSS (no external stylesheets)
+- Embed assets as base64 data URIs in `<img>` tags
+- Use exact pixel dimensions matching the target (e.g., 2480x3508 for A4 300dpi)
+- Use Google Fonts via `@import`
+- Design as if building a premium landing page — use modern CSS: grid, flexbox, gradients, backdrop-filter, box-shadow, etc.
+- The HTML MUST look production-quality — this is your strength, use it fully
+
+**STEP 3** — Render each HTML to PNG using:
+```bash
+node scripts/render-html.js input.html output.png
+```
+
+**STEP 4** — Read the PNG as base64 and place in Figma via `create_image` MCP tool
+
+**STEP 5** — Each page becomes a separate frame in Figma, side by side
+
+### Design Quality Guidelines for HTML
+
+- Use CSS Grid and Flexbox for layouts
+- Use gradients, subtle shadows, and layered backgrounds for depth
+- Typography: Google Fonts, proper hierarchy with font-size, weight, letter-spacing
+- Colors: sophisticated palettes with primary, secondary, accent, neutrals
+- Whitespace: generous padding and margins (print needs breathing room)
+- For A4: think magazine/brochure quality, not website quality
+- Embed placeholder rectangles with labels for images you don't have
+- For images you DO have (in `assets/`): embed as base64 data URIs
+
+### File Organization
+
+```
+temp/designs/[project-name]/
+├── page-1.html
+├── page-1.png
+├── page-2.html
+├── page-2.png
+└── ...
+```
+
+Keep HTML files for iteration — user can ask to tweak and re-render.
+
+### Render Script
+
+Located at `scripts/render-html.js`. Usage:
+```bash
+node scripts/render-html.js <input.html> <output.png>
+```
+- Viewport: 2480x3508 (A4 at 300dpi)
+- Waits for fonts to load (`document.fonts.ready`)
+- Uses headless Chromium via Puppeteer
+
 ---
-*Synkra AIOS Claude Code Configuration v2.0*
+*Synkra AIOS Claude Code Configuration v2.1*

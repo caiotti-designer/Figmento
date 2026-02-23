@@ -1,0 +1,66 @@
+categories:
+  brochure:
+    description: "Multi-page print materials like folders, booklets, catalogs"
+    layout_patterns:
+      cover:
+        - full_bleed_image: "Large image covering 50-70% of page, text overlaid or below"
+        - split_diagonal: "Diagonal divide between image and solid color areas"
+        - centered_minimal: "Large centered title with generous whitespace, subtle background"
+        - bold_typography: "Typography-driven cover, minimal imagery, strong font hierarchy"
+      inner_page:
+        - two_column: "Content split into 2 columns for readability"
+        - sidebar_layout: "70/30 split - main content left, highlights/stats right sidebar"
+        - cards_grid: "2x2 or 3x1 card grid for features/benefits"
+        - full_width_sections: "Alternating full-width bands of content with different backgrounds"
+        - hero_stat: "One massive number/stat as focal point, supporting text around it"
+
+    design_principles:
+      - "CONTRAST between pages — alternate dark/light backgrounds across spreads"
+      - "Every page should have ONE clear focal point"
+      - "Use whitespace generously — 30-40% of page should be empty"
+      - "Consistent header system across all inner pages"
+      - "Footer with page number, brand name, contact on every page"
+      - "Image placeholders should show intended aspect ratio and position"
+
+    typography_for_print:
+      a4_minimum_sizes:
+        hero_number: 180  # "22 meses" style callouts
+        page_title: 80
+        section_title: 56
+        card_title: 36
+        body: 30
+        caption: 22
+        footer: 18
+      rules:
+        - "ONE font family per design unless explicitly told otherwise"
+        - "Maximum 3 font weights per design (e.g., 300, 400, 700)"
+        - "Title-to-body size ratio should be at least 2.5:1"
+        - "Use weight AND size for hierarchy, not just size"
+        - "Uppercase + letter-spacing (0.1em) for labels and categories"
+
+    color_strategies:
+      corporate_premium:
+        approach: "Dark cover, white inner pages, accent color for highlights"
+        cover_bg: "dark (navy, black, charcoal)"
+        inner_bg: "white or very light gray"
+        accent_usage: "page numbers, icons, key stats, CTA buttons, divider lines"
+      light_professional:
+        approach: "All white/light pages, color through headers and accent elements"
+      bold_alternating:
+        approach: "Alternate between dark and light pages for maximum contrast"
+
+    spacing:
+      margins: 96  # px, for A4 at 300dpi
+      section_gap: 80
+      card_padding: 32
+      card_gap: 24
+      header_height: 120
+      footer_height: 60
+
+    common_elements:
+      page_header: "Colored bar at top with page number + section title"
+      page_footer: "Thin accent line + brand name + website + page number"
+      divider: "Thin line (2px) in accent color between sections"
+      callout_box: "Rounded rectangle with accent left-border (4px) and light background"
+      stat_highlight: "Oversized number in accent color with label below"
+      cta_button: "Rounded rectangle in accent color with white text, centered"

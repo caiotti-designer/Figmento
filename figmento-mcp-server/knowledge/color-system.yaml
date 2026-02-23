@@ -1,0 +1,294 @@
+# ═══════════════════════════════════════════════════════════════
+# Figmento Design Intelligence — Color System
+# All colors as hex values. Each palette provides a complete set.
+# ═══════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────
+# Mood-to-Palette Mappings
+# Each palette: primary, secondary, accent, background, text, muted
+# ───────────────────────────────────────────────────────────────
+palettes:
+  - id: moody-dark
+    name: Moody / Dark
+    mood_tags: [moody, dark, dramatic, cinematic, noir, coffee, whiskey]
+    colors:
+      primary: "#2C1810"
+      secondary: "#4A3228"
+      accent: "#D4A574"
+      background: "#1A0E0A"
+      text: "#F5E6D3"
+      muted: "#8B6F5E"
+    description: "Deep browns and warm amber. Coffee shops, whiskey brands, moody photography."
+
+  - id: fresh-light
+    name: Fresh / Light
+    mood_tags: [fresh, light, airy, spring, clean, health, wellness]
+    colors:
+      primary: "#4CAF50"
+      secondary: "#81C784"
+      accent: "#29B6F6"
+      background: "#FAFFFE"
+      text: "#1B2E1B"
+      muted: "#A5D6A7"
+    description: "Whites with soft greens and sky blues. Health, wellness, organic brands."
+
+  - id: corporate-professional
+    name: Corporate / Professional
+    mood_tags: [corporate, professional, business, trustworthy, finance, enterprise]
+    colors:
+      primary: "#1E3A5F"
+      secondary: "#2C5282"
+      accent: "#3182CE"
+      background: "#FFFFFF"
+      text: "#1A202C"
+      muted: "#A0AEC0"
+    description: "Navy and slate with blue accents. Finance, enterprise, consulting."
+
+  - id: luxury-premium
+    name: Luxury / Premium
+    mood_tags: [luxury, premium, gold, elegant, exclusive, fashion, jewelry]
+    colors:
+      primary: "#1A1A1A"
+      secondary: "#2D2D2D"
+      accent: "#C9A84C"
+      background: "#0D0D0D"
+      text: "#F5F0E8"
+      muted: "#7A6F5D"
+    description: "Black and gold with cream. High-end fashion, jewelry, premium services."
+
+  - id: playful-fun
+    name: Playful / Fun
+    mood_tags: [playful, fun, colorful, vibrant, kids, games, party]
+    colors:
+      primary: "#FF6B6B"
+      secondary: "#4ECDC4"
+      accent: "#FFE66D"
+      background: "#FFFFFF"
+      text: "#2C3E50"
+      muted: "#95A5A6"
+    description: "Bright primaries with energy. Kids brands, gaming, events, food."
+
+  - id: nature-organic
+    name: Nature / Organic
+    mood_tags: [nature, organic, earth, botanical, sustainable, eco, garden]
+    colors:
+      primary: "#2D6A4F"
+      secondary: "#40916C"
+      accent: "#B7791F"
+      background: "#F0FFF4"
+      text: "#1B4332"
+      muted: "#95D5B2"
+    description: "Earth tones with forest green. Sustainability, organic products, outdoors."
+
+  - id: tech-modern
+    name: Tech / Modern
+    mood_tags: [tech, modern, digital, futuristic, startup, ai, cyber]
+    colors:
+      primary: "#0D1117"
+      secondary: "#161B22"
+      accent: "#58A6FF"
+      background: "#0D1117"
+      text: "#E6EDF3"
+      muted: "#484F58"
+    description: "Dark grays with electric blue. SaaS, AI, developer tools, startups."
+
+  - id: warm-cozy
+    name: Warm / Cozy
+    mood_tags: [warm, cozy, autumn, rustic, homey, bakery, cafe]
+    colors:
+      primary: "#C2590A"
+      secondary: "#A0522D"
+      accent: "#E8A87C"
+      background: "#FFF8F0"
+      text: "#3E2723"
+      muted: "#D7CCC8"
+    description: "Burnt orange and warm browns. Bakeries, cafes, autumn campaigns, home."
+
+  - id: minimal-clean
+    name: Minimal / Clean
+    mood_tags: [minimal, clean, simple, monochrome, black-and-white, scandinavian]
+    colors:
+      primary: "#000000"
+      secondary: "#333333"
+      accent: "#0066CC"
+      background: "#FFFFFF"
+      text: "#111111"
+      muted: "#999999"
+    description: "Black on white with one accent. Design studios, portfolios, architecture."
+
+  - id: retro-vintage
+    name: Retro / Vintage
+    mood_tags: [retro, vintage, nostalgic, 70s, 80s, groovy, film]
+    colors:
+      primary: "#D4A373"
+      secondary: "#CCD5AE"
+      accent: "#E76F51"
+      background: "#FEFAE0"
+      text: "#3D405B"
+      muted: "#A8A878"
+    description: "Muted pastels with mustard and burnt sienna. Film, music, retro brands."
+
+  - id: ocean-calm
+    name: Ocean / Calm
+    mood_tags: [ocean, calm, serene, spa, meditation, water, blue]
+    colors:
+      primary: "#0077B6"
+      secondary: "#00B4D8"
+      accent: "#90E0EF"
+      background: "#CAF0F8"
+      text: "#03045E"
+      muted: "#ADE8F4"
+    description: "Ocean blues and teals. Spa, wellness, travel, meditation apps."
+
+  - id: sunset-energy
+    name: Sunset / Energy
+    mood_tags: [sunset, energy, passionate, bold, dynamic, sport, music]
+    colors:
+      primary: "#E63946"
+      secondary: "#F4A261"
+      accent: "#E9C46A"
+      background: "#FFF8F0"
+      text: "#2D3436"
+      muted: "#DFE6E9"
+    description: "Warm gradients from red to gold. Sports, music, dynamic brands."
+
+# ───────────────────────────────────────────────────────────────
+# Legacy themes (migrated from types.ts for backward compatibility)
+# ───────────────────────────────────────────────────────────────
+legacy_themes:
+  - id: vibrant
+    name: Vibrant
+    primary: "#FF5733"
+    secondary: "#FFC300"
+    accent: "#C70039"
+    background: "#1A1A2E"
+    text: "#FFFFFF"
+
+  - id: dark
+    name: Dark
+    primary: "#BB86FC"
+    secondary: "#03DAC6"
+    accent: "#CF6679"
+    background: "#121212"
+    text: "#FFFFFF"
+
+# ───────────────────────────────────────────────────────────────
+# Presentation-Optimized Themes
+# ───────────────────────────────────────────────────────────────
+presentation_themes:
+  - id: corporate-blue
+    name: Corporate Blue
+    primary: "#1E3A5F"
+    secondary: "#4A90D9"
+    accent: "#F0B429"
+    background: "#FFFFFF"
+    text: "#1A1A1A"
+
+  - id: minimal-light
+    name: Minimal Light
+    primary: "#000000"
+    secondary: "#666666"
+    accent: "#0066CC"
+    background: "#FFFFFF"
+    text: "#1A1A1A"
+
+  - id: dark-mode
+    name: Dark Mode
+    primary: "#FFFFFF"
+    secondary: "#A0A0A0"
+    accent: "#4ECDC4"
+    background: "#121212"
+    text: "#FFFFFF"
+
+  - id: ocean-gradient
+    name: Ocean
+    primary: "#0077B6"
+    secondary: "#00B4D8"
+    accent: "#90E0EF"
+    background: "#CAF0F8"
+    text: "#03045E"
+
+  - id: forest-nature
+    name: Forest
+    primary: "#2D6A4F"
+    secondary: "#40916C"
+    accent: "#95D5B2"
+    background: "#D8F3DC"
+    text: "#1B4332"
+
+  - id: sunset-warm
+    name: Sunset
+    primary: "#E63946"
+    secondary: "#F4A261"
+    accent: "#E9C46A"
+    background: "#FFF8F0"
+    text: "#2D3436"
+
+# ───────────────────────────────────────────────────────────────
+# WCAG Contrast Reference
+# ───────────────────────────────────────────────────────────────
+wcag:
+  aa_normal_text:
+    ratio: 4.5
+    description: "Normal text (<18px regular, <14px bold) requires 4.5:1"
+  aa_large_text:
+    ratio: 3.0
+    description: "Large text (>=18px regular, >=14px bold) requires 3:1"
+  aaa_normal_text:
+    ratio: 7.0
+    description: "Enhanced (AAA) for normal text"
+  aaa_large_text:
+    ratio: 4.5
+    description: "Enhanced (AAA) for large text"
+
+# ───────────────────────────────────────────────────────────────
+# Safe Text/Background Combos (guaranteed AA compliant)
+# ───────────────────────────────────────────────────────────────
+safe_combos:
+  dark_on_light:
+    - text: "#000000"
+      bg: "#FFFFFF"
+      ratio: 21.0
+    - text: "#1A1A1A"
+      bg: "#FFFFFF"
+      ratio: 17.4
+    - text: "#1A1A1A"
+      bg: "#F5F5F5"
+      ratio: 15.3
+    - text: "#333333"
+      bg: "#FFFFFF"
+      ratio: 12.6
+    - text: "#2D3436"
+      bg: "#FFF8F0"
+      ratio: 12.1
+
+  light_on_dark:
+    - text: "#FFFFFF"
+      bg: "#000000"
+      ratio: 21.0
+    - text: "#FFFFFF"
+      bg: "#121212"
+      ratio: 17.9
+    - text: "#F5E6D3"
+      bg: "#1A0E0A"
+      ratio: 13.8
+    - text: "#E6EDF3"
+      bg: "#0D1117"
+      ratio: 15.1
+    - text: "#FFFFFF"
+      bg: "#1E3A5F"
+      ratio: 10.2
+
+  accent_on_backgrounds:
+    - text: "#0066CC"
+      bg: "#FFFFFF"
+      ratio: 5.8
+      note: "Blue link on white — passes AA"
+    - text: "#C9A84C"
+      bg: "#0D0D0D"
+      ratio: 6.2
+      note: "Gold accent on near-black"
+    - text: "#2D6A4F"
+      bg: "#F0FFF4"
+      ratio: 6.7
+      note: "Forest green on mint white"

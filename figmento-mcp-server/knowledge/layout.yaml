@@ -1,0 +1,237 @@
+# ═══════════════════════════════════════════════════════════════
+# Figmento Design Intelligence — Layout System
+# ═══════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────
+# 8px Grid System
+# ───────────────────────────────────────────────────────────────
+grid:
+  base_unit: 8
+  description: >
+    All spacing, sizing, and positioning should align to an 8px grid.
+    This ensures visual consistency and rhythm across the entire design.
+    Use 4px for fine adjustments (icons, small gaps) but default to 8px multiples.
+
+# ───────────────────────────────────────────────────────────────
+# Spacing Scale
+# Derived from 8px base with useful intermediate values.
+# Use these exact values — never arbitrary pixel amounts.
+# ───────────────────────────────────────────────────────────────
+spacing_scale:
+  - value: 4
+    token: "space-1"
+    use: "Tight gaps: between icon and label, inline elements"
+  - value: 8
+    token: "space-2"
+    use: "Compact spacing: list items, dense UI, tags"
+  - value: 12
+    token: "space-3"
+    use: "Small gaps: form field inner padding, compact cards"
+  - value: 16
+    token: "space-4"
+    use: "Default spacing: between paragraphs, standard padding"
+  - value: 20
+    token: "space-5"
+    use: "Comfortable: card padding, between related elements"
+  - value: 24
+    token: "space-6"
+    use: "Section inner padding, between card content blocks"
+  - value: 32
+    token: "space-8"
+    use: "Section padding, between distinct content groups"
+  - value: 40
+    token: "space-10"
+    use: "Large section padding, generous whitespace"
+  - value: 48
+    token: "space-12"
+    use: "Major section breaks, hero padding"
+  - value: 64
+    token: "space-16"
+    use: "Page-level section separation"
+  - value: 80
+    token: "space-20"
+    use: "Large format section breaks (posters, presentations)"
+  - value: 96
+    token: "space-24"
+    use: "Print margins, poster borders"
+  - value: 128
+    token: "space-32"
+    use: "Extra-large print margins, dramatic whitespace"
+
+# ───────────────────────────────────────────────────────────────
+# Margin Recommendations by Format Type
+# ───────────────────────────────────────────────────────────────
+margins:
+  social:
+    range: [40, 60]
+    default: 48
+    notes: >
+      Social media posts need breathing room from edges.
+      Instagram crops corners on some views — 48px minimum keeps text safe.
+  print:
+    range: [72, 96]
+    default: 72
+    notes: >
+      Print bleeds and trims eat into edges. 72px (≈0.24in at 300dpi)
+      is minimum safe margin. Use 96px for elegant layouts.
+  presentation:
+    range: [60, 80]
+    default: 64
+    notes: >
+      Presentation slides need generous margins for projected readability.
+      60-80px from each edge ensures content is never cut off.
+  web_hero:
+    range: [40, 80]
+    default: 64
+    notes: >
+      Web heroes scale responsively. Design at 64px for desktop,
+      content should be centered within this safe zone.
+  poster:
+    range: [96, 128]
+    default: 96
+    notes: >
+      Posters are viewed from a distance. Large margins create elegance
+      and prevent content from feeling crammed.
+
+# ───────────────────────────────────────────────────────────────
+# Safe Zones — Social Media
+# Keep important text/elements inside these boundaries.
+# ───────────────────────────────────────────────────────────────
+safe_zones:
+  instagram:
+    top: 150
+    bottom: 150
+    left: 60
+    right: 60
+    notes: >
+      Instagram may overlay username/caption at bottom and story
+      indicators at top. Keep critical content within safe zone.
+  facebook:
+    top: 60
+    bottom: 80
+    left: 60
+    right: 60
+    notes: "Facebook overlays reactions/shares at bottom"
+  tiktok:
+    top: 100
+    bottom: 200
+    left: 60
+    right: 100
+    notes: "Right side has engagement buttons, bottom has caption overlay"
+  youtube_thumbnail:
+    top: 40
+    bottom: 60
+    left: 40
+    right: 120
+    notes: "Bottom-right has timestamp overlay. Keep text top-left."
+
+# ───────────────────────────────────────────────────────────────
+# Visual Hierarchy Rules
+# ───────────────────────────────────────────────────────────────
+hierarchy:
+  size_contrast:
+    description: >
+      Headlines should be at least 2x the body text size.
+      Display text can be 3-5x body size for maximum impact.
+    examples:
+      - body: 16
+        heading: 32
+        display: 64
+      - body: 14
+        heading: 28
+        display: 56
+
+  weight_contrast:
+    description: >
+      Use at least 2 weight steps between hierarchy levels.
+      Body at 400, subheadings at 600, headings at 700+.
+
+  color_contrast:
+    description: >
+      Primary content: full text color (e.g., #1A1A1A).
+      Secondary content: muted color (e.g., #666666).
+      Tertiary/meta: light muted (e.g., #999999).
+      Accent: use sparingly for CTAs and links only.
+
+  spacing_hierarchy:
+    description: >
+      More space = more importance. Group related items with less space,
+      separate sections with more space. The ratio should be at least 2:1
+      between section gaps and item gaps.
+    example:
+      between_items: 16
+      between_groups: 32
+      between_sections: 64
+
+# ───────────────────────────────────────────────────────────────
+# Common Layout Patterns
+# ───────────────────────────────────────────────────────────────
+patterns:
+  centered_stack:
+    description: "All content centered vertically and horizontally in a stack."
+    best_for: [social posts, quotes, announcements, title slides]
+    structure:
+      layout: VERTICAL
+      alignment: CENTER
+      elements: [headline, subheadline, body, cta]
+    notes: "Most versatile social media layout. Safe default."
+
+  split_half:
+    description: "Frame divided into two equal halves — image + text."
+    best_for: [linkedin posts, facebook ads, presentation slides, web heroes]
+    structure:
+      layout: HORIZONTAL
+      children:
+        - type: image_area
+          width: "50%"
+        - type: content_area
+          width: "50%"
+          layout: VERTICAL
+    notes: "Can be left-image or right-image. Text side gets auto-layout."
+
+  thirds_grid:
+    description: "Content arranged in a 3-column or 3-row grid."
+    best_for: [feature lists, comparison, team pages, product grids]
+    structure:
+      layout: HORIZONTAL
+      columns: 3
+      gap: 24
+    notes: "Each cell is a card or feature block. Equal widths."
+
+  full_bleed_with_overlay:
+    description: "Full-bleed background image with text overlay on gradient/scrim."
+    best_for: [hero sections, instagram stories, event posters, youtube thumbnails]
+    structure:
+      layers:
+        - type: background_image
+          size: fill
+        - type: gradient_overlay
+          direction: bottom_to_top
+          from: "rgba(0,0,0,0.7)"
+          to: "rgba(0,0,0,0)"
+        - type: content
+          position: bottom
+          layout: VERTICAL
+    notes: "Scrim gradient ensures text readability over any image."
+
+  card_grid:
+    description: "Grid of uniform cards with image, title, description."
+    best_for: [product catalogs, blog grids, portfolio, team pages]
+    structure:
+      layout: VERTICAL
+      rows:
+        - layout: HORIZONTAL
+          cards: [card, card, card]
+    notes: "Cards have consistent height. 2-4 per row depending on format."
+
+  hero_with_sidebar:
+    description: "Large content area with narrow sidebar/info column."
+    best_for: [dashboards, blog posts, documentation, settings pages]
+    structure:
+      layout: HORIZONTAL
+      children:
+        - type: sidebar
+          width: 280
+        - type: main_content
+          width: fill
+    notes: "Sidebar can be left or right. Main content fills remaining space."

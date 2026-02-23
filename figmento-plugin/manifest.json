@@ -1,0 +1,26 @@
+{
+  "name": "Figmento MCP",
+  "id": "figmento-mcp-plugin",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": [
+    "figma"
+  ],
+  "networkAccess": {
+    "allowedDomains": [
+      "https://api.anthropic.com",
+      "https://fonts.googleapis.com",
+      "https://fonts.gstatic.com",
+      "https://generativelanguage.googleapis.com"
+    ],
+    "devAllowedDomains": [
+      "http://localhost:3055",
+      "ws://localhost:3055"
+    ],
+    "reasoning": "Anthropic API for AI chat, Google Fonts for text rendering, Google AI for image generation, localhost for MCP WebSocket bridge"
+  },
+  "permissions": [
+    "currentuser"
+  ]
+}

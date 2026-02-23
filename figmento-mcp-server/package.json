@@ -1,0 +1,25 @@
+{
+  "name": "figmento-mcp-server",
+  "version": "1.0.0",
+  "description": "Figmento MCP server — design tools for Claude Code to control Figma",
+  "main": "dist/index.js",
+  "bin": {
+    "figmento-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "node build.js",
+    "start": "node dist/index.js",
+    "dev": "node build.js && node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "ws": "^8.18.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/ws": "^8.5.13",
+    "esbuild": "^0.20.2",
+    "typescript": "^5.3.3"
+  }
+}

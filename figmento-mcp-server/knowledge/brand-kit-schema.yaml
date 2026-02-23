@@ -1,0 +1,206 @@
+# ═══════════════════════════════════════════════════════════════
+# Figmento Design Intelligence — Brand Kit Schema
+# This file defines the YAML schema for brand kits and includes
+# a complete example (Café Noir) as reference.
+# ═══════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────
+# Brand Kit Schema Definition
+# All fields marked [required] must be present.
+# Fields marked [optional] can be omitted.
+# ───────────────────────────────────────────────────────────────
+schema:
+  version: "1.0"
+
+  fields:
+    brand_name:
+      type: string
+      required: true
+      description: "Official brand name"
+
+    brand_id:
+      type: string
+      required: true
+      description: "URL-safe identifier (lowercase, hyphens, no spaces)"
+
+    tagline:
+      type: string
+      required: false
+      description: "Brand tagline or slogan"
+
+    colors:
+      type: object
+      required: true
+      fields:
+        primary:
+          type: hex_color
+          required: true
+          description: "Main brand color — used for key elements, CTAs, headers"
+        secondary:
+          type: hex_color
+          required: true
+          description: "Supporting color — used for secondary buttons, accents"
+        accent:
+          type: hex_color
+          required: true
+          description: "Highlight color — used sparingly for emphasis"
+        background:
+          type: hex_color
+          required: true
+          description: "Default background color"
+        text:
+          type: hex_color
+          required: true
+          description: "Default text color"
+        muted:
+          type: hex_color
+          required: false
+          description: "Secondary/muted text, borders, dividers"
+        surface:
+          type: hex_color
+          required: false
+          description: "Card/panel background (slightly off from main background)"
+        error:
+          type: hex_color
+          required: false
+          description: "Error state color"
+        success:
+          type: hex_color
+          required: false
+          description: "Success state color"
+
+    typography:
+      type: object
+      required: true
+      fields:
+        heading_font:
+          type: string
+          required: true
+          description: "Font family for headings (must be available in Figma)"
+        body_font:
+          type: string
+          required: true
+          description: "Font family for body text"
+        heading_weight:
+          type: number
+          required: false
+          default: 700
+          description: "Default heading font weight"
+        body_weight:
+          type: number
+          required: false
+          default: 400
+          description: "Default body font weight"
+        type_scale:
+          type: string
+          required: false
+          enum: [minor_third, major_third, perfect_fourth, golden_ratio]
+          default: major_third
+          description: "Type scale ratio to use"
+
+    logo:
+      type: object
+      required: false
+      fields:
+        primary_path:
+          type: string
+          description: "Path to primary logo file (SVG or PNG)"
+        icon_path:
+          type: string
+          description: "Path to icon/mark-only version"
+        min_size:
+          type: number
+          description: "Minimum logo size in pixels"
+        clear_space:
+          type: number
+          description: "Minimum clear space around logo in pixels"
+
+    voice:
+      type: object
+      required: false
+      fields:
+        tone:
+          type: string[]
+          description: "Tone keywords (e.g., warm, professional, playful)"
+        personality:
+          type: string
+          description: "One-sentence brand personality description"
+        do:
+          type: string[]
+          description: "Writing style do's"
+        dont:
+          type: string[]
+          description: "Writing style don'ts"
+
+    social:
+      type: object
+      required: false
+      fields:
+        default_format:
+          type: string
+          description: "Default social post format ID (e.g., ig-post)"
+        hashtags:
+          type: string[]
+          description: "Brand hashtags to include"
+        handle:
+          type: string
+          description: "Social media handle"
+
+# ═══════════════════════════════════════════════════════════════
+# Example Brand Kit — Café Noir
+# ═══════════════════════════════════════════════════════════════
+example:
+  brand_name: "Café Noir"
+  brand_id: "cafe-noir"
+  tagline: "Where every cup tells a story"
+
+  colors:
+    primary: "#2C1810"
+    secondary: "#4A3228"
+    accent: "#D4A574"
+    background: "#1A0E0A"
+    text: "#F5E6D3"
+    muted: "#8B6F5E"
+    surface: "#231510"
+    error: "#C0392B"
+    success: "#27AE60"
+
+  typography:
+    heading_font: "Playfair Display"
+    body_font: "Lora"
+    heading_weight: 700
+    body_weight: 400
+    type_scale: "major_third"
+
+  logo:
+    primary_path: "assets/cafe-noir-logo.svg"
+    icon_path: "assets/cafe-noir-icon.svg"
+    min_size: 48
+    clear_space: 24
+
+  voice:
+    tone:
+      - warm
+      - artisanal
+      - storytelling
+      - intimate
+    personality: "A knowledgeable friend who takes you on a sensory journey through coffee culture."
+    do:
+      - "Use rich, sensory language (aroma, velvety, complex)"
+      - "Tell origin stories of beans and blends"
+      - "Speak with warmth and personal touch"
+      - "Reference craftsmanship and process"
+    dont:
+      - "Use corporate jargon or buzzwords"
+      - "Be overly casual or use slang"
+      - "Rush — let the words breathe like the coffee"
+      - "Use generic coffee descriptions (best coffee ever)"
+
+  social:
+    default_format: "ig-post"
+    hashtags:
+      - "#CaféNoir"
+      - "#CoffeeStories"
+      - "#ArtisanCoffee"
+      - "#SlowBrew"
+    handle: "@cafenoir"

@@ -42,3 +42,9 @@ Thumbs.db
 .claude/settings.local.json
 .aios/install-log.txt
 nul
+
+# Editor state
+.cursor/
+
+# Temporary design renders
+temp/

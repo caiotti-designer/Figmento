@@ -1,0 +1,248 @@
+# ═══════════════════════════════════════════════════════════════
+# Figmento Design Intelligence — Typography System
+# ═══════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────
+# Type Scales
+# Each scale generates sizes from a base of 16px using the ratio.
+# Sizes below base go down: base / ratio^n
+# Sizes above base go up:   base * ratio^n
+# ───────────────────────────────────────────────────────────────
+type_scales:
+  minor_third:
+    name: Minor Third
+    ratio: 1.2
+    description: "Subtle contrast. Good for long-form reading, documents, ebooks."
+    sizes:
+      xs: 11      # 16 / 1.2^2 ≈ 11.1
+      sm: 13      # 16 / 1.2   ≈ 13.3
+      base: 16
+      lg: 19      # 16 * 1.2   = 19.2
+      xl: 23      # 16 * 1.2^2 = 23.0
+      "2xl": 28   # 16 * 1.2^3 = 27.6
+      "3xl": 33   # 16 * 1.2^4 = 33.2
+      "4xl": 40   # 16 * 1.2^5 = 39.8
+      display: 48  # 16 * 1.2^6 = 47.8
+
+  major_third:
+    name: Major Third
+    ratio: 1.25
+    description: "Balanced contrast. Versatile for most designs."
+    sizes:
+      xs: 10      # 16 / 1.25^2 ≈ 10.2
+      sm: 13      # 16 / 1.25   = 12.8
+      base: 16
+      lg: 20      # 16 * 1.25   = 20.0
+      xl: 25      # 16 * 1.25^2 = 25.0
+      "2xl": 31   # 16 * 1.25^3 = 31.3
+      "3xl": 39   # 16 * 1.25^4 = 39.1
+      "4xl": 49   # 16 * 1.25^5 = 48.8
+      display: 61  # 16 * 1.25^6 = 61.0
+
+  perfect_fourth:
+    name: Perfect Fourth
+    ratio: 1.333
+    description: "Strong contrast. Great for marketing, posters, presentations."
+    sizes:
+      xs: 9       # 16 / 1.333^2 ≈ 9.0
+      sm: 12      # 16 / 1.333   = 12.0
+      base: 16
+      lg: 21      # 16 * 1.333   = 21.3
+      xl: 28      # 16 * 1.333^2 = 28.4
+      "2xl": 38   # 16 * 1.333^3 = 37.9
+      "3xl": 51   # 16 * 1.333^4 = 50.5
+      "4xl": 67   # 16 * 1.333^5 = 67.3
+      display: 90  # 16 * 1.333^6 = 89.7
+
+  golden_ratio:
+    name: Golden Ratio
+    ratio: 1.618
+    description: "Dramatic contrast. Hero sections, display typography, impactful headlines."
+    sizes:
+      xs: 6       # 16 / 1.618^2 ≈ 6.1
+      sm: 10      # 16 / 1.618   = 9.9
+      base: 16
+      lg: 26      # 16 * 1.618   = 25.9
+      xl: 42      # 16 * 1.618^2 = 41.9
+      "2xl": 68   # 16 * 1.618^3 = 67.8
+      "3xl": 110  # 16 * 1.618^4 = 109.7
+      display: 177 # 16 * 1.618^5 = 177.4
+
+# ───────────────────────────────────────────────────────────────
+# Font Pairings
+# heading_font: used for h1, h2, h3, display text
+# body_font: used for paragraphs, captions, labels
+# All fonts are Google Fonts (available in Figma)
+# ───────────────────────────────────────────────────────────────
+font_pairings:
+  - id: modern
+    name: Modern
+    heading_font: Inter
+    body_font: Inter
+    mood_tags: [modern, clean, tech, neutral, versatile]
+    description: "Swiss-style clarity. Works for SaaS, tech, portfolios."
+    recommended_heading_weight: 700
+    recommended_body_weight: 400
+
+  - id: classic
+    name: Classic
+    heading_font: Playfair Display
+    body_font: Source Serif Pro
+    mood_tags: [classic, elegant, editorial, literary, traditional]
+    description: "Serif pairing with old-style charm. Editorial, publishing, luxury."
+    recommended_heading_weight: 700
+    recommended_body_weight: 400
+
+  - id: bold
+    name: Bold
+    heading_font: Montserrat
+    body_font: Hind
+    mood_tags: [bold, strong, confident, marketing, startup]
+    description: "Geometric sans with strong presence. Marketing, agencies, startups."
+    recommended_heading_weight: 800
+    recommended_body_weight: 400
+
+  - id: luxury
+    name: Luxury
+    heading_font: Cormorant Garamond
+    body_font: Proza Libre
+    mood_tags: [luxury, premium, fashion, sophisticated, refined]
+    description: "High-contrast serif meets humanist sans. Fashion, luxury brands."
+    recommended_heading_weight: 600
+    recommended_body_weight: 400
+
+  - id: playful
+    name: Playful
+    heading_font: Poppins
+    body_font: Nunito
+    mood_tags: [playful, friendly, fun, approachable, youthful]
+    description: "Rounded geometrics with warmth. Kids brands, casual apps, food."
+    recommended_heading_weight: 700
+    recommended_body_weight: 400
+
+  - id: corporate
+    name: Corporate
+    heading_font: Roboto
+    body_font: Roboto Slab
+    mood_tags: [corporate, professional, trustworthy, stable, enterprise]
+    description: "Google's workhorse with slab variant. Enterprise, business, fintech."
+    recommended_heading_weight: 700
+    recommended_body_weight: 400
+
+  - id: editorial
+    name: Editorial
+    heading_font: Libre Baskerville
+    body_font: Open Sans
+    mood_tags: [editorial, journalistic, readable, authoritative, content]
+    description: "Transitional serif headings with clean sans body. News, blogs, long reads."
+    recommended_heading_weight: 700
+    recommended_body_weight: 400
+
+  - id: minimalist
+    name: Minimalist
+    heading_font: DM Sans
+    body_font: DM Sans
+    mood_tags: [minimalist, simple, understated, quiet, focused]
+    description: "Single-family simplicity. Design portfolios, minimal brands."
+    recommended_heading_weight: 700
+    recommended_body_weight: 400
+
+  - id: creative
+    name: Creative
+    heading_font: Space Grotesk
+    body_font: General Sans
+    mood_tags: [creative, artistic, experimental, design, studio]
+    description: "Quirky monospace-inspired grotesk. Creative agencies, design studios."
+    recommended_heading_weight: 700
+    recommended_body_weight: 400
+    note: "General Sans may need manual install in Figma; fallback to Work Sans"
+
+  - id: elegant
+    name: Elegant
+    heading_font: Lora
+    body_font: Merriweather
+    mood_tags: [elegant, warm, literary, sophisticated, timeless]
+    description: "Dual-serif pairing with calligraphic flair. Books, weddings, wine."
+    recommended_heading_weight: 700
+    recommended_body_weight: 400
+
+# ───────────────────────────────────────────────────────────────
+# Line Height Rules
+# ───────────────────────────────────────────────────────────────
+line_height:
+  display:
+    range: [1.1, 1.2]
+    use: "Hero text, large display headings (>48px)"
+  headings:
+    range: [1.3, 1.4]
+    use: "H1-H3, section titles"
+  body:
+    range: [1.5, 1.6]
+    use: "Paragraphs, body text (14-18px)"
+  small:
+    range: [1.6, 1.8]
+    use: "Captions, footnotes, labels (<14px)"
+
+# ───────────────────────────────────────────────────────────────
+# Letter Spacing Guidelines
+# Values in em (relative to font size)
+# ───────────────────────────────────────────────────────────────
+letter_spacing:
+  display: -0.02    # Tighten large display text
+  headings: -0.01   # Slightly tighten headings
+  body: 0           # Natural spacing for body
+  uppercase: 0.05   # Open up uppercase text
+  labels: 0.10      # Wide-spaced small labels
+  all_caps_loose: 0.15  # Very open for stylistic all-caps
+
+# ───────────────────────────────────────────────────────────────
+# Font Weight Usage
+# ───────────────────────────────────────────────────────────────
+weight_usage:
+  300:
+    name: Light
+    use: "Decorative, large display text only. Avoid for body."
+  400:
+    name: Regular
+    use: "Body text, paragraphs, descriptions, default weight."
+  500:
+    name: Medium
+    use: "Emphasis within body, navigation links, buttons."
+  600:
+    name: SemiBold
+    use: "Subheadings, card titles, labels."
+  700:
+    name: Bold
+    use: "Headings (H1-H3), CTAs, strong emphasis."
+  800:
+    name: ExtraBold
+    use: "Display/hero text, impact statements."
+  900:
+    name: Black
+    use: "Oversized display only. Very sparingly."
+
+# ───────────────────────────────────────────────────────────────
+# Available Google Fonts (confirmed in Figma)
+# ───────────────────────────────────────────────────────────────
+available_fonts:
+  - Inter
+  - Roboto
+  - Roboto Slab
+  - Open Sans
+  - Montserrat
+  - Poppins
+  - Playfair Display
+  - Lora
+  - Merriweather
+  - Space Grotesk
+  - DM Sans
+  - Raleway
+  - Oswald
+  - Nunito
+  - Work Sans
+  - Bebas Neue
+  - Source Serif Pro
+  - Libre Baskerville
+  - Cormorant Garamond
+  - Hind
+  - Proza Libre
