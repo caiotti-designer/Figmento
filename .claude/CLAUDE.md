@@ -364,6 +364,26 @@ Follow this workflow for every design request:
 - Large text (≥18px): minimum 3:1 ratio against background
 - When in doubt, use the safe combos from `color-system.yaml`
 
+### Common Design Patterns
+
+**Button pattern:**
+To create a button, use `create_frame` with auto-layout (`layoutMode: "HORIZONTAL"`), padding (12–16px vertical, 24–32px horizontal), `cornerRadius` (8–24), background fill, then `create_text` as a child with `layoutSizingHorizontal: "FILL"`. Do NOT create separate rect + text — always use an auto-layout frame as the container.
+
+**Badge / pill / chip pattern:**
+Same as button but smaller: `cornerRadius` fully rounded (`height / 2`), padding (4–8px vertical, 12–16px horizontal), smaller font size (12–14px).
+
+**Icon usage:**
+The `create_icon` tool places Lucide icons by name. Use it for UI icons like `check`, `arrow-right`, `map-pin`, `phone`, `mail`, `star`, `heart`, `shopping-cart`, `menu`, `search`, etc. Pass `svgPaths` for precise rendering or omit for basic fallback shapes.
+
+**Canvas spacing rule:**
+When creating multiple top-level designs, offset each new design **200px to the right** of the previous one's right edge. Use `get_page_nodes` to find existing frame positions before placing new ones.
+
+**Repeated elements pattern:**
+Use `clone_node` for repeated patterns like menu items, cards, tags, speaker cards. Create one instance, clone it with `offsetX`/`offsetY`, then update text/fills on the clone. This is faster and more consistent than creating each element from scratch.
+
+**AI-generated image placement:**
+When placing AI-generated images, ALWAYS use `place_generated_image` with the file path from mcp-image output. NEVER read image files into base64 manually or pass base64 through bash — the strings are too large for the parameter system. The `place_generated_image` tool reads files server-side and handles all encoding internally. Use the `scaleMode` parameter to control fit: `FILL` (default, crops to fill), `FIT` (contains within bounds), `CROP`, or `TILE`.
+
 ### Self-Evaluation Checklist
 
 After creating any design, mentally verify these 8 points:
@@ -378,6 +398,50 @@ After creating any design, mentally verify these 8 points:
 8. **Intent** — Does the design serve the user's stated goal and mood?
 
 If using `export_node` for self-evaluation, check the screenshot against these 8 points and iterate (max 2–3 passes).
+
+### Automated Self-Evaluation Workflow
+
+After creating or significantly modifying a design (new frames, multi-element compositions, carousels, etc.), **automatically run one evaluation pass** without the user asking. This is optional but strongly encouraged for quality assurance.
+
+**Workflow:**
+
+1. **Call `evaluate_design`** on the root frame node ID. This returns:
+   - A PNG file path (view it to inspect the design visually)
+   - A structural summary: all elements with their types, positions, sizes, fonts, colors
+   - Stats: total elements, text node count, unique font sizes, typography level count
+
+2. **Review the exported image** (read the file at `filePath`) and the structural data. Check against this **format-aware checklist**:
+
+   | Check | What to verify | Data source |
+   |-------|---------------|-------------|
+   | Typography hierarchy | At least 3 distinct font size levels (display, heading, body). `stats.typographyLevels >= 3` | `stats.uniqueFontSizes` |
+   | Safe zone compliance | Text elements are inside platform safe zones. Use `get_layout_guide` with the current format to get exact margins/safe zones, then verify all text `x`/`y` positions respect them. | `elements[].x/y` + `get_layout_guide` |
+   | Contrast ratios | For each text element, check its fill color against the parent/background fill using `get_contrast_check`. Must pass WCAG AA. | `elements[].fills` |
+   | Spacing consistency | Gaps between elements should use values from the 8px grid spacing scale (4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96, 128). Flag irregular gaps. | `elements[].x/y` positions |
+   | Visual balance | No large empty areas on one side while the other is crowded. Text and images distributed evenly. | Visual inspection of PNG |
+   | Image placement | Images are properly sized, not stretched, and placed within frame bounds. | `elements[].width/height` for IMAGE type |
+   | CTA visibility | If there's a button/CTA, it should be prominent — large enough, high contrast, in the lower third or center. | Visual + structural |
+
+3. **Apply fixes** using existing tools (`move_node`, `resize_node`, `set_fill`, `create_text`, etc.) for any issues found.
+
+4. **Maximum 2 evaluation passes.** After the second pass, stop iterating and report any remaining issues to the user. Never loop indefinitely.
+
+**When to trigger:**
+- After creating a new design frame with 5+ elements
+- After completing a multi-slide carousel (evaluate at least the first slide)
+- After major layout restructuring
+- NOT for single-element tweaks (moving one node, changing one color)
+
+**Example flow for a 3-slide carousel:**
+```
+1. Create all 3 slides
+2. Call evaluate_design on slide 1's root frame
+3. Read the PNG file, inspect structural data
+4. Find issue: body text at 18px is too small for Instagram (minimum 28px)
+5. Fix: resize body text to 30px via resize_node or update text properties
+6. Call evaluate_design again (pass 2) to confirm fix
+7. Report: "Evaluated slide 1 — fixed body text size from 18px to 30px. Passes all checks."
+```
 
 ## HTML-to-Figma Pipeline
 

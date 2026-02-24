@@ -4,7 +4,7 @@ import { registerConnectionTools } from './tools/connection';
 import { registerCanvasTools } from './tools/canvas';
 import { registerStyleTools } from './tools/style';
 import { registerSceneTools } from './tools/scene';
-import { registerExportNodeTool, registerExportToFileTool } from './tools/export';
+import { registerExportNodeTool, registerExportToFileTool, registerEvaluateDesignTool } from './tools/export';
 import { registerBatchTools } from './tools/batch';
 import { registerIntelligenceTools } from './tools/intelligence';
 import { registerTemplateTools } from './tools/template';
@@ -46,6 +46,7 @@ export function createFigmentoServer(): McpServer {
   registerSceneTools(server, sendDesignCommand);
   registerExportNodeTool(server, sendDesignCommand);
   registerExportToFileTool(server, sendDesignCommand);
+  registerEvaluateDesignTool(server, sendDesignCommand);
   registerBatchTools(server, sendDesignCommand);
   registerIntelligenceTools(server);
   registerTemplateTools(server, sendDesignCommand);

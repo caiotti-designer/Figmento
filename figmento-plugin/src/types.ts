@@ -19,6 +19,7 @@ export interface Fill {
   color?: string;
   opacity?: number;
   gradientStops?: GradientStop[];
+  gradientDirection?: 'left-right' | 'right-left' | 'top-bottom' | 'bottom-top';
 }
 
 export interface Stroke {
@@ -40,6 +41,9 @@ export interface TextSegment {
   fontWeight?: number;
   fontSize?: number;
   color?: string;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
 }
 
 export interface TextProperties {
@@ -51,6 +55,9 @@ export interface TextProperties {
   textAlign?: 'LEFT' | 'CENTER' | 'RIGHT';
   lineHeight?: number | 'AUTO';
   letterSpacing?: number;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
   segments?: TextSegment[];
 }
 
@@ -71,6 +78,7 @@ export interface UIElement {
   imageDescription?: string;
   lucideIcon?: string;
   generatedImage?: string;
+  scaleMode?: 'FILL' | 'FIT' | 'CROP' | 'TILE';
   svgPaths?: string[];
 
   opacity?: number;

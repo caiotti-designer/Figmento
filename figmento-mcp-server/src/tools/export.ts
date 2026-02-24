@@ -22,6 +22,126 @@ export function registerExportNodeTool(server: McpServer, sendDesignCommand: Sen
   );
 }
 
+export function registerEvaluateDesignTool(server: McpServer, sendDesignCommand: SendDesignCommand): void {
+  server.tool(
+    'evaluate_design',
+    'Evaluate a design by exporting it to a PNG file and returning structural data (children tree with sizes, positions, fonts, colors). Use this after creating or significantly modifying a design to self-review. Returns both the file path (for visual inspection) and the node tree (for structural analysis). Maximum 2 evaluation passes per design.',
+    {
+      nodeId: z.string().describe('Root frame node ID to evaluate'),
+      format: z.string().optional().describe('Export format: PNG or JPG (default: PNG)'),
+      scale: z.number().optional().describe('Export scale (default: 2 for high-res evaluation)'),
+      depth: z.number().optional().describe('How many levels deep to traverse the node tree (default: 3). Use higher values for complex designs.'),
+    },
+    async (params) => {
+      // 1. Export the node to a file on disk
+      const scale = params.scale != null ? Number(params.scale) : 2;
+      const format = params.format || 'PNG';
+      const exportData = await sendDesignCommand('export_node', {
+        nodeId: params.nodeId,
+        format,
+        scale,
+      });
+
+      const base64String = exportData.base64 as string;
+      if (!base64String) {
+        throw new Error('export_node returned no base64 data. The node may be empty or invalid.');
+      }
+
+      const base64Clean = base64String.replace(/^data:image\/[a-z]+;base64,/, '');
+
+      const projectRoot = process.cwd();
+      const targetDir = nodePath.join(projectRoot, 'temp', 'exports');
+      fs.mkdirSync(targetDir, { recursive: true });
+
+      const ext = format.toLowerCase();
+      const filePath = nodePath.join(targetDir, `eval-latest.${ext}`);
+      const buffer = Buffer.from(base64Clean, 'base64');
+      fs.writeFileSync(filePath, buffer);
+
+      // 2. Get structural node info (deep recursive tree from plugin)
+      const traversalDepth = params.depth ?? 10;
+      const nodeInfo = await sendDesignCommand('get_node_info', {
+        nodeId: params.nodeId,
+        depth: traversalDepth,
+      });
+
+      // 3. Flatten the deep tree into an elements array for stats
+      const elements: Array<Record<string, unknown>> = [];
+
+      function walkTree(node: Record<string, unknown>) {
+        const entry: Record<string, unknown> = {
+          id: node.id,
+          name: node.name,
+          type: node.type,
+        };
+        if (node.x !== undefined) entry.x = node.x;
+        if (node.y !== undefined) entry.y = node.y;
+        if (node.width !== undefined) entry.width = node.width;
+        if (node.height !== undefined) entry.height = node.height;
+        if (node.fontSize !== undefined) entry.fontSize = node.fontSize;
+        if (node.fontFamily !== undefined) entry.fontFamily = node.fontFamily;
+        if (node.fontWeight !== undefined) entry.fontWeight = node.fontWeight;
+        if (node.fills !== undefined) entry.fills = node.fills;
+        if (node.opacity !== undefined && node.opacity !== 1) entry.opacity = node.opacity;
+        if (node.characters !== undefined) entry.characters = node.characters;
+        if (node.cornerRadius !== undefined) entry.cornerRadius = node.cornerRadius;
+        if (node.layoutMode !== undefined) entry.layoutMode = node.layoutMode;
+        if (node.itemSpacing !== undefined) entry.itemSpacing = node.itemSpacing;
+        if (node.paddingLeft !== undefined) entry.padding = {
+          left: node.paddingLeft, right: node.paddingRight,
+          top: node.paddingTop, bottom: node.paddingBottom,
+        };
+        elements.push(entry);
+
+        // Recurse into children — the plugin already controls depth,
+        // so we just walk everything we received
+        if (Array.isArray(node.children)) {
+          for (const child of node.children) {
+            walkTree(child as Record<string, unknown>);
+          }
+        }
+      }
+
+      walkTree(nodeInfo as Record<string, unknown>);
+
+      // 4. Compute basic stats for the checklist
+      const textNodes = elements.filter(e => e.type === 'TEXT');
+      const fontSizes = textNodes
+        .map(e => e.fontSize as number)
+        .filter(s => s !== undefined)
+        .sort((a, b) => b - a);
+      const uniqueFontSizes = [...new Set(fontSizes)];
+
+      const rootNode = elements[0] || {};
+      const frameWidth = (rootNode.width as number) || 0;
+      const frameHeight = (rootNode.height as number) || 0;
+
+      const stats = {
+        totalElements: elements.length,
+        textNodes: textNodes.length,
+        uniqueFontSizes,
+        typographyLevels: uniqueFontSizes.length,
+        frameSize: { width: frameWidth, height: frameHeight },
+      };
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            filePath,
+            format,
+            scale,
+            sizeBytes: buffer.length,
+            nodeId: params.nodeId,
+            stats,
+            elements,
+          }, null, 2),
+        }],
+      };
+    }
+  );
+}
+
 export function registerExportToFileTool(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'export_node_to_file',
@@ -31,6 +151,7 @@ export function registerExportToFileTool(server: McpServer, sendDesignCommand: S
       format: z.string().optional().describe('Export format: PNG or JPG (default: PNG)'),
       scale: z.number().optional().describe('Export scale (default: 2 for high-res evaluation)'),
       outputDir: z.string().optional().describe('Custom output directory (default: temp/exports in project root). Must be within project directory.'),
+      fileName: z.string().optional().describe('Custom file name (without extension). If provided, saves as temp/exports/{fileName}.{ext}. Only alphanumeric, hyphens, and underscores allowed.'),
     },
     async (params) => {
       // 1. Call existing export_node to get base64 from plugin
@@ -74,13 +195,20 @@ export function registerExportToFileTool(server: McpServer, sendDesignCommand: S
       // 5. Determine filename
       const ext = (params.format || 'PNG').toLowerCase();
       let filename: string;
-      if (params.outputDir) {
-        // Custom dir: use timestamped filename to avoid overwriting user's files
+      if (params.fileName) {
+        // Sanitize: strip path separators and keep only alphanumeric, hyphens, underscores
+        const sanitized = params.fileName.replace(/[^a-zA-Z0-9_-]/g, '');
+        if (!sanitized) {
+          throw new Error('fileName must contain at least one alphanumeric character, hyphen, or underscore.');
+        }
+        filename = `${sanitized}.${ext}`;
+      } else if (params.outputDir) {
+        // Custom dir without fileName: use timestamped filename to avoid overwriting user's files
         const timestamp = Date.now();
         const safeNodeId = params.nodeId.replace(/[^a-zA-Z0-9_-]/g, '_');
         filename = `eval-${safeNodeId}-${timestamp}.${ext}`;
       } else {
-        // Default dir: overwrite single file each time
+        // Default dir, no fileName: overwrite single file each time
         filename = `eval-latest.${ext}`;
       }
 

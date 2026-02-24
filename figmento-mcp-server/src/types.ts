@@ -40,6 +40,7 @@ export interface FillDef {
   color?: string;
   opacity?: number;
   gradientStops?: Array<{ position: number; color: string; opacity?: number }>;
+  gradientDirection?: 'left-right' | 'right-left' | 'top-bottom' | 'bottom-top';
 }
 
 /** Shadow effect definition */

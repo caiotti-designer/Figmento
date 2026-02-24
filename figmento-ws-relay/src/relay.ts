@@ -1,4 +1,5 @@
 import { WebSocketServer, WebSocket } from 'ws';
+import { createServer } from 'net';
 import { RelayMessage } from './types';
 
 interface ClientInfo {
@@ -16,6 +17,16 @@ export class FigmentoRelay {
   private channels: Map<string, Set<WebSocket>> = new Map();
 
   start(port: number): void {
+    this.checkPort(port)
+      .then(() => this.startServer(port))
+      .catch(() => {
+        console.error(`[Figmento Relay] Port ${port} is already in use.`);
+        console.error(`[Figmento Relay] Kill the existing process or set a different port via FIGMENTO_RELAY_PORT.`);
+        process.exit(1);
+      });
+  }
+
+  private startServer(port: number): void {
     const MAX_PAYLOAD = 10 * 1024 * 1024; // 10 MB
     this.wss = new WebSocketServer({ port, maxPayload: MAX_PAYLOAD });
 
@@ -158,9 +169,34 @@ export class FigmentoRelay {
   }
 
   stop(): void {
-    if (this.wss) {
-      this.wss.close();
-      console.log('[Figmento Relay] Server stopped');
+    if (!this.wss) return;
+
+    // Close all client connections with a "going away" code
+    for (const [ws] of this.clients) {
+      try {
+        ws.close(1001, 'Server shutting down');
+      } catch {
+        // Ignore errors on already-closed sockets
+      }
     }
+    this.clients.clear();
+    this.channels.clear();
+
+    this.wss.close(() => {
+      console.log('[Figmento Relay] Server stopped, all connections closed');
+    });
+  }
+
+  private checkPort(port: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const tester = createServer();
+      tester.once('error', (err: NodeJS.ErrnoException) => {
+        reject(err);
+      });
+      tester.once('listening', () => {
+        tester.close(() => resolve());
+      });
+      tester.listen(port);
+    });
   }
 }

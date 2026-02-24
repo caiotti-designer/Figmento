@@ -6,8 +6,9 @@
  */
 
 import { UIElement } from './types';
-import { hexToRgb, getFontStyle } from './color-utils';
+import { hexToRgb, getFontStyle, getFontStyleWithItalic } from './color-utils';
 import { scalePathData } from './svg-utils';
+import { getGradientTransform } from './gradient-utils';
 
 // ═══════════════════════════════════════════════════════════════
 // MAIN ELEMENT FACTORY
@@ -135,7 +136,7 @@ async function createImageFromBase64(element: UIElement, base64Data: string): Pr
       {
         type: 'IMAGE',
         imageHash: image.hash,
-        scaleMode: 'FILL',
+        scaleMode: element.scaleMode || 'FILL',
       },
     ];
 
@@ -312,10 +313,7 @@ function applyFills(node: SceneNode, element: UIElement): void {
         const stops = fill.gradientStops;
         fills.push({
           type: 'GRADIENT_LINEAR' as const,
-          gradientTransform: [
-            [1, 0, 0],
-            [0, 1, 0],
-          ] as Transform,
+          gradientTransform: getGradientTransform(fill.gradientDirection),
           gradientStops: stops.map(function (stop) {
             const stopRgb = hexToRgb(stop.color);
             return {
@@ -411,8 +409,10 @@ async function setupTextNode(node: TextNode, element: UIElement): Promise<void> 
   if (!element.text) return;
 
   const fontFamily = element.text.fontFamily || 'Inter';
-  const baseFontStyle = getFontStyle(element.text.fontWeight || 400);
+  const isItalic = element.text.italic === true;
+  const baseFontStyle = getFontStyleWithItalic(element.text.fontWeight || 400, isItalic);
   let loadedFamily = fontFamily;
+  let loadedStyle = baseFontStyle;
 
   // Try to load the specified font with fallback chain (5s timeout per attempt)
   const loadFont = (family: string, style: string): Promise<void> =>
@@ -425,14 +425,38 @@ async function setupTextNode(node: TextNode, element: UIElement): Promise<void> 
     await loadFont(fontFamily, baseFontStyle);
     node.fontName = { family: fontFamily, style: baseFontStyle };
   } catch (_e) {
-    try {
-      await loadFont('Inter', 'Regular');
-      node.fontName = { family: 'Inter', style: 'Regular' };
-      loadedFamily = 'Inter';
-    } catch (_e2) {
-      await loadFont('Roboto', 'Regular');
-      node.fontName = { family: 'Roboto', style: 'Regular' };
-      loadedFamily = 'Roboto';
+    // If italic variant failed, try non-italic of same weight
+    if (isItalic) {
+      try {
+        const nonItalicStyle = getFontStyle(element.text.fontWeight || 400);
+        await loadFont(fontFamily, nonItalicStyle);
+        node.fontName = { family: fontFamily, style: nonItalicStyle };
+        loadedStyle = nonItalicStyle;
+      } catch (_e1b) {
+        try {
+          await loadFont('Inter', 'Regular');
+          node.fontName = { family: 'Inter', style: 'Regular' };
+          loadedFamily = 'Inter';
+          loadedStyle = 'Regular';
+        } catch (_e2) {
+          await loadFont('Roboto', 'Regular');
+          node.fontName = { family: 'Roboto', style: 'Regular' };
+          loadedFamily = 'Roboto';
+          loadedStyle = 'Regular';
+        }
+      }
+    } else {
+      try {
+        await loadFont('Inter', 'Regular');
+        node.fontName = { family: 'Inter', style: 'Regular' };
+        loadedFamily = 'Inter';
+        loadedStyle = 'Regular';
+      } catch (_e2) {
+        await loadFont('Roboto', 'Regular');
+        node.fontName = { family: 'Roboto', style: 'Regular' };
+        loadedFamily = 'Roboto';
+        loadedStyle = 'Regular';
+      }
     }
   }
 
@@ -442,6 +466,17 @@ async function setupTextNode(node: TextNode, element: UIElement): Promise<void> 
   // Apply per-segment styling for mixed-weight text
   if (element.text.segments && element.text.segments.length > 0) {
     await applyTextSegments(node, element.text, loadedFamily);
+  }
+
+  // Apply top-level text decorations (underline/strikethrough) to entire text
+  const fullLen = node.characters.length;
+  if (fullLen > 0) {
+    if (element.text.underline) {
+      try { node.setRangeTextDecoration(0, fullLen, 'UNDERLINE'); } catch (_e) { /* skip */ }
+    }
+    if (element.text.strikethrough) {
+      try { node.setRangeTextDecoration(0, fullLen, 'STRIKETHROUGH'); } catch (_e) { /* skip */ }
+    }
   }
 
   node.textAutoResize = 'HEIGHT';
@@ -480,7 +515,8 @@ async function applyTextSegments(
     fontWeight: number;
     fontSize: number;
     color: string;
-    segments?: { text: string; fontWeight?: number; fontSize?: number; color?: string }[];
+    italic?: boolean;
+    segments?: { text: string; fontWeight?: number; fontSize?: number; color?: string; italic?: boolean; underline?: boolean; strikethrough?: boolean }[];
   },
   resolvedFamily: string
 ): Promise<void> {
@@ -494,13 +530,20 @@ async function applyTextSegments(
   }
   if (concatenated !== content) return;
 
-  // Collect unique font styles and pre-load them
+  // Collect unique font styles and pre-load them (including italic variants)
   const stylesToLoad: string[] = [];
   for (let i = 0; i < segments.length; i++) {
-    if (segments[i].fontWeight !== undefined) {
-      const style = getFontStyle(segments[i].fontWeight!);
-      if (stylesToLoad.indexOf(style) === -1) {
-        stylesToLoad.push(style);
+    const segWeight = segments[i].fontWeight !== undefined ? segments[i].fontWeight! : textProps.fontWeight;
+    const segItalic = segments[i].italic !== undefined ? segments[i].italic : textProps.italic;
+    const style = getFontStyleWithItalic(segWeight, segItalic);
+    if (stylesToLoad.indexOf(style) === -1) {
+      stylesToLoad.push(style);
+    }
+    // Also load non-italic variant as fallback
+    if (segItalic) {
+      const nonItalic = getFontStyle(segWeight);
+      if (stylesToLoad.indexOf(nonItalic) === -1) {
+        stylesToLoad.push(nonItalic);
       }
     }
   }
@@ -521,11 +564,22 @@ async function applyTextSegments(
     const start = offset;
     const end = offset + seg.text.length;
 
-    if (seg.fontWeight !== undefined && seg.fontWeight !== textProps.fontWeight) {
+    // Determine font style for this segment (weight + italic)
+    const segWeight = seg.fontWeight !== undefined ? seg.fontWeight : textProps.fontWeight;
+    const segItalic = seg.italic !== undefined ? seg.italic : textProps.italic;
+    const targetStyle = getFontStyleWithItalic(segWeight, segItalic);
+    const baseStyle = getFontStyleWithItalic(textProps.fontWeight, textProps.italic);
+
+    if (targetStyle !== baseStyle) {
       try {
-        node.setRangeFontName(start, end, { family: resolvedFamily, style: getFontStyle(seg.fontWeight) });
+        node.setRangeFontName(start, end, { family: resolvedFamily, style: targetStyle });
       } catch (_e) {
-        /* font variant not available */
+        // Italic variant may not exist — try non-italic fallback
+        if (segItalic) {
+          try {
+            node.setRangeFontName(start, end, { family: resolvedFamily, style: getFontStyle(segWeight) });
+          } catch (_e2) { /* skip */ }
+        }
       }
     }
 
@@ -543,6 +597,14 @@ async function applyTextSegments(
       } catch (_e) {
         /* skip */
       }
+    }
+
+    // Per-segment text decorations
+    if (seg.underline) {
+      try { node.setRangeTextDecoration(start, end, 'UNDERLINE'); } catch (_e) { /* skip */ }
+    }
+    if (seg.strikethrough) {
+      try { node.setRangeTextDecoration(start, end, 'STRIKETHROUGH'); } catch (_e) { /* skip */ }
     }
 
     offset = end;

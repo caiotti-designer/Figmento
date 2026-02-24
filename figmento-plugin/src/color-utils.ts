@@ -78,6 +78,17 @@ export function getFontStyle(weight: number): string {
 }
 
 /**
+ * Maps a CSS font-weight number + italic flag to a Figma font style string.
+ * Appends " Italic" suffix when italic is true (e.g. "Bold" → "Bold Italic", "Regular" → "Italic").
+ */
+export function getFontStyleWithItalic(weight: number, italic?: boolean): string {
+  const base = getFontStyle(weight);
+  if (!italic) return base;
+  if (base === 'Regular') return 'Italic';
+  return base + ' Italic';
+}
+
+/**
  * Checks if two colors have sufficient contrast for readability.
  * Uses WCAG relative luminance formula. Returns true if contrast ratio >= 3:1.
  */

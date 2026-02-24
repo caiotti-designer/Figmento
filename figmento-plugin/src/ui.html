@@ -301,9 +301,14 @@
       color: #7c5cfc;
       text-align: center;
       user-select: all;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
     }
 
-    .channel-hint { font-size: 10px; font-weight: 400; color: #666; margin-top: 4px; }
+    .channel-display:hover { border-color: #7c5cfc; background: #252525; }
+    .channel-display.copied { border-color: #4ade80; background: #1a2e1a; }
+
+    .channel-hint { font-size: 10px; font-weight: 400; color: #666; margin-top: 4px; transition: color 0.2s; }
 
     .log-area {
       background: #111;
@@ -423,9 +428,9 @@
 
       <div class="section">
         <label class="section-label">Channel ID</label>
-        <div class="channel-display">
+        <div class="channel-display" id="channel-display" onclick="copyChannelId()">
           <span id="bridge-channel">---</span>
-          <div class="channel-hint">Select & copy to use with Claude Code</div>
+          <div class="channel-hint" id="channel-hint">Click to copy</div>
         </div>
       </div>
 

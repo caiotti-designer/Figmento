@@ -10,6 +10,7 @@
 import { UIAnalysis, UIElement, WSCommand, WSResponse, PluginMessage, CommandErrorCode } from './types';
 import { hexToRgb, rgbToHex, getFontStyle } from './color-utils';
 import { createElement } from './element-creators';
+import { getGradientTransform } from './gradient-utils';
 
 // Show plugin UI
 figma.showUI(__html__, { width: 380, height: 600 });
@@ -137,6 +138,15 @@ async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
 
       case 'append_child':
         return { ...baseResponse, success: true, data: await handleAppendChild(cmd.params) };
+
+      case 'reorder_child':
+        return { ...baseResponse, success: true, data: await handleReorderChild(cmd.params) };
+
+      case 'clone_node':
+        return { ...baseResponse, success: true, data: await handleCloneNode(cmd.params) };
+
+      case 'group_nodes':
+        return { ...baseResponse, success: true, data: await handleGroupNodes(cmd.params) };
 
       case 'get_node_info':
         return { ...baseResponse, success: true, data: await handleGetNodeInfo(cmd.params) };
@@ -270,6 +280,9 @@ async function handleCreateText(params: Record<string, unknown>): Promise<Record
       textAlign: params.textAlign as TextProperties['textAlign'] | undefined,
       lineHeight: params.lineHeight as number | undefined,
       letterSpacing: params.letterSpacing as number | undefined,
+      italic: params.italic as boolean | undefined,
+      underline: params.underline as boolean | undefined,
+      strikethrough: params.strikethrough as boolean | undefined,
       segments: params.segments as TextProperties['segments'] | undefined,
     },
     layoutSizingHorizontal: params.layoutSizingHorizontal as UIElement['layoutSizingHorizontal'] | undefined,
@@ -312,7 +325,7 @@ async function handleSetFill(params: Record<string, unknown>): Promise<Record<st
     }];
   } else if (params.fills) {
     // Full fills array
-    const fills = params.fills as Array<{ type: string; color?: string; opacity?: number; gradientStops?: Array<{ position: number; color: string; opacity?: number }> }>;
+    const fills = params.fills as Array<{ type: string; color?: string; opacity?: number; gradientStops?: Array<{ position: number; color: string; opacity?: number }>; gradientDirection?: string }>;
     const paintFills: Paint[] = [];
 
     for (const fill of fills) {
@@ -325,7 +338,7 @@ async function handleSetFill(params: Record<string, unknown>): Promise<Record<st
       } else if (fill.type === 'GRADIENT_LINEAR' && fill.gradientStops) {
         paintFills.push({
           type: 'GRADIENT_LINEAR',
-          gradientTransform: [[1, 0, 0], [0, 1, 0]] as Transform,
+          gradientTransform: getGradientTransform(fill.gradientDirection as any),
           gradientStops: fill.gradientStops.map(stop => ({
             position: stop.position,
             color: { ...hexToRgb(stop.color), a: stop.opacity != null ? stop.opacity : 1 },
@@ -456,6 +469,7 @@ async function handleCreateImage(params: Record<string, unknown>): Promise<Recor
     y: params.y as number | undefined,
     generatedImage: imageData,
     cornerRadius: params.cornerRadius as UIElement['cornerRadius'] | undefined,
+    scaleMode: params.scaleMode as UIElement['scaleMode'] | undefined,
     children: [],
   };
 
@@ -657,15 +671,116 @@ async function handleAppendChild(params: Record<string, unknown>): Promise<Recor
   return { parentId, childId, success: true };
 }
 
-async function handleGetNodeInfo(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function handleReorderChild(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const parentId = params.parentId as string;
+  const childId = params.childId as string;
+  if (!parentId || !childId) throw new Error('parentId and childId are required');
+
+  const parent = figma.getNodeById(parentId);
+  if (!parent || !('children' in parent)) {
+    throw new Error(`NODE_NOT_FOUND: Parent ${parentId} not found or cannot have children`);
+  }
+
+  const child = figma.getNodeById(childId);
+  if (!child) {
+    throw new Error(`NODE_NOT_FOUND: Child ${childId} not found`);
+  }
+
+  const parentFrame = parent as FrameNode;
+  const childNode = child as SceneNode;
+
+  // Verify child is actually in this parent
+  if (childNode.parent?.id !== parentFrame.id) {
+    throw new Error(`PARENT_MISMATCH: Child ${childId} is not a child of parent ${parentId}`);
+  }
+
+  const index = params.index as number | undefined;
+  if (index !== undefined) {
+    // insertChild moves an existing child to the given index
+    parentFrame.insertChild(index, childNode);
+  }
+  // If no index, append to end (last position)
+  else {
+    parentFrame.appendChild(childNode);
+  }
+
+  // Find the new index
+  const newIndex = parentFrame.children.indexOf(childNode);
+
+  return { parentId, childId, newIndex };
+}
+
+async function handleCloneNode(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const nodeId = params.nodeId as string;
   if (!nodeId) throw new Error('nodeId is required');
 
   const node = figma.getNodeById(nodeId);
-  if (!node) throw new Error(`Node not found: ${nodeId}`);
+  if (!node || !('clone' in node)) throw new Error(`Node not found: ${nodeId}`);
 
+  const sourceNode = node as SceneNode;
+  const clone = sourceNode.clone();
+
+  // Determine target parent: explicit parentId overrides, otherwise use source's parent
+  if (params.parentId) {
+    const target = figma.getNodeById(params.parentId as string);
+    if (target && 'appendChild' in target) {
+      (target as FrameNode).appendChild(clone);
+    }
+  } else if (sourceNode.parent && sourceNode.parent.type !== 'PAGE' && 'appendChild' in sourceNode.parent) {
+    // clone() places the clone at the page level by default.
+    // Re-parent it into the source node's parent frame/group so it stays as a sibling.
+    (sourceNode.parent as FrameNode).appendChild(clone);
+  }
+
+  const offsetX = (params.offsetX as number) || 0;
+  const offsetY = (params.offsetY as number) || 0;
+  if (offsetX !== 0 || offsetY !== 0) {
+    clone.x += offsetX;
+    clone.y += offsetY;
+  }
+
+  if (params.newName) {
+    clone.name = params.newName as string;
+  }
+
+  return { nodeId: clone.id, name: clone.name };
+}
+
+async function handleGroupNodes(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeIds = params.nodeIds as string[];
+  if (!nodeIds || !Array.isArray(nodeIds) || nodeIds.length < 2) {
+    throw new Error('nodeIds must be an array with at least 2 node IDs');
+  }
+
+  // Resolve all nodes and validate they exist
+  const nodes: SceneNode[] = [];
+  for (const id of nodeIds) {
+    const node = figma.getNodeById(id);
+    if (!node) throw new Error(`Node not found: ${id}`);
+    nodes.push(node as SceneNode);
+  }
+
+  // Validate all nodes share the same parent
+  const parent = nodes[0].parent;
+  if (!parent) throw new Error(`Node ${nodeIds[0]} has no parent`);
+  for (let i = 1; i < nodes.length; i++) {
+    if (nodes[i].parent !== parent) {
+      throw new Error(`PARENT_MISMATCH: Nodes must share the same parent. "${nodes[i].name}" (${nodeIds[i]}) has a different parent than "${nodes[0].name}" (${nodeIds[0]})`);
+    }
+  }
+
+  const group = figma.group(nodes, parent as BaseNode & ChildrenMixin);
+
+  if (params.name) {
+    group.name = params.name as string;
+  }
+
+  return { nodeId: group.id, name: group.name, childCount: group.children.length };
+}
+
+function serializeNode(node: BaseNode, currentDepth: number, maxDepth: number): Record<string, unknown> {
   const info: Record<string, unknown> = {
-    nodeId: node.id,
+    id: node.id,
     name: node.name,
     type: node.type,
   };
@@ -686,26 +801,60 @@ async function handleGetNodeInfo(params: Record<string, unknown>): Promise<Recor
     });
   }
 
-  if ('children' in node) {
-    info.childCount = (node as FrameNode).children.length;
-    info.children = (node as FrameNode).children.map(c => ({
-      nodeId: c.id,
-      name: c.name,
-      type: c.type,
-    }));
-  }
+  if ('cornerRadius' in node) info.cornerRadius = (node as RectangleNode).cornerRadius;
 
   if (node.type === 'TEXT') {
     const textNode = node as TextNode;
     info.characters = textNode.characters;
     info.fontSize = textNode.fontSize;
+    const fontName = textNode.fontName;
+    if (fontName && typeof fontName === 'object' && 'family' in fontName) {
+      info.fontFamily = fontName.family;
+      info.fontWeight = fontName.style;
+    }
   }
 
   if ('layoutMode' in node) {
-    info.layoutMode = (node as FrameNode).layoutMode;
+    const frame = node as FrameNode;
+    info.layoutMode = frame.layoutMode;
+    if (frame.layoutMode !== 'NONE') {
+      info.itemSpacing = frame.itemSpacing;
+      info.paddingLeft = frame.paddingLeft;
+      info.paddingRight = frame.paddingRight;
+      info.paddingTop = frame.paddingTop;
+      info.paddingBottom = frame.paddingBottom;
+    }
+  }
+
+  if ('children' in node) {
+    const children = (node as FrameNode).children;
+    info.childCount = children.length;
+    if (currentDepth < maxDepth) {
+      info.children = children.map(c => serializeNode(c, currentDepth + 1, maxDepth));
+    } else {
+      // Shallow stubs at max depth
+      info.children = children.map(c => ({
+        id: c.id,
+        name: c.name,
+        type: c.type,
+      }));
+    }
   }
 
   return info;
+}
+
+async function handleGetNodeInfo(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required');
+
+  const node = figma.getNodeById(nodeId);
+  if (!node) throw new Error(`Node not found: ${nodeId}`);
+
+  // depth param: 1 = shallow (old behavior), higher = deeper recursion
+  const depth = (params.depth as number) || 1;
+
+  return serializeNode(node, 0, depth);
 }
 
 async function handleGetPageNodes(): Promise<Record<string, unknown>> {

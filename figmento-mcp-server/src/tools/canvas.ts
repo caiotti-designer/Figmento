@@ -25,6 +25,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
           color: z.string(),
           opacity: z.number().optional(),
         })).optional(),
+        gradientDirection: z.enum(['left-right', 'right-left', 'top-bottom', 'bottom-top']).optional().describe('Gradient direction (default: top-bottom)'),
       })).optional().describe('Fill paints array'),
       cornerRadius: z.union([z.number(), z.tuple([z.number(), z.number(), z.number(), z.number()])]).optional(),
       layoutMode: z.enum(['HORIZONTAL', 'VERTICAL', 'NONE']).optional().describe('Auto-layout direction'),
@@ -61,6 +62,9 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
       textAlign: z.enum(['LEFT', 'CENTER', 'RIGHT']).optional(),
       lineHeight: z.number().optional().describe('Line height in pixels'),
       letterSpacing: z.number().optional(),
+      italic: z.boolean().optional().describe('Italic style for entire text'),
+      underline: z.boolean().optional().describe('Underline decoration for entire text'),
+      strikethrough: z.boolean().optional().describe('Strikethrough decoration for entire text'),
       layoutSizingHorizontal: z.enum(['FIXED', 'FILL', 'HUG']).optional(),
       layoutSizingVertical: z.enum(['FIXED', 'FILL', 'HUG']).optional(),
       segments: z.array(z.object({
@@ -68,7 +72,10 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
         fontWeight: z.number().optional(),
         fontSize: z.number().optional(),
         color: z.string().optional(),
-      })).optional().describe('Mixed-weight text segments'),
+        italic: z.boolean().optional().describe('Italic style for this segment'),
+        underline: z.boolean().optional().describe('Underline decoration for this segment'),
+        strikethrough: z.boolean().optional().describe('Strikethrough decoration for this segment'),
+      })).optional().describe('Mixed-style text segments (weight, size, color, italic, underline, strikethrough)'),
     },
     async (params) => {
       const data = await sendDesignCommand('create_text', params);
@@ -95,6 +102,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
           color: z.string(),
           opacity: z.number().optional(),
         })).optional(),
+        gradientDirection: z.enum(['left-right', 'right-left', 'top-bottom', 'bottom-top']).optional().describe('Gradient direction (default: top-bottom)'),
       })).optional(),
       stroke: z.object({
         color: z.string(),
@@ -142,6 +150,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
       y: z.number().optional(),
       parentId: z.string().optional(),
       cornerRadius: z.union([z.number(), z.tuple([z.number(), z.number(), z.number(), z.number()])]).optional(),
+      scaleMode: z.enum(['FILL', 'FIT', 'CROP', 'TILE']).optional().default('FILL').describe('Image scale mode (default: FILL)'),
     },
     async (params) => {
       const data = await sendDesignCommand('create_image', params);
@@ -180,6 +189,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
       y: z.number().optional().describe('Y position'),
       parentId: z.string().optional().describe('Parent frame nodeId to append the image to'),
       cornerRadius: z.union([z.number(), z.tuple([z.number(), z.number(), z.number(), z.number()])]).optional(),
+      scaleMode: z.enum(['FILL', 'FIT', 'CROP', 'TILE']).optional().default('FILL').describe('Image scale mode (default: FILL)'),
     },
     async (params) => {
       const IMAGE_OUTPUT_DIR = process.env.IMAGE_OUTPUT_DIR || nodePath.join(process.cwd(), 'output');
@@ -217,7 +227,25 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
         y: params.y,
         parentId: params.parentId,
         cornerRadius: params.cornerRadius,
+        scaleMode: params.scaleMode,
       });
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
+  server.tool(
+    'set_text',
+    'Update text content and optionally style on an existing text node. Use this to change what a text node says, its font size, font family, weight, or color — without recreating it.',
+    {
+      nodeId: z.string().describe('Text node ID to update'),
+      content: z.string().describe('New text content'),
+      fontSize: z.number().optional().describe('New font size in pixels'),
+      fontFamily: z.string().optional().describe('New font family (e.g., "Inter", "Poppins")'),
+      fontWeight: z.number().optional().describe('Font weight (400=Regular, 500=Medium, 600=SemiBold, 700=Bold)'),
+      color: z.string().optional().describe('Text color as hex (e.g., "#FFFFFF")'),
+    },
+    async (params) => {
+      const data = await sendDesignCommand('apply_template_text', params);
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
   );

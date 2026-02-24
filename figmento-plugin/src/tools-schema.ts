@@ -28,6 +28,11 @@ const fillSchema = {
         required: ['position', 'color'],
       },
     },
+    gradientDirection: {
+      type: 'string',
+      enum: ['left-right', 'right-left', 'top-bottom', 'bottom-top'],
+      description: 'Gradient direction (default: top-bottom)',
+    },
   },
   required: ['type'],
 };
@@ -88,11 +93,14 @@ export const FIGMENTO_TOOLS: ToolDefinition[] = [
         textAlign: { type: 'string', enum: ['LEFT', 'CENTER', 'RIGHT'] },
         lineHeight: { type: 'number', description: 'Line height in pixels' },
         letterSpacing: { type: 'number' },
+        italic: { type: 'boolean', description: 'Italic style for entire text' },
+        underline: { type: 'boolean', description: 'Underline decoration for entire text' },
+        strikethrough: { type: 'boolean', description: 'Strikethrough decoration for entire text' },
         layoutSizingHorizontal: { type: 'string', enum: ['FIXED', 'FILL', 'HUG'] },
         layoutSizingVertical: { type: 'string', enum: ['FIXED', 'FILL', 'HUG'] },
         segments: {
           type: 'array',
-          description: 'Mixed-weight text segments',
+          description: 'Mixed-style text segments (weight, size, color, italic, underline, strikethrough)',
           items: {
             type: 'object',
             properties: {
@@ -100,6 +108,9 @@ export const FIGMENTO_TOOLS: ToolDefinition[] = [
               fontWeight: { type: 'number' },
               fontSize: { type: 'number' },
               color: { type: 'string' },
+              italic: { type: 'boolean', description: 'Italic style for this segment' },
+              underline: { type: 'boolean', description: 'Underline decoration for this segment' },
+              strikethrough: { type: 'boolean', description: 'Strikethrough decoration for this segment' },
             },
             required: ['text'],
           },
@@ -375,6 +386,33 @@ export const FIGMENTO_TOOLS: ToolDefinition[] = [
         childId: { type: 'string', description: 'Child node ID' },
       },
       required: ['parentId', 'childId'],
+    },
+  },
+  {
+    name: 'group_nodes',
+    description: 'Group multiple nodes into a single group. All nodes must share the same parent.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeIds: { type: 'array', items: { type: 'string' }, minItems: 2, description: 'Array of node IDs to group (minimum 2)' },
+        name: { type: 'string', description: 'Name for the group' },
+      },
+      required: ['nodeIds'],
+    },
+  },
+  {
+    name: 'clone_node',
+    description: 'Clone (duplicate) an existing node. Returns the new node\'s ID. Great for repeating patterns like menu items, speaker cards, tags.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'Node ID to clone' },
+        offsetX: { type: 'number', description: 'X offset from original position (default: 0)' },
+        offsetY: { type: 'number', description: 'Y offset from original position (default: 0)' },
+        newName: { type: 'string', description: 'New name for the cloned node' },
+        parentId: { type: 'string', description: 'Parent frame to place clone into (default: same parent)' },
+      },
+      required: ['nodeId'],
     },
   },
   {

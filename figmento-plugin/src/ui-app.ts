@@ -698,7 +698,47 @@ function setBridgeConnected(connected: boolean) {
   $('bridge-connect').textContent = connected ? 'Disconnect' : 'Connect';
   ($('bridge-connect') as HTMLElement).className = 'btn' + (connected ? ' btn-danger' : ' btn-primary');
   $('bridge-channel').textContent = connected ? bridgeChannelId! : '---';
+  $('channel-hint').textContent = connected ? 'Click to copy' : 'Select & copy to use with Claude Code';
 }
+
+// Expose globally for onclick in HTML
+(window as any).copyChannelId = function copyChannelId() {
+  if (!bridgeChannelId) return;
+  const display = $('channel-display');
+  const hint = $('channel-hint');
+
+  // Use textarea + execCommand — works in Figma's sandboxed iframe
+  const ta = document.createElement('textarea');
+  ta.value = bridgeChannelId;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  ta.style.top = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+  document.body.removeChild(ta);
+
+  if (ok) {
+    display.classList.add('copied');
+    hint.textContent = 'Copied!';
+    hint.style.color = '#4ade80';
+    setTimeout(() => {
+      display.classList.remove('copied');
+      hint.textContent = 'Click to copy';
+      hint.style.color = '';
+    }, 1500);
+  } else {
+    // Last resort: select the channel text for manual Ctrl+C
+    const range = document.createRange();
+    range.selectNodeContents($('bridge-channel'));
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+    hint.textContent = 'Press Ctrl+C to copy';
+    setTimeout(() => { hint.textContent = 'Click to copy'; }, 2000);
+  }
+};
 
 function addBridgeLog(text: string, type: string = 'sys') {
   const area = $('bridge-log');

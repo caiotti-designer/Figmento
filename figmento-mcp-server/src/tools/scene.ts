@@ -102,4 +102,47 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
   );
+
+  server.tool(
+    'reorder_child',
+    'Move a child node to a specific index within its parent frame. Use this to fix z-order after clone_node or to reorder layers. If index is omitted, moves child to the end (top of layer stack).',
+    {
+      parentId: z.string().describe('Parent frame node ID'),
+      childId: z.string().describe('Child node ID to reorder'),
+      index: z.number().optional().describe('Target index (0 = bottom/back). If omitted, moves to end (top/front).'),
+    },
+    async (params) => {
+      const data = await sendDesignCommand('reorder_child', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
+  server.tool(
+    'group_nodes',
+    'Group multiple nodes into a single group. All nodes must share the same parent. Useful for bundling related elements (e.g. a button bg + label, a speaker card) so they can be moved/cloned as a unit.',
+    {
+      nodeIds: z.array(z.string()).min(2).describe('Array of node IDs to group (minimum 2)'),
+      name: z.string().optional().describe('Name for the group'),
+    },
+    async (params) => {
+      const data = await sendDesignCommand('group_nodes', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
+  server.tool(
+    'clone_node',
+    'Clone (duplicate) an existing node. Returns the new node\'s ID. Great for repeating patterns like menu items, speaker cards, tags, etc.',
+    {
+      nodeId: z.string().describe('Node ID to clone'),
+      offsetX: z.number().optional().describe('X offset from original position (default: 0)'),
+      offsetY: z.number().optional().describe('Y offset from original position (default: 0)'),
+      newName: z.string().optional().describe('New name for the cloned node'),
+      parentId: z.string().optional().describe('Parent frame to place clone into (default: same parent as original)'),
+    },
+    async (params) => {
+      const data = await sendDesignCommand('clone_node', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
 }
