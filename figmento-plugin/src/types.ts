@@ -101,6 +101,24 @@ export interface UIAnalysis {
 // WEBSOCKET COMMAND/RESPONSE TYPES
 // ═══════════════════════════════════════════════════════════════
 
+/** Structured error codes for command failures */
+export type CommandErrorCode =
+  | 'NODE_NOT_FOUND'
+  | 'FONT_LOAD_FAILED'
+  | 'EXPORT_FAILED'
+  | 'INVALID_PARAMS'
+  | 'PARENT_MISMATCH'
+  | 'IMAGE_DECODE_FAILED'
+  | 'TIMEOUT'
+  | 'UNKNOWN';
+
+/** Structured command error with recoverability hint */
+export interface CommandError {
+  code: CommandErrorCode;
+  message: string;
+  recoverable: boolean;
+}
+
 /** Command from MCP server via WebSocket */
 export interface WSCommand {
   type: 'command';
@@ -118,6 +136,8 @@ export interface WSResponse {
   success: boolean;
   data?: Record<string, unknown>;
   error?: string;
+  errorCode?: CommandErrorCode;
+  recoverable?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════

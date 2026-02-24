@@ -2,6 +2,17 @@
  * Shared types for the Figmento MCP server.
  */
 
+/** Structured error codes for command failures */
+export type CommandErrorCode =
+  | 'NODE_NOT_FOUND'
+  | 'FONT_LOAD_FAILED'
+  | 'EXPORT_FAILED'
+  | 'INVALID_PARAMS'
+  | 'PARENT_MISMATCH'
+  | 'IMAGE_DECODE_FAILED'
+  | 'TIMEOUT'
+  | 'UNKNOWN';
+
 /** Command sent to the Figma plugin via WebSocket relay */
 export interface WSCommand {
   type: 'command';
@@ -19,6 +30,8 @@ export interface WSResponse {
   success: boolean;
   data?: Record<string, unknown>;
   error?: string;
+  errorCode?: CommandErrorCode;
+  recoverable?: boolean;
 }
 
 /** Fill definition for design tools */

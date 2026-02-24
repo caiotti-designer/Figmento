@@ -7,8 +7,8 @@
  * executes Figma Plugin API operations, and returns results.
  */
 
-import { UIAnalysis, UIElement, WSCommand, WSResponse, PluginMessage } from './types';
-import { hexToRgb, rgbToHex } from './color-utils';
+import { UIAnalysis, UIElement, WSCommand, WSResponse, PluginMessage, CommandErrorCode } from './types';
+import { hexToRgb, rgbToHex, getFontStyle } from './color-utils';
 import { createElement } from './element-creators';
 
 // Show plugin UI
@@ -26,6 +26,7 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
         });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const classified = classifyError(errorMessage);
         figma.ui.postMessage({
           type: 'command-result',
           response: {
@@ -34,6 +35,8 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
             channel: msg.command.channel,
             success: false,
             error: errorMessage,
+            errorCode: classified.code,
+            recoverable: classified.recoverable,
           },
         });
       }
@@ -144,13 +147,53 @@ async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
       case 'create_design':
         return { ...baseResponse, success: true, data: await handleCreateDesign(cmd.params) };
 
+      case 'create_icon':
+        return { ...baseResponse, success: true, data: await handleCreateIcon(cmd.params) };
+
+      case 'scan_template':
+        return { ...baseResponse, success: true, data: await handleScanTemplate(cmd.params) };
+
+      case 'apply_template_text':
+        return { ...baseResponse, success: true, data: await handleApplyTemplateText(cmd.params) };
+
+      case 'apply_template_image':
+        return { ...baseResponse, success: true, data: await handleApplyTemplateImage(cmd.params) };
+
       default:
         return { ...baseResponse, success: false, error: `Unknown action: ${cmd.action}` };
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return { ...baseResponse, success: false, error: errorMessage };
+    const { code, recoverable } = classifyError(errorMessage);
+    return { ...baseResponse, success: false, error: errorMessage, errorCode: code, recoverable };
   }
+}
+
+/** Classify an error message into a structured CommandErrorCode */
+function classifyError(message: string): { code: CommandErrorCode; recoverable: boolean } {
+  const lower = message.toLowerCase();
+  if (lower.includes('node not found') || lower.includes('not found:')) {
+    return { code: 'NODE_NOT_FOUND', recoverable: false };
+  }
+  if (lower.includes('font') && (lower.includes('load') || lower.includes('fail') || lower.includes('timeout'))) {
+    return { code: 'FONT_LOAD_FAILED', recoverable: true };
+  }
+  if (lower.includes('export') && lower.includes('fail')) {
+    return { code: 'EXPORT_FAILED', recoverable: true };
+  }
+  if (lower.includes('cannot have children') || lower.includes('not a frame') || lower.includes('parent')) {
+    return { code: 'PARENT_MISMATCH', recoverable: false };
+  }
+  if (lower.includes('decode') || lower.includes('image data') || lower.includes('createimage')) {
+    return { code: 'IMAGE_DECODE_FAILED', recoverable: false };
+  }
+  if (lower.includes('timeout')) {
+    return { code: 'TIMEOUT', recoverable: true };
+  }
+  if (lower.includes('required') || lower.includes('invalid') || lower.includes('cannot be empty')) {
+    return { code: 'INVALID_PARAMS', recoverable: false };
+  }
+  return { code: 'UNKNOWN', recoverable: false };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -678,6 +721,160 @@ async function handleGetPageNodes(): Promise<Record<string, unknown>> {
   }));
 
   return { pageName: figma.currentPage.name, count: nodes.length, nodes };
+}
+
+async function handleCreateIcon(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const iconName = (params.iconName as string) || 'circle';
+  const size = (params.size as number) || 24;
+  const color = (params.color as string) || '#333333';
+  const svgPaths = params.svgPaths as string[] | undefined;
+
+  const element: UIElement = {
+    id: 'icon',
+    type: 'icon',
+    name: (params.name as string) || `icon-${iconName}`,
+    width: size,
+    height: size,
+    x: params.x as number | undefined,
+    y: params.y as number | undefined,
+    lucideIcon: iconName,
+    svgPaths: svgPaths,
+    fills: [{ type: 'SOLID', color }],
+    children: [],
+  };
+
+  const node = await createElement(element, true);
+  if (!node) throw new Error('Failed to create icon');
+
+  if (params.parentId) {
+    const parent = figma.getNodeById(params.parentId as string);
+    if (parent && 'appendChild' in parent) {
+      (parent as FrameNode).appendChild(node);
+    }
+  }
+
+  return { nodeId: node.id, name: node.name };
+}
+
+async function handleScanTemplate(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string | undefined;
+
+  let targetNodes: readonly SceneNode[];
+  if (nodeId) {
+    const node = figma.getNodeById(nodeId);
+    if (!node) throw new Error(`Node not found: ${nodeId}`);
+    targetNodes = [node as SceneNode];
+  } else {
+    targetNodes = figma.currentPage.selection;
+    if (targetNodes.length === 0) {
+      throw new Error('No node selected and no nodeId provided. Select a frame or pass a nodeId.');
+    }
+  }
+
+  const placeholders: Array<{ nodeId: string; name: string; type: 'text' | 'image'; path: string }> = [];
+
+  function scanNode(node: SceneNode, path: string): void {
+    if (node.name.startsWith('#')) {
+      const placeholderName = node.name.substring(1);
+      const isImage = placeholderName.startsWith('img') ||
+                      node.type === 'RECTANGLE' ||
+                      (node.type === 'FRAME' && !('characters' in node));
+      const isText = node.type === 'TEXT';
+
+      placeholders.push({
+        nodeId: node.id,
+        name: placeholderName,
+        type: isText ? 'text' : 'image',
+        path: path + '/' + node.name,
+      });
+    }
+
+    if ('children' in node) {
+      const frame = node as FrameNode;
+      for (const child of frame.children) {
+        scanNode(child, path + '/' + node.name);
+      }
+    }
+  }
+
+  for (const node of targetNodes) {
+    scanNode(node, '');
+  }
+
+  return { count: placeholders.length, placeholders };
+}
+
+async function handleApplyTemplateText(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required — the text placeholder node ID');
+
+  const node = figma.getNodeById(nodeId);
+  if (!node) throw new Error(`Node not found: ${nodeId}`);
+  if (node.type !== 'TEXT') throw new Error(`Node ${nodeId} is not a text node (type: ${node.type})`);
+
+  const textNode = node as TextNode;
+  const content = params.content as string;
+  if (!content) throw new Error('content is required');
+
+  // Load the existing font before modifying
+  const existingFont = textNode.fontName as FontName;
+  try {
+    await figma.loadFontAsync(existingFont);
+  } catch (_e) {
+    await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
+  }
+
+  textNode.characters = content;
+
+  // Optionally override style properties
+  if (params.fontSize) textNode.fontSize = params.fontSize as number;
+  if (params.color) {
+    textNode.fills = [{ type: 'SOLID', color: hexToRgb(params.color as string) }];
+  }
+  if (params.fontFamily) {
+    const family = params.fontFamily as string;
+    const weight = (params.fontWeight as number) || 400;
+    const style = getFontStyle(weight);
+    try {
+      await figma.loadFontAsync({ family, style });
+      textNode.fontName = { family, style };
+    } catch (_e) {
+      // Keep existing font if specified one fails to load
+    }
+  }
+
+  return { nodeId, characters: textNode.characters };
+}
+
+async function handleApplyTemplateImage(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required — the image placeholder node ID');
+
+  const node = figma.getNodeById(nodeId);
+  if (!node) throw new Error(`Node not found: ${nodeId}`);
+
+  const imageData = params.imageData as string;
+  if (!imageData) throw new Error('imageData (base64) is required');
+
+  // Decode base64 image and apply as fill
+  const base64 = imageData.replace(/^data:image\/\w+;base64,/, '');
+  const bytes = figma.base64Decode(base64);
+  if (!bytes || bytes.length === 0) throw new Error('Failed to decode image data');
+
+  const image = figma.createImage(bytes);
+  const scaleMode = (params.scaleMode as 'FILL' | 'FIT' | 'CROP' | 'TILE') || 'FILL';
+
+  if ('fills' in node) {
+    (node as GeometryMixin).fills = [{
+      type: 'IMAGE',
+      imageHash: image.hash,
+      scaleMode,
+    }];
+  } else {
+    throw new Error(`Node ${nodeId} does not support image fills`);
+  }
+
+  return { nodeId, success: true };
 }
 
 async function handleCreateDesign(params: Record<string, unknown>): Promise<Record<string, unknown>> {

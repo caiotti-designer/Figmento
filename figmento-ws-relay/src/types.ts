@@ -27,6 +27,8 @@ export interface ResponseMessage {
   success: boolean;
   data?: Record<string, unknown>;
   error?: string;
+  errorCode?: string;
+  recoverable?: boolean;
 }
 
 export type RelayMessage = JoinMessage | LeaveMessage | CommandMessage | ResponseMessage;

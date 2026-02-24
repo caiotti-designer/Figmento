@@ -16,7 +16,8 @@ export class FigmentoRelay {
   private channels: Map<string, Set<WebSocket>> = new Map();
 
   start(port: number): void {
-    this.wss = new WebSocketServer({ port });
+    const MAX_PAYLOAD = 10 * 1024 * 1024; // 10 MB
+    this.wss = new WebSocketServer({ port, maxPayload: MAX_PAYLOAD });
 
     console.log(`[Figmento Relay] WebSocket server started on ws://localhost:${port}`);
 
