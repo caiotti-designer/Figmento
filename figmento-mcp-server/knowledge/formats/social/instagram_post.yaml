@@ -1,0 +1,57 @@
+name: instagram_post
+category: social
+description: "Square Instagram feed post — optimized for mobile viewing at ~375px display width"
+dimensions:
+  width: 1080
+  height: 1080
+  aspect_ratio: "1:1"
+
+safe_zones:
+  top: 150
+  bottom: 150
+  left: 60
+  right: 60
+  notes: "Keep critical text/CTAs inside safe zone. Top/bottom may be clipped in grid preview."
+
+typography_scale:
+  display: { min: 72, max: 120, recommended: 96 }
+  headline: { min: 48, max: 72, recommended: 56 }
+  subheadline: { min: 32, max: 40, recommended: 36 }
+  body: { min: 28, max: 32, recommended: 30 }
+  caption: { min: 22, max: 26, recommended: 24 }
+
+layout_rules:
+  margins: 48
+  grid: 8
+  max_text_lines: 6
+  preferred_layouts:
+    - centered-stack
+    - full-bleed-with-overlay
+    - split-half-vertical
+  content_hierarchy:
+    - "Headline — largest, most prominent"
+    - "Supporting text — smaller, muted color"
+    - "CTA or handle — bottom area"
+
+image_rules:
+  min_resolution: "1080x1080"
+  format: "JPG or PNG"
+  max_file_size_mb: 8
+  full_bleed_preferred: true
+  overlay_opacity_range: [0.3, 0.7]
+
+composition:
+  balance: "Center-weighted or rule-of-thirds"
+  whitespace: "Generous — mobile screens need breathing room"
+  contrast: "High — viewed on small bright screens"
+  text_overlay: "Use semi-transparent overlay behind text when over images"
+
+brand_placement:
+  logo_position: "top-left or bottom-right"
+  logo_max_size: 80
+  handle_position: "bottom-center"
+  handle_font_size: 22
+
+export:
+  format: PNG
+  scale: 1

@@ -1,0 +1,54 @@
+name: twitter_post
+category: social
+description: "Twitter/X post image — bold headline, minimal body text, high-impact visual"
+dimensions:
+  width: 1200
+  height: 675
+  aspect_ratio: "16:9"
+
+safe_zones:
+  top: 40
+  bottom: 40
+  left: 48
+  right: 48
+
+typography_scale:
+  display: { min: 56, max: 88, recommended: 72 }
+  headline: { min: 40, max: 64, recommended: 48 }
+  subheadline: { min: 24, max: 32, recommended: 28 }
+  body: { min: 20, max: 26, recommended: 22 }
+  caption: { min: 16, max: 20, recommended: 18 }
+
+layout_rules:
+  margins: 48
+  grid: 8
+  max_text_lines: 4
+  preferred_layouts:
+    - centered-stack
+    - full-bleed-with-overlay
+    - split-half-horizontal
+  content_hierarchy:
+    - "Bold headline — the tweet hook visualized"
+    - "One supporting line max"
+    - "Visual element — icon, illustration, or photo"
+
+image_rules:
+  min_resolution: "1200x675"
+  format: "PNG or JPG"
+  high_contrast: true
+
+composition:
+  balance: "Center-weighted"
+  whitespace: "Moderate to generous"
+  contrast: "Very high — scrolling feeds need stopping power"
+  tone: "Bold, concise, shareable"
+
+brand_placement:
+  logo_position: "bottom-right"
+  logo_max_size: 48
+  handle_position: "bottom-left"
+  handle_font_size: 18
+
+export:
+  format: PNG
+  scale: 1

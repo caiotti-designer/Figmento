@@ -1,0 +1,15 @@
+name: "material"
+description: "Elevated, colorful, shadow-driven. Inspired by Material Design"
+defaults:
+  primary: "#1976D2"
+  secondary: "#9C27B0"
+  accent: "#FF9800"
+  surface: "#FFFFFF"
+  background: "#FAFAFA"
+  border: "#E0E0E0"
+  heading_font: "Roboto"
+  body_font: "Roboto"
+  radius: { sm: 4, md: 8, lg: 12 }
+  shadows: pronounced
+  spacing_unit: 8
+  style: "elevation-based depth, colorful accents, Material Design principles"

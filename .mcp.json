@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "figmento": {
+      "command": "node",
+      "args": ["c:/Users/Caio/Downloads/Projects/Figmento/figmento-mcp-server/dist/index.js"]
+    }
+  }
+}

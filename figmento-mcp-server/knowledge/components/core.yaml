@@ -1,0 +1,214 @@
+# Core Component Recipes — DS-06
+# All values use $tokens.* references for design system consistency.
+# Props use {{propName}} syntax for dynamic values.
+
+button:
+  description: "Action button with label text"
+  props:
+    label: { type: string, required: true }
+    size: { type: enum, values: [sm, md, lg], default: md }
+  recipe:
+    type: frame
+    name: "Button"
+    layoutMode: HORIZONTAL
+    primaryAxisAlignItems: CENTER
+    counterAxisAlignItems: CENTER
+    paddingTop: "$tokens.spacing.sm"
+    paddingBottom: "$tokens.spacing.sm"
+    paddingLeft: "$tokens.spacing.lg"
+    paddingRight: "$tokens.spacing.lg"
+    cornerRadius: "$tokens.radius.md"
+    fills:
+      - type: SOLID
+        color: "$tokens.colors.primary"
+    children:
+      - type: text
+        content: "{{label}}"
+        fontSize: "$tokens.typography.scale.body"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 600
+        color: "$tokens.colors.on_primary"
+  variants:
+    primary: {}
+    secondary:
+      fills:
+        - type: SOLID
+          color: "$tokens.colors.surface"
+      stroke: { color: "$tokens.colors.border", width: 1 }
+      children:
+        - color: "$tokens.colors.on_surface"
+    ghost:
+      fills: []
+      children:
+        - color: "$tokens.colors.primary"
+    outline:
+      fills: []
+      stroke: { color: "$tokens.colors.primary", width: 1 }
+      children:
+        - color: "$tokens.colors.primary"
+    destructive:
+      fills:
+        - type: SOLID
+          color: "$tokens.colors.error"
+      children:
+        - color: "#FFFFFF"
+  size_overrides:
+    sm:
+      paddingTop: "$tokens.spacing.xs"
+      paddingBottom: "$tokens.spacing.xs"
+      paddingLeft: "$tokens.spacing.md"
+      paddingRight: "$tokens.spacing.md"
+      children:
+        - fontSize: "$tokens.typography.scale.body_sm"
+    lg:
+      paddingTop: "$tokens.spacing.md"
+      paddingBottom: "$tokens.spacing.md"
+      paddingLeft: "$tokens.spacing.xl"
+      paddingRight: "$tokens.spacing.xl"
+      children:
+        - fontSize: "$tokens.typography.scale.body_lg"
+
+badge:
+  description: "Small pill label for status or category"
+  props:
+    label: { type: string, required: true }
+  recipe:
+    type: frame
+    name: "Badge"
+    layoutMode: HORIZONTAL
+    primaryAxisAlignItems: CENTER
+    counterAxisAlignItems: CENTER
+    paddingTop: "$tokens.spacing.xs"
+    paddingBottom: "$tokens.spacing.xs"
+    paddingLeft: "$tokens.spacing.sm"
+    paddingRight: "$tokens.spacing.sm"
+    cornerRadius: "$tokens.radius.full"
+    fills:
+      - type: SOLID
+        color: "$tokens.colors.primary"
+        opacity: 0.1
+    children:
+      - type: text
+        content: "{{label}}"
+        fontSize: "$tokens.typography.scale.caption"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 500
+        color: "$tokens.colors.primary"
+  variants:
+    default: {}
+    success:
+      fills:
+        - type: SOLID
+          color: "$tokens.colors.success"
+          opacity: 0.1
+      children:
+        - color: "$tokens.colors.success"
+    warning:
+      fills:
+        - type: SOLID
+          color: "$tokens.colors.warning"
+          opacity: 0.1
+      children:
+        - color: "$tokens.colors.warning"
+    error:
+      fills:
+        - type: SOLID
+          color: "$tokens.colors.error"
+          opacity: 0.1
+      children:
+        - color: "$tokens.colors.error"
+    info:
+      fills:
+        - type: SOLID
+          color: "$tokens.colors.info"
+          opacity: 0.1
+      children:
+        - color: "$tokens.colors.info"
+
+card:
+  description: "Container frame with padding, radius, and shadow"
+  props: {}
+  recipe:
+    type: frame
+    name: "Card"
+    layoutMode: VERTICAL
+    primaryAxisAlignItems: MIN
+    counterAxisAlignItems: MIN
+    paddingTop: "$tokens.spacing.lg"
+    paddingBottom: "$tokens.spacing.lg"
+    paddingLeft: "$tokens.spacing.lg"
+    paddingRight: "$tokens.spacing.lg"
+    itemSpacing: "$tokens.spacing.md"
+    cornerRadius: "$tokens.radius.lg"
+    fills:
+      - type: SOLID
+        color: "$tokens.colors.surface"
+    effects:
+      - type: DROP_SHADOW
+        color: "$tokens.shadows.md.color"
+        opacity: "$tokens.shadows.md.opacity"
+        offset: { x: "$tokens.shadows.md.x", y: "$tokens.shadows.md.y" }
+        blur: "$tokens.shadows.md.blur"
+    width: 320
+    height: 200
+  variants:
+    default: {}
+    outlined:
+      effects: []
+      stroke: { color: "$tokens.colors.border", width: 1 }
+    elevated:
+      effects:
+        - type: DROP_SHADOW
+          color: "$tokens.shadows.lg.color"
+          opacity: "$tokens.shadows.lg.opacity"
+          offset: { x: "$tokens.shadows.lg.x", y: "$tokens.shadows.lg.y" }
+          blur: "$tokens.shadows.lg.blur"
+
+divider:
+  description: "Horizontal line separator"
+  props: {}
+  recipe:
+    type: rectangle
+    name: "Divider"
+    width: 320
+    height: 1
+    fills:
+      - type: SOLID
+        color: "$tokens.colors.border"
+  variants:
+    default: {}
+    thick:
+      height: 2
+    accent:
+      fills:
+        - type: SOLID
+          color: "$tokens.colors.primary"
+
+avatar:
+  description: "Circular avatar placeholder"
+  props:
+    size: { type: enum, values: [sm, md, lg, xl], default: md }
+  recipe:
+    type: ellipse
+    name: "Avatar"
+    width: 40
+    height: 40
+    fills:
+      - type: SOLID
+        color: "$tokens.colors.primary"
+        opacity: 0.2
+  variants:
+    default: {}
+  size_overrides:
+    sm:
+      width: 32
+      height: 32
+    md:
+      width: 40
+      height: 40
+    lg:
+      width: 56
+      height: 56
+    xl:
+      width: 80
+      height: 80

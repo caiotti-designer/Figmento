@@ -1,0 +1,53 @@
+name: linkedin_post
+category: social
+description: "LinkedIn feed post image — professional tone, data-friendly, horizontal format"
+dimensions:
+  width: 1200
+  height: 627
+  aspect_ratio: "1.91:1"
+
+safe_zones:
+  top: 40
+  bottom: 40
+  left: 60
+  right: 60
+
+typography_scale:
+  display: { min: 56, max: 80, recommended: 64 }
+  headline: { min: 36, max: 56, recommended: 44 }
+  subheadline: { min: 24, max: 32, recommended: 28 }
+  body: { min: 20, max: 26, recommended: 22 }
+  caption: { min: 16, max: 20, recommended: 18 }
+
+layout_rules:
+  margins: 48
+  grid: 8
+  preferred_layouts:
+    - split-half-horizontal
+    - centered-stack
+    - data-cards
+  content_hierarchy:
+    - "Headline — clear professional statement"
+    - "Data point or key insight — prominent number or stat"
+    - "Supporting context — brief explanation"
+    - "Brand/author — subtle bottom placement"
+
+image_rules:
+  min_resolution: "1200x627"
+  format: "PNG preferred for text-heavy, JPG for photo-heavy"
+  charts_and_data: true
+
+composition:
+  balance: "Left-weighted for text, right for visual/data"
+  whitespace: "Professional — clean and organized"
+  contrast: "Medium-high — professional screens"
+  tone: "Corporate, data-driven, trustworthy"
+
+brand_placement:
+  logo_position: "bottom-left or top-left"
+  logo_max_size: 48
+  author_position: "bottom-left with name and title"
+
+export:
+  format: PNG
+  scale: 1

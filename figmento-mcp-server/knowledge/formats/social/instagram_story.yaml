@@ -1,0 +1,54 @@
+name: instagram_story
+category: social
+description: "Vertical Instagram Story — full-screen immersive format with top/bottom unsafe zones"
+dimensions:
+  width: 1080
+  height: 1920
+  aspect_ratio: "9:16"
+
+safe_zones:
+  top: 150
+  bottom: 200
+  left: 60
+  right: 60
+  notes: "Top 150px has username/avatar overlay. Bottom 200px has reply bar. Keep critical content inside safe zone."
+
+typography_scale:
+  display: { min: 72, max: 120, recommended: 96 }
+  headline: { min: 48, max: 80, recommended: 64 }
+  subheadline: { min: 32, max: 48, recommended: 40 }
+  body: { min: 28, max: 36, recommended: 32 }
+  caption: { min: 22, max: 28, recommended: 24 }
+
+layout_rules:
+  margins: 48
+  grid: 8
+  preferred_layouts:
+    - full-bleed-with-overlay
+    - centered-stack
+    - top-heavy
+  content_hierarchy:
+    - "Visual — full-bleed image or gradient background"
+    - "Headline — bold, center or upper-third"
+    - "CTA — swipe-up zone (bottom third)"
+
+image_rules:
+  min_resolution: "1080x1920"
+  format: "JPG or PNG"
+  full_bleed_preferred: true
+  overlay_opacity_range: [0.3, 0.6]
+
+composition:
+  balance: "Vertical center-weighted"
+  whitespace: "Moderate — full-screen so content can breathe"
+  contrast: "Very high — viewed in dark-mode-friendly contexts"
+  text_overlay: "Always use overlay or text shadow for legibility"
+
+brand_placement:
+  logo_position: "top-center below safe zone"
+  logo_max_size: 64
+  handle_position: "bottom-center above safe zone"
+
+export:
+  format: PNG
+  scale: 1

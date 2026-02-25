@@ -1,0 +1,67 @@
+name: poster_a3
+category: print
+description: "A3 poster — 297×420mm at 300dpi, large format with bold typography for distance viewing"
+dimensions:
+  width: 3508
+  height: 4961
+  unit: px
+  physical: "297 × 420mm (A3)"
+  dpi: 300
+
+bleed:
+  size: 9
+  unit: px
+  physical: "3mm"
+
+safe_zone:
+  top: 96
+  bottom: 96
+  left: 96
+  right: 96
+  physical: "~8mm from trim edge"
+
+typography_scale:
+  display: { min: 120, max: 200, recommended: 160 }
+  headline: { min: 80, max: 120, recommended: 96 }
+  subheadline: { min: 48, max: 72, recommended: 56 }
+  body: { min: 28, max: 40, recommended: 32 }
+  caption: { min: 20, max: 28, recommended: 24 }
+
+layout_rules:
+  margins: 96
+  grid: 8
+  preferred_layouts:
+    - full-bleed-with-overlay
+    - centered-stack
+    - top-third-headline
+  content_hierarchy:
+    - "Display headline — massive, readable from 3+ meters"
+    - "Key visual — image, illustration, or graphic"
+    - "Supporting info — date, location, details"
+    - "CTA / branding — bottom section"
+  zones:
+    top_half: "Headline and primary visual"
+    bottom_half: "Details, supporting text, CTA"
+
+print_rules:
+  color_mode: "CMYK recommended"
+  min_line_weight: 0.75
+  min_font_size: 14
+  bleed_required: true
+  fold: false
+
+composition:
+  balance: "Center-weighted or top-heavy"
+  whitespace: "Generous — large format can afford space"
+  contrast: "Very high — must be readable from distance"
+  viewing_distance: "1 to 5 meters"
+  simplicity: "Fewer elements, bigger impact"
+
+brand_placement:
+  logo_position: "bottom-center or bottom-right"
+  logo_max_height: 160
+
+export:
+  format: PDF
+  scale: 1
+  notes: "Export with 3mm bleed and crop marks"

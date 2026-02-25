@@ -1,0 +1,59 @@
+name: instagram_carousel
+category: social
+description: "Instagram carousel — up to 10 square slides with visual consistency rules"
+dimensions:
+  width: 1080
+  height: 1080
+  aspect_ratio: "1:1"
+  max_slides: 10
+
+safe_zones:
+  top: 150
+  bottom: 150
+  left: 60
+  right: 60
+
+typography_scale:
+  display: { min: 72, max: 120, recommended: 96 }
+  headline: { min: 48, max: 72, recommended: 56 }
+  subheadline: { min: 32, max: 40, recommended: 36 }
+  body: { min: 28, max: 32, recommended: 30 }
+  caption: { min: 22, max: 26, recommended: 24 }
+
+layout_rules:
+  margins: 48
+  grid: 8
+  preferred_layouts:
+    - centered-stack
+    - full-bleed-with-overlay
+  consistency_rules:
+    - "Same background color/style across all slides"
+    - "Same font family and weight hierarchy across all slides"
+    - "Same margins and safe zones on every slide"
+    - "Pagination indicator (dots or slide number) in consistent position"
+    - "First slide is the hook — bold headline, minimal text"
+    - "Last slide is the CTA — call to action, handle, website"
+  slide_structure:
+    slide_1: "Hook — attention-grabbing headline"
+    slide_2_to_n_minus_1: "Content — one idea per slide, supporting visuals"
+    slide_n: "CTA — call to action, follow prompt, link"
+
+image_rules:
+  min_resolution: "1080x1080"
+  format: "JPG or PNG"
+  full_bleed_preferred: true
+
+composition:
+  balance: "Consistent across slides"
+  whitespace: "Generous — one idea per slide"
+  contrast: "High"
+  flow: "Left-to-right swipe narrative"
+
+brand_placement:
+  logo_position: "top-left on slide 1, bottom-right on last slide"
+  handle_position: "last slide, centered"
+  pagination: "bottom-center, small dots or '1/N' label"
+
+export:
+  format: PNG
+  scale: 1

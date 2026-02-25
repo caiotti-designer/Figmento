@@ -1,0 +1,70 @@
+name: business_card
+category: print
+description: "Standard business card — 3.5×2in at 300dpi, front layout with bleed and safe zone"
+dimensions:
+  width: 1050
+  height: 600
+  unit: px
+  physical: "3.5 × 2 inches"
+  dpi: 300
+
+bleed:
+  size: 9
+  unit: px
+  physical: "3mm"
+  notes: "Extend background fills/images to bleed edge. Content stays inside safe zone."
+
+safe_zone:
+  top: 30
+  bottom: 30
+  left: 30
+  right: 30
+  physical: "10mm from trim edge"
+
+typography_scale:
+  name: { min: 24, max: 36, recommended: 30 }
+  title: { min: 14, max: 20, recommended: 16 }
+  contact_info: { min: 12, max: 16, recommended: 14 }
+  caption: { min: 10, max: 12, recommended: 11 }
+
+layout_rules:
+  margins: 30
+  grid: 4
+  preferred_layouts:
+    - left-aligned-stack
+    - centered-stack
+    - split-half-horizontal
+  content_hierarchy:
+    - "Name — largest, most prominent"
+    - "Title/role — secondary"
+    - "Contact details — phone, email, website"
+    - "Logo — consistent position"
+  front_layout:
+    - "Name and title"
+    - "Contact information"
+    - "Logo"
+  back_layout:
+    - "Logo large/centered"
+    - "Tagline optional"
+    - "Solid brand color or pattern"
+
+print_rules:
+  color_mode: "CMYK recommended (design in RGB, note conversion)"
+  min_line_weight: 0.5
+  min_font_size: 8
+  avoid_full_black: "Use rich black (C60 M40 Y40 K100) for large solid areas"
+  bleed_required: true
+
+composition:
+  balance: "Clean and uncluttered — less is more"
+  whitespace: "Essential — small format needs room to breathe"
+  contrast: "High — small text must be legible"
+
+brand_placement:
+  logo_position: "top-left or bottom-right"
+  logo_max_width: 200
+
+export:
+  format: PDF
+  scale: 1
+  notes: "Export at 300dpi with bleed marks"

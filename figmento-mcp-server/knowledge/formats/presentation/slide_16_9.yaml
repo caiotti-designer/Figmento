@@ -1,0 +1,138 @@
+name: slide_16_9
+category: presentation
+description: "16:9 presentation slides — 6 slide types with consistent master elements"
+dimensions:
+  width: 1920
+  height: 1080
+  aspect_ratio: "16:9"
+
+global_rules:
+  margins: { top: 80, bottom: 80, left: 100, right: 100 }
+  grid: 8
+  max_bullets_per_slide: 6
+  one_idea_per_slide: true
+  master_elements:
+    logo:
+      position: "bottom-right"
+      x: 1800
+      y: 1040
+      max_height: 32
+      on_every_slide_except: ["title_slide"]
+    page_number:
+      position: "bottom-center"
+      y: 1050
+      font_size: 14
+      color: "muted"
+      on_every_slide_except: ["title_slide"]
+
+typography_scale:
+  display: { min: 64, max: 96, recommended: 80 }
+  headline: { min: 40, max: 64, recommended: 48 }
+  subheadline: { min: 28, max: 36, recommended: 32 }
+  body: { min: 20, max: 28, recommended: 24 }
+  caption: { min: 16, max: 20, recommended: 18 }
+  label: { min: 14, max: 18, recommended: 16 }
+
+slide_types:
+  title_slide:
+    description: "Opening slide — centered headline + subtitle, logo, minimal elements"
+    layout:
+      headline: { x: "center", y: 380, font_size: 80, font_weight: 700, text_align: "CENTER" }
+      subtitle: { x: "center", y: 480, font_size: 32, font_weight: 400, color: "muted", text_align: "CENTER" }
+      logo: { position: "bottom-center", y: 940, max_height: 48 }
+    rules:
+      - "Maximum 2 text elements (title + subtitle)"
+      - "Background can be solid color, gradient, or full-bleed image with overlay"
+      - "No page number on title slide"
+      - "Logo centered at bottom"
+
+  content_slide:
+    description: "Standard content slide — headline + body paragraphs or bullet points"
+    layout:
+      headline: { x: 100, y: 80, font_size: 48, font_weight: 700 }
+      body_area: { x: 100, y: 180, width: 1720, height: 800 }
+      bullet_spacing: 48
+      bullet_indent: 32
+      bullet_font_size: 24
+    rules:
+      - "Maximum 6 bullet points"
+      - "Each bullet: one line or two at most"
+      - "Use progressive disclosure — don't dump all info at once"
+      - "Left-aligned text, generous line spacing (1.5x)"
+
+  image_slide:
+    description: "Image-focused slide — 60% image + 40% text, or full-bleed with overlay"
+    layout:
+      split_layout:
+        image_area: { x: 0, y: 0, width: 1152, height: 1080 }
+        text_area: { x: 1200, y: 200, width: 620, height: 680 }
+      full_bleed_layout:
+        image: { x: 0, y: 0, width: 1920, height: 1080 }
+        overlay_opacity: 0.5
+        text_area: { x: 100, y: 400, width: 800, height: 400 }
+    rules:
+      - "Image should be high quality (min 1920px wide for full bleed)"
+      - "Text over images must use overlay or text shadow"
+      - "Split layout: image left, text right (or reversed)"
+      - "Caption for image source: bottom of image area, small text"
+
+  quote_slide:
+    description: "Quote slide — large italic quote text + attribution"
+    layout:
+      quote_mark: { x: 100, y: 200, font_size: 200, color: "primary_light", opacity: 0.3 }
+      quote_text: { x: 200, y: 300, width: 1520, font_size: 40, font_weight: 400, font_style: "italic", line_height: 1.6, text_align: "CENTER" }
+      attribution: { x: "center", y: 700, font_size: 24, font_weight: 600, color: "primary" }
+      role: { x: "center", y: 740, font_size: 20, color: "muted" }
+    rules:
+      - "Quote text should be 1-3 sentences max"
+      - "Large decorative quotation mark as visual element"
+      - "Attribution: name in bold, role in muted color below"
+      - "Centered layout works best for quotes"
+
+  comparison_slide:
+    description: "Two-column comparison — side-by-side layout for vs/before-after"
+    layout:
+      headline: { x: 100, y: 80, font_size: 48, font_weight: 700, width: 1720 }
+      divider: { x: 960, y: 200, width: 2, height: 780, color: "border" }
+      left_column:
+        x: 100
+        y: 200
+        width: 810
+        heading: { font_size: 32, font_weight: 600 }
+        body: { font_size: 22, color: "on_surface" }
+      right_column:
+        x: 1010
+        y: 200
+        width: 810
+        heading: { font_size: 32, font_weight: 600 }
+        body: { font_size: 22, color: "on_surface" }
+    rules:
+      - "Both columns must have parallel structure"
+      - "Visual divider between columns"
+      - "Color-code columns if showing good/bad or before/after"
+      - "Keep content balanced — similar amount on both sides"
+
+  data_slide:
+    description: "Data-focused slide — stat cards, key metrics, chart placeholder"
+    layout:
+      headline: { x: 100, y: 80, font_size: 48, font_weight: 700 }
+      stat_cards:
+        row_y: 250
+        card_width: 380
+        card_height: 200
+        card_spacing: 40
+        cards_per_row: 4
+        stat_number: { font_size: 56, font_weight: 800, color: "primary" }
+        stat_label: { font_size: 18, color: "on_surface_muted" }
+      chart_area: { x: 100, y: 520, width: 1720, height: 450 }
+    rules:
+      - "Maximum 4 stat cards per row"
+      - "Numbers should be the visual focus — large and bold"
+      - "Labels below numbers — small and muted"
+      - "Chart area: placeholder rectangle with label"
+      - "Source citation at bottom in caption size"
+
+export:
+  format: PNG
+  scale: 2
+  notes: "Export at 2x for retina displays"

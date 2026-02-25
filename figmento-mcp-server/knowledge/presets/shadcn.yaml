@@ -1,0 +1,15 @@
+name: "shadcn"
+description: "Clean, neutral, border-focused. Inspired by shadcn/ui"
+defaults:
+  primary: "#0F172A"
+  secondary: "#6366F1"
+  accent: "#F59E0B"
+  surface: "#FFFFFF"
+  background: "#F8FAFC"
+  border: "#E2E8F0"
+  heading_font: "Inter"
+  body_font: "Inter"
+  radius: { sm: 4, md: 6, lg: 8 }
+  shadows: subtle
+  spacing_unit: 8
+  style: "borders over shadows, subtle hover states, neutral palette"

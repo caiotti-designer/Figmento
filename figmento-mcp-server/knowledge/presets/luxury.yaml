@@ -1,0 +1,15 @@
+name: "luxury"
+description: "Dark, serif, gold accents, generous spacing"
+defaults:
+  primary: "#1A1A2E"
+  secondary: "#D4AF37"
+  accent: "#C9A84C"
+  surface: "#0D0D0D"
+  background: "#000000"
+  border: "#333333"
+  heading_font: "Playfair Display"
+  body_font: "Lato"
+  radius: { sm: 0, md: 4, lg: 8 }
+  shadows: subtle
+  spacing_unit: 8
+  style: "dark backgrounds, gold accents, serif headlines, premium feel"

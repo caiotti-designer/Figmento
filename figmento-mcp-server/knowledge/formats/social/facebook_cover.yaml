@@ -1,0 +1,56 @@
+name: facebook_cover
+category: social
+description: "Facebook page cover photo — wide banner, avoid center area (profile pic overlay)"
+dimensions:
+  width: 820
+  height: 312
+  aspect_ratio: "2.63:1"
+
+safe_zones:
+  top: 20
+  bottom: 20
+  left: 200
+  right: 40
+  center_exclusion:
+    x: 16
+    y: 176
+    width: 176
+    height: 176
+    notes: "Profile picture overlaps bottom-left area. Avoid placing critical content here."
+
+typography_scale:
+  headline: { min: 32, max: 48, recommended: 40 }
+  subheadline: { min: 18, max: 28, recommended: 22 }
+  body: { min: 14, max: 20, recommended: 16 }
+
+layout_rules:
+  margins: 32
+  grid: 8
+  max_text_elements: 2
+  preferred_layouts:
+    - right-aligned-text
+    - centered-above-exclusion
+  content_hierarchy:
+    - "Brand tagline or seasonal message"
+    - "Minimal supporting text or none"
+    - "Background visual does most of the work"
+
+image_rules:
+  min_resolution: "820x312"
+  format: "JPG or PNG"
+  photo_background_preferred: true
+
+composition:
+  balance: "Right-weighted (profile pic on left)"
+  whitespace: "Generous — this is ambient branding"
+  contrast: "Medium"
+  tone: "Brand-forward, seasonal"
+
+brand_placement:
+  logo_position: "center-right"
+  logo_max_size: 48
+  notes: "Logo not strictly needed — page name is already visible"
+
+export:
+  format: PNG
+  scale: 1

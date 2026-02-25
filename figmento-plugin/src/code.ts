@@ -175,6 +175,9 @@ async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
       case 'clone_with_overrides':
         return { ...baseResponse, success: true, data: await handleCloneWithOverrides(cmd.params) };
 
+      case 'scan_frame_structure':
+        return { ...baseResponse, success: true, data: await handleScanFrameStructure(cmd.params) };
+
       default:
         return { ...baseResponse, success: false, error: `Unknown action: ${cmd.action}` };
     }
@@ -1348,4 +1351,221 @@ async function handleCloneWithOverrides(params: Record<string, unknown>): Promis
   }
 
   return { clones: results, count: results.length };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DS-13: scan_frame_structure
+// ═══════════════════════════════════════════════════════════════
+
+interface ScannedNode {
+  nodeId: string;
+  name: string;
+  type: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fills?: unknown[];
+  stroke?: { color: string; weight: number } | null;
+  effects?: unknown[];
+  cornerRadius?: number | number[];
+  opacity?: number;
+  layoutMode?: string;
+  itemSpacing?: number;
+  padding?: { top: number; right: number; bottom: number; left: number };
+  layoutSizingHorizontal?: string;
+  layoutSizingVertical?: string;
+  text?: {
+    content: string;
+    fontSize: number;
+    fontFamily: string;
+    fontWeight: number;
+    color: string;
+    textAlign: string;
+    lineHeight: number | 'AUTO';
+  };
+  children?: ScannedNode[];
+}
+
+async function handleScanFrameStructure(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required');
+
+  const maxDepth = (params.depth as number) || 5;
+  const includeStyles = params.include_styles !== false;
+
+  const node = figma.getNodeById(nodeId);
+  if (!node) throw new Error(`Node not found: ${nodeId}`);
+
+  function extractFills(n: SceneNode): unknown[] | undefined {
+    if (!includeStyles) return undefined;
+    if (!('fills' in n)) return undefined;
+    const fills = n.fills;
+    if (!Array.isArray(fills) || fills.length === 0) return undefined;
+    return fills.map((f: Paint) => {
+      if (f.type === 'SOLID') {
+        return {
+          type: 'SOLID',
+          color: rgbToHex(f.color),
+          opacity: f.opacity !== undefined ? f.opacity : 1,
+        };
+      }
+      return { type: f.type };
+    });
+  }
+
+  function extractStroke(n: SceneNode): { color: string; weight: number } | null {
+    if (!includeStyles) return null;
+    if (!('strokes' in n)) return null;
+    const strokes = (n as GeometryMixin).strokes;
+    if (!Array.isArray(strokes) || strokes.length === 0) return null;
+    const first = strokes[0];
+    if (first.type === 'SOLID') {
+      return {
+        color: rgbToHex(first.color),
+        weight: ('strokeWeight' in n) ? (n as GeometryMixin).strokeWeight as number : 1,
+      };
+    }
+    return null;
+  }
+
+  function extractEffects(n: SceneNode): unknown[] | undefined {
+    if (!includeStyles) return undefined;
+    if (!('effects' in n)) return undefined;
+    const effects = (n as BlendMixin).effects;
+    if (!Array.isArray(effects) || effects.length === 0) return undefined;
+    return effects.map((e: Effect) => {
+      const result: Record<string, unknown> = { type: e.type, visible: e.visible };
+      if ('color' in e && e.color) {
+        result.color = rgbToHex(e.color);
+        result.opacity = e.color.a;
+      }
+      if ('offset' in e) result.offset = e.offset;
+      if ('radius' in e) result.blur = e.radius;
+      if ('spread' in e) result.spread = e.spread;
+      return result;
+    });
+  }
+
+  function extractCornerRadius(n: SceneNode): number | number[] | undefined {
+    if (!includeStyles) return undefined;
+    if (!('cornerRadius' in n)) return undefined;
+    const cr = (n as CornerMixin).cornerRadius;
+    if (cr === figma.mixed) {
+      const rn = n as RectangleCornerMixin;
+      return [
+        rn.topLeftRadius,
+        rn.topRightRadius,
+        rn.bottomRightRadius,
+        rn.bottomLeftRadius,
+      ];
+    }
+    return cr;
+  }
+
+  function extractTextProps(n: TextNode): ScannedNode['text'] {
+    const fontSize = n.fontSize === figma.mixed ? 16 : n.fontSize;
+    let fontFamily = 'Inter';
+    let fontWeight = 400;
+    const fontName = n.fontName;
+    if (fontName !== figma.mixed) {
+      fontFamily = fontName.family;
+      const style = fontName.style.toLowerCase();
+      if (style.includes('bold')) fontWeight = 700;
+      else if (style.includes('semibold') || style.includes('semi bold')) fontWeight = 600;
+      else if (style.includes('medium')) fontWeight = 500;
+      else if (style.includes('light')) fontWeight = 300;
+      else if (style.includes('thin')) fontWeight = 100;
+      else if (style.includes('black') || style.includes('extra bold')) fontWeight = 800;
+    }
+
+    let color = '#000000';
+    const fills = n.fills;
+    if (Array.isArray(fills) && fills.length > 0 && fills[0].type === 'SOLID') {
+      color = rgbToHex(fills[0].color);
+    }
+
+    const textAlign = n.textAlignHorizontal || 'LEFT';
+
+    let lineHeight: number | 'AUTO' = 'AUTO';
+    const lh = n.lineHeight;
+    if (lh !== figma.mixed) {
+      if (lh.unit === 'PIXELS') lineHeight = lh.value;
+      else if (lh.unit === 'PERCENT') lineHeight = lh.value;
+      // AUTO stays as 'AUTO'
+    }
+
+    return {
+      content: n.characters,
+      fontSize,
+      fontFamily,
+      fontWeight,
+      color,
+      textAlign,
+      lineHeight,
+    };
+  }
+
+  function scanNode(n: SceneNode, currentDepth: number): ScannedNode {
+    const result: ScannedNode = {
+      nodeId: n.id,
+      name: n.name,
+      type: n.type,
+      x: Math.round(n.x),
+      y: Math.round(n.y),
+      width: Math.round(n.width),
+      height: Math.round(n.height),
+    };
+
+    // Style properties
+    if (includeStyles) {
+      const fills = extractFills(n);
+      if (fills) result.fills = fills;
+
+      const stroke = extractStroke(n);
+      if (stroke) result.stroke = stroke;
+
+      const effects = extractEffects(n);
+      if (effects) result.effects = effects;
+
+      const cr = extractCornerRadius(n);
+      if (cr !== undefined) result.cornerRadius = cr;
+
+      result.opacity = n.opacity;
+    }
+
+    // Layout properties (for frames)
+    if ('layoutMode' in n) {
+      const frame = n as FrameNode;
+      if (frame.layoutMode !== 'NONE') {
+        result.layoutMode = frame.layoutMode;
+        result.itemSpacing = frame.itemSpacing;
+        result.padding = {
+          top: frame.paddingTop,
+          right: frame.paddingRight,
+          bottom: frame.paddingBottom,
+          left: frame.paddingLeft,
+        };
+      }
+      if (frame.layoutSizingHorizontal) result.layoutSizingHorizontal = frame.layoutSizingHorizontal;
+      if (frame.layoutSizingVertical) result.layoutSizingVertical = frame.layoutSizingVertical;
+    }
+
+    // Text properties
+    if (n.type === 'TEXT') {
+      result.text = extractTextProps(n as TextNode);
+    }
+
+    // Children (recursive)
+    if ('children' in n && currentDepth < maxDepth) {
+      const parent = n as ChildrenMixin;
+      if (parent.children.length > 0) {
+        result.children = parent.children.map(child => scanNode(child as SceneNode, currentDepth + 1));
+      }
+    }
+
+    return result;
+  }
+
+  return scanNode(node as SceneNode, 0) as unknown as Record<string, unknown>;
 }

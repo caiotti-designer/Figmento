@@ -1,0 +1,15 @@
+name: "minimal"
+description: "Stark, high-contrast, lots of whitespace"
+defaults:
+  primary: "#000000"
+  secondary: "#666666"
+  accent: "#000000"
+  surface: "#FFFFFF"
+  background: "#FFFFFF"
+  border: "#E5E5E5"
+  heading_font: "Inter"
+  body_font: "Inter"
+  radius: { sm: 0, md: 0, lg: 0 }
+  shadows: none
+  spacing_unit: 8
+  style: "no shadows, no radius, typography-driven hierarchy"

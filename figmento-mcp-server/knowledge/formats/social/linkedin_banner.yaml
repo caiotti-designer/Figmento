@@ -1,0 +1,51 @@
+name: linkedin_banner
+category: social
+description: "LinkedIn profile/company banner — wide format, minimal text, brand-heavy"
+dimensions:
+  width: 1584
+  height: 396
+  aspect_ratio: "4:1"
+
+safe_zones:
+  top: 20
+  bottom: 20
+  left: 200
+  right: 60
+  notes: "Left 200px may be overlapped by profile picture on personal profiles. Keep text in center-right area."
+
+typography_scale:
+  headline: { min: 36, max: 56, recommended: 44 }
+  subheadline: { min: 20, max: 28, recommended: 24 }
+  body: { min: 16, max: 22, recommended: 18 }
+
+layout_rules:
+  margins: 40
+  grid: 8
+  max_text_elements: 3
+  preferred_layouts:
+    - right-aligned-text
+    - centered-with-gradient
+  content_hierarchy:
+    - "Brand name or tagline — primary"
+    - "Supporting line — secondary"
+    - "No CTA needed — this is brand presence"
+
+image_rules:
+  min_resolution: "1584x396"
+  format: "JPG or PNG"
+  photo_background_preferred: true
+  gradient_overlay: "Recommended for text legibility"
+
+composition:
+  balance: "Right-weighted (left has profile pic overlay)"
+  whitespace: "Generous — minimal text"
+  contrast: "Medium — subtle brand impression"
+  tone: "Professional, aspirational"
+
+brand_placement:
+  logo_position: "center-right or right"
+  logo_max_size: 64
+
+export:
+  format: PNG
+  scale: 1

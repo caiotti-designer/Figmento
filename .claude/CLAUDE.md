@@ -503,5 +503,41 @@ node scripts/render-html.js <input.html> <output.png>
 - Waits for fonts to load (`document.fonts.ready`)
 - Uses headless Chromium via Puppeteer
 
+## Design System Workflow
+
+### Starting Any Design
+1. Ask what brand/project this is for
+2. Check for existing design system: get_design_system(name)
+3. If none: offer to create one from color+font, mood, or preset
+4. Load format rules: get_format_rules(format) for the target format
+5. Use create_component for standard elements — NEVER manually build buttons, badges, cards
+6. All colors, fonts, spacing from tokens — NEVER hardcode values when a system is loaded
+
+### Format Awareness
+- ALWAYS call get_format_rules before starting any design
+- Respect safe zones — no critical content outside safe area
+- Use format-specific typography scales — web sizes ≠ print sizes ≠ social sizes
+- Print formats: respect bleed, minimum font sizes, CMYK considerations
+- Social formats: design for mobile viewing (content must read at 375px display width)
+
+### Template-Based Workflow
+When user says "use this as a template" or "make variations of this":
+1. Call scan_frame_structure to understand the existing design
+2. Use clone_with_overrides to create copies
+3. Modify text, colors, images while preserving layout structure
+4. The user's layout decisions are sacred — don't rearrange their design
+
+### Token Discipline
+- Every color: from design system tokens
+- Every font: from system typography
+- Every spacing value: from spacing scale
+- If you need a value not in the system: ask the user or explain the deviation
+
+### Component Usage
+- Buttons: ALWAYS use create_component, never frame+text manually
+- Badges: ALWAYS use create_component
+- Cards: ALWAYS use create_component for the container
+- If a component doesn't exist for what you need: use batch_execute with token values
+
 ---
 *Synkra AIOS Claude Code Configuration v2.1*

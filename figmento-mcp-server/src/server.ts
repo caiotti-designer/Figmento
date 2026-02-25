@@ -8,6 +8,7 @@ import { registerExportNodeTool, registerExportToFileTool, registerEvaluateDesig
 import { registerBatchTools } from './tools/batch';
 import { registerIntelligenceTools } from './tools/intelligence';
 import { registerTemplateTools } from './tools/template';
+import { registerDesignSystemTools } from './tools/design-system';
 
 /**
  * Creates and configures the Figmento MCP server with all design tools.
@@ -50,6 +51,7 @@ export function createFigmentoServer(): McpServer {
   registerBatchTools(server, sendDesignCommand);
   registerIntelligenceTools(server);
   registerTemplateTools(server, sendDesignCommand);
+  registerDesignSystemTools(server, sendDesignCommand);
 
   return server;
 }

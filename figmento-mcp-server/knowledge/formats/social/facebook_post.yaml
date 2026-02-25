@@ -1,0 +1,51 @@
+name: facebook_post
+category: social
+description: "Facebook feed post image — similar to LinkedIn but more casual and visual"
+dimensions:
+  width: 1200
+  height: 630
+  aspect_ratio: "1.91:1"
+
+safe_zones:
+  top: 40
+  bottom: 40
+  left: 48
+  right: 48
+
+typography_scale:
+  display: { min: 56, max: 80, recommended: 64 }
+  headline: { min: 36, max: 56, recommended: 44 }
+  subheadline: { min: 24, max: 32, recommended: 28 }
+  body: { min: 20, max: 26, recommended: 22 }
+  caption: { min: 16, max: 20, recommended: 18 }
+
+layout_rules:
+  margins: 48
+  grid: 8
+  preferred_layouts:
+    - centered-stack
+    - split-half-horizontal
+    - full-bleed-with-overlay
+  content_hierarchy:
+    - "Visual hook — image or bold headline"
+    - "Supporting message — brief context"
+    - "CTA — optional, casual tone"
+
+image_rules:
+  min_resolution: "1200x630"
+  format: "JPG or PNG"
+  text_overlay_rule: "Facebook penalizes images with >20% text coverage"
+
+composition:
+  balance: "Center-weighted"
+  whitespace: "Moderate"
+  contrast: "High"
+  tone: "Casual, friendly, community-oriented"
+
+brand_placement:
+  logo_position: "top-left or bottom-right"
+  logo_max_size: 56
+
+export:
+  format: PNG
+  scale: 1

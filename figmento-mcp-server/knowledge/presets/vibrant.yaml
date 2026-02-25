@@ -1,0 +1,15 @@
+name: "vibrant"
+description: "Bold colors, large radius, energetic feel"
+defaults:
+  primary: "#7C3AED"
+  secondary: "#EC4899"
+  accent: "#10B981"
+  surface: "#FFFFFF"
+  background: "#FAF5FF"
+  border: "#DDD6FE"
+  heading_font: "Poppins"
+  body_font: "Inter"
+  radius: { sm: 8, md: 12, lg: 24 }
+  shadows: pronounced
+  spacing_unit: 8
+  style: "gradient-friendly, large radius, bold typography, high energy"

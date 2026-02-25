@@ -1,0 +1,67 @@
+name: flyer_a4
+category: print
+description: "A4 flyer/poster — 210×297mm at 300dpi, single page with bleed"
+dimensions:
+  width: 2480
+  height: 3508
+  unit: px
+  physical: "210 × 297mm (A4)"
+  dpi: 300
+
+bleed:
+  size: 9
+  unit: px
+  physical: "3mm"
+
+safe_zone:
+  top: 72
+  bottom: 72
+  left: 72
+  right: 72
+  physical: "~6mm from trim edge"
+
+typography_scale:
+  display: { min: 80, max: 140, recommended: 100 }
+  headline: { min: 56, max: 80, recommended: 64 }
+  subheadline: { min: 36, max: 48, recommended: 40 }
+  body: { min: 24, max: 32, recommended: 28 }
+  caption: { min: 18, max: 24, recommended: 20 }
+
+layout_rules:
+  margins: 72
+  grid: 8
+  preferred_layouts:
+    - top-third-headline
+    - full-bleed-with-overlay
+    - split-half-vertical
+  content_hierarchy:
+    - "Headline — top third, largest text"
+    - "Supporting visual — image or illustration"
+    - "Details — body text, features, bullet points"
+    - "CTA — bottom section, clear call to action"
+  zones:
+    top_third: "Headline and key visual"
+    middle_third: "Supporting content and details"
+    bottom_third: "CTA, contact info, logistics"
+
+print_rules:
+  color_mode: "CMYK recommended"
+  min_line_weight: 0.5
+  min_font_size: 10
+  bleed_required: true
+  fold: false
+
+composition:
+  balance: "Top-heavy — headline draws eye first"
+  whitespace: "Moderate — enough to not feel cluttered"
+  contrast: "High — must grab attention from a distance"
+  viewing_distance: "Arm's length to 1 meter"
+
+brand_placement:
+  logo_position: "top-left or bottom-center"
+  logo_max_height: 120
+
+export:
+  format: PDF
+  scale: 1
+  notes: "Export with 3mm bleed and crop marks"

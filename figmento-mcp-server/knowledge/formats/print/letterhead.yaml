@@ -1,0 +1,69 @@
+name: letterhead
+category: print
+description: "US Letter letterhead — 8.5×11in at 300dpi with header, content area, and footer"
+dimensions:
+  width: 2550
+  height: 3300
+  unit: px
+  physical: "8.5 × 11 inches"
+  dpi: 300
+
+bleed:
+  size: 0
+  notes: "Letterhead typically does not require bleed — printed within margins"
+
+safe_zone:
+  top: 75
+  bottom: 75
+  left: 75
+  right: 75
+  physical: "0.25 inches from edge"
+
+typography_scale:
+  company_name: { min: 36, max: 56, recommended: 44 }
+  heading: { min: 24, max: 36, recommended: 28 }
+  body: { min: 18, max: 24, recommended: 20 }
+  footer_info: { min: 12, max: 16, recommended: 14 }
+
+layout_rules:
+  margins: { top: 150, bottom: 150, left: 150, right: 150 }
+  grid: 8
+  zones:
+    header:
+      y: 0
+      height: 300
+      content: "Logo, company name, tagline"
+    content:
+      y: 300
+      height: 2700
+      content: "Letter body area — left blank for user content"
+    footer:
+      y: 3000
+      height: 300
+      content: "Address, phone, email, website, legal line"
+  preferred_layouts:
+    - header-content-footer
+  content_hierarchy:
+    - "Header — logo and company name"
+    - "Content area — blank for letter text"
+    - "Footer — contact details, small and subtle"
+
+print_rules:
+  color_mode: "CMYK recommended"
+  min_line_weight: 0.5
+  min_font_size: 10
+  header_max_height: 300
+  footer_max_height: 200
+
+composition:
+  balance: "Top-weighted (header is the design element)"
+  whitespace: "Maximum — content area must be clear"
+  contrast: "Medium — professional and understated"
+
+brand_placement:
+  logo_position: "top-left in header"
+  logo_max_height: 120
+
+export:
+  format: PDF
+  scale: 1
