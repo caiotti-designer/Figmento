@@ -169,6 +169,12 @@ async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
       case 'apply_template_image':
         return { ...baseResponse, success: true, data: await handleApplyTemplateImage(cmd.params) };
 
+      case 'batch_execute':
+        return { ...baseResponse, success: true, data: await handleBatchExecute(cmd.params) };
+
+      case 'clone_with_overrides':
+        return { ...baseResponse, success: true, data: await handleCloneWithOverrides(cmd.params) };
+
       default:
         return { ...baseResponse, success: false, error: `Unknown action: ${cmd.action}` };
     }
@@ -1064,4 +1070,282 @@ async function handleCreateDesign(params: Record<string, unknown>): Promise<Reco
     height: mainFrame.height,
     childCount: mainFrame.children.length,
   };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BATCH EXECUTE HANDLER
+// ═══════════════════════════════════════════════════════════════
+
+interface BatchCommand {
+  action: string;
+  params: Record<string, unknown>;
+  tempId?: string;
+}
+
+interface BatchResult {
+  tempId?: string;
+  success: boolean;
+  data?: Record<string, unknown>;
+  error?: string;
+}
+
+/**
+ * Resolve $tempId references in params.
+ * Any string param value starting with "$" is looked up in tempIdMap.
+ * Works recursively on nested objects and arrays.
+ */
+function resolveTempIds(params: Record<string, unknown>, tempIdMap: Map<string, string>): Record<string, unknown> {
+  const resolved: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'string' && value.startsWith('$')) {
+      const refId = value.substring(1);
+      const actualId = tempIdMap.get(refId);
+      if (actualId) {
+        resolved[key] = actualId;
+      } else {
+        // Leave as-is if no match — the command will fail naturally with a clear error
+        resolved[key] = value;
+      }
+    } else if (Array.isArray(value)) {
+      resolved[key] = value.map(item => {
+        if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+          return resolveTempIds(item as Record<string, unknown>, tempIdMap);
+        }
+        if (typeof item === 'string' && item.startsWith('$')) {
+          const refId = item.substring(1);
+          return tempIdMap.get(refId) || item;
+        }
+        return item;
+      });
+    } else if (typeof value === 'object' && value !== null) {
+      resolved[key] = resolveTempIds(value as Record<string, unknown>, tempIdMap);
+    } else {
+      resolved[key] = value;
+    }
+  }
+
+  return resolved;
+}
+
+async function handleBatchExecute(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const commands = params.commands as BatchCommand[];
+  if (!commands || !Array.isArray(commands)) {
+    throw new Error('commands array is required');
+  }
+
+  const tempIdMap = new Map<string, string>();
+  const results: BatchResult[] = [];
+
+  for (const command of commands) {
+    try {
+      // Resolve any $tempId references in this command's params
+      const resolvedParams = resolveTempIds(command.params || {}, tempIdMap);
+
+      // Build a synthetic WSCommand to route through executeCommand
+      // We use a unique ID but don't actually send through WS — we call the handler directly
+      const syntheticCmd: WSCommand = {
+        type: 'command',
+        id: `batch-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+        channel: '',
+        action: command.action,
+        params: resolvedParams,
+      };
+
+      // Execute via the existing handler dispatch
+      const response = await executeSingleAction(syntheticCmd.action, syntheticCmd.params);
+
+      // Extract nodeId for tempId mapping
+      if (command.tempId && response.nodeId) {
+        tempIdMap.set(command.tempId, response.nodeId as string);
+      }
+
+      results.push({
+        tempId: command.tempId,
+        success: true,
+        data: response,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      results.push({
+        tempId: command.tempId,
+        success: false,
+        error: errorMessage,
+      });
+    }
+  }
+
+  const succeeded = results.filter(r => r.success).length;
+  const failed = results.filter(r => !r.success).length;
+
+  return { results, summary: { total: results.length, succeeded, failed } };
+}
+
+/**
+ * Execute a single action by dispatching to the appropriate handler.
+ * This is the inner dispatch used by batch_execute to avoid recursion through
+ * the full executeCommand (which wraps in WSResponse).
+ */
+async function executeSingleAction(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  switch (action) {
+    case 'create_frame': return await handleCreateFrame(params);
+    case 'create_text': return await handleCreateText(params);
+    case 'set_fill': return await handleSetFill(params);
+    case 'export_node': return await handleExportNode(params);
+    case 'get_selection': return await handleGetSelection();
+    case 'create_rectangle': return await handleCreateRectangle(params);
+    case 'create_ellipse': return await handleCreateEllipse(params);
+    case 'create_image': return await handleCreateImage(params);
+    case 'set_stroke': return await handleSetStroke(params);
+    case 'set_effects': return await handleSetEffects(params);
+    case 'set_corner_radius': return await handleSetCornerRadius(params);
+    case 'set_opacity': return await handleSetOpacity(params);
+    case 'set_auto_layout': return await handleSetAutoLayout(params);
+    case 'delete_node': return await handleDeleteNode(params);
+    case 'move_node': return await handleMoveNode(params);
+    case 'resize_node': return await handleResizeNode(params);
+    case 'rename_node': return await handleRenameNode(params);
+    case 'append_child': return await handleAppendChild(params);
+    case 'reorder_child': return await handleReorderChild(params);
+    case 'clone_node': return await handleCloneNode(params);
+    case 'group_nodes': return await handleGroupNodes(params);
+    case 'get_node_info': return await handleGetNodeInfo(params);
+    case 'get_page_nodes': return await handleGetPageNodes();
+    case 'create_design': return await handleCreateDesign(params);
+    case 'create_icon': return await handleCreateIcon(params);
+    case 'scan_template': return await handleScanTemplate(params);
+    case 'apply_template_text': return await handleApplyTemplateText(params);
+    case 'apply_template_image': return await handleApplyTemplateImage(params);
+    case 'clone_with_overrides': return await handleCloneWithOverrides(params);
+    default:
+      throw new Error(`Unknown action in batch: ${action}`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CLONE WITH OVERRIDES HANDLER
+// ═══════════════════════════════════════════════════════════════
+
+interface CloneCopySpec {
+  offsetX?: number;
+  offsetY?: number;
+  newName?: string;
+  overrides?: Array<{
+    childName: string;
+    properties: {
+      content?: string;
+      color?: string;
+      fontSize?: number;
+      fontWeight?: number;
+      opacity?: number;
+    };
+  }>;
+}
+
+/**
+ * Recursively find a descendant node by name.
+ */
+function findChildByName(node: BaseNode, name: string): SceneNode | null {
+  if ('children' in node) {
+    for (const child of (node as FrameNode).children) {
+      if (child.name === name) return child;
+      const found = findChildByName(child, name);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+async function handleCloneWithOverrides(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required');
+
+  const node = figma.getNodeById(nodeId);
+  if (!node || !('clone' in node)) throw new Error(`Node not found: ${nodeId}`);
+
+  const copies = params.copies as CloneCopySpec[];
+  if (!copies || !Array.isArray(copies) || copies.length === 0) {
+    throw new Error('copies array is required and must not be empty');
+  }
+
+  const sourceNode = node as SceneNode;
+  const results: Array<{ nodeId: string; name: string }> = [];
+
+  for (const spec of copies) {
+    const clone = sourceNode.clone();
+
+    // Re-parent into source's parent (clone() places at page level)
+    if (sourceNode.parent && sourceNode.parent.type !== 'PAGE' && 'appendChild' in sourceNode.parent) {
+      (sourceNode.parent as FrameNode).appendChild(clone);
+    }
+
+    // Apply offset
+    const offsetX = spec.offsetX || 0;
+    const offsetY = spec.offsetY || 0;
+    if (offsetX !== 0 || offsetY !== 0) {
+      clone.x += offsetX;
+      clone.y += offsetY;
+    }
+
+    // Apply name
+    if (spec.newName) {
+      clone.name = spec.newName;
+    }
+
+    // Apply child overrides
+    if (spec.overrides && spec.overrides.length > 0) {
+      for (const override of spec.overrides) {
+        const child = findChildByName(clone, override.childName);
+        if (!child) continue; // Skip silently — child might not exist
+
+        const props = override.properties;
+
+        // Text content override
+        if (props.content !== undefined && child.type === 'TEXT') {
+          const textNode = child as TextNode;
+          const existingFont = textNode.fontName as FontName;
+          try {
+            await figma.loadFontAsync(existingFont);
+          } catch (_e) {
+            await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
+          }
+          textNode.characters = props.content;
+
+          // Font size override
+          if (props.fontSize !== undefined) {
+            textNode.fontSize = props.fontSize;
+          }
+
+          // Font weight override
+          if (props.fontWeight !== undefined) {
+            const family = (textNode.fontName as FontName).family;
+            const style = getFontStyle(props.fontWeight);
+            try {
+              await figma.loadFontAsync({ family, style });
+              textNode.fontName = { family, style };
+            } catch (_e) {
+              // Keep existing font weight if load fails
+            }
+          }
+        }
+
+        // Color override (works on any node with fills)
+        if (props.color !== undefined && 'fills' in child) {
+          (child as GeometryMixin).fills = [{
+            type: 'SOLID',
+            color: hexToRgb(props.color),
+          }];
+        }
+
+        // Opacity override
+        if (props.opacity !== undefined && 'opacity' in child) {
+          (child as SceneNode).opacity = props.opacity;
+        }
+      }
+    }
+
+    results.push({ nodeId: clone.id, name: clone.name });
+  }
+
+  return { clones: results, count: results.length };
 }

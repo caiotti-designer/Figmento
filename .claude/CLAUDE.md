@@ -375,11 +375,14 @@ Same as button but smaller: `cornerRadius` fully rounded (`height / 2`), padding
 **Icon usage:**
 The `create_icon` tool places Lucide icons by name. Use it for UI icons like `check`, `arrow-right`, `map-pin`, `phone`, `mail`, `star`, `heart`, `shopping-cart`, `menu`, `search`, etc. Pass `svgPaths` for precise rendering or omit for basic fallback shapes.
 
+**Batch execution rule (IMPORTANT — highest-impact optimization):**
+For designs with 3+ elements, prefer `batch_execute` over sequential tool calls. Group related creation commands into batches — create a parent frame and all its children in one batch using `tempId` references. Example: `{ action: "create_frame", params: { name: "Card", width: 400, height: 300 }, tempId: "card" }` followed by `{ action: "create_text", params: { content: "Title", parentId: "$card" } }`. Max 50 commands per batch. Failed commands don't abort the batch — all commands run and results report individually.
+
 **Canvas spacing rule:**
 When creating multiple top-level designs, offset each new design **200px to the right** of the previous one's right edge. Use `get_page_nodes` to find existing frame positions before placing new ones.
 
 **Repeated elements pattern:**
-Use `clone_node` for repeated patterns like menu items, cards, tags, speaker cards. Create one instance, clone it with `offsetX`/`offsetY`, then update text/fills on the clone. This is faster and more consistent than creating each element from scratch.
+Use `clone_with_overrides` for repeated patterns like menu rows, card grids, feature lists, or speaker cards. It clones a node N times in one call with positional offsets and named child text/color/font overrides — replacing the old clone → find → set_text × N pattern with a single call. For one-off clones, `clone_node` still works.
 
 **AI-generated image placement:**
 When placing AI-generated images, ALWAYS use `place_generated_image` with the file path from mcp-image output. NEVER read image files into base64 manually or pass base64 through bash — the strings are too large for the parameter system. The `place_generated_image` tool reads files server-side and handles all encoding internally. Use the `scaleMode` parameter to control fit: `FILL` (default, crops to fill), `FIT` (contains within bounds), `CROP`, or `TILE`.
