@@ -1,0 +1,85 @@
+name: restaurant_menu
+description: "5-frame restaurant menu set — cover, starters, mains, desserts, and back cover with contact. Uses A5 menu_single print format (559×794px)."
+frame_count: 5
+formats_used: [menu_single]
+estimated_time: "3-4 minutes"
+layout: sequential
+gap: 80
+
+props:
+  restaurant_name: { type: string, required: true, description: "Restaurant name" }
+  tagline: { type: string, required: false, default: "Fresh · Seasonal · Honest", description: "Restaurant tagline or slogan" }
+  address: { type: string, required: false, default: "", description: "Restaurant address" }
+  phone: { type: string, required: false, default: "", description: "Reservation phone number" }
+  starter_1_name: { type: string, required: false, default: "Garden Salad", description: "Starter dish 1 name" }
+  starter_1_desc: { type: string, required: false, default: "Fresh seasonal greens, house dressing", description: "Starter dish 1 description" }
+  starter_2_name: { type: string, required: false, default: "Soup of the Day", description: "Starter dish 2 name" }
+  starter_2_desc: { type: string, required: false, default: "Chef's selection, rustic bread", description: "Starter dish 2 description" }
+  starter_3_name: { type: string, required: false, default: "Bruschetta", description: "Starter dish 3 name" }
+  starter_3_desc: { type: string, required: false, default: "Tomato, basil, aged balsamic", description: "Starter dish 3 description" }
+  main_1_name: { type: string, required: false, default: "Grilled Salmon", description: "Main dish 1 name" }
+  main_1_desc: { type: string, required: false, default: "Lemon butter, seasonal vegetables", description: "Main dish 1 description" }
+  main_2_name: { type: string, required: false, default: "Beef Tenderloin", description: "Main dish 2 name" }
+  main_2_desc: { type: string, required: false, default: "Red wine jus, truffle mash", description: "Main dish 2 description" }
+  main_3_name: { type: string, required: false, default: "Mushroom Risotto", description: "Main dish 3 name" }
+  main_3_desc: { type: string, required: false, default: "Wild mushrooms, parmesan, herbs", description: "Main dish 3 description" }
+  dessert_1_name: { type: string, required: false, default: "Chocolate Fondant", description: "Dessert 1 name" }
+  dessert_1_desc: { type: string, required: false, default: "Warm dark chocolate, vanilla ice cream", description: "Dessert 1 description" }
+  dessert_2_name: { type: string, required: false, default: "Crème Brûlée", description: "Dessert 2 name" }
+  dessert_2_desc: { type: string, required: false, default: "Classic vanilla, caramelised sugar", description: "Dessert 2 description" }
+  dessert_3_name: { type: string, required: false, default: "Seasonal Sorbet", description: "Dessert 3 name" }
+  dessert_3_desc: { type: string, required: false, default: "Chef's selection, fresh mint", description: "Dessert 3 description" }
+
+frames:
+  - id: cover
+    name: "Menu Cover"
+    pattern: hero_block
+    format: menu_single
+    props:
+      headline: "{{restaurant_name}}"
+      subheadline: "{{tagline}}"
+      cta_label: "À la carte"
+
+  - id: starters
+    name: "Starters"
+    pattern: feature_grid
+    format: menu_single
+    props:
+      title_1: "{{starter_1_name}}"
+      desc_1: "{{starter_1_desc}}"
+      title_2: "{{starter_2_name}}"
+      desc_2: "{{starter_2_desc}}"
+      title_3: "{{starter_3_name}}"
+      desc_3: "{{starter_3_desc}}"
+
+  - id: mains
+    name: "Main Courses"
+    pattern: feature_grid
+    format: menu_single
+    props:
+      title_1: "{{main_1_name}}"
+      desc_1: "{{main_1_desc}}"
+      title_2: "{{main_2_name}}"
+      desc_2: "{{main_2_desc}}"
+      title_3: "{{main_3_name}}"
+      desc_3: "{{main_3_desc}}"
+
+  - id: desserts
+    name: "Desserts"
+    pattern: feature_grid
+    format: menu_single
+    props:
+      title_1: "{{dessert_1_name}}"
+      desc_1: "{{dessert_1_desc}}"
+      title_2: "{{dessert_2_name}}"
+      desc_2: "{{dessert_2_desc}}"
+      title_3: "{{dessert_3_name}}"
+      desc_3: "{{dessert_3_desc}}"
+
+  - id: back_cover
+    name: "Back Cover"
+    pattern: cta_banner
+    format: menu_single
+    props:
+      headline: "{{restaurant_name}}"
+      cta_label: "{{address}}"

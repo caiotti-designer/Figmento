@@ -1,11 +1,25 @@
 name: business_card
 category: print
-description: "Standard business card — 3.5×2in at 300dpi, front layout with bleed and safe zone"
+description: "Standard business card — 3.5×2in / 89×51mm at 300dpi. Front layout with bleed and safe zone."
+default_size: standard
+size_variants:
+  standard:
+    width: 1050
+    height: 600
+    aspect_ratio: "1.75:1"
+    description: "US/International standard business card (89×51mm at 300dpi) — Figma preset exact match"
+  euro:
+    width: 1004
+    height: 591
+    aspect_ratio: "1.7:1"
+    description: "European standard business card (85×50mm at 300dpi)"
+
+# Backward-compatible default dimensions
 dimensions:
   width: 1050
   height: 600
   unit: px
-  physical: "3.5 × 2 inches"
+  physical: "3.5 × 2 inches / 89 × 51mm"
   dpi: 300
 
 bleed:

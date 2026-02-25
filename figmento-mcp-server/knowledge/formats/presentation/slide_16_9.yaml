@@ -1,6 +1,15 @@
 name: slide_16_9
 category: presentation
-description: "16:9 presentation slides — 6 slide types with consistent master elements"
+description: "16:9 presentation slides — 6 slide types with consistent master elements."
+default_size: standard
+size_variants:
+  standard:
+    width: 1920
+    height: 1080
+    aspect_ratio: "16:9"
+    description: "Full HD 16:9 slide — Figma preset exact match. Most common presentation format."
+
+# Backward-compatible default dimensions
 dimensions:
   width: 1920
   height: 1080

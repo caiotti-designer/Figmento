@@ -1,0 +1,53 @@
+name: brand_stationery
+description: "4-piece brand stationery set — business card, letterhead, DL envelope, and email signature. All sharing the same contact details and brand identity."
+frame_count: 4
+formats_used: [business_card, letterhead, envelope_dl, email_header]
+estimated_time: "2-3 minutes"
+layout: sequential
+gap: 80
+
+props:
+  name: { type: string, required: true, description: "Person's full name" }
+  title: { type: string, required: true, description: "Job title or role" }
+  company: { type: string, required: true, description: "Company name" }
+  email: { type: string, required: true, description: "Email address" }
+  phone: { type: string, required: false, default: "", description: "Phone number" }
+  website: { type: string, required: false, default: "", description: "Website URL" }
+  address: { type: string, required: false, default: "", description: "Physical address" }
+
+frames:
+  - id: business_card
+    name: "Business Card"
+    pattern: contact_block
+    format: business_card
+    props:
+      email: "{{email}}"
+      phone: "{{phone}}"
+      address: "{{company}}"
+
+  - id: letterhead
+    name: "Letterhead"
+    pattern: hero_block
+    format: letterhead
+    props:
+      headline: "{{company}}"
+      subheadline: "{{address}}"
+      cta_label: "{{website}}"
+
+  - id: envelope
+    name: "DL Envelope"
+    pattern: contact_block
+    format: envelope_dl
+    props:
+      email: "{{email}}"
+      phone: "{{phone}}"
+      address: "{{address}}"
+
+  - id: email_signature
+    name: "Email Signature"
+    pattern: contact_block
+    format: email_header
+    props:
+      email: "{{email}}"
+      phone: "{{phone}}"
+      address: "{{name}} · {{title}} · {{company}}"

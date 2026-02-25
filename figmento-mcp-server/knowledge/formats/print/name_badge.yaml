@@ -1,0 +1,57 @@
+name: name_badge
+category: print
+description: "Standard name badge / ID card — 90×54mm at 96dpi (credit card size). Used for conferences, events, and ID cards."
+dimensions:
+  width: 340
+  height: 204
+  unit: px
+  physical: "90 × 54mm (CR80 credit card size)"
+  dpi: 96
+
+bleed:
+  size: 8
+  unit: px
+  physical: "2mm bleed"
+  notes: "Essential for full-bleed colored backgrounds. Use rounded corner die-cut if needed."
+
+safe_zone:
+  top: 15
+  bottom: 15
+  left: 15
+  right: 15
+  physical: "4mm from trim edge"
+
+typography_scale:
+  name: { min: 18, max: 28, recommended: 22 }
+  title: { min: 11, max: 16, recommended: 13 }
+  company: { min: 10, max: 14, recommended: 12 }
+  event_name: { min: 8, max: 11, recommended: 9 }
+  caption: { min: 7, max: 9, recommended: 8 }
+
+layout_rules:
+  margins: 15
+  grid: 4
+  preferred_layouts:
+    - centered-stack
+    - logo-top-name-center
+    - color-band-top-content-bottom
+  content_hierarchy:
+    - "Name — largest, most legible at arm's length"
+    - "Title / Role — secondary"
+    - "Company — smaller"
+    - "Logo or event branding — top or bottom strip"
+  readability: "Name must be legible at 2m / 6ft distance"
+
+print_rules:
+  color_mode: "CMYK recommended"
+  min_line_weight: 0.25
+  min_font_size: 7
+  cmyk_safe: true
+  bleed_required: true
+  finish: "Glossy laminate preferred for durability"
+  corner_radius: "3mm if die-cut rounded corners"
+
+export:
+  format: PDF
+  scale: 1
+  notes: "Export at 300dpi. Specify lanyard hole position if needed (typically 8mm from top center)."

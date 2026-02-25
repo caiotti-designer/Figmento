@@ -1,6 +1,15 @@
 name: facebook_cover
 category: social
-description: "Facebook page cover photo — wide banner, avoid center area (profile pic overlay)"
+description: "Facebook page cover photo — wide banner, avoid center area (profile pic overlay)."
+default_size: standard
+size_variants:
+  standard:
+    width: 820
+    height: 312
+    aspect_ratio: "2.63:1"
+    description: "Standard Facebook page cover — Figma preset exact match"
+
+# Backward-compatible default dimensions
 dimensions:
   width: 820
   height: 312

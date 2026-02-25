@@ -1,0 +1,52 @@
+name: google_rectangle
+category: advertising
+description: "Google Display medium rectangle — 300x250, most common display ad size for sidebar/in-content"
+dimensions:
+  width: 300
+  height: 250
+  aspect_ratio: "6:5"
+
+safe_zones:
+  top: 8
+  bottom: 8
+  left: 8
+  right: 8
+  notes: "Compact format. 1-2 lines of text max. Strong visual + clear CTA."
+
+typography_scale:
+  headline: { min: 18, max: 28, recommended: 22 }
+  body: { min: 12, max: 16, recommended: 14 }
+  cta: { min: 12, max: 16, recommended: 14 }
+
+layout_rules:
+  margins: 12
+  grid: 4
+  max_text_lines: 3
+  preferred_layouts:
+    - centered-stack
+    - image-top-text-bottom
+  content_hierarchy:
+    - "Visual/Image — top half, attention grabber"
+    - "Headline — 1-2 lines, bold"
+    - "CTA button — bottom, full width or centered"
+
+image_rules:
+  min_resolution: "300x250"
+  format: "JPG, PNG, or GIF"
+  max_file_size_kb: 150
+  animation_max_seconds: 30
+
+composition:
+  balance: "Vertical stack — image drives attention, text converts"
+  whitespace: "Tight but not cramped"
+  contrast: "High — competing with page content for attention"
+  text_overlay: "Overlay OK if image is darkened/blurred"
+
+brand_placement:
+  logo_position: "top-left or bottom-right"
+  logo_max_height: 30
+  cta_position: "bottom-center"
+
+export:
+  format: PNG
+  scale: 1

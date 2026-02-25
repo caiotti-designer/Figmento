@@ -1,12 +1,26 @@
 name: flyer_a4
 category: print
-description: "A4 flyer/poster — 210×297mm at 300dpi, single page with bleed"
+description: "A4 flyer/poster — 210×297mm. Screen (96dpi) dimensions for Figma design; print-ready at 300dpi."
+default_size: screen
+size_variants:
+  screen:
+    width: 794
+    height: 1123
+    aspect_ratio: "1:1.414"
+    description: "A4 at 96dpi — Figma native preset exact match. Use for screen design and mockups."
+  print_ready:
+    width: 2480
+    height: 3508
+    aspect_ratio: "1:1.414"
+    description: "A4 at 300dpi — use for print-ready export with bleed marks"
+
+# Backward-compatible default dimensions (screen)
 dimensions:
-  width: 2480
-  height: 3508
+  width: 794
+  height: 1123
   unit: px
   physical: "210 × 297mm (A4)"
-  dpi: 300
+  dpi: 96
 
 bleed:
   size: 9
@@ -64,4 +78,4 @@ brand_placement:
 export:
   format: PDF
   scale: 1
-  notes: "Export with 3mm bleed and crop marks"
+  notes: "Export print_ready variant with 3mm bleed and crop marks"

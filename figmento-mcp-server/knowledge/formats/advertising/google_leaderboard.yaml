@@ -1,0 +1,52 @@
+name: google_leaderboard
+category: advertising
+description: "Google Display leaderboard banner — 728x90, horizontal strip ad for desktop placements"
+dimensions:
+  width: 728
+  height: 90
+  aspect_ratio: "728:90"
+
+safe_zones:
+  top: 4
+  bottom: 4
+  left: 8
+  right: 8
+  notes: "Extremely limited vertical space. Keep text to 1 line. CTA must be visible."
+
+typography_scale:
+  headline: { min: 16, max: 24, recommended: 20 }
+  body: { min: 12, max: 16, recommended: 14 }
+  cta: { min: 12, max: 16, recommended: 14 }
+
+layout_rules:
+  margins: 8
+  grid: 4
+  max_text_lines: 1
+  preferred_layouts:
+    - horizontal-split
+    - logo-headline-cta
+  content_hierarchy:
+    - "Logo — left edge, brand recognition"
+    - "Headline — center, single impactful line"
+    - "CTA button — right edge, high contrast"
+
+image_rules:
+  min_resolution: "728x90"
+  format: "JPG, PNG, or GIF"
+  max_file_size_kb: 150
+  animation_max_seconds: 30
+
+composition:
+  balance: "Horizontal flow: logo > message > CTA"
+  whitespace: "Minimal — every pixel counts"
+  contrast: "Maximum — must stand out on busy web pages"
+  text_overlay: "Solid backgrounds preferred for legibility"
+
+brand_placement:
+  logo_position: "left"
+  logo_max_height: 50
+  cta_position: "right"
+
+export:
+  format: PNG
+  scale: 1

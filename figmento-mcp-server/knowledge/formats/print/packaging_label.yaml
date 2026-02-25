@@ -1,0 +1,64 @@
+name: packaging_label
+category: print
+description: "Product packaging label — 100×70mm at 96dpi. Standard label for bottles, jars, boxes, and general packaging."
+dimensions:
+  width: 378
+  height: 264
+  unit: px
+  physical: "100 × 70mm"
+  dpi: 96
+
+bleed:
+  size: 11
+  unit: px
+  physical: "3mm bleed"
+  notes: "Always include bleed for die-cut labels. Round-corner labels need corner bleed too."
+
+safe_zone:
+  top: 23
+  bottom: 23
+  left: 23
+  right: 23
+  physical: "6mm from trim edge"
+
+typography_scale:
+  product_name: { min: 20, max: 32, recommended: 26 }
+  variant: { min: 13, max: 18, recommended: 15 }
+  descriptor: { min: 10, max: 14, recommended: 12 }
+  weight_volume: { min: 10, max: 14, recommended: 12 }
+  ingredients: { min: 7, max: 9, recommended: 8 }
+  regulatory: { min: 6, max: 8, recommended: 7 }
+
+layout_rules:
+  margins: 23
+  grid: 4
+  preferred_layouts:
+    - centered-brand-stack
+    - split-left-logo-right-info
+    - full-bleed-color-band
+  content_hierarchy:
+    - "Brand name or logo — most prominent"
+    - "Product name — large, legible"
+    - "Variant or flavor — secondary"
+    - "Net weight / volume — mandatory, regulatory size"
+    - "Barcode — typically bottom-right"
+    - "Ingredients and allergens — fine print"
+  regulatory_requirements:
+    - "Net weight: minimum 7pt font"
+    - "Allergens: bold within ingredients list"
+    - "Country of origin: required in most markets"
+    - "Barcode: 25×18mm minimum for EAN-13"
+
+print_rules:
+  color_mode: "CMYK + spot colors for brand accuracy"
+  min_line_weight: 0.25
+  min_font_size: 6
+  cmyk_safe: true
+  bleed_required: true
+  material: "White gloss label stock standard; clear for premium"
+  finish: "Gloss or matt varnish for durability; waterproof for beverages"
+
+export:
+  format: PDF
+  scale: 1
+  notes: "Export at 300dpi. Include barcode as vector. Specify die-cut shape if non-rectangular."

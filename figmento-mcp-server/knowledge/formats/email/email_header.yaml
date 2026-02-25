@@ -1,0 +1,56 @@
+name: email_header
+category: email
+description: "Email header banner — 600×200px. The top branding strip of an HTML email. Appears above the main content."
+dimensions:
+  width: 600
+  height: 200
+  unit: px
+  notes: "600px is the standard max-width for email clients. Height 150-250px is typical for headers."
+
+safe_zones:
+  top: 20
+  bottom: 20
+  left: 40
+  right: 40
+  notes: "Side padding of 40px provides visual breathing room and accounts for narrow viewports."
+
+typography_scale:
+  company_name: { min: 20, max: 32, recommended: 26 }
+  tagline: { min: 14, max: 18, recommended: 16 }
+  navigation: { min: 13, max: 16, recommended: 14 }
+
+layout_rules:
+  max_width: 600
+  side_padding: 40
+  grid: 8
+  preferred_layouts:
+    - logo-left-navigation-right
+    - centered-logo-only
+    - logo-left-tagline-right
+  content_hierarchy:
+    - "Logo — most prominent element"
+    - "Navigation links (optional) — right aligned"
+    - "Tagline (optional) — below logo or centered"
+
+email_rules:
+  web_safe_fonts: "Use system fonts or Google Fonts with fallbacks: Arial, Helvetica, sans-serif"
+  font_fallbacks:
+    - "Inter, Arial, Helvetica, sans-serif"
+    - "Georgia, 'Times New Roman', serif"
+  background_image: "Avoid background images — many clients block them. Use solid colors."
+  max_width: 600
+  min_font_size: 14
+  link_color: "Always style links explicitly — default blue is off-brand"
+  alt_text: "All images MUST have descriptive alt text for image-blocking clients"
+  retina: "Design at 2x resolution (1200×400px) for retina, scale down to 600×200px"
+  dark_mode: "Test header appearance in dark mode — add prefers-color-scheme support if possible"
+
+composition:
+  balance: "Simple and clean — email is functional, not decorative"
+  whitespace: "Generous padding — mobile screens need breathing room"
+  contrast: "High contrast for accessibility — many email clients have low-quality rendering"
+
+export:
+  format: PNG
+  scale: 2
+  notes: "Export at 2x (1200×400px) for retina displays. Compress to <100KB."

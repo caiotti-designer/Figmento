@@ -1,6 +1,20 @@
 name: facebook_post
 category: social
-description: "Facebook feed post image — similar to LinkedIn but more casual and visual"
+description: "Facebook feed post image — similar to LinkedIn but more casual and visual."
+default_size: landscape
+size_variants:
+  landscape:
+    width: 1200
+    height: 630
+    aspect_ratio: "1.91:1"
+    description: "Standard Facebook post — Figma preset exact match"
+  square:
+    width: 1200
+    height: 1200
+    aspect_ratio: "1:1"
+    description: "Square variant — displayed without cropping on mobile feed"
+
+# Backward-compatible default dimensions
 dimensions:
   width: 1200
   height: 630

@@ -105,9 +105,9 @@ function createFrameNode(element: UIElement): FrameNode {
     if (element.primaryAxisAlignItems) frame.primaryAxisAlignItems = element.primaryAxisAlignItems;
     if (element.counterAxisAlignItems) frame.counterAxisAlignItems = element.counterAxisAlignItems;
 
-    // Auto layout frames default to hugging their content
-    frame.primaryAxisSizingMode = 'AUTO';
-    frame.counterAxisSizingMode = 'AUTO';
+    // Sizing mode: default to HUG (AUTO) unless explicitly set to FIXED
+    frame.primaryAxisSizingMode = element.primaryAxisSizingMode === 'FIXED' ? 'FIXED' : 'AUTO';
+    frame.counterAxisSizingMode = element.counterAxisSizingMode === 'FIXED' ? 'FIXED' : 'AUTO';
   }
 
   return frame;
@@ -481,14 +481,6 @@ async function setupTextNode(node: TextNode, element: UIElement): Promise<void> 
 
   node.textAutoResize = 'HEIGHT';
 
-  // Set layout sizing for auto-layout parents
-  try {
-    node.layoutSizingHorizontal = 'FILL';
-    node.layoutSizingVertical = 'HUG';
-  } catch (_e) {
-    // Parent is not an auto-layout frame
-  }
-
   // Set text color
   node.fills = [{ type: 'SOLID', color: hexToRgb(element.text.color) }];
 
@@ -497,7 +489,12 @@ async function setupTextNode(node: TextNode, element: UIElement): Promise<void> 
   }
 
   if (element.text.lineHeight && typeof element.text.lineHeight === 'number') {
-    node.lineHeight = { value: element.text.lineHeight, unit: 'PIXELS' };
+    // Values ≤ 3 are treated as multipliers (e.g. 1.5 → 1.5 × fontSize px).
+    // Values > 3 are already in pixels and used as-is.
+    const lhValue = element.text.lineHeight <= 3
+      ? element.text.lineHeight * element.text.fontSize
+      : element.text.lineHeight;
+    node.lineHeight = { value: lhValue, unit: 'PIXELS' };
   }
 
   if (element.text.letterSpacing !== undefined && element.text.letterSpacing !== 0) {

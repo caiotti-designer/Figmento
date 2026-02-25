@@ -1,0 +1,85 @@
+name: landing_page
+category: web
+description: "Marketing landing page — responsive web format. Desktop (1440×1024) is the default; tablet (768×1024) and mobile (390×844) variants available."
+default_size: desktop
+size_variants:
+  desktop:
+    width: 1440
+    height: 1024
+    aspect_ratio: "1.406:1"
+    description: "Desktop landing page — Figma native preset exact match (1440×1024)"
+  tablet:
+    width: 768
+    height: 1024
+    aspect_ratio: "3:4"
+    description: "Tablet viewport — Figma native preset exact match (768×1024)"
+  mobile:
+    width: 390
+    height: 844
+    aspect_ratio: "390:844"
+    description: "Mobile viewport — Figma native preset exact match (390×844, iPhone 14 Pro)"
+
+# Backward-compatible default dimensions (desktop)
+dimensions:
+  width: 1440
+  height: 1024
+  unit: px
+  notes: "Height is above-the-fold. Full page scrolls. Design sections at the variant width."
+
+safe_zones:
+  top: 80
+  bottom: 40
+  left: 80
+  right: 80
+  notes: "Content max-width typically 1200px centered. Margins for breathing room."
+
+typography_scale:
+  display: { min: 48, max: 80, recommended: 64 }
+  headline: { min: 32, max: 48, recommended: 40 }
+  subheadline: { min: 20, max: 28, recommended: 24 }
+  body: { min: 16, max: 20, recommended: 18 }
+  caption: { min: 12, max: 14, recommended: 13 }
+  label: { min: 11, max: 13, recommended: 12 }
+
+layout_rules:
+  margins: 80
+  content_max_width: 1200
+  grid: 8
+  columns: 12
+  column_gap: 24
+  preferred_layouts:
+    - hero-features-cta
+    - hero-social-proof-features-pricing-cta
+    - hero-benefits-testimonials-cta
+  content_hierarchy:
+    - "Hero — headline, subheadline, CTA above the fold"
+    - "Social proof — logos, stats, or testimonials"
+    - "Features — 3-4 key benefits with icons"
+    - "Pricing or comparison — conversion section"
+    - "Final CTA — repeat primary action"
+  sections:
+    hero: { height_range: [600, 900], position: "above-the-fold" }
+    features: { height_range: [500, 800] }
+    testimonials: { height_range: [400, 600] }
+    pricing: { height_range: [600, 900] }
+    footer: { height_range: [200, 400] }
+
+image_rules:
+  min_resolution: "1440px wide for full-bleed"
+  format: "WebP, PNG, or JPG"
+  hero_image: "Full-bleed or contained, min 1440x800"
+
+composition:
+  balance: "Center-aligned sections, consistent vertical rhythm"
+  whitespace: "Generous section padding (80-120px between sections)"
+  contrast: "Hero needs highest contrast; body sections can be softer"
+  text_overlay: "Hero images need dark overlay or gradient for text legibility"
+
+brand_placement:
+  logo_position: "top-left in navbar"
+  navbar_height: 64
+
+export:
+  format: PNG
+  scale: 2
+  notes: "Export at 2x for retina. Sections can be exported individually."

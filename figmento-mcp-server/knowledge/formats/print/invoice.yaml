@@ -1,0 +1,61 @@
+name: invoice
+category: print
+description: "A4 invoice / document — 210×297mm at 96dpi. Standard format for invoices, proposals, letters, and formal documents."
+dimensions:
+  width: 794
+  height: 1122
+  unit: px
+  physical: "210 × 297mm (A4 portrait)"
+  dpi: 96
+
+bleed:
+  size: 0
+  notes: "No bleed required for standard documents. If printing with full-bleed header/footer, add 11px bleed."
+
+safe_zone:
+  top: 76
+  bottom: 76
+  left: 76
+  right: 76
+  physical: "20mm margins — standard document margin"
+
+typography_scale:
+  company_name: { min: 20, max: 28, recommended: 24 }
+  document_title: { min: 16, max: 22, recommended: 18 }
+  section_label: { min: 12, max: 14, recommended: 13 }
+  body: { min: 10, max: 13, recommended: 11 }
+  table_text: { min: 9, max: 12, recommended: 10 }
+  caption: { min: 8, max: 10, recommended: 9 }
+
+layout_rules:
+  margins: 76
+  grid: 8
+  preferred_layouts:
+    - header-body-footer
+    - two-column-header-right-aligned-totals
+  zones:
+    header: { height: 150, content: "Logo, company name, invoice number, date" }
+    client_info: { height: 120, content: "Bill to / Ship to blocks" }
+    line_items: { height: 500, content: "Table with description, quantity, price, amount" }
+    totals: { height: 120, content: "Subtotal, tax, total — right-aligned" }
+    footer: { height: 100, content: "Payment terms, bank details, thank you note" }
+  content_hierarchy:
+    - "Invoice number + date — prominent, top-right"
+    - "Company logo — top-left"
+    - "Client details — below header"
+    - "Line items table — main body"
+    - "Total — bold, highlighted"
+    - "Payment info + footer — bottom"
+
+print_rules:
+  color_mode: "RGB acceptable for digital; CMYK for print"
+  min_line_weight: 0.5
+  min_font_size: 8
+  cmyk_safe: true
+  bleed_required: false
+  accessibility: "Ensure 4.5:1 contrast for all text"
+
+export:
+  format: PDF
+  scale: 1
+  notes: "Export as PDF/A for archival. Embed all fonts."

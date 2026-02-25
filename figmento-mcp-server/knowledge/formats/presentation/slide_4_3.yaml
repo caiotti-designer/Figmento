@@ -1,0 +1,79 @@
+name: slide_4_3
+category: presentation
+description: "4:3 presentation slides — classic format for older projectors and printed handouts."
+default_size: standard
+size_variants:
+  standard:
+    width: 1024
+    height: 768
+    aspect_ratio: "4:3"
+    description: "Standard 4:3 slide — Figma preset exact match. Use for legacy projectors, printed handouts, or iPad presentations."
+
+# Backward-compatible default dimensions
+dimensions:
+  width: 1024
+  height: 768
+  aspect_ratio: "4:3"
+
+global_rules:
+  margins: { top: 60, bottom: 60, left: 80, right: 80 }
+  grid: 8
+  max_bullets_per_slide: 5
+  one_idea_per_slide: true
+  master_elements:
+    logo:
+      position: "bottom-right"
+      x: 944
+      y: 736
+      max_height: 24
+      on_every_slide_except: ["title_slide"]
+    page_number:
+      position: "bottom-center"
+      y: 742
+      font_size: 12
+      color: "muted"
+      on_every_slide_except: ["title_slide"]
+
+typography_scale:
+  display: { min: 48, max: 72, recommended: 60 }
+  headline: { min: 32, max: 48, recommended: 40 }
+  subheadline: { min: 22, max: 30, recommended: 26 }
+  body: { min: 16, max: 22, recommended: 20 }
+  caption: { min: 12, max: 16, recommended: 14 }
+  label: { min: 11, max: 14, recommended: 12 }
+
+slide_types:
+  title_slide:
+    description: "Opening slide — centered headline + subtitle"
+    layout:
+      headline: { x: "center", y: 240, font_size: 60, font_weight: 700, text_align: "CENTER" }
+      subtitle: { x: "center", y: 320, font_size: 26, font_weight: 400, color: "muted", text_align: "CENTER" }
+      logo: { position: "bottom-center", y: 680, max_height: 40 }
+    rules:
+      - "Maximum 2 text elements (title + subtitle)"
+      - "No page number on title slide"
+
+  content_slide:
+    description: "Standard content slide — headline + bullets"
+    layout:
+      headline: { x: 80, y: 60, font_size: 40, font_weight: 700 }
+      body_area: { x: 80, y: 140, width: 864, height: 560 }
+      bullet_spacing: 36
+      bullet_font_size: 20
+    rules:
+      - "Maximum 5 bullet points"
+      - "Tighter layout than 16:9 — less content per slide"
+
+  image_slide:
+    description: "Image + text split"
+    layout:
+      image_area: { x: 0, y: 0, width: 614, height: 768 }
+      text_area: { x: 654, y: 120, width: 290, height: 528 }
+    rules:
+      - "60% image / 40% text split"
+      - "Text over images needs overlay"
+
+export:
+  format: PNG
+  scale: 2
+  notes: "Export at 2x for retina displays"

@@ -1,6 +1,25 @@
 name: instagram_post
 category: social
-description: "Square Instagram feed post — optimized for mobile viewing at ~375px display width"
+description: "Instagram feed post — multiple aspect ratios supported. Square (1:1) is the default."
+default_size: square
+size_variants:
+  square:
+    width: 1080
+    height: 1080
+    aspect_ratio: "1:1"
+    description: "Standard square post — most versatile, recommended default"
+  portrait:
+    width: 1080
+    height: 1350
+    aspect_ratio: "4:5"
+    description: "Portrait post — takes up more screen real estate in the feed"
+  landscape:
+    width: 1080
+    height: 566
+    aspect_ratio: "1.91:1"
+    description: "Landscape post — wider format, less prominent in feed"
+
+# Backward-compatible default dimensions (square)
 dimensions:
   width: 1080
   height: 1080

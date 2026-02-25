@@ -1,0 +1,53 @@
+name: google_skyscraper
+category: advertising
+description: "Google Display wide skyscraper — 160x600, tall vertical sidebar ad"
+dimensions:
+  width: 160
+  height: 600
+  aspect_ratio: "4:15"
+
+safe_zones:
+  top: 8
+  bottom: 8
+  left: 8
+  right: 8
+  notes: "Very narrow. Use vertical stacking. Keep text short — 2-3 words per line max."
+
+typography_scale:
+  headline: { min: 16, max: 22, recommended: 18 }
+  body: { min: 11, max: 14, recommended: 12 }
+  cta: { min: 12, max: 14, recommended: 13 }
+
+layout_rules:
+  margins: 8
+  grid: 4
+  max_text_lines: 4
+  preferred_layouts:
+    - vertical-stack
+    - logo-image-text-cta
+  content_hierarchy:
+    - "Logo — top, brand anchor"
+    - "Visual — middle section, tall image"
+    - "Headline — short, punchy text"
+    - "CTA — bottom, full width button"
+
+image_rules:
+  min_resolution: "160x600"
+  format: "JPG, PNG, or GIF"
+  max_file_size_kb: 150
+  animation_max_seconds: 30
+
+composition:
+  balance: "Top-to-bottom vertical flow"
+  whitespace: "Careful — narrow width means every pixel of padding matters"
+  contrast: "High — sidebar placement competes with content"
+  text_overlay: "Prefer solid backgrounds due to narrow width"
+
+brand_placement:
+  logo_position: "top-center"
+  logo_max_width: 120
+  cta_position: "bottom-center"
+
+export:
+  format: PNG
+  scale: 1

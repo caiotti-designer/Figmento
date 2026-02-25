@@ -1,12 +1,26 @@
 name: flyer_us_letter
 category: print
-description: "US Letter flyer — 8.5×11in at 300dpi, same structure as A4 with US dimensions"
+description: "US Letter flyer — 8.5×11 inches. Screen (96dpi) dimensions for Figma design; print-ready at 300dpi."
+default_size: screen
+size_variants:
+  screen:
+    width: 816
+    height: 1056
+    aspect_ratio: "1:1.294"
+    description: "US Letter at 96dpi — Figma native preset exact match. Use for screen design and mockups."
+  print_ready:
+    width: 2550
+    height: 3300
+    aspect_ratio: "1:1.294"
+    description: "US Letter at 300dpi — use for print-ready export with bleed marks"
+
+# Backward-compatible default dimensions (screen)
 dimensions:
-  width: 2550
-  height: 3300
+  width: 816
+  height: 1056
   unit: px
   physical: "8.5 × 11 inches"
-  dpi: 300
+  dpi: 96
 
 bleed:
   size: 9

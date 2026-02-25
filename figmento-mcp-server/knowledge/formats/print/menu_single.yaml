@@ -1,0 +1,57 @@
+name: menu_single
+category: print
+description: "A5 single-page menu — 148×210mm at 96dpi. Ideal for restaurant menus, event programs, and single-page inserts."
+dimensions:
+  width: 559
+  height: 794
+  unit: px
+  physical: "148 × 210mm (A5 portrait)"
+  dpi: 96
+
+bleed:
+  size: 11
+  unit: px
+  physical: "3mm bleed on all edges"
+  notes: "Extend background fills to bleed edge. All text inside safe zone."
+
+safe_zone:
+  top: 30
+  bottom: 30
+  left: 30
+  right: 30
+  physical: "8mm from trim edge"
+
+typography_scale:
+  restaurant_name: { min: 28, max: 48, recommended: 36 }
+  section_heading: { min: 18, max: 26, recommended: 22 }
+  dish_name: { min: 13, max: 18, recommended: 15 }
+  description: { min: 10, max: 13, recommended: 11 }
+  price: { min: 12, max: 16, recommended: 14 }
+  caption: { min: 9, max: 11, recommended: 10 }
+
+layout_rules:
+  margins: 30
+  grid: 4
+  preferred_layouts:
+    - centered-stack
+    - left-aligned-sections
+    - two-column-dish-list
+  content_hierarchy:
+    - "Restaurant name / logo — top"
+    - "Section headings — Starters / Mains / Desserts"
+    - "Dish name + price on same line"
+    - "Description in smaller italic text below"
+    - "Footer with address / contact"
+
+print_rules:
+  color_mode: "CMYK recommended"
+  min_line_weight: 0.5
+  min_font_size: 8
+  cmyk_safe: true
+  bleed_required: true
+  paper_stock: "130–170gsm coated preferred for food photography"
+
+export:
+  format: PDF
+  scale: 1
+  notes: "Export at 300dpi with crop marks. Consider laminate-safe coating for longevity."

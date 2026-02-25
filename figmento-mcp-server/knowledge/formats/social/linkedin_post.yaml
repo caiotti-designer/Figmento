@@ -1,6 +1,20 @@
 name: linkedin_post
 category: social
-description: "LinkedIn feed post image — professional tone, data-friendly, horizontal format"
+description: "LinkedIn feed post image — professional tone, data-friendly, horizontal format."
+default_size: landscape
+size_variants:
+  landscape:
+    width: 1200
+    height: 627
+    aspect_ratio: "1.91:1"
+    description: "Standard LinkedIn post — Figma preset exact match"
+  square:
+    width: 1200
+    height: 1200
+    aspect_ratio: "1:1"
+    description: "Square variant — works well for quote cards and stats"
+
+# Backward-compatible default dimensions
 dimensions:
   width: 1200
   height: 627

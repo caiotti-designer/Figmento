@@ -92,6 +92,8 @@ export interface UIElement {
   paddingLeft?: number;
   primaryAxisAlignItems?: 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN';
   counterAxisAlignItems?: 'MIN' | 'CENTER' | 'MAX';
+  primaryAxisSizingMode?: 'FIXED' | 'AUTO';
+  counterAxisSizingMode?: 'FIXED' | 'AUTO';
 
   layoutSizingHorizontal?: 'FIXED' | 'FILL' | 'HUG';
   layoutSizingVertical?: 'FIXED' | 'FILL' | 'HUG';

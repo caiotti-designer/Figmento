@@ -5,6 +5,44 @@ import * as nodePath from 'path';
 
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
+export function registerGetScreenshotTool(server: McpServer, sendDesignCommand: SendDesignCommand): void {
+  server.tool(
+    'get_screenshot',
+    'Capture a PNG screenshot of a Figma node and render it inline. Use this to visually verify your design output immediately after creating or modifying frames.',
+    {
+      nodeId: z.string().describe('Node ID to screenshot'),
+      scale: z.number().min(0.1).max(3).optional().describe('Export scale 0.1–3 (default: 1)'),
+    },
+    async (params) => {
+      const scale = params.scale != null ? Math.min(Math.max(Number(params.scale), 0.1), 3) : 1;
+      const data = await sendDesignCommand('get_screenshot', { nodeId: params.nodeId, scale });
+
+      const base64 = data.base64 as string;
+      if (!base64) throw new Error('get_screenshot returned no image data');
+
+      return {
+        content: [
+          {
+            type: 'image' as const,
+            data: base64,
+            mimeType: 'image/png' as const,
+          },
+          {
+            type: 'text' as const,
+            text: JSON.stringify({
+              nodeId: data.nodeId,
+              name: data.name,
+              width: data.width,
+              height: data.height,
+              scale,
+            }),
+          },
+        ],
+      };
+    }
+  );
+}
+
 export function registerExportNodeTool(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'export_node',

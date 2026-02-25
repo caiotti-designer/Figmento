@@ -1,0 +1,70 @@
+name: youtube_thumbnail
+category: social
+description: "YouTube video thumbnail — 1280×720px (16:9 HD). The single most important design element for YouTube click-through rate."
+default_size: hd
+size_variants:
+  hd:
+    width: 1280
+    height: 720
+    aspect_ratio: "16:9"
+    description: "Standard YouTube thumbnail — Figma preset exact match"
+
+# Backward-compatible default dimensions
+dimensions:
+  width: 1280
+  height: 720
+  aspect_ratio: "16:9"
+
+safe_zones:
+  top: 40
+  bottom: 80
+  left: 40
+  right: 40
+  notes: "Bottom-right 100×40px may be obscured by video duration badge. Avoid placing critical content there."
+
+typography_scale:
+  display: { min: 64, max: 120, recommended: 96 }
+  headline: { min: 48, max: 80, recommended: 64 }
+  subheadline: { min: 28, max: 44, recommended: 36 }
+  body: { min: 22, max: 32, recommended: 26 }
+  caption: { min: 18, max: 24, recommended: 20 }
+
+layout_rules:
+  margins: 40
+  grid: 8
+  max_words: 5
+  preferred_layouts:
+    - face-left-text-right
+    - full-bleed-bold-text
+    - split-image-text
+    - before-after-split
+  content_hierarchy:
+    - "Face / person — left or center (faces drive clicks)"
+    - "Bold headline — 3-5 words maximum, right side or bottom"
+    - "Number or contrast element — draws the eye"
+    - "Brand color background — channel consistency"
+  design_notes:
+    - "Maximum 5 words of text — must be readable at 120px display size"
+    - "Use 3-color rule: background, accent, text — max 3 colors"
+    - "High contrast essential — thumbnail competes with dozens of others"
+    - "Curiosity gap in text increases CTR (e.g. 'I was WRONG about...')"
+    - "Consistent template across channel builds recognition"
+    - "Avoid timestamp area (bottom-right) for important content"
+    - "Bright colors (yellow, orange, red) outperform muted palettes"
+
+image_rules:
+  min_resolution: "1280x720"
+  format: "JPG or PNG"
+  max_file_size_mb: 2
+  recommended_file_size_kb: 500
+  full_bleed_preferred: true
+
+brand_placement:
+  logo_position: "top-right or bottom-left — consistent across channel"
+  logo_max_size: 80
+
+export:
+  format: JPG
+  scale: 1
+  quality: 90
+  notes: "YouTube requires <2MB. JPG at 90% quality is recommended."

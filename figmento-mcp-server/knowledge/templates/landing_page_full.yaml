@@ -1,0 +1,91 @@
+name: landing_page_full
+description: "6-section full landing page — hero, features, image+text, stats, testimonial, and CTA. All sections use the landing_page (1440×900) format, placed left-to-right on the canvas."
+frame_count: 6
+formats_used: [landing_page]
+estimated_time: "3-4 minutes"
+layout: sequential
+gap: 80
+
+props:
+  # Primary prop names (also accepts legacy aliases below)
+  headline: { type: string, required: false, default: "Make it happen.", description: "Hero headline (also accepted as tagline)" }
+  tagline: { type: string, required: false, default: "", description: "Alias for headline — hero main value proposition" }
+  subheadline: { type: string, required: false, default: "Built for teams that move fast.", description: "Supporting hero subheadline" }
+  cta_label: { type: string, required: false, default: "Get Started Free", description: "Primary CTA button text" }
+  feature_1_title: { type: string, required: false, default: "Lightning Fast", description: "Feature 1 title" }
+  feature_1_desc: { type: string, required: false, default: "Built for performance from day one.", description: "Feature 1 description" }
+  feature_2_title: { type: string, required: false, default: "Easy to Use", description: "Feature 2 title" }
+  feature_2_desc: { type: string, required: false, default: "Intuitive design, zero learning curve.", description: "Feature 2 description" }
+  feature_3_title: { type: string, required: false, default: "Secure & Reliable", description: "Feature 3 title" }
+  feature_3_desc: { type: string, required: false, default: "Enterprise-grade security included.", description: "Feature 3 description" }
+  # Image+text section
+  section_title: { type: string, required: false, default: "Everything you need", description: "Image+text section heading (also accepted as section_heading)" }
+  section_heading: { type: string, required: false, default: "", description: "Alias for section_title" }
+  section_body: { type: string, required: false, default: "A complete platform that scales with your business.", description: "Image+text section body text" }
+  # Stats — accepts either stat_1_* or stat_value/stat_label
+  stat_1_value: { type: string, required: false, default: "10K+", description: "Key metric value (also accepted as stat_value)" }
+  stat_1_label: { type: string, required: false, default: "Happy Customers", description: "Key metric label (also accepted as stat_label)" }
+  stat_value: { type: string, required: false, default: "", description: "Alias for stat_1_value" }
+  stat_label: { type: string, required: false, default: "", description: "Alias for stat_1_label" }
+  # Testimonial — accepts either quote/author_name/author_title or testimonial_quote/testimonial_author/testimonial_role
+  quote: { type: string, required: false, default: "This product changed how we work.", description: "Customer testimonial quote (also accepted as testimonial_quote)" }
+  author_name: { type: string, required: false, default: "Jane Doe", description: "Testimonial author name (also accepted as testimonial_author)" }
+  author_title: { type: string, required: false, default: "CEO, Acme Corp", description: "Testimonial author role (also accepted as testimonial_role)" }
+  testimonial_quote: { type: string, required: false, default: "", description: "Alias for quote" }
+  testimonial_author: { type: string, required: false, default: "", description: "Alias for author_name" }
+  testimonial_role: { type: string, required: false, default: "", description: "Alias for author_title" }
+
+frames:
+  - id: hero
+    name: "Hero Section"
+    pattern: hero_block
+    format: landing_page
+    props:
+      headline: "{{headline}}"
+      subheadline: "{{subheadline}}"
+      cta_label: "{{cta_label}}"
+
+  - id: features
+    name: "Features Section"
+    pattern: feature_grid
+    format: landing_page
+    props:
+      title_1: "{{feature_1_title}}"
+      desc_1: "{{feature_1_desc}}"
+      title_2: "{{feature_2_title}}"
+      desc_2: "{{feature_2_desc}}"
+      title_3: "{{feature_3_title}}"
+      desc_3: "{{feature_3_desc}}"
+
+  - id: image_text
+    name: "Image + Text Section"
+    pattern: image_text_row
+    format: landing_page
+    props:
+      heading: "{{section_title}}"
+      body: "{{section_body}}"
+
+  - id: stats
+    name: "Stats / Social Proof"
+    pattern: data_row
+    format: landing_page
+    props:
+      value: "{{stat_1_value}}"
+      label: "{{stat_1_label}}"
+
+  - id: testimonial
+    name: "Testimonial Section"
+    pattern: testimonial
+    format: landing_page
+    props:
+      quote: "{{quote}}"
+      author: "{{author_name}}"
+      role: "{{author_title}}"
+
+  - id: cta
+    name: "Final CTA Section"
+    pattern: cta_banner
+    format: landing_page
+    props:
+      headline: "{{headline}}"
+      cta_label: "{{cta_label}}"

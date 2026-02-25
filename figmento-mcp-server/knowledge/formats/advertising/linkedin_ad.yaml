@@ -1,0 +1,55 @@
+name: linkedin_ad
+category: advertising
+description: "LinkedIn sponsored content ad — 1200x627, professional B2B advertising format"
+dimensions:
+  width: 1200
+  height: 627
+  aspect_ratio: "1.91:1"
+
+safe_zones:
+  top: 40
+  bottom: 40
+  left: 48
+  right: 48
+  notes: "Professional tone required. Data-driven visuals perform well. Keep text concise."
+
+typography_scale:
+  headline: { min: 32, max: 48, recommended: 40 }
+  subheadline: { min: 22, max: 30, recommended: 26 }
+  body: { min: 16, max: 22, recommended: 18 }
+  caption: { min: 14, max: 16, recommended: 15 }
+  stat: { min: 48, max: 72, recommended: 56 }
+
+layout_rules:
+  margins: 48
+  grid: 8
+  max_text_lines: 3
+  preferred_layouts:
+    - centered-stack
+    - stat-highlight
+    - split-half-horizontal
+  content_hierarchy:
+    - "Key statistic or value proposition — immediate impact"
+    - "Supporting context — 1-2 lines"
+    - "Brand indicator — logo, subtle"
+  linkedin_ad_rule: "Professional, data-driven imagery. Stats and charts outperform stock photos."
+
+image_rules:
+  min_resolution: "1200x627"
+  format: "JPG or PNG"
+  max_file_size_mb: 5
+  full_bleed_preferred: false
+
+composition:
+  balance: "Clean, corporate-friendly layout"
+  whitespace: "Generous — professional aesthetic requires breathing room"
+  contrast: "Medium-high — professional without being loud"
+  text_overlay: "Prefer solid or subtle gradient backgrounds"
+
+brand_placement:
+  logo_position: "top-left or bottom-right"
+  logo_max_size: 64
+
+export:
+  format: PNG
+  scale: 1

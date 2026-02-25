@@ -1,0 +1,80 @@
+name: testbrand
+created: '2026-02-25T17:35:12.789Z'
+preset_used: vibrant
+mood: []
+voice: null
+colors:
+  primary: '#6366F1'
+  primary_light: '#EFF0FE'
+  primary_dark: '#1418DA'
+  secondary: '#EC4899'
+  accent: '#10B981'
+  surface: '#FFFFFF'
+  background: '#FAF5FF'
+  border: '#DDD6FE'
+  on_primary: '#000000'
+  on_surface: '#151519'
+  on_surface_muted: '#6D6D78'
+  success: '#16A34A'
+  warning: '#EAB308'
+  error: '#DC2626'
+  info: '#2563EB'
+typography:
+  heading:
+    family: Poppins
+    weights:
+      - 600
+      - 700
+      - 800
+  body:
+    family: Inter
+    weights:
+      - 400
+      - 500
+      - 600
+  scale:
+    display: 61
+    h1: 49
+    h2: 39
+    h3: 31
+    body_lg: 20
+    body: 16
+    body_sm: 13
+    caption: 10
+spacing:
+  unit: 8
+  xs: 4
+  sm: 8
+  md: 16
+  lg: 24
+  xl: 32
+  2xl: 48
+  3xl: 64
+radius:
+  none: 0
+  sm: 8
+  md: 12
+  lg: 24
+  full: 9999
+shadows:
+  sm:
+    x: 0
+    'y': 2
+    blur: 4
+    spread: -1
+    color: '#6366F1'
+    opacity: 0.1
+  md:
+    x: 0
+    'y': 8
+    blur: 16
+    spread: -4
+    color: '#6366F1'
+    opacity: 0.15
+  lg:
+    x: 0
+    'y': 16
+    blur: 48
+    spread: -8
+    color: '#6366F1'
+    opacity: 0.2

@@ -1,0 +1,63 @@
+name: blog_article
+category: web
+description: "Blog article page — 1440px wide with centered narrow content column for optimal reading"
+dimensions:
+  width: 1440
+  height: 900
+  unit: px
+  notes: "Height is above-the-fold. Articles scroll. Content column is 680-740px centered."
+
+safe_zones:
+  top: 80
+  bottom: 40
+  left: 350
+  right: 350
+  notes: "Content column centered at 680-740px wide. Wide margins for readability."
+
+typography_scale:
+  display: { min: 36, max: 56, recommended: 44 }
+  headline: { min: 28, max: 36, recommended: 32 }
+  subheadline: { min: 20, max: 26, recommended: 22 }
+  body: { min: 16, max: 20, recommended: 18 }
+  caption: { min: 12, max: 14, recommended: 13 }
+  label: { min: 11, max: 13, recommended: 12 }
+  blockquote: { min: 20, max: 26, recommended: 22 }
+
+layout_rules:
+  margins: 80
+  content_max_width: 720
+  grid: 8
+  preferred_layouts:
+    - header-image-body
+    - title-meta-body
+  content_hierarchy:
+    - "Article title — large, prominent"
+    - "Meta info — author, date, reading time"
+    - "Hero image — full content width"
+    - "Body text — optimized for reading (16-18px, 1.6-1.8 line height)"
+    - "Subheadings — break up long content"
+  reading_optimized:
+    line_length_chars: "60-80 characters per line"
+    line_height: 1.7
+    paragraph_spacing: 24
+    heading_margin_top: 48
+
+image_rules:
+  min_resolution: "720px wide for content-width images"
+  format: "WebP or JPG"
+  hero_image: "Full content width, 400-500px tall"
+  inline_images: "Content-width or float"
+
+composition:
+  balance: "Strong vertical rhythm — consistent spacing between elements"
+  whitespace: "Very generous — wide margins create focused reading experience"
+  contrast: "Body text at #1a1a1a or similar near-black for reading comfort"
+  text_overlay: "Hero image with subtle gradient overlay for title"
+
+brand_placement:
+  logo_position: "top-left in navbar"
+  navbar_height: 64
+
+export:
+  format: PNG
+  scale: 2

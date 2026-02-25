@@ -1,9 +1,23 @@
 name: twitter_post
 category: social
-description: "Twitter/X post image — bold headline, minimal body text, high-impact visual"
+description: "Twitter/X post image — bold headline, minimal body text, high-impact visual."
+default_size: landscape
+size_variants:
+  landscape:
+    width: 1600
+    height: 900
+    aspect_ratio: "16:9"
+    description: "Standard Twitter/X post image — Figma preset exact match"
+  square:
+    width: 1200
+    height: 1200
+    aspect_ratio: "1:1"
+    description: "Square variant — appears in-feed without letterboxing on mobile"
+
+# Backward-compatible default dimensions
 dimensions:
-  width: 1200
-  height: 675
+  width: 1600
+  height: 900
   aspect_ratio: "16:9"
 
 safe_zones:
@@ -33,7 +47,7 @@ layout_rules:
     - "Visual element — icon, illustration, or photo"
 
 image_rules:
-  min_resolution: "1200x675"
+  min_resolution: "1600x900"
   format: "PNG or JPG"
   high_contrast: true
 

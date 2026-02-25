@@ -1,0 +1,86 @@
+name: email_newsletter
+category: email
+description: "Full HTML email newsletter — 600px wide, variable height (typically 800–3000px). Single-column layout optimized for all email clients and mobile devices."
+dimensions:
+  width: 600
+  height: 2000
+  unit: px
+  notes: "Width is fixed at 600px (max-width for broad compatibility). Height is variable — design as tall as content needs. Typical newsletters: 800–3000px."
+
+safe_zones:
+  top: 0
+  bottom: 0
+  left: 40
+  right: 40
+  notes: "Side padding of 40px is standard. No bleed needed for email."
+
+structure:
+  preheader: { height: 0, notes: "Hidden preview text — not designed, but essential. First 100 characters seen in inbox preview." }
+  header: { height: 100, notes: "Logo + navigation" }
+  hero_banner: { height: 300, notes: "Primary promotional image or message" }
+  body_sections: { height: "variable", notes: "1-5 content blocks, each 200-400px" }
+  footer: { height: 200, notes: "Unsubscribe link (mandatory), legal text, social links, address" }
+
+typography_scale:
+  headline: { min: 24, max: 36, recommended: 28 }
+  section_heading: { min: 18, max: 24, recommended: 20 }
+  body: { min: 14, max: 16, recommended: 15 }
+  caption: { min: 12, max: 14, recommended: 12 }
+  cta_button: { min: 14, max: 16, recommended: 15 }
+  fine_print: { min: 11, max: 13, recommended: 11 }
+
+layout_rules:
+  max_width: 600
+  content_width: 520
+  side_padding: 40
+  section_padding_vertical: 40
+  grid: 8
+  preferred_layouts:
+    - single-column
+    - two-column-content
+    - alternating-image-text
+  column_rules:
+    single_column: "Always use for mobile — two-column stacks to single on mobile"
+    two_column: "600px total, 260px each with 20px gap — use sparingly"
+  content_hierarchy:
+    - "Header: logo + navigation"
+    - "Hero: main message or promotion"
+    - "Section 1: primary content (article / product / announcement)"
+    - "Section 2-4: secondary content"
+    - "Footer: legal, unsubscribe, social"
+
+email_rules:
+  web_safe_fonts: "Always specify fallback font stack"
+  font_stack_examples:
+    - "Inter, -apple-system, BlinkMacSystemFont, Arial, sans-serif"
+    - "Georgia, 'Times New Roman', Times, serif"
+  max_width: 600
+  min_font_size: 14
+  line_height: 1.6
+  link_styling: "Always include underline or color differentiation for links"
+  background_images: "Avoid in critical areas — Outlook does not support them"
+  image_hosting: "All images must be externally hosted — not inline base64"
+  alt_text: "ALL images must have descriptive alt text"
+  cta_buttons: "Use HTML/CSS bulletproof buttons — not images"
+  unsubscribe: "MANDATORY: Unsubscribe link in footer (CAN-SPAM, GDPR compliance)"
+  physical_address: "MANDATORY: Physical mailing address in footer (CAN-SPAM)"
+  dark_mode: "Use transparent PNG logos and avoid hard-coded white backgrounds where possible"
+  responsive: "Design at 600px; implement with max-width:100% on images for mobile"
+  preheader_text: "Write a compelling 80-100 character preheader — it appears in inbox preview"
+
+composition:
+  balance: "Consistent visual rhythm — repeat spacing and alignment"
+  whitespace: "40px between sections — email needs generous breathing room"
+  contrast: "Body text minimum 4.5:1 contrast ratio for accessibility"
+  image_to_text: "Never rely on images alone — design for images-off rendering"
+
+footer_requirements:
+  unsubscribe_link: "Required by law in most countries"
+  physical_address: "Required by CAN-SPAM (US), CASL (Canada)"
+  privacy_policy: "Link to privacy policy recommended"
+  social_links: "Optional but increases engagement"
+
+export:
+  format: PNG
+  scale: 2
+  notes: "Export full newsletter at 2x (1200px wide) for retina review. In production, use HTML/CSS not images."

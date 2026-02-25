@@ -1,0 +1,60 @@
+name: dashboard
+category: web
+description: "Data dashboard layout — 1440px wide, sidebar navigation with main content area for charts and stats"
+dimensions:
+  width: 1440
+  height: 900
+  unit: px
+  notes: "Height is viewport. Dashboard scrolls vertically. Sidebar is fixed."
+
+safe_zones:
+  top: 16
+  bottom: 16
+  left: 16
+  right: 16
+  notes: "Content area starts after sidebar (240-280px). Tighter margins than marketing pages."
+
+typography_scale:
+  display: { min: 32, max: 48, recommended: 36 }
+  headline: { min: 20, max: 28, recommended: 24 }
+  subheadline: { min: 16, max: 20, recommended: 18 }
+  body: { min: 13, max: 16, recommended: 14 }
+  caption: { min: 11, max: 13, recommended: 12 }
+  label: { min: 10, max: 12, recommended: 11 }
+  stat: { min: 28, max: 48, recommended: 36 }
+
+layout_rules:
+  margins: 24
+  grid: 8
+  sidebar_width: 260
+  content_area_start: 260
+  preferred_layouts:
+    - sidebar-topbar-grid
+    - sidebar-header-cards-table
+  content_hierarchy:
+    - "Top bar — page title, search, user avatar"
+    - "Stat cards row — 3-4 KPI summary cards"
+    - "Charts area — 1-2 main data visualizations"
+    - "Table/list — detailed data below charts"
+  card_grid:
+    columns: 4
+    gap: 16
+    card_min_height: 120
+
+image_rules:
+  format: "SVG for icons, PNG for charts"
+  chart_placeholder: "Rounded rectangle with border, labeled 'Chart'"
+
+composition:
+  balance: "Information density — maximize data visibility without clutter"
+  whitespace: "Tighter than marketing — functional spacing"
+  contrast: "Stat numbers in primary color, labels muted"
+  text_overlay: "No image overlays — data clarity is paramount"
+
+brand_placement:
+  logo_position: "top of sidebar"
+  logo_max_width: 160
+
+export:
+  format: PNG
+  scale: 2

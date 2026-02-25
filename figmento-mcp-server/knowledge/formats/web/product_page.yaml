@@ -1,0 +1,62 @@
+name: product_page
+category: web
+description: "Product detail page — 1440px wide, hero product image with details, specs, and purchase CTA"
+dimensions:
+  width: 1440
+  height: 900
+  unit: px
+  notes: "Height is above-the-fold. Key purchase info must be visible without scrolling."
+
+safe_zones:
+  top: 80
+  bottom: 40
+  left: 80
+  right: 80
+  notes: "Content max-width 1200px. Split layout: product image left, details right."
+
+typography_scale:
+  display: { min: 32, max: 48, recommended: 40 }
+  headline: { min: 24, max: 36, recommended: 28 }
+  subheadline: { min: 18, max: 24, recommended: 20 }
+  body: { min: 14, max: 18, recommended: 16 }
+  caption: { min: 12, max: 14, recommended: 13 }
+  price: { min: 28, max: 40, recommended: 32 }
+  label: { min: 11, max: 13, recommended: 12 }
+
+layout_rules:
+  margins: 80
+  content_max_width: 1200
+  grid: 8
+  preferred_layouts:
+    - image-left-details-right
+    - image-gallery-left-info-right
+  content_hierarchy:
+    - "Product image — large, high quality, left side (50-60% width)"
+    - "Product name and price — right side, top"
+    - "Description — brief product summary"
+    - "Variants — color/size selectors if applicable"
+    - "Add to Cart CTA — prominent button"
+    - "Specs/details — below the fold, tabbed or accordion"
+  above_the_fold:
+    image_area: { width_percent: 55, min_height: 500 }
+    info_area: { width_percent: 45, elements: ["name", "price", "description", "cta"] }
+
+image_rules:
+  min_resolution: "800x800 for product images"
+  format: "WebP or PNG with transparency"
+  product_image: "Clean background, well-lit, multiple angles in gallery"
+  thumbnail_size: "80x80 for gallery thumbnails"
+
+composition:
+  balance: "Image-heavy left, info-dense right — classic e-commerce split"
+  whitespace: "Clean product shots need surrounding space to shine"
+  contrast: "Price and CTA must pop — primary color button"
+  text_overlay: "No text over product images"
+
+brand_placement:
+  logo_position: "top-left in navbar"
+  navbar_height: 64
+
+export:
+  format: PNG
+  scale: 2

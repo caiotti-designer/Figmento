@@ -1,0 +1,95 @@
+name: pitch_deck
+description: "8-slide startup pitch deck — title, problem, solution, traction, features, pricing, testimonial, and closing CTA. Uses 1920×1080 slide format."
+frame_count: 8
+formats_used: [slide_16_9]
+estimated_time: "3-4 minutes"
+layout: sequential
+gap: 80
+
+props:
+  company_name: { type: string, required: true, description: "Company or product name" }
+  tagline: { type: string, required: true, description: "One-line value proposition" }
+  problem: { type: string, required: true, description: "The problem you are solving" }
+  solution: { type: string, required: true, description: "How your product solves it" }
+  stat_1_value: { type: string, required: false, default: "—", description: "First traction stat value (e.g. 50K+)" }
+  stat_1_label: { type: string, required: false, default: "Users", description: "First traction stat label" }
+  stat_2_value: { type: string, required: false, default: "—", description: "Second stat value" }
+  stat_2_label: { type: string, required: false, default: "Metric", description: "Second stat label" }
+  stat_3_value: { type: string, required: false, default: "—", description: "Third stat value" }
+  stat_3_label: { type: string, required: false, default: "Metric", description: "Third stat label" }
+  cta_label: { type: string, required: false, default: "Invest Now", description: "Closing CTA button text" }
+
+frames:
+  - id: title_slide
+    name: "01 — Title"
+    pattern: hero_block
+    format: slide_16_9
+    props:
+      headline: "{{company_name}}"
+      subheadline: "{{tagline}}"
+      cta_label: "{{cta_label}}"
+
+  - id: problem_slide
+    name: "02 — The Problem"
+    pattern: content_section
+    format: slide_16_9
+    props:
+      heading: "The Problem"
+      body: "{{problem}}"
+      subheading: "Why this matters now"
+
+  - id: solution_slide
+    name: "03 — Our Solution"
+    pattern: image_text_row
+    format: slide_16_9
+    props:
+      heading: "Our Solution"
+      body: "{{solution}}"
+
+  - id: traction_slide
+    name: "04 — Traction"
+    pattern: data_row
+    format: slide_16_9
+    props:
+      value: "{{stat_1_value}}"
+      label: "{{stat_1_label}}"
+
+  - id: features_slide
+    name: "05 — Features"
+    pattern: feature_grid
+    format: slide_16_9
+    props:
+      title_1: "{{stat_1_label}}"
+      desc_1: "{{stat_1_value}} and growing fast"
+      title_2: "{{stat_2_label}}"
+      desc_2: "{{stat_2_value}} achieved"
+      title_3: "{{stat_3_label}}"
+      desc_3: "{{stat_3_value}} milestone"
+
+  - id: pricing_slide
+    name: "06 — Investment"
+    pattern: pricing_card
+    format: slide_16_9
+    props:
+      plan: "{{company_name}}"
+      price: "Seed Round"
+      period: "now open"
+      features: "✓ Proven traction\n✓ Strong team\n✓ Large market"
+      cta_label: "{{cta_label}}"
+
+  - id: testimonial_slide
+    name: "07 — What They Say"
+    pattern: testimonial
+    format: slide_16_9
+    props:
+      quote: "{{tagline}}"
+      author: "{{company_name}} User"
+      role: "Early Adopter"
+
+  - id: closing_slide
+    name: "08 — Let's Build Together"
+    pattern: cta_banner
+    format: slide_16_9
+    props:
+      headline: "{{company_name}}"
+      cta_label: "{{cta_label}}"

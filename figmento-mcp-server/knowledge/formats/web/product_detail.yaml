@@ -1,0 +1,94 @@
+name: product_detail
+category: web
+description: "Product detail / PDP page — 1440×900px split layout. E-commerce or SaaS product detail with image gallery on left and purchase/subscribe info on right."
+dimensions:
+  width: 1440
+  height: 900
+  unit: px
+  notes: "Above-the-fold product view. Page scrolls for description, reviews, and related products."
+
+safe_zones:
+  top: 0
+  bottom: 0
+  left: 0
+  right: 0
+  content_max_width: 1280
+  notes: "Content centered, max 1280px. Split into two halves of ~600px each."
+
+breakpoints:
+  desktop: 1440
+  tablet: 1024
+  mobile: 375
+  notes: "Split collapses to stacked on mobile (image top, info bottom). Gallery swipes horizontally on mobile."
+
+layout:
+  type: split
+  header_height: 64
+  left_panel_width: 640
+  right_panel_width: 640
+  zone_gap: 80
+  zones:
+    header: { height: 64, content: "Breadcrumb navigation, logo, cart icon" }
+    image_panel:
+      width: 640
+      content: "Primary product image + thumbnail gallery strip"
+      thumbnail_strip_height: 80
+    info_panel:
+      width: 640
+      padding: 48
+      content: "Product name, price, variant selectors, add to cart, description summary"
+
+typography_scale:
+  breadcrumb: { min: 12, max: 14, recommended: 13 }
+  product_name: { min: 24, max: 36, recommended: 28 }
+  price: { min: 22, max: 32, recommended: 28 }
+  original_price: { min: 16, max: 20, recommended: 18 }
+  section_label: { min: 12, max: 14, recommended: 13 }
+  body: { min: 14, max: 16, recommended: 15 }
+  add_to_cart: { min: 15, max: 17, recommended: 16 }
+  reviews: { min: 13, max: 15, recommended: 14 }
+  caption: { min: 11, max: 13, recommended: 12 }
+
+layout_rules:
+  content_max_width: 1280
+  safe_content_width: 1280
+  grid: 8
+  button_height: 52
+  input_height: 44
+  preferred_layouts:
+    - split-half-image-left-info-right
+    - full-width-image-info-below
+  info_panel_elements:
+    - "Product name — large, clear"
+    - "Rating and review count — below name"
+    - "Price — prominent, with sale price if applicable"
+    - "Variant selectors — color, size, etc. with visual swatches"
+    - "Quantity selector"
+    - "Add to Cart — primary full-width button"
+    - "Buy Now / Checkout — secondary CTA"
+    - "Key benefits — 3-4 bullet points"
+    - "Shipping info — 'Free delivery over $50'"
+  trust_signals:
+    - "Star ratings visible"
+    - "Secure checkout badge"
+    - "Return policy"
+    - "In-stock / stock urgency indicator"
+
+web_rules:
+  min_font_size: 16
+  min_touch_target: 44
+  add_to_cart_sticky: "Add to Cart button may be sticky on scroll on mobile"
+  image_zoom: "Design hover zoom on product image"
+  variant_states: "Design selected, available, and sold-out states for variant swatches"
+  loading_skeleton: "Skeleton loading state for image panel"
+  wcag_aa: true
+
+composition:
+  balance: "Image dominates left; product info structured on right"
+  whitespace: "48px padding in info panel; 24px between info elements"
+  cta_prominence: "Add to Cart must be the most prominent interactive element"
+
+export:
+  format: PNG
+  scale: 2
+  notes: "Export at 2x. Design variant selected, hover, and sold-out states as companion artboards."

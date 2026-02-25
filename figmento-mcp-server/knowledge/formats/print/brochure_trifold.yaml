@@ -1,0 +1,73 @@
+name: brochure_trifold
+category: print
+description: "DL tri-fold brochure — 630×297mm at 96dpi, three equal 210mm panels. Z-fold or C-fold for DL envelope."
+dimensions:
+  width: 2381
+  height: 1122
+  unit: px
+  physical: "630 × 297mm (3 × DL panels)"
+  dpi: 96
+  panels: 3
+  panel_width: 793
+
+bleed:
+  size: 11
+  unit: px
+  physical: "3mm bleed on all outer edges"
+  notes: "Bleed needed only on outer left and outer right edges. Fold lines: x=793 and x=1587."
+
+safe_zone:
+  top: 57
+  bottom: 57
+  left: 57
+  right: 57
+  physical: "15mm from trim edges"
+  fold_clear: 15
+  notes: "Keep text 15mm from all trim edges. Leave 4mm clear on both sides of each fold."
+
+panels:
+  cover:
+    x: 1587
+    width: 793
+    notes: "Right panel — visible face when closed (C-fold)"
+  inside_left:
+    x: 0
+    width: 793
+    notes: "Far-left panel (flap that folds inward first)"
+  inside_center:
+    x: 793
+    width: 793
+    notes: "Center inside panel"
+  notes: "For Z-fold: panels read left-to-right when unfolded. For C-fold: right panel is front cover."
+
+typography_scale:
+  cover_headline: { min: 48, max: 72, recommended: 56 }
+  section_heading: { min: 28, max: 40, recommended: 32 }
+  subheading: { min: 16, max: 24, recommended: 20 }
+  body: { min: 13, max: 16, recommended: 14 }
+  caption: { min: 9, max: 12, recommended: 10 }
+
+layout_rules:
+  margins: 57
+  grid: 8
+  preferred_layouts:
+    - three-panel-equal
+    - cover-and-two-inside-panels
+    - full-bleed-inside-spread
+  content_hierarchy:
+    - "Cover panel: bold visual, company name, tagline"
+    - "Inside panels: product/service content with headlines and body"
+    - "Back panel (inside-left when C-fold): contact, map, QR code"
+
+print_rules:
+  color_mode: "CMYK recommended"
+  min_line_weight: 0.5
+  min_font_size: 8
+  cmyk_safe: true
+  bleed_required: true
+  fold_compensation: "Inside flap panel is typically 1-2mm narrower than outer panels"
+
+export:
+  format: PDF
+  scale: 1
+  notes: "Export with crop marks, fold marks, and bleed. Specify fold direction to printer."

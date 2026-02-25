@@ -1,0 +1,76 @@
+name: login_page
+category: web
+description: "Login / authentication page — 1440×900px desktop viewport. Clean, focused layout with a single form as the primary action."
+dimensions:
+  width: 1440
+  height: 900
+  unit: px
+  notes: "Full viewport height. Layout: centered card or split-panel (brand left, form right)."
+
+safe_zones:
+  top: 0
+  bottom: 0
+  left: 0
+  right: 0
+  content_max_width: 480
+  notes: "Login form max-width: 400-480px centered. No margins needed for full-bleed split layouts."
+
+breakpoints:
+  desktop: 1440
+  tablet: 1024
+  mobile: 375
+  notes: "Login forms collapse to full-width on mobile. Remove split-panel on tablet and below."
+
+typography_scale:
+  page_title: { min: 28, max: 40, recommended: 32 }
+  label: { min: 14, max: 16, recommended: 14 }
+  input_text: { min: 15, max: 16, recommended: 16 }
+  helper_text: { min: 12, max: 14, recommended: 13 }
+  cta_button: { min: 15, max: 16, recommended: 16 }
+  link: { min: 13, max: 14, recommended: 14 }
+
+layout_rules:
+  content_max_width: 1280
+  safe_content_width: 1280
+  grid: 8
+  preferred_layouts:
+    - centered-card
+    - split-panel-brand-left-form-right
+    - full-bleed-with-centered-card
+  form_width: 400
+  button_height: 48
+  input_height: 44
+  label_gap: 8
+  field_gap: 20
+  content_hierarchy:
+    - "Logo — top center or top-left"
+    - "Welcome headline — concise"
+    - "Form fields: Email + Password"
+    - "Forgot password link — below password"
+    - "Primary CTA — full-width button"
+    - "Social login options — below divider (optional)"
+    - "Sign up link — bottom"
+  split_panel:
+    brand_side: "Left 50% — brand visual, testimonial, or benefit list"
+    form_side: "Right 50% — form with all functional elements"
+
+web_rules:
+  min_font_size: 16
+  min_touch_target: 44
+  focus_visible: "All interactive elements must have visible focus state"
+  password_toggle: "Include show/hide password toggle"
+  error_states: "Design error state for each input field"
+  loading_state: "Design button loading state (spinner)"
+  accessibility: "All form fields require labels — not just placeholders"
+  responsive: "Mobile: stacked single column, full-width inputs"
+  wcag_aa: true
+
+composition:
+  balance: "Minimal and distraction-free — single conversion goal"
+  whitespace: "Generous vertical spacing between form elements (20-24px)"
+  contrast: "Form must have crisp separation from background"
+
+export:
+  format: PNG
+  scale: 2
+  notes: "Export at 2x for retina. Design all states: default, hover, focus, error, loading."

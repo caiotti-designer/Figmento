@@ -16,6 +16,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
       x: z.number().optional().describe('X position (default: viewport center)'),
       y: z.number().optional().describe('Y position (default: viewport center)'),
       parentId: z.string().optional().describe('Parent frame nodeId to append to'),
+      fillColor: z.string().optional().describe('Shorthand solid fill: hex color (e.g. "#FF5733"). Use instead of the fills array for a single solid color.'),
       fills: z.array(z.object({
         type: z.enum(['SOLID', 'GRADIENT_LINEAR']),
         color: z.string().optional().describe('Hex color (e.g. "#FF5733")'),
@@ -26,7 +27,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
           opacity: z.number().optional(),
         })).optional(),
         gradientDirection: z.enum(['left-right', 'right-left', 'top-bottom', 'bottom-top']).optional().describe('Gradient direction (default: top-bottom)'),
-      })).optional().describe('Fill paints array'),
+      })).optional().describe('Fill paints array. Use fillColor instead for a single solid color.'),
       cornerRadius: z.union([z.number(), z.tuple([z.number(), z.number(), z.number(), z.number()])]).optional(),
       layoutMode: z.enum(['HORIZONTAL', 'VERTICAL', 'NONE']).optional().describe('Auto-layout direction'),
       itemSpacing: z.number().optional().describe('Gap between auto-layout children'),
@@ -52,7 +53,8 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
       fontSize: z.number().optional().describe('Font size in pixels (default: 16)'),
       fontFamily: z.string().optional().describe('Google Font name. IMPORTANT: Use the font specified in the design prompt. Do not default to Inter if another font was requested.'),
       fontWeight: z.number().optional().describe('Font weight: 100-900 (default: 400)'),
-      color: z.string().optional().describe('Hex color (default: "#000000")'),
+      color: z.string().optional().describe('Hex text color (default: "#000000"). Also accepted as fillColor.'),
+      fillColor: z.string().optional().describe('Alias for color — hex text color (e.g. "#FF5733").'),
       name: z.string().optional().describe('Layer name'),
       width: z.number().optional().describe('Text box width (default: 200)'),
       height: z.number().optional().describe('Text box height (default: 40)'),
@@ -60,7 +62,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
       y: z.number().optional(),
       parentId: z.string().optional().describe('Parent frame nodeId to append to'),
       textAlign: z.enum(['LEFT', 'CENTER', 'RIGHT']).optional(),
-      lineHeight: z.number().optional().describe('Line height in pixels'),
+      lineHeight: z.number().optional().describe('Line height: values > 3 treated as pixels, values ≤ 3 treated as a multiplier (e.g. 1.5 = 1.5× fontSize).'),
       letterSpacing: z.number().optional(),
       italic: z.boolean().optional().describe('Italic style for entire text'),
       underline: z.boolean().optional().describe('Underline decoration for entire text'),
@@ -230,6 +232,70 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
         scaleMode: params.scaleMode,
       });
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
+  server.tool(
+    'fetch_unsplash_image',
+    'Fetch a relevant photo from Unsplash as a base64-encoded fallback when AI image generation fails or is unavailable. Extracts keywords from the prompt automatically, or accepts explicit keywords. Downloads the image server-side and returns { source: "unsplash_fallback", url, base64, width, height }. Use the base64 field with create_image or set_fill to place the photo on canvas.',
+    {
+      prompt: z.string().optional().describe('Image generation prompt — 2-3 meaningful nouns are extracted as search keywords'),
+      keywords: z.string().optional().describe('Explicit search keywords, overrides prompt extraction (e.g. "fintech office minimal")'),
+      width: z.number().default(1080).describe('Image width in pixels (default: 1080)'),
+      height: z.number().default(1080).describe('Image height in pixels (default: 1080)'),
+    },
+    async (params) => {
+      const STOP_WORDS = new Set([
+        'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+        'of', 'with', 'by', 'from', 'as', 'into', 'through', 'during', 'before',
+        'after', 'above', 'below', 'between', 'out', 'off', 'over', 'under',
+        'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
+        'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might',
+        'that', 'this', 'these', 'those', 'it', 'its', 'some', 'any', 'very',
+        'just', 'more', 'most', 'also', 'using', 'use', 'high', 'quality',
+        'professional', 'modern', 'clean', 'minimal', 'beautiful', 'stunning',
+      ]);
+
+      let keyword: string;
+      if (params.keywords) {
+        keyword = params.keywords.trim().replace(/\s+/g, ',');
+      } else if (params.prompt) {
+        const words = params.prompt
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]/g, ' ')
+          .split(/\s+/)
+          .filter((w) => w.length > 3 && !STOP_WORDS.has(w));
+        keyword = words.slice(0, 3).join(',') || 'workspace';
+      } else {
+        keyword = 'workspace';
+      }
+
+      const width = params.width ?? 1080;
+      const height = params.height ?? 1080;
+      const unsplashUrl = `https://source.unsplash.com/featured/${width}x${height}/?${encodeURIComponent(keyword)}`;
+
+      const response = await fetch(unsplashUrl);
+      if (!response.ok) {
+        throw new Error(`Unsplash fetch failed: ${response.status} ${response.statusText}`);
+      }
+
+      const finalUrl = response.url;
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const base64 = `data:${contentType};base64,${buffer.toString('base64')}`;
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            source: 'unsplash_fallback',
+            url: finalUrl,
+            base64,
+            width,
+            height,
+          }),
+        }],
+      };
     }
   );
 

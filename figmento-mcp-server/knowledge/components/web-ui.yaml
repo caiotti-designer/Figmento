@@ -1,0 +1,624 @@
+# Web/UI Component Recipes — DS-15 (Phase 2)
+# Extended component set for web and UI designs.
+# All values use $tokens.* references for design system consistency.
+# Props use {{propName}} syntax for dynamic values.
+
+navbar:
+  description: "Top navigation bar with brand name and nav links"
+  props:
+    brand: { type: string, required: true }
+    links: { type: string, required: false, default: "Home  About  Contact" }
+  recipe:
+    type: frame
+    name: "Navbar"
+    layoutMode: HORIZONTAL
+    primaryAxisAlignItems: SPACE_BETWEEN
+    counterAxisAlignItems: CENTER
+    paddingTop: "$tokens.spacing.md"
+    paddingBottom: "$tokens.spacing.md"
+    paddingLeft: "$tokens.spacing.xl"
+    paddingRight: "$tokens.spacing.xl"
+    width: 1440
+    height: 64
+    fills:
+      - type: SOLID
+        color: "$tokens.colors.surface"
+    children:
+      - type: text
+        content: "{{brand}}"
+        fontSize: "$tokens.typography.scale.h2"
+        fontFamily: "$tokens.typography.heading.family"
+        fontWeight: 700
+        color: "$tokens.colors.on_surface"
+      - type: text
+        content: "{{links}}"
+        fontSize: "$tokens.typography.scale.body"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 500
+        color: "$tokens.colors.on_surface_muted"
+  variants:
+    default: {}
+    dark:
+      fills:
+        - type: SOLID
+          color: "$tokens.colors.primary_dark"
+      children:
+        - color: "#FFFFFF"
+        - color: "rgba(255,255,255,0.7)"
+    transparent:
+      fills: []
+      children:
+        - color: "#FFFFFF"
+        - color: "rgba(255,255,255,0.8)"
+  size_overrides:
+    sm:
+      height: 48
+      paddingTop: "$tokens.spacing.sm"
+      paddingBottom: "$tokens.spacing.sm"
+    lg:
+      height: 80
+      paddingTop: "$tokens.spacing.lg"
+      paddingBottom: "$tokens.spacing.lg"
+
+footer:
+  description: "Page footer with copyright and optional links"
+  props:
+    copyright: { type: string, required: true }
+    links: { type: string, required: false, default: "Privacy  Terms  Contact" }
+  recipe:
+    type: frame
+    name: "Footer"
+    layoutMode: HORIZONTAL
+    primaryAxisAlignItems: SPACE_BETWEEN
+    counterAxisAlignItems: CENTER
+    paddingTop: "$tokens.spacing.lg"
+    paddingBottom: "$tokens.spacing.lg"
+    paddingLeft: "$tokens.spacing.xl"
+    paddingRight: "$tokens.spacing.xl"
+    width: 1440
+    height: 80
+    fills:
+      - type: SOLID
+        color: "$tokens.colors.background"
+    children:
+      - type: text
+        content: "{{copyright}}"
+        fontSize: "$tokens.typography.scale.caption"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 400
+        color: "$tokens.colors.on_surface_muted"
+      - type: text
+        content: "{{links}}"
+        fontSize: "$tokens.typography.scale.caption"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 400
+        color: "$tokens.colors.on_surface_muted"
+  variants:
+    default: {}
+    dark:
+      fills:
+        - type: SOLID
+          color: "$tokens.colors.primary_dark"
+      children:
+        - color: "rgba(255,255,255,0.6)"
+        - color: "rgba(255,255,255,0.6)"
+
+input:
+  description: "Text input field with label and placeholder"
+  props:
+    label: { type: string, required: true }
+    placeholder: { type: string, required: false, default: "Enter text..." }
+  recipe:
+    type: frame
+    name: "Input"
+    layoutMode: VERTICAL
+    primaryAxisAlignItems: MIN
+    counterAxisAlignItems: MIN
+    itemSpacing: "$tokens.spacing.xs"
+    width: 320
+    children:
+      - type: text
+        content: "{{label}}"
+        fontSize: "$tokens.typography.scale.body_sm"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 500
+        color: "$tokens.colors.on_surface"
+        layoutSizingHorizontal: FILL
+      - type: frame
+        name: "Input Field"
+        layoutMode: HORIZONTAL
+        counterAxisAlignItems: CENTER
+        paddingTop: "$tokens.spacing.sm"
+        paddingBottom: "$tokens.spacing.sm"
+        paddingLeft: "$tokens.spacing.md"
+        paddingRight: "$tokens.spacing.md"
+        cornerRadius: "$tokens.radius.md"
+        width: 320
+        height: 40
+        fills:
+          - type: SOLID
+            color: "$tokens.colors.surface"
+        children:
+          - type: text
+            content: "{{placeholder}}"
+            fontSize: "$tokens.typography.scale.body"
+            fontFamily: "$tokens.typography.body.family"
+            fontWeight: 400
+            color: "$tokens.colors.on_surface_muted"
+  variants:
+    default: {}
+    error:
+      children:
+        - color: "$tokens.colors.error"
+        - stroke: { color: "$tokens.colors.error", width: 1 }
+    disabled:
+      children:
+        - color: "$tokens.colors.on_surface_muted"
+        - fills:
+            - type: SOLID
+              color: "$tokens.colors.background"
+          children:
+            - color: "$tokens.colors.border"
+  size_overrides:
+    sm:
+      width: 240
+      children:
+        - fontSize: "$tokens.typography.scale.caption"
+        - width: 240
+          height: 32
+    md: {}
+    lg:
+      width: 400
+      children:
+        - {}
+        - width: 400
+          height: 48
+
+textarea:
+  description: "Multi-line text area with label"
+  props:
+    label: { type: string, required: true }
+    placeholder: { type: string, required: false, default: "Enter text..." }
+  recipe:
+    type: frame
+    name: "Textarea"
+    layoutMode: VERTICAL
+    primaryAxisAlignItems: MIN
+    counterAxisAlignItems: MIN
+    itemSpacing: "$tokens.spacing.xs"
+    width: 320
+    children:
+      - type: text
+        content: "{{label}}"
+        fontSize: "$tokens.typography.scale.body_sm"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 500
+        color: "$tokens.colors.on_surface"
+        layoutSizingHorizontal: FILL
+      - type: frame
+        name: "Textarea Field"
+        layoutMode: VERTICAL
+        paddingTop: "$tokens.spacing.sm"
+        paddingBottom: "$tokens.spacing.sm"
+        paddingLeft: "$tokens.spacing.md"
+        paddingRight: "$tokens.spacing.md"
+        cornerRadius: "$tokens.radius.md"
+        width: 320
+        height: 120
+        fills:
+          - type: SOLID
+            color: "$tokens.colors.surface"
+        children:
+          - type: text
+            content: "{{placeholder}}"
+            fontSize: "$tokens.typography.scale.body"
+            fontFamily: "$tokens.typography.body.family"
+            fontWeight: 400
+            color: "$tokens.colors.on_surface_muted"
+  variants:
+    default: {}
+    error:
+      children:
+        - color: "$tokens.colors.error"
+        - stroke: { color: "$tokens.colors.error", width: 1 }
+
+select:
+  description: "Dropdown select field with label and current value"
+  props:
+    label: { type: string, required: true }
+    value: { type: string, required: false, default: "Select option..." }
+  recipe:
+    type: frame
+    name: "Select"
+    layoutMode: VERTICAL
+    primaryAxisAlignItems: MIN
+    counterAxisAlignItems: MIN
+    itemSpacing: "$tokens.spacing.xs"
+    width: 320
+    children:
+      - type: text
+        content: "{{label}}"
+        fontSize: "$tokens.typography.scale.body_sm"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 500
+        color: "$tokens.colors.on_surface"
+        layoutSizingHorizontal: FILL
+      - type: frame
+        name: "Select Field"
+        layoutMode: HORIZONTAL
+        primaryAxisAlignItems: SPACE_BETWEEN
+        counterAxisAlignItems: CENTER
+        paddingTop: "$tokens.spacing.sm"
+        paddingBottom: "$tokens.spacing.sm"
+        paddingLeft: "$tokens.spacing.md"
+        paddingRight: "$tokens.spacing.md"
+        cornerRadius: "$tokens.radius.md"
+        width: 320
+        height: 40
+        fills:
+          - type: SOLID
+            color: "$tokens.colors.surface"
+        children:
+          - type: text
+            content: "{{value}}"
+            fontSize: "$tokens.typography.scale.body"
+            fontFamily: "$tokens.typography.body.family"
+            fontWeight: 400
+            color: "$tokens.colors.on_surface"
+          - type: text
+            content: "\u25BC"
+            fontSize: 12
+            fontWeight: 400
+            color: "$tokens.colors.on_surface_muted"
+  variants:
+    default: {}
+    error:
+      children:
+        - color: "$tokens.colors.error"
+        - stroke: { color: "$tokens.colors.error", width: 1 }
+
+checkbox:
+  description: "Checkbox with label text"
+  props:
+    label: { type: string, required: true }
+  recipe:
+    type: frame
+    name: "Checkbox"
+    layoutMode: HORIZONTAL
+    primaryAxisAlignItems: MIN
+    counterAxisAlignItems: CENTER
+    itemSpacing: "$tokens.spacing.sm"
+    children:
+      - type: frame
+        name: "Checkbox Box"
+        width: 20
+        height: 20
+        cornerRadius: "$tokens.radius.sm"
+        fills:
+          - type: SOLID
+            color: "$tokens.colors.surface"
+        layoutMode: NONE
+      - type: text
+        content: "{{label}}"
+        fontSize: "$tokens.typography.scale.body"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 400
+        color: "$tokens.colors.on_surface"
+  variants:
+    default: {}
+    checked:
+      children:
+        - fills:
+            - type: SOLID
+              color: "$tokens.colors.primary"
+        - fontWeight: 500
+
+toggle:
+  description: "Toggle switch with label text"
+  props:
+    label: { type: string, required: true }
+  recipe:
+    type: frame
+    name: "Toggle"
+    layoutMode: HORIZONTAL
+    primaryAxisAlignItems: MIN
+    counterAxisAlignItems: CENTER
+    itemSpacing: "$tokens.spacing.sm"
+    children:
+      - type: frame
+        name: "Toggle Track"
+        width: 44
+        height: 24
+        cornerRadius: 12
+        fills:
+          - type: SOLID
+            color: "$tokens.colors.border"
+        layoutMode: NONE
+        children:
+          - type: ellipse
+            name: "Toggle Knob"
+            width: 20
+            height: 20
+            fills:
+              - type: SOLID
+                color: "#FFFFFF"
+      - type: text
+        content: "{{label}}"
+        fontSize: "$tokens.typography.scale.body"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 400
+        color: "$tokens.colors.on_surface"
+  variants:
+    default: {}
+    active:
+      children:
+        - fills:
+            - type: SOLID
+              color: "$tokens.colors.primary"
+
+alert:
+  description: "Alert/notification banner with message text"
+  props:
+    message: { type: string, required: true }
+  recipe:
+    type: frame
+    name: "Alert"
+    layoutMode: HORIZONTAL
+    primaryAxisAlignItems: MIN
+    counterAxisAlignItems: CENTER
+    paddingTop: "$tokens.spacing.md"
+    paddingBottom: "$tokens.spacing.md"
+    paddingLeft: "$tokens.spacing.lg"
+    paddingRight: "$tokens.spacing.lg"
+    cornerRadius: "$tokens.radius.md"
+    fills:
+      - type: SOLID
+        color: "$tokens.colors.info"
+        opacity: 0.1
+    children:
+      - type: text
+        content: "{{message}}"
+        fontSize: "$tokens.typography.scale.body"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 500
+        color: "$tokens.colors.info"
+  variants:
+    default: {}
+    success:
+      fills:
+        - type: SOLID
+          color: "$tokens.colors.success"
+          opacity: 0.1
+      children:
+        - color: "$tokens.colors.success"
+    warning:
+      fills:
+        - type: SOLID
+          color: "$tokens.colors.warning"
+          opacity: 0.1
+      children:
+        - color: "$tokens.colors.warning"
+    error:
+      fills:
+        - type: SOLID
+          color: "$tokens.colors.error"
+          opacity: 0.1
+      children:
+        - color: "$tokens.colors.error"
+  size_overrides:
+    sm:
+      paddingTop: "$tokens.spacing.sm"
+      paddingBottom: "$tokens.spacing.sm"
+      paddingLeft: "$tokens.spacing.md"
+      paddingRight: "$tokens.spacing.md"
+      cornerRadius: "$tokens.radius.sm"
+      children:
+        - fontSize: "$tokens.typography.scale.body_sm"
+    md: {}
+    lg:
+      paddingTop: "$tokens.spacing.lg"
+      paddingBottom: "$tokens.spacing.lg"
+      paddingLeft: "$tokens.spacing.xl"
+      paddingRight: "$tokens.spacing.xl"
+      children:
+        - fontSize: "$tokens.typography.scale.body_lg"
+
+table_row:
+  description: "Single table row with columns for tabular layouts"
+  props:
+    col_1: { type: string, required: true }
+    col_2: { type: string, required: true }
+    col_3: { type: string, required: false, default: "" }
+    col_4: { type: string, required: false, default: "" }
+  recipe:
+    type: frame
+    name: "Table Row"
+    layoutMode: HORIZONTAL
+    primaryAxisAlignItems: SPACE_BETWEEN
+    counterAxisAlignItems: CENTER
+    paddingTop: "$tokens.spacing.sm"
+    paddingBottom: "$tokens.spacing.sm"
+    paddingLeft: "$tokens.spacing.md"
+    paddingRight: "$tokens.spacing.md"
+    width: 800
+    height: 48
+    fills:
+      - type: SOLID
+        color: "$tokens.colors.surface"
+    children:
+      - type: text
+        content: "{{col_1}}"
+        fontSize: "$tokens.typography.scale.body"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 400
+        color: "$tokens.colors.on_surface"
+        width: 180
+      - type: text
+        content: "{{col_2}}"
+        fontSize: "$tokens.typography.scale.body"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 400
+        color: "$tokens.colors.on_surface"
+        width: 180
+      - type: text
+        content: "{{col_3}}"
+        fontSize: "$tokens.typography.scale.body"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 400
+        color: "$tokens.colors.on_surface_muted"
+        width: 180
+      - type: text
+        content: "{{col_4}}"
+        fontSize: "$tokens.typography.scale.body"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 400
+        color: "$tokens.colors.on_surface_muted"
+        width: 180
+  variants:
+    default: {}
+    header:
+      fills:
+        - type: SOLID
+          color: "$tokens.colors.background"
+      children:
+        - fontWeight: 600
+          color: "$tokens.colors.on_surface"
+        - fontWeight: 600
+          color: "$tokens.colors.on_surface"
+        - fontWeight: 600
+          color: "$tokens.colors.on_surface"
+        - fontWeight: 600
+          color: "$tokens.colors.on_surface"
+    striped:
+      fills:
+        - type: SOLID
+          color: "$tokens.colors.background"
+
+modal:
+  description: "Modal dialog with title, body content, and action buttons"
+  props:
+    title: { type: string, required: true }
+    body: { type: string, required: true }
+    confirm_label: { type: string, required: false, default: "Confirm" }
+    cancel_label: { type: string, required: false, default: "Cancel" }
+  recipe:
+    type: frame
+    name: "Modal"
+    layoutMode: VERTICAL
+    primaryAxisAlignItems: MIN
+    counterAxisAlignItems: MIN
+    itemSpacing: "$tokens.spacing.lg"
+    paddingTop: "$tokens.spacing.xl"
+    paddingBottom: "$tokens.spacing.xl"
+    paddingLeft: "$tokens.spacing.xl"
+    paddingRight: "$tokens.spacing.xl"
+    cornerRadius: "$tokens.radius.lg"
+    width: 480
+    fills:
+      - type: SOLID
+        color: "$tokens.colors.surface"
+    effects:
+      - type: DROP_SHADOW
+        color: "$tokens.shadows.lg.color"
+        opacity: "$tokens.shadows.lg.opacity"
+        offset: { x: "$tokens.shadows.lg.x", y: "$tokens.shadows.lg.y" }
+        blur: "$tokens.shadows.lg.blur"
+    children:
+      - type: text
+        content: "{{title}}"
+        fontSize: "$tokens.typography.scale.h2"
+        fontFamily: "$tokens.typography.heading.family"
+        fontWeight: 700
+        color: "$tokens.colors.on_surface"
+        layoutSizingHorizontal: FILL
+      - type: text
+        content: "{{body}}"
+        fontSize: "$tokens.typography.scale.body"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 400
+        color: "$tokens.colors.on_surface_muted"
+        lineHeight: 1.6
+        layoutSizingHorizontal: FILL
+      - type: frame
+        name: "Modal Actions"
+        layoutMode: HORIZONTAL
+        primaryAxisAlignItems: MAX
+        counterAxisAlignItems: CENTER
+        itemSpacing: "$tokens.spacing.sm"
+        children:
+          - type: frame
+            name: "Cancel Button"
+            layoutMode: HORIZONTAL
+            primaryAxisAlignItems: CENTER
+            counterAxisAlignItems: CENTER
+            paddingTop: "$tokens.spacing.sm"
+            paddingBottom: "$tokens.spacing.sm"
+            paddingLeft: "$tokens.spacing.lg"
+            paddingRight: "$tokens.spacing.lg"
+            cornerRadius: "$tokens.radius.md"
+            fills:
+              - type: SOLID
+                color: "$tokens.colors.background"
+            children:
+              - type: text
+                content: "{{cancel_label}}"
+                fontSize: "$tokens.typography.scale.body"
+                fontFamily: "$tokens.typography.body.family"
+                fontWeight: 500
+                color: "$tokens.colors.on_surface"
+          - type: frame
+            name: "Confirm Button"
+            layoutMode: HORIZONTAL
+            primaryAxisAlignItems: CENTER
+            counterAxisAlignItems: CENTER
+            paddingTop: "$tokens.spacing.sm"
+            paddingBottom: "$tokens.spacing.sm"
+            paddingLeft: "$tokens.spacing.lg"
+            paddingRight: "$tokens.spacing.lg"
+            cornerRadius: "$tokens.radius.md"
+            fills:
+              - type: SOLID
+                color: "$tokens.colors.primary"
+            children:
+              - type: text
+                content: "{{confirm_label}}"
+                fontSize: "$tokens.typography.scale.body"
+                fontFamily: "$tokens.typography.body.family"
+                fontWeight: 600
+                color: "$tokens.colors.on_primary"
+  variants:
+    default: {}
+    destructive:
+      children:
+        - {}
+        - {}
+        - children:
+            - {}
+            - fills:
+                - type: SOLID
+                  color: "$tokens.colors.error"
+  size_overrides:
+    sm:
+      width: 360
+      paddingTop: "$tokens.spacing.lg"
+      paddingBottom: "$tokens.spacing.lg"
+      paddingLeft: "$tokens.spacing.lg"
+      paddingRight: "$tokens.spacing.lg"
+      itemSpacing: "$tokens.spacing.md"
+      cornerRadius: "$tokens.radius.md"
+      children:
+        - fontSize: "$tokens.typography.scale.h3"
+        - {}
+        - {}
+    md: {}
+    lg:
+      width: 640
+      paddingTop: "$tokens.spacing.2xl"
+      paddingBottom: "$tokens.spacing.2xl"
+      paddingLeft: "$tokens.spacing.2xl"
+      paddingRight: "$tokens.spacing.2xl"
+      itemSpacing: "$tokens.spacing.xl"
+      children:
+        - fontSize: "$tokens.typography.scale.h1"
+        - fontSize: "$tokens.typography.scale.body_lg"
+        - {}

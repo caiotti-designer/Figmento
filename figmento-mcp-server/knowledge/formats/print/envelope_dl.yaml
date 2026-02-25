@@ -1,0 +1,73 @@
+name: envelope_dl
+category: print
+description: "DL envelope — 220×110mm at 96dpi. Standard business envelope that fits a tri-folded A4 sheet."
+dimensions:
+  width: 831
+  height: 416
+  unit: px
+  physical: "220 × 110mm (DL format)"
+  dpi: 96
+
+bleed:
+  size: 11
+  unit: px
+  physical: "3mm bleed"
+  notes: "Only add bleed if using full-bleed color printing. Most DL envelopes are white stock."
+
+safe_zone:
+  top: 30
+  bottom: 30
+  left: 30
+  right: 30
+  physical: "8mm from all edges"
+
+zones:
+  return_address:
+    x: 30
+    y: 30
+    width: 300
+    notes: "Sender address — top left"
+  recipient_address:
+    x: 380
+    y: 200
+    width: 420
+    notes: "Recipient address — center-right, visually balanced"
+  logo:
+    x: 30
+    y: 160
+    notes: "Optional logo placement below return address"
+  stamp:
+    x: 720
+    y: 30
+    width: 80
+    height: 80
+    notes: "Stamp area — top right"
+
+typography_scale:
+  company_name: { min: 12, max: 18, recommended: 14 }
+  address: { min: 10, max: 14, recommended: 11 }
+  recipient_name: { min: 13, max: 18, recommended: 15 }
+  recipient_address: { min: 10, max: 13, recommended: 11 }
+
+layout_rules:
+  margins: 30
+  grid: 4
+  preferred_layouts:
+    - return-address-top-left-recipient-center
+  content_hierarchy:
+    - "Logo (optional) — top left"
+    - "Return address — top left below logo"
+    - "Recipient name + address — center-right"
+
+print_rules:
+  color_mode: "CMYK recommended; spot color for brand colors"
+  min_line_weight: 0.25
+  min_font_size: 8
+  cmyk_safe: true
+  bleed_required: false
+  notes: "Window envelopes: design recipient address to align with window. Check window dimensions."
+
+export:
+  format: PDF
+  scale: 1
+  notes: "Export at 300dpi. Verify postal regulations for your country regarding address placement."

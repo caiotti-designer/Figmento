@@ -97,6 +97,9 @@ async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
       case 'export_node':
         return { ...baseResponse, success: true, data: await handleExportNode(cmd.params) };
 
+      case 'get_screenshot':
+        return { ...baseResponse, success: true, data: await handleGetScreenshot(cmd.params) };
+
       case 'get_selection':
         return { ...baseResponse, success: true, data: await handleGetSelection() };
 
@@ -220,6 +223,10 @@ function classifyError(message: string): { code: CommandErrorCode; recoverable: 
 // ═══════════════════════════════════════════════════════════════
 
 async function handleCreateFrame(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  // Accept fillColor shorthand: convert to fills array if fills not explicitly provided
+  const frameFills: UIElement['fills'] = params.fills as UIElement['fills'] | undefined
+    ?? (params.fillColor ? [{ type: 'SOLID' as const, color: params.fillColor as string }] : undefined);
+
   const element: UIElement = {
     id: 'frame',
     type: 'frame',
@@ -228,7 +235,7 @@ async function handleCreateFrame(params: Record<string, unknown>): Promise<Recor
     height: (params.height as number) || 100,
     x: params.x as number | undefined,
     y: params.y as number | undefined,
-    fills: params.fills as UIElement['fills'] | undefined,
+    fills: frameFills,
     layoutMode: params.layoutMode as UIElement['layoutMode'] | undefined,
     itemSpacing: params.itemSpacing as number | undefined,
     paddingTop: params.paddingTop as number | undefined,
@@ -237,6 +244,8 @@ async function handleCreateFrame(params: Record<string, unknown>): Promise<Recor
     paddingLeft: params.paddingLeft as number | undefined,
     primaryAxisAlignItems: params.primaryAxisAlignItems as UIElement['primaryAxisAlignItems'] | undefined,
     counterAxisAlignItems: params.counterAxisAlignItems as UIElement['counterAxisAlignItems'] | undefined,
+    primaryAxisSizingMode: params.primaryAxisSizingMode as UIElement['primaryAxisSizingMode'] | undefined,
+    counterAxisSizingMode: params.counterAxisSizingMode as UIElement['counterAxisSizingMode'] | undefined,
     cornerRadius: params.cornerRadius as UIElement['cornerRadius'] | undefined,
     clipsContent: params.clipsContent as boolean | undefined,
     children: [],
@@ -272,6 +281,34 @@ async function handleCreateText(params: Record<string, unknown>): Promise<Record
     throw new Error('Text content is required and cannot be empty. Provide a non-empty "text" parameter.');
   }
 
+  // Accept fillColor as an alias for color (batch_execute convenience param)
+  const textColor = (params.color as string) || (params.fillColor as string) || '#000000';
+
+  // Accept textAlignHorizontal as alias for textAlign
+  const textAlign = (params.textAlign || params.textAlignHorizontal) as TextProperties['textAlign'] | undefined;
+
+  // Only default to FILL/HUG when the explicit parent is an auto-layout frame.
+  // For plain frames (no layoutMode) the defaults cause Figma to reset sizing anyway,
+  // and the try/catch in setupTextNode previously masked the issue.
+  let layoutSizingH = params.layoutSizingHorizontal as UIElement['layoutSizingHorizontal'] | undefined;
+  let layoutSizingV = params.layoutSizingVertical as UIElement['layoutSizingVertical'] | undefined;
+
+  // When an explicit width is provided, downgrade FILL → FIXED so the width is honoured.
+  // FILL in a HUG-sized parent creates a circular dependency and Figma collapses the text
+  // node to its minimum width, causing per-character line wrapping.
+  if (layoutSizingH === 'FILL' && params.width != null) {
+    layoutSizingH = 'FIXED';
+  }
+
+  if (!layoutSizingH && !layoutSizingV && params.parentId) {
+    const potentialParent = figma.getNodeById(params.parentId as string);
+    if (potentialParent && 'layoutMode' in potentialParent &&
+        (potentialParent as FrameNode).layoutMode !== 'NONE') {
+      layoutSizingH = 'FILL';
+      layoutSizingV = 'HUG';
+    }
+  }
+
   const element: UIElement = {
     id: 'text',
     type: 'text',
@@ -285,8 +322,8 @@ async function handleCreateText(params: Record<string, unknown>): Promise<Record
       fontSize: (params.fontSize as number) || 16,
       fontWeight: (params.fontWeight as number) || 400,
       fontFamily: (params.fontFamily as string) || 'Inter',
-      color: (params.color as string) || '#000000',
-      textAlign: params.textAlign as TextProperties['textAlign'] | undefined,
+      color: textColor,
+      textAlign,
       lineHeight: params.lineHeight as number | undefined,
       letterSpacing: params.letterSpacing as number | undefined,
       italic: params.italic as boolean | undefined,
@@ -294,8 +331,8 @@ async function handleCreateText(params: Record<string, unknown>): Promise<Record
       strikethrough: params.strikethrough as boolean | undefined,
       segments: params.segments as TextProperties['segments'] | undefined,
     },
-    layoutSizingHorizontal: params.layoutSizingHorizontal as UIElement['layoutSizingHorizontal'] | undefined,
-    layoutSizingVertical: params.layoutSizingVertical as UIElement['layoutSizingVertical'] | undefined,
+    layoutSizingHorizontal: layoutSizingH,
+    layoutSizingVertical: layoutSizingV,
     children: [],
   };
 
@@ -387,6 +424,33 @@ async function handleExportNode(params: Record<string, unknown>): Promise<Record
     base64: `data:${mimeType};base64,${base64}`,
     width: (node as SceneNode).width,
     height: (node as SceneNode).height,
+  };
+}
+
+async function handleGetScreenshot(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required');
+
+  const node = figma.getNodeById(nodeId);
+  if (!node) throw new Error(`Node not found: ${nodeId}`);
+  if (!('exportAsync' in node)) throw new Error(`Node ${nodeId} cannot be exported`);
+
+  const scale = Math.min(Math.max((params.scale as number) || 1, 0.1), 3);
+
+  const bytes = await (node as SceneNode).exportAsync({
+    format: 'PNG',
+    constraint: { type: 'SCALE', value: scale },
+  });
+
+  // Return raw base64 (no data URI prefix) so MCP server can use it as an image content block
+  const base64 = figma.base64Encode(bytes);
+
+  return {
+    nodeId,
+    name: node.name,
+    width: (node as SceneNode).width,
+    height: (node as SceneNode).height,
+    base64,
   };
 }
 
@@ -608,6 +672,16 @@ async function handleSetAutoLayout(params: Record<string, unknown>): Promise<Rec
   if (params.paddingLeft !== undefined) frame.paddingLeft = params.paddingLeft as number;
   if (params.primaryAxisAlignItems) frame.primaryAxisAlignItems = params.primaryAxisAlignItems as 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN';
   if (params.counterAxisAlignItems) frame.counterAxisAlignItems = params.counterAxisAlignItems as 'MIN' | 'CENTER' | 'MAX';
+
+  if (params.primaryAxisSizingMode !== undefined) {
+    // YAML uses "HUG" but Figma Plugin API uses "AUTO"
+    const raw = params.primaryAxisSizingMode as string;
+    frame.primaryAxisSizingMode = (raw === 'HUG' ? 'AUTO' : raw) as 'FIXED' | 'AUTO';
+  }
+  if (params.counterAxisSizingMode !== undefined) {
+    const raw = params.counterAxisSizingMode as string;
+    frame.counterAxisSizingMode = (raw === 'HUG' ? 'AUTO' : raw) as 'FIXED' | 'AUTO';
+  }
 
   return { nodeId, success: true };
 }
@@ -1195,6 +1269,7 @@ async function executeSingleAction(action: string, params: Record<string, unknow
     case 'create_text': return await handleCreateText(params);
     case 'set_fill': return await handleSetFill(params);
     case 'export_node': return await handleExportNode(params);
+    case 'get_screenshot': return await handleGetScreenshot(params);
     case 'get_selection': return await handleGetSelection();
     case 'create_rectangle': return await handleCreateRectangle(params);
     case 'create_ellipse': return await handleCreateEllipse(params);

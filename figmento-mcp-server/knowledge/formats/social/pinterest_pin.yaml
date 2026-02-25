@@ -1,0 +1,71 @@
+name: pinterest_pin
+category: social
+description: "Pinterest standard pin — 1000×1500px (2:3 ratio). Optimal for Pinterest feed visibility and saves."
+default_size: standard
+size_variants:
+  standard:
+    width: 1000
+    height: 1500
+    aspect_ratio: "2:3"
+    description: "Standard Pinterest pin — Figma preset exact match"
+  long:
+    width: 1000
+    height: 2100
+    aspect_ratio: "1:2.1"
+    description: "Long-form pin — maximum allowed ratio, great for tutorials and step-by-step content"
+
+# Backward-compatible default dimensions
+dimensions:
+  width: 1000
+  height: 1500
+  aspect_ratio: "2:3"
+
+safe_zones:
+  top: 100
+  bottom: 120
+  left: 60
+  right: 60
+  notes: "Pinterest adds a save button overlay on top-right. Keep key content away from top-right corner."
+
+typography_scale:
+  display: { min: 64, max: 96, recommended: 80 }
+  headline: { min: 44, max: 64, recommended: 52 }
+  subheadline: { min: 28, max: 40, recommended: 32 }
+  body: { min: 22, max: 28, recommended: 24 }
+  caption: { min: 18, max: 22, recommended: 20 }
+
+layout_rules:
+  margins: 60
+  grid: 8
+  preferred_layouts:
+    - centered-stack
+    - image-top-text-bottom
+    - full-bleed-with-text-overlay
+    - step-by-step-vertical
+  content_hierarchy:
+    - "Strong visual — occupies 60-80% of height for product/recipe/DIY pins"
+    - "Title text — bold, scannable in feed"
+    - "Supporting text — optional, adds context"
+    - "Brand / website — bottom strip"
+  design_notes:
+    - "Taller pins (2:3 or 1:2.1 max) get more visibility in feed"
+    - "Light backgrounds tend to perform better than dark"
+    - "Step-by-step layouts drive high save rates for tutorials"
+    - "Include brand name in the design — not just watermark"
+    - "Avoid faces cropped in top area — Pinterest's algorithm may suppress"
+
+image_rules:
+  min_resolution: "1000x1500"
+  format: "JPG or PNG"
+  max_file_size_mb: 20
+  full_bleed_preferred: true
+  max_aspect_ratio: "1:2.1 (1000x2100px max)"
+
+brand_placement:
+  logo_position: "bottom-center or bottom-left"
+  logo_max_size: 100
+  website_position: "bottom strip"
+
+export:
+  format: PNG
+  scale: 1

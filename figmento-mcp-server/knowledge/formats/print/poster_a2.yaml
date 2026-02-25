@@ -1,0 +1,72 @@
+name: poster_a2
+category: print
+description: "A2 poster — 420×594mm at 96dpi. High-impact format for events, exhibitions, and advertising. Portrait orientation."
+dimensions:
+  width: 1587
+  height: 2245
+  unit: px
+  physical: "420 × 594mm (A2 portrait)"
+  dpi: 96
+
+bleed:
+  size: 11
+  unit: px
+  physical: "3mm bleed"
+  notes: "Always use bleed for posters — they are trimmed after printing."
+
+safe_zone:
+  top: 57
+  bottom: 57
+  left: 57
+  right: 57
+  physical: "15mm from trim edge"
+
+typography_scale:
+  display: { min: 96, max: 180, recommended: 128 }
+  headline: { min: 64, max: 96, recommended: 80 }
+  subheadline: { min: 36, max: 56, recommended: 48 }
+  body: { min: 20, max: 28, recommended: 24 }
+  caption: { min: 14, max: 18, recommended: 16 }
+  fine_print: { min: 10, max: 13, recommended: 11 }
+
+layout_rules:
+  margins: 96
+  grid: 8
+  preferred_layouts:
+    - full-bleed-with-overlay
+    - centered-stack-dramatic
+    - split-half-vertical
+    - editorial-asymmetric
+  content_hierarchy:
+    - "Display/headline — immediately legible from 3m distance"
+    - "Key information — event name, date, venue"
+    - "Supporting detail — body text"
+    - "Call to action / website / QR code — bottom zone"
+  visual_hierarchy:
+    - "60% image or visual"
+    - "30% typography"
+    - "10% white space and supporting elements"
+  readability_distances:
+    primary: "Display text readable at 5m"
+    secondary: "Headline readable at 3m"
+    body: "Body text readable at 1m"
+
+print_rules:
+  color_mode: "CMYK required for professional printing"
+  min_line_weight: 0.5
+  min_font_size: 10
+  cmyk_safe: true
+  bleed_required: true
+  paper_stock: "135gsm silk or 170gsm gloss recommended"
+  finish: "Matt or gloss laminate for durability"
+  notes: "Avoid very light tints — they disappear in offset printing."
+
+brand_placement:
+  logo_position: "top-left or bottom-right — consistent placement"
+  logo_max_size: 200
+  sponsor_logos: "bottom strip, minimum 60px height"
+
+export:
+  format: PDF
+  scale: 1
+  notes: "Export at 300dpi with crop marks and color profile. Submit as PDF/X-1a."

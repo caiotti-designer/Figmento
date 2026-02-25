@@ -1,6 +1,15 @@
 name: linkedin_banner
 category: social
-description: "LinkedIn profile/company banner — wide format, minimal text, brand-heavy"
+description: "LinkedIn profile/company banner — wide format, minimal text, brand-heavy."
+default_size: standard
+size_variants:
+  standard:
+    width: 1584
+    height: 396
+    aspect_ratio: "4:1"
+    description: "Standard LinkedIn banner — Figma preset exact match"
+
+# Backward-compatible default dimensions
 dimensions:
   width: 1584
   height: 396

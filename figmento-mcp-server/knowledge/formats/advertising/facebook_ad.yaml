@@ -1,0 +1,55 @@
+name: facebook_ad
+category: advertising
+description: "Facebook feed ad image — 1200x628, optimized for News Feed placement with ad copy below"
+dimensions:
+  width: 1200
+  height: 628
+  aspect_ratio: "1.91:1"
+
+safe_zones:
+  top: 40
+  bottom: 40
+  left: 40
+  right: 40
+  notes: "Text overlay should be minimal — Facebook penalizes ads with >20% text coverage."
+
+typography_scale:
+  headline: { min: 36, max: 56, recommended: 44 }
+  subheadline: { min: 24, max: 32, recommended: 28 }
+  body: { min: 18, max: 24, recommended: 20 }
+  caption: { min: 14, max: 18, recommended: 16 }
+
+layout_rules:
+  margins: 40
+  grid: 8
+  max_text_lines: 3
+  preferred_layouts:
+    - centered-stack
+    - split-half-horizontal
+    - full-bleed-with-overlay
+  content_hierarchy:
+    - "Hero image or visual — primary attention driver"
+    - "Headline — concise value proposition"
+    - "Visual CTA indicator — arrow, button shape"
+  facebook_text_rule: "Keep text on image to absolute minimum. Primary copy goes in ad text fields."
+
+image_rules:
+  min_resolution: "1200x628"
+  format: "JPG or PNG"
+  max_file_size_mb: 30
+  full_bleed_preferred: true
+  text_coverage_max: 0.20
+
+composition:
+  balance: "Center-weighted — image must work at mobile widths too"
+  whitespace: "Let the image breathe — less text = better ad performance"
+  contrast: "High — feed is visually noisy"
+  text_overlay: "Minimal text overlay — Facebook's 20% text rule"
+
+brand_placement:
+  logo_position: "top-left or bottom-right"
+  logo_max_size: 80
+
+export:
+  format: PNG
+  scale: 1

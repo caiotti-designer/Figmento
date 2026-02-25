@@ -1,0 +1,68 @@
+name: brochure_bifold
+category: print
+description: "A3 bi-fold brochure — 420×297mm at 96dpi, folds to A4. Two equal panels side by side."
+dimensions:
+  width: 1587
+  height: 1122
+  unit: px
+  physical: "420 × 297mm (A3 landscape, folds to A4)"
+  dpi: 96
+  panels: 2
+  panel_width: 793
+
+bleed:
+  size: 11
+  unit: px
+  physical: "3mm bleed on all outer edges"
+  notes: "Each panel needs bleed on its outer edge. The fold line is the center — no bleed needed there."
+
+safe_zone:
+  top: 57
+  bottom: 57
+  left: 57
+  right: 57
+  physical: "15mm from trim edge"
+  fold_clear: 20
+  notes: "Keep important content 15mm from all edges. Leave 5mm clear on both sides of the fold."
+
+panels:
+  front:
+    x: 793
+    width: 793
+    notes: "Right panel is the front cover when folded"
+  back:
+    x: 0
+    width: 793
+    notes: "Left panel is the back cover when folded"
+
+typography_scale:
+  cover_headline: { min: 56, max: 80, recommended: 64 }
+  section_heading: { min: 32, max: 48, recommended: 40 }
+  subheading: { min: 20, max: 28, recommended: 24 }
+  body: { min: 14, max: 18, recommended: 16 }
+  caption: { min: 10, max: 13, recommended: 11 }
+
+layout_rules:
+  margins: 57
+  grid: 8
+  column_gutter: 24
+  preferred_layouts:
+    - split-half-vertical
+    - full-bleed-cover-panel
+    - text-left-image-right
+  content_hierarchy:
+    - "Front panel: strong visual, headline, subheadline"
+    - "Back panel: contact details, logo, tagline"
+
+print_rules:
+  color_mode: "CMYK recommended"
+  min_line_weight: 0.5
+  min_font_size: 8
+  cmyk_safe: true
+  bleed_required: true
+  fold_safe_zone: "20px each side of center fold"
+
+export:
+  format: PDF
+  scale: 1
+  notes: "Export with crop marks and bleed at 300dpi. Printer requires PDF/X-1a or PDF/X-4."

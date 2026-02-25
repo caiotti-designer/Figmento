@@ -1,0 +1,63 @@
+name: tiktok_video_cover
+category: social
+description: "TikTok video cover / thumbnail — 1080×1920px full vertical format. Optimized for TikTok feed and profile grid."
+default_size: vertical
+size_variants:
+  vertical:
+    width: 1080
+    height: 1920
+    aspect_ratio: "9:16"
+    description: "Standard TikTok/Reel vertical format — Figma preset exact match"
+
+# Backward-compatible default dimensions
+dimensions:
+  width: 1080
+  height: 1920
+  aspect_ratio: "9:16"
+
+safe_zones:
+  top: 100
+  bottom: 200
+  left: 60
+  right: 100
+  notes: "Bottom 200px reserved for TikTok UI (username, caption, buttons). Right 100px for action buttons (like, comment, share). Keep critical text well inside safe zone."
+
+typography_scale:
+  display: { min: 72, max: 120, recommended: 96 }
+  headline: { min: 48, max: 72, recommended: 60 }
+  subheadline: { min: 32, max: 44, recommended: 36 }
+  body: { min: 28, max: 36, recommended: 30 }
+  caption: { min: 22, max: 28, recommended: 24 }
+
+layout_rules:
+  margins: 60
+  grid: 8
+  preferred_layouts:
+    - centered-stack
+    - full-bleed-with-overlay
+    - bottom-thirds-text
+  content_hierarchy:
+    - "Hook text / headline — upper third, most impactful"
+    - "Supporting visual — full bleed background"
+    - "CTA or handle — above the bottom safe zone"
+  design_notes:
+    - "Design for vertical scroll — first impression in under 0.5s"
+    - "High contrast essential — viewed at small thumbnail size"
+    - "Text must be legible without sound"
+    - "Bold, chunky fonts outperform thin fonts in TikTok"
+    - "Face or eye contact in upper third increases click-through"
+
+image_rules:
+  min_resolution: "1080x1920"
+  format: "JPG or PNG"
+  max_file_size_mb: 10
+  full_bleed_preferred: true
+
+brand_placement:
+  handle_position: "top-left"
+  handle_font_size: 28
+  logo_max_size: 100
+
+export:
+  format: PNG
+  scale: 1

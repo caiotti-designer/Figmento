@@ -1,0 +1,62 @@
+name: pricing_page
+category: web
+description: "SaaS pricing page — 1440px wide, comparison cards with feature lists and CTAs"
+dimensions:
+  width: 1440
+  height: 900
+  unit: px
+  notes: "Height is above-the-fold. Pricing cards should be visible without scrolling."
+
+safe_zones:
+  top: 80
+  bottom: 40
+  left: 80
+  right: 80
+  notes: "Content max-width 1200px centered. Cards need room to breathe."
+
+typography_scale:
+  display: { min: 40, max: 64, recommended: 48 }
+  headline: { min: 28, max: 40, recommended: 32 }
+  subheadline: { min: 18, max: 24, recommended: 20 }
+  body: { min: 14, max: 18, recommended: 16 }
+  caption: { min: 12, max: 14, recommended: 13 }
+  price: { min: 40, max: 64, recommended: 48 }
+  price_period: { min: 14, max: 18, recommended: 16 }
+
+layout_rules:
+  margins: 80
+  content_max_width: 1200
+  grid: 8
+  preferred_layouts:
+    - header-toggle-cards
+    - header-cards-comparison-table
+  content_hierarchy:
+    - "Page title — 'Simple, transparent pricing' or similar"
+    - "Billing toggle — monthly/annual switch"
+    - "Pricing cards — 2-4 plans side by side"
+    - "Feature comparison table — detailed breakdown (optional below)"
+    - "FAQ section — common pricing questions"
+  pricing_cards:
+    count_range: [2, 4]
+    card_width_range: [280, 360]
+    card_gap: 24
+    highlighted_card: "Scale up slightly, add border or shadow, label as 'Popular'"
+    features_per_card: [4, 8]
+
+image_rules:
+  format: "SVG for icons/checkmarks"
+  no_photos: "Pricing pages are data-driven, not image-driven"
+
+composition:
+  balance: "Cards evenly spaced, highlighted plan draws the eye"
+  whitespace: "Generous padding inside cards (32-48px)"
+  contrast: "Prices in primary/bold, features in body/muted"
+  text_overlay: "None — clean background behind cards"
+
+brand_placement:
+  logo_position: "top-left in navbar"
+  navbar_height: 64
+
+export:
+  format: PNG
+  scale: 2

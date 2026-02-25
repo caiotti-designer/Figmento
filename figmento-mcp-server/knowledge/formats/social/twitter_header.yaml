@@ -1,0 +1,67 @@
+name: twitter_header
+category: social
+description: "Twitter / X profile header banner — 1500×500px (3:1 ratio). Displayed behind the profile picture on the Twitter profile page."
+default_size: standard
+size_variants:
+  standard:
+    width: 1500
+    height: 500
+    aspect_ratio: "3:1"
+    description: "Standard Twitter/X profile header — Figma preset exact match"
+
+# Backward-compatible default dimensions
+dimensions:
+  width: 1500
+  height: 500
+  aspect_ratio: "3:1"
+
+safe_zones:
+  top: 40
+  bottom: 60
+  left: 60
+  right: 60
+  profile_picture_overlap:
+    x: 60
+    y: 280
+    width: 160
+    height: 160
+    notes: "Profile picture (160×160px circle) overlaps the bottom-left area. Avoid placing important content behind it."
+  notes: "Bottom ~200px may be partially obscured by profile info (name, bio) on some screen sizes. Keep primary visual message in upper 300px."
+
+typography_scale:
+  tagline: { min: 36, max: 56, recommended: 44 }
+  headline: { min: 28, max: 44, recommended: 36 }
+  subheadline: { min: 20, max: 28, recommended: 24 }
+  caption: { min: 16, max: 20, recommended: 18 }
+
+layout_rules:
+  margins: 60
+  grid: 8
+  preferred_layouts:
+    - full-bleed-minimal-text
+    - left-text-right-visual
+    - centered-brand-message
+  content_hierarchy:
+    - "Brand visual or pattern — full bleed background"
+    - "Tagline or brand message — center or right area"
+    - "Website or CTA — bottom-right (clear of profile picture)"
+  design_notes:
+    - "Keep left side clear for profile picture overlap"
+    - "Minimal text works better than text-heavy designs"
+    - "Brand color consistency with profile picture frame"
+    - "Update regularly for launches, campaigns, or seasons"
+    - "Consider how it looks with your specific profile picture"
+
+image_rules:
+  min_resolution: "1500x500"
+  format: "JPG or PNG"
+  max_file_size_mb: 5
+  recommended_file_size_mb: 2
+
+brand_placement:
+  logo_position: "center or right — avoid left where profile pic overlaps"
+  logo_max_size: 160
+
+export:
+  format: PNG
+  scale: 1

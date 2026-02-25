@@ -1,0 +1,70 @@
+name: youtube_banner
+category: social
+description: "YouTube channel art banner — 2560×1440px. Displays across desktop (full width), tablet (1546×423px safe area), and mobile (1546×423px safe area only)."
+default_size: standard
+size_variants:
+  standard:
+    width: 2560
+    height: 1440
+    aspect_ratio: "16:9"
+    description: "Full YouTube banner — Figma preset exact match. Design full canvas for TV; all critical content in center 1546×423 safe zone."
+
+# Backward-compatible default dimensions
+dimensions:
+  width: 2560
+  height: 1440
+  aspect_ratio: "16:9"
+
+safe_zones:
+  top: 509
+  bottom: 509
+  left: 507
+  right: 507
+  safe_area_width: 1546
+  safe_area_height: 423
+  notes: "CRITICAL: Only the center 1546×423px is guaranteed visible on ALL devices (TV, desktop, tablet, mobile). Place all important text and logos within this zone. Content outside is clipped on smaller screens."
+
+display_contexts:
+  desktop: { width: 2560, height: 423, notes: "Full width, cropped to single horizontal strip" }
+  tablet: { width: 1855, height: 423 }
+  mobile: { width: 1546, height: 423, notes: "Smallest — use as primary design constraint" }
+  tv: { width: 2560, height: 1440, notes: "Full canvas visible — design full bleed accordingly" }
+
+typography_scale:
+  channel_name: { min: 56, max: 96, recommended: 72 }
+  tagline: { min: 28, max: 44, recommended: 36 }
+  upload_schedule: { min: 22, max: 32, recommended: 26 }
+  caption: { min: 18, max: 24, recommended: 20 }
+
+layout_rules:
+  margins: 80
+  grid: 8
+  content_area: "Design all critical content inside the 1546×423 safe zone"
+  preferred_layouts:
+    - centered-channel-name-tagline
+    - logo-left-text-center
+    - full-bleed-background-safe-area-content
+  content_hierarchy:
+    - "Channel name / logo — center of safe area"
+    - "Tagline — below channel name"
+    - "Upload schedule — optional, small text"
+    - "Social links — far right of safe area"
+  design_notes:
+    - "Design the full 2560×1440 canvas for TV display"
+    - "All essential content MUST fit in center 1546×423px"
+    - "Background should work at both full and cropped aspect ratios"
+    - "Subtle patterns or gradients work better than centered images"
+
+image_rules:
+  min_resolution: "2560x1440"
+  format: "PNG or JPG"
+  max_file_size_mb: 6
+
+brand_placement:
+  logo_position: "left side of safe area"
+  logo_max_size: 300
+
+export:
+  format: PNG
+  scale: 1
+  notes: "Export at full 2560×1440px. YouTube requires <6MB."

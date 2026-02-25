@@ -1,0 +1,56 @@
+name: instagram_ad
+category: advertising
+description: "Instagram feed ad — 1080x1080 square, optimized for sponsored feed placement"
+dimensions:
+  width: 1080
+  height: 1080
+  aspect_ratio: "1:1"
+
+safe_zones:
+  top: 120
+  bottom: 120
+  left: 60
+  right: 60
+  notes: "Keep text inside safe zone. Bottom area may show 'Sponsored' label overlay."
+
+typography_scale:
+  display: { min: 64, max: 96, recommended: 72 }
+  headline: { min: 40, max: 64, recommended: 48 }
+  subheadline: { min: 28, max: 36, recommended: 32 }
+  body: { min: 24, max: 30, recommended: 26 }
+  caption: { min: 20, max: 24, recommended: 22 }
+
+layout_rules:
+  margins: 48
+  grid: 8
+  max_text_lines: 4
+  preferred_layouts:
+    - centered-stack
+    - full-bleed-with-overlay
+    - product-centered
+  content_hierarchy:
+    - "Product/Hero image — dominant visual"
+    - "Value proposition — short, punchy headline"
+    - "CTA indicator — button or directional element"
+  instagram_ad_rule: "Keep text minimal. Let the visual sell. Ad copy goes in caption."
+
+image_rules:
+  min_resolution: "1080x1080"
+  format: "JPG or PNG"
+  max_file_size_mb: 30
+  full_bleed_preferred: true
+  overlay_opacity_range: [0.3, 0.6]
+
+composition:
+  balance: "Center-weighted — must read well on small mobile screens"
+  whitespace: "Generous — resist the urge to fill every pixel"
+  contrast: "High — bright mobile screens in varying lighting"
+  text_overlay: "Semi-transparent overlay when text sits over images"
+
+brand_placement:
+  logo_position: "top-left or bottom-right"
+  logo_max_size: 72
+
+export:
+  format: PNG
+  scale: 1

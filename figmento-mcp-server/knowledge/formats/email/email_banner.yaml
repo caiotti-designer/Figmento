@@ -1,0 +1,62 @@
+name: email_banner
+category: email
+description: "Email promotional banner — 600×300px. Hero image section within an email, typically below the header. Used for announcements, promotions, and CTAs."
+dimensions:
+  width: 600
+  height: 300
+  unit: px
+  notes: "600px max-width. Height 200-400px typical. Taller banners get more engagement for promotions."
+
+safe_zones:
+  top: 30
+  bottom: 30
+  left: 40
+  right: 40
+  notes: "Keep primary CTA and headline well within safe zone. Some clients clip at unexpected points."
+
+typography_scale:
+  headline: { min: 28, max: 48, recommended: 36 }
+  subheadline: { min: 16, max: 22, recommended: 18 }
+  cta_button: { min: 15, max: 18, recommended: 16 }
+  caption: { min: 13, max: 16, recommended: 14 }
+
+layout_rules:
+  max_width: 600
+  side_padding: 40
+  grid: 8
+  preferred_layouts:
+    - full-bleed-with-overlay-and-cta
+    - text-left-image-right
+    - centered-headline-cta
+  content_hierarchy:
+    - "Headline — clear value proposition"
+    - "Subheadline — supporting detail"
+    - "CTA button — prominent, actionable"
+  button_design:
+    padding: "12px 32px"
+    corner_radius: 4
+    min_height: 44
+    notes: "Buttons must be coded in HTML/CSS, not images. Design as visual reference."
+
+email_rules:
+  web_safe_fonts: "Use web-safe font stack: Arial, Helvetica, sans-serif; or embed via @font-face"
+  font_fallbacks:
+    - "Inter, Arial, Helvetica, sans-serif"
+  background_image: "Use images for decoration only. Critical content (text, CTAs) must not rely on images."
+  max_width: 600
+  min_font_size: 14
+  cta_as_html_button: "CTA buttons should be HTML/CSS buttons, not images — shown here as design reference"
+  image_alt_text: "Provide alt text for all images"
+  retina: "Design at 2x (1200×600px), display at 1x"
+  dark_mode_safe: "Avoid pure white (#FFFFFF) text on images — test in dark mode"
+  preheader_text: "Coordinate banner message with email preheader text (the preview snippet)"
+
+composition:
+  balance: "Eye-catching but scannable — 2-3 second read"
+  contrast: "High contrast between text and background"
+  cta_prominence: "CTA button must be unmissable — use brand primary color"
+
+export:
+  format: PNG
+  scale: 2
+  notes: "Export at 2x (1200×600px) for retina. Compress to <200KB. JPG acceptable for photo-heavy banners."

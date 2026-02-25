@@ -1,0 +1,96 @@
+name: social_media_kit
+description: "9-frame cross-platform social media kit — 3 Instagram posts, 3 Instagram stories, plus LinkedIn, Facebook, and Twitter posts. All sharing the same brand props."
+frame_count: 9
+formats_used: [instagram_post, instagram_story, linkedin_post, facebook_post, twitter_post]
+estimated_time: "4-5 minutes"
+layout: grid
+grid_columns: 3
+gap: 80
+
+props:
+  brand_name: { type: string, required: true, description: "Brand or company name" }
+  tagline: { type: string, required: true, description: "Brand tagline or post headline" }
+  cta_label: { type: string, required: false, default: "Learn More", description: "CTA button text" }
+
+frames:
+  # ── Instagram Posts (row 1) ──────────────────────────────
+  - id: ig_post_hero
+    name: "Instagram Post — Hero"
+    pattern: hero_block
+    format: instagram_post
+    props:
+      headline: "{{brand_name}}"
+      subheadline: "{{tagline}}"
+      cta_label: "{{cta_label}}"
+
+  - id: ig_post_cta
+    name: "Instagram Post — CTA"
+    pattern: cta_banner
+    format: instagram_post
+    props:
+      headline: "{{tagline}}"
+      cta_label: "{{cta_label}}"
+
+  - id: ig_post_dark
+    name: "Instagram Post — Dark"
+    pattern: hero_block
+    variant: dark
+    format: instagram_post
+    props:
+      headline: "{{brand_name}}"
+      subheadline: "{{tagline}}"
+      cta_label: "{{cta_label}}"
+
+  # ── Instagram Stories (row 2) ────────────────────────────
+  - id: ig_story_hero
+    name: "Instagram Story — Hero"
+    pattern: hero_block
+    format: instagram_story
+    props:
+      headline: "{{brand_name}}"
+      subheadline: "{{tagline}}"
+      cta_label: "{{cta_label}}"
+
+  - id: ig_story_cta
+    name: "Instagram Story — CTA"
+    pattern: cta_banner
+    format: instagram_story
+    props:
+      headline: "{{tagline}}"
+      cta_label: "{{cta_label}}"
+
+  - id: ig_story_content
+    name: "Instagram Story — Content"
+    pattern: content_section
+    format: instagram_story
+    props:
+      heading: "{{brand_name}}"
+      body: "{{tagline}}"
+      subheading: "Swipe up"
+
+  # ── Other Platforms (row 3) ──────────────────────────────
+  - id: linkedin_post
+    name: "LinkedIn Post"
+    pattern: hero_block
+    format: linkedin_post
+    props:
+      headline: "{{brand_name}}"
+      subheadline: "{{tagline}}"
+      cta_label: "{{cta_label}}"
+
+  - id: facebook_post
+    name: "Facebook Post"
+    pattern: hero_block
+    format: facebook_post
+    props:
+      headline: "{{brand_name}}"
+      subheadline: "{{tagline}}"
+      cta_label: "{{cta_label}}"
+
+  - id: twitter_post
+    name: "Twitter / X Post"
+    pattern: cta_banner
+    format: twitter_post
+    props:
+      headline: "{{tagline}}"
+      cta_label: "{{cta_label}}"

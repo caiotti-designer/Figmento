@@ -1,0 +1,84 @@
+name: portfolio_page
+category: web
+description: "Portfolio / work showcase page — 1440×900px with grid layout. Designed for designers, developers, agencies, and creatives to display project work."
+dimensions:
+  width: 1440
+  height: 900
+  unit: px
+  notes: "Above-the-fold view. Full page scrolls. Grid of work expands below."
+
+safe_zones:
+  top: 80
+  bottom: 40
+  left: 80
+  right: 80
+  content_max_width: 1280
+  notes: "Content max-width 1280px centered. Generous outer margins for premium feel."
+
+breakpoints:
+  desktop: 1440
+  tablet: 1024
+  mobile: 375
+  notes: "Grid: 3 columns → 2 columns (tablet) → 1 column (mobile). Navigation collapses to hamburger."
+
+layout:
+  type: grid
+  header_height: 80
+  hero_height: 400
+  grid_columns: 3
+  grid_gap: 24
+  card_aspect_ratio: "4:3"
+  zones:
+    navigation: { height: 80, content: "Logo, nav links (Work, About, Contact), CTA" }
+    hero: { height: 400, content: "Name, headline, brief intro, scroll indicator" }
+    grid: { content: "Project cards — image + title + category tag" }
+    footer: { height: 200 }
+
+typography_scale:
+  name: { min: 48, max: 72, recommended: 56 }
+  headline: { min: 24, max: 36, recommended: 28 }
+  subheadline: { min: 16, max: 20, recommended: 18 }
+  body: { min: 16, max: 18, recommended: 16 }
+  nav_item: { min: 14, max: 16, recommended: 15 }
+  card_title: { min: 16, max: 20, recommended: 18 }
+  tag: { min: 11, max: 13, recommended: 12 }
+
+layout_rules:
+  content_max_width: 1280
+  safe_content_width: 1280
+  grid: 8
+  preferred_layouts:
+    - hero-then-grid
+    - masonry-grid
+    - full-width-featured-then-grid
+  card_design:
+    aspect_ratio: "4:3 or 16:9"
+    hover_effect: "Overlay with project title on hover"
+    padding: 0
+    corner_radius: 8
+    shadow: "Subtle lift on hover"
+  content_hierarchy:
+    - "Navigation — minimal, clean"
+    - "Hero: Name + tagline — establishes identity"
+    - "Featured project (optional) — first card full-width"
+    - "Project grid — equal cards, consistent sizing"
+    - "Category filters — optional tag/filter bar above grid"
+
+web_rules:
+  min_font_size: 16
+  min_touch_target: 44
+  hover_states: "Design card hover state — overlay, scale, or reveal"
+  lazy_loading: "Grid images should lazy-load in implementation"
+  filter_tags: "Category filter should visually highlight active filter"
+  dark_mode: "Portfolio benefits from dark mode — consider both themes"
+  wcag_aa: true
+
+composition:
+  balance: "Grid gives natural balance — vary featured items to break monotony"
+  whitespace: "80px+ between sections, 24px+ between cards"
+  personality: "Typography and color choices should reflect personal brand"
+
+export:
+  format: PNG
+  scale: 2
+  notes: "Export at 2x. Design hover state as separate artboard or overlay."

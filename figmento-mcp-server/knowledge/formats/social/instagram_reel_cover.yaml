@@ -1,0 +1,57 @@
+name: instagram_reel_cover
+category: social
+description: "Instagram Reels cover image — 1080×1920px (9:16). Appears as the static thumbnail in the Reels tab and profile grid."
+dimensions:
+  width: 1080
+  height: 1920
+  aspect_ratio: "9:16"
+
+safe_zones:
+  top: 150
+  bottom: 300
+  left: 60
+  right: 60
+  profile_grid_crop:
+    top: 420
+    bottom: 420
+    notes: "Profile grid shows a 1:1 center crop (1080×1080px). Design the center 1080px vertically as the 'hero' area."
+  notes: "Bottom 300px reserved for Instagram Reels UI (play button, title, account). Keep critical text above bottom safe zone."
+
+typography_scale:
+  display: { min: 72, max: 120, recommended: 96 }
+  headline: { min: 48, max: 72, recommended: 60 }
+  subheadline: { min: 32, max: 44, recommended: 36 }
+  body: { min: 28, max: 36, recommended: 30 }
+  caption: { min: 22, max: 28, recommended: 24 }
+
+layout_rules:
+  margins: 60
+  grid: 8
+  preferred_layouts:
+    - centered-stack
+    - full-bleed-with-overlay
+    - hook-text-top-visual-center
+  content_hierarchy:
+    - "Hook text — upper third for feed scroll"
+    - "Main visual — center, fills majority of height"
+    - "CTA / handle — above bottom safe zone"
+  design_notes:
+    - "Center 1080×1080px must work as standalone square for profile grid"
+    - "Design top and bottom thirds as bonus — not critical content"
+    - "Strong contrast and bold text essential for 2-second attention span"
+    - "Consistent cover style across Reels builds brand recognition"
+    - "Text heavy covers perform well for educational content"
+
+image_rules:
+  min_resolution: "1080x1920"
+  format: "JPG or PNG"
+  max_file_size_mb: 8
+
+brand_placement:
+  handle_position: "top-left or bottom-center"
+  handle_font_size: 28
+  logo_max_size: 100
+
+export:
+  format: PNG
+  scale: 1

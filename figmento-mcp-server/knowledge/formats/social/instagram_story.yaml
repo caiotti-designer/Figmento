@@ -1,6 +1,20 @@
 name: instagram_story
 category: social
-description: "Vertical Instagram Story — full-screen immersive format with top/bottom unsafe zones"
+description: "Vertical Instagram Story/Reel — full-screen immersive 9:16 format."
+default_size: story
+size_variants:
+  story:
+    width: 1080
+    height: 1920
+    aspect_ratio: "9:16"
+    description: "Standard Instagram Story — Figma preset exact match"
+  reel:
+    width: 1080
+    height: 1920
+    aspect_ratio: "9:16"
+    description: "Instagram Reel cover — same dimensions as Story, optimized for Reels feed"
+
+# Backward-compatible default dimensions
 dimensions:
   width: 1080
   height: 1920

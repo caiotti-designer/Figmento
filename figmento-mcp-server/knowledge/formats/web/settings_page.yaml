@@ -1,0 +1,82 @@
+name: settings_page
+category: web
+description: "Application settings page — 1440×900px with sidebar navigation layout. Standard pattern for SaaS apps, dashboards, and admin panels."
+dimensions:
+  width: 1440
+  height: 900
+  unit: px
+  notes: "Full viewport height with sticky sidebar. Main content area scrolls independently."
+
+safe_zones:
+  top: 0
+  bottom: 0
+  left: 0
+  right: 0
+  content_max_width: 1280
+  notes: "Content inside main area max-width 800px for readability of form fields."
+
+breakpoints:
+  desktop: 1440
+  tablet: 1024
+  mobile: 375
+  notes: "Sidebar collapses to bottom tab bar on mobile. Settings sections become accordion on mobile."
+
+layout:
+  type: sidebar
+  sidebar_width: 240
+  sidebar_position: left
+  main_content_padding: 40
+  header_height: 64
+  zones:
+    topbar:
+      height: 64
+      content: "Logo, nav, user menu, notifications"
+    sidebar:
+      width: 240
+      content: "Settings categories: Account, Security, Billing, Notifications, Integrations, etc."
+    main:
+      content: "Active settings section with form controls"
+      max_content_width: 800
+
+typography_scale:
+  page_title: { min: 22, max: 28, recommended: 24 }
+  section_heading: { min: 16, max: 20, recommended: 18 }
+  label: { min: 13, max: 15, recommended: 14 }
+  input_text: { min: 14, max: 16, recommended: 15 }
+  helper_text: { min: 11, max: 13, recommended: 12 }
+  sidebar_item: { min: 13, max: 15, recommended: 14 }
+
+layout_rules:
+  content_max_width: 1280
+  safe_content_width: 1280
+  grid: 8
+  form_field_max_width: 480
+  button_height: 40
+  input_height: 40
+  label_gap: 6
+  field_gap: 24
+  section_gap: 48
+  preferred_layouts:
+    - sidebar-left-main-right
+    - two-column-settings-form
+  content_hierarchy:
+    - "Page title — current settings category"
+    - "Section heading — group related settings"
+    - "Setting row: label + control + description"
+    - "Save button — sticky bottom or after each section"
+    - "Danger zone — destructive actions at bottom with red styling"
+
+web_rules:
+  min_font_size: 16
+  min_touch_target: 40
+  sidebar_active_state: "Clear active/selected state for current category"
+  save_feedback: "Toast notification on save — design the toast component"
+  unsaved_changes: "Visual indicator for unsaved changes"
+  danger_zone: "Destructive actions (delete account, reset) separated at bottom with border"
+  accessibility: "All form controls have labels and ARIA descriptions"
+  wcag_aa: true
+
+export:
+  format: PNG
+  scale: 2
+  notes: "Export at 2x. Design key states: default, editing, saved, error."

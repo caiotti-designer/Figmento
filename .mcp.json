@@ -3,6 +3,14 @@
     "figmento": {
       "command": "node",
       "args": ["c:/Users/Caio/Downloads/Projects/Figmento/figmento-mcp-server/dist/index.js"]
+    },
+    "mcp-image": {
+      "command": "npx",
+      "args": ["-y", "mcp-image"],
+      "env": {
+        "GEMINI_API_KEY": "${GEMINI_API_KEY}",
+        "IMAGE_OUTPUT_DIR": "C:\\Users\\Caio\\Downloads\\Projects\\Figmento\\generated-images"
+      }
     }
   }
 }

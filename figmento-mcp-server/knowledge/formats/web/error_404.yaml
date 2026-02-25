@@ -1,0 +1,70 @@
+name: error_404
+category: web
+description: "404 error page — 1440×900px. Communicates the error clearly while retaining brand personality and guiding users back to useful content."
+dimensions:
+  width: 1440
+  height: 900
+  unit: px
+  notes: "Full viewport height — page should feel intentional, not broken."
+
+safe_zones:
+  top: 80
+  bottom: 80
+  left: 80
+  right: 80
+  content_max_width: 800
+  notes: "Center content block max 600-800px wide for readability."
+
+breakpoints:
+  desktop: 1440
+  tablet: 1024
+  mobile: 375
+  notes: "Illustration should scale gracefully. Text stacks on mobile."
+
+typography_scale:
+  error_code: { min: 80, max: 200, recommended: 144 }
+  headline: { min: 32, max: 48, recommended: 40 }
+  subheadline: { min: 18, max: 24, recommended: 20 }
+  body: { min: 16, max: 18, recommended: 16 }
+  cta_button: { min: 15, max: 16, recommended: 16 }
+  link: { min: 14, max: 16, recommended: 14 }
+
+layout_rules:
+  content_max_width: 1280
+  safe_content_width: 1280
+  grid: 8
+  preferred_layouts:
+    - centered-stack-with-illustration
+    - split-illustration-left-text-right
+    - minimal-centered-text-with-nav
+  content_hierarchy:
+    - "Navigation bar — present and functional"
+    - "Error code (404) — large display number, can be decorative"
+    - "Friendly headline — 'Page not found' in brand voice"
+    - "Explanation — one line: 'The page may have moved or doesn't exist.'"
+    - "Primary CTA — Go Home button"
+    - "Secondary options — Search bar, popular links, or recent posts"
+  illustration:
+    size: "300-500px"
+    style: "On-brand illustration, character, or abstract shape"
+    position: "Above or beside the text block"
+
+web_rules:
+  min_font_size: 16
+  min_touch_target: 44
+  navigation: "Preserve full navigation — users must be able to navigate forward"
+  cta_primary: "Homepage link is mandatory"
+  cta_secondary: "Search or sitemap helpful for large sites"
+  tone: "Friendly, on-brand — avoid technical jargon"
+  seo: "Include <title>404 Page Not Found</title> and robots noindex in implementation"
+  wcag_aa: true
+
+composition:
+  balance: "Centered, calm — the error is resolved by design personality"
+  whitespace: "Extra generous — sparse layout reinforces 'empty' metaphor"
+  humor: "Optional: brand-appropriate humor or illustration increases engagement"
+
+export:
+  format: PNG
+  scale: 2
+  notes: "Export at 2x for retina."

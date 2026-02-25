@@ -4,11 +4,13 @@ import { registerConnectionTools } from './tools/connection';
 import { registerCanvasTools } from './tools/canvas';
 import { registerStyleTools } from './tools/style';
 import { registerSceneTools } from './tools/scene';
-import { registerExportNodeTool, registerExportToFileTool, registerEvaluateDesignTool } from './tools/export';
+import { registerGetScreenshotTool, registerExportNodeTool, registerExportToFileTool, registerEvaluateDesignTool } from './tools/export';
 import { registerBatchTools } from './tools/batch';
 import { registerIntelligenceTools } from './tools/intelligence';
 import { registerTemplateTools } from './tools/template';
 import { registerDesignSystemTools } from './tools/design-system';
+import { registerPatternTools } from './tools/patterns';
+import { registerDsTemplateTools } from './tools/ds-templates';
 
 /**
  * Creates and configures the Figmento MCP server with all design tools.
@@ -45,6 +47,7 @@ export function createFigmentoServer(): McpServer {
   registerCanvasTools(server, sendDesignCommand);
   registerStyleTools(server, sendDesignCommand);
   registerSceneTools(server, sendDesignCommand);
+  registerGetScreenshotTool(server, sendDesignCommand);
   registerExportNodeTool(server, sendDesignCommand);
   registerExportToFileTool(server, sendDesignCommand);
   registerEvaluateDesignTool(server, sendDesignCommand);
@@ -52,6 +55,8 @@ export function createFigmentoServer(): McpServer {
   registerIntelligenceTools(server);
   registerTemplateTools(server, sendDesignCommand);
   registerDesignSystemTools(server, sendDesignCommand);
+  registerPatternTools(server, sendDesignCommand);
+  registerDsTemplateTools(server, sendDesignCommand);
 
   return server;
 }
