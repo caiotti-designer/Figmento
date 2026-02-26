@@ -373,7 +373,10 @@ To create a button, use `create_frame` with auto-layout (`layoutMode: "HORIZONTA
 Same as button but smaller: `cornerRadius` fully rounded (`height / 2`), padding (4–8px vertical, 12–16px horizontal), smaller font size (12–14px).
 
 **Icon usage:**
-The `create_icon` tool places Lucide icons by name. Use it for UI icons like `check`, `arrow-right`, `map-pin`, `phone`, `mail`, `star`, `heart`, `shopping-cart`, `menu`, `search`, etc. Pass `svgPaths` for precise rendering or omit for basic fallback shapes.
+The `create_icon` tool places Lucide icons by name from the bundled 1900+ icon library. SVG path data is automatically loaded — no need to provide `svgPaths`. Use `list_icons` to search or browse by category (arrows, media, communication, data, ui, nature, commerce, social, dev, shapes). Common icons: `check`, `arrow-right`, `map-pin`, `phone`, `mail`, `star`, `heart`, `shopping-cart`, `menu`, `search`, `zap`, `shield`, `target`, `code`, `globe`.
+
+**Feature grid icons:**
+When creating a `feature_grid` pattern, after the pattern is created, call `create_icon` for each feature card using the returned Icon Container nodeIds as `parentId`. Use contextually appropriate Lucide icon names based on the feature titles (e.g., "Performance" → `zap`, "Security" → `shield`, "Analytics" → `bar-chart`).
 
 **Batch execution rule (IMPORTANT — highest-impact optimization):**
 For designs with 3+ elements, prefer `batch_execute` over sequential tool calls. Group related creation commands into batches — create a parent frame and all its children in one batch using `tempId` references. Example: `{ action: "create_frame", params: { name: "Card", width: 400, height: 300 }, tempId: "card" }` followed by `{ action: "create_text", params: { content: "Title", parentId: "$card" } }`. Max 50 commands per batch. Failed commands don't abort the batch — all commands run and results report individually.
@@ -386,6 +389,9 @@ Use `clone_with_overrides` for repeated patterns like menu rows, card grids, fea
 
 **AI-generated image placement:**
 When placing AI-generated images, ALWAYS use `place_generated_image` with the file path from mcp-image output. NEVER read image files into base64 manually or pass base64 through bash — the strings are too large for the parameter system. The `place_generated_image` tool reads files server-side and handles all encoding internally. Use the `scaleMode` parameter to control fit: `FILL` (default, crops to fill), `FIT` (contains within bounds), `CROP`, or `TILE`.
+
+**Multi-section background composition rule:**
+When creating multiple patterns for the same page, always think about the background color sequence first. The page should read: **bold open → breathe → breathe → bold break → breathe → bold close** (primary → surface → background → primary → surface → primary). Never have the same background color on 3+ consecutive sections. Use `create_from_template` with `composition_mode: "connected"` for landing pages — it enforces this rhythm automatically via `knowledge/patterns/composition-rules.yaml`. In connected mode, sections stack vertically (gap=0) and each section's background is overridden to match the composition plan. Treat the sequence of backgrounds as a deliberate design decision, not an afterthought.
 
 ### Self-Evaluation Checklist
 
@@ -502,6 +508,116 @@ node scripts/render-html.js <input.html> <output.png>
 - Viewport: 2480x3508 (A4 at 300dpi)
 - Waits for fonts to load (`document.fonts.ready`)
 - Uses headless Chromium via Puppeteer
+
+## Design Taste Rules (Creative Mode)
+
+Apply these principles whenever no brand system is specified, or when the user gives creative latitude ("use your own judgment", "high-end", "editorial", etc.).
+
+### Rule 1 — Commit to an Aesthetic Direction First
+Before calling any tool, pick ONE aesthetic direction and commit to it completely:
+- **editorial** — asymmetric grids, large serif display, generous whitespace, minimal color
+- **brutalist** — raw structure exposed, stark contrast, oversized type, no decoration
+- **organic** — soft curves, warm tones, layered textures, humanist sans-serif
+- **luxury** — near-black backgrounds, gold/champagne accents, thin serifs, airspace
+- **geometric** — clean grids, primary color blocks, sans-serif, mathematical spacing
+- **playful** — bold saturated colors, rounded type, irregular layouts, energetic
+
+Never start neutral. Neutral is the enemy.
+
+### Rule 2 — Typography Is the First Decision
+Never default to Inter/Inter. The font pairing must match the brief before any frame is created.
+
+| Brief signals | Font pairing |
+|--------------|-------------|
+| luxury, perfume, fashion, editorial | Cormorant Garamond + Proza Libre (or Playfair Display) |
+| dev tool, tech, SaaS, startup | Space Grotesk + Space Mono (or Inter as an intentional choice) |
+| wellness, organic, calm | Cormorant Garamond + DM Sans |
+| bold marketing, CPG, sport | Montserrat Bold + Hind |
+| art, culture, gallery | Libre Baskerville + Open Sans |
+| minimal portfolio, agency | DM Sans + DM Sans (weight contrast does the work) |
+
+If a font is named in the brief — use ONLY that font. The table above is the fallback.
+
+### Rule 3 — Color Commitment
+Pick a dominant color story and paint with it boldly. The three valid dark-side options:
+1. **Near-black hero** — `#0A0A0F` or `#0F0E11` background, champagne/gold or cream accent
+2. **Full primary fill** — entire background IS the brand color, white text on top
+3. **Gradient hero** — diagonal primary_dark → primary, or primary → secondary
+
+**Forbidden:** light grey background + timid blue accent. This is the generic AI look.
+
+### Rule 4 — Background Depth
+Never use flat solid fills on hero sections or full-page frames. Always apply at least one:
+- Dark-to-slightly-less-dark gradient (creates depth without distraction)
+- Subtle radial glow at center (primary color at 8-12% opacity over near-black)
+- Full-bleed gradient from primary_dark to primary
+
+### Rule 5 — Spatial Generosity
+Increase all padding by 1.5× what feels "enough". Designs need room to breathe.
+- If `$tokens.spacing.xl` feels right → use `$tokens.spacing.2xl`
+- If `$tokens.spacing.2xl` feels right → use `$tokens.spacing.3xl`
+- Margins should feel almost too generous. Then add 20% more.
+
+### Rule 6 — Never Converge
+Every brief produces a visually distinct output. Keep a mental note of the last design's choices and actively diverge:
+- Last design used dark + serif? → try light + geometric sans
+- Last design was centered + spacious? → try left-aligned + dense editorial
+- Last design had purple? → avoid purple entirely
+
+### Rule 7 — Self-Evaluate Ruthlessly
+After every `get_screenshot`, ask: *"Does this look like it was designed by a senior designer, or generated by a bot?"*
+
+If the answer is "bot" — identify the single most generic element and replace it before reporting back. Common culprits:
+- All text centered (try left-aligned headline)
+- Cards with equal padding and no variation
+- CTA button same color as every other button ever made
+- No visual tension or surprise anywhere in the composition
+
+### Rule 8 — The One Memorable Thing
+Every design must have ONE element that makes it unforgettable:
+- A giant 120px+ display headline that dominates the frame
+- An unexpected color treatment (e.g., the CTA button is black when everything else is cream)
+- An editorial quote that breaks the grid
+- A full-bleed image that bleeds to the edge with text over it
+
+If nothing stands out, the design has failed. Go back and add the memorable thing.
+
+---
+
+## Design Anti-Patterns (Never Do These)
+
+These are signals of generic AI output. If you catch yourself doing any of these, stop and redesign that element:
+
+- **White or light-grey background as the default** for any hero or full-page design
+- **Inter Regular for everything** — weight variation is the minimum; font variety is better
+- **Centered text on every single element** — vary alignment by hierarchy level
+- **Equal padding on every frame** — vary padding to create visual rhythm
+- **Three feature cards that look identical** to every other three-card grid ever generated
+- **CTA button in the same blue/purple as every other SaaS product** — commit to something specific
+- **Pricing cards with no visual hierarchy** — one card must dominate (scale, color, shadow)
+- **Shadow on everything** or **shadow on nothing** — use shadow to direct attention
+- **A design with no negative space** — some elements should breathe alone
+- **Typography without contrast** — if all text is the same weight and size, hierarchy is broken
+
+---
+
+## Design Brief Analysis (Mandatory Internal Step)
+
+Before calling any design tool for a creative request, answer these five questions and include the answers in your response so the user can see your creative thinking:
+
+```
+DESIGN BRIEF ANALYSIS
+─────────────────────
+Aesthetic direction : [editorial / brutalist / organic / luxury / geometric / playful]
+Font pairing        : [heading font] + [body font] — reason: [why this fits the brief]
+Color story         : [dark / light / colorful / monochrome] — dominant color: [hex or name]
+Memorable element   : [the ONE thing that will make this design unforgettable]
+Generic trap avoided: [what would the bot version look like — and what you're doing instead]
+```
+
+Only after completing this analysis, proceed with tool calls.
+
+---
 
 ## Design System Workflow
 

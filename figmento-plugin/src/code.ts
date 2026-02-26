@@ -248,11 +248,18 @@ async function handleCreateFrame(params: Record<string, unknown>): Promise<Recor
     counterAxisSizingMode: params.counterAxisSizingMode as UIElement['counterAxisSizingMode'] | undefined,
     cornerRadius: params.cornerRadius as UIElement['cornerRadius'] | undefined,
     clipsContent: params.clipsContent as boolean | undefined,
+    layoutSizingHorizontal: params.layoutSizingHorizontal as UIElement['layoutSizingHorizontal'] | undefined,
+    layoutSizingVertical: params.layoutSizingVertical as UIElement['layoutSizingVertical'] | undefined,
     children: [],
   };
 
   const node = await createElement(element, true);
   if (!node) throw new Error('Failed to create frame');
+
+  // layoutSizingHorizontal/Vertical must be set AFTER the node is appended to an auto-layout parent.
+  // createElement sets these during its flow, but when parentId is used the node is re-appended below,
+  // so we re-apply them after appending.
+  const needsResizing = params.parentId && (element.layoutSizingHorizontal || element.layoutSizingVertical);
 
   // If parentId is specified, append to that frame
   if (params.parentId) {
@@ -267,6 +274,18 @@ async function handleCreateFrame(params: Record<string, unknown>): Promise<Recor
       node.x = center.x - element.width / 2;
       node.y = center.y - element.height / 2;
     }
+  }
+
+  // Re-apply layout sizing after the node is inside its auto-layout parent
+  if (needsResizing && 'layoutSizingHorizontal' in node) {
+    try {
+      if (element.layoutSizingHorizontal) {
+        (node as FrameNode).layoutSizingHorizontal = element.layoutSizingHorizontal;
+      }
+      if (element.layoutSizingVertical) {
+        (node as FrameNode).layoutSizingVertical = element.layoutSizingVertical;
+      }
+    } catch { /* parent may not be auto-layout — ignore */ }
   }
 
   figma.currentPage.selection = [node];
@@ -343,6 +362,13 @@ async function handleCreateText(params: Record<string, unknown>): Promise<Record
     const parent = figma.getNodeById(params.parentId as string);
     if (parent && 'appendChild' in parent) {
       (parent as FrameNode).appendChild(node);
+    }
+    // Re-apply layout sizing after appending to auto-layout parent
+    if (layoutSizingH && 'layoutSizingHorizontal' in node) {
+      try { (node as any).layoutSizingHorizontal = layoutSizingH; } catch { /* ignore */ }
+    }
+    if (layoutSizingV && 'layoutSizingVertical' in node) {
+      try { (node as any).layoutSizingVertical = layoutSizingV; } catch { /* ignore */ }
     }
   }
 
@@ -959,6 +985,7 @@ async function handleCreateIcon(params: Record<string, unknown>): Promise<Record
   const iconName = (params.iconName as string) || 'circle';
   const size = (params.size as number) || 24;
   const color = (params.color as string) || '#333333';
+  const strokeWidth = (params.strokeWidth as number) || 2;
   const svgPaths = params.svgPaths as string[] | undefined;
 
   const element: UIElement = {
@@ -971,6 +998,7 @@ async function handleCreateIcon(params: Record<string, unknown>): Promise<Record
     y: params.y as number | undefined,
     lucideIcon: iconName,
     svgPaths: svgPaths,
+    strokeWeight: strokeWidth,
     fills: [{ type: 'SOLID', color }],
     children: [],
   };

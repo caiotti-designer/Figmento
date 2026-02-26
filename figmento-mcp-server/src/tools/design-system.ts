@@ -235,12 +235,18 @@ interface DesignTokens {
     sm: number;
     md: number;
     lg: number;
+    xl: number;
     full: number;
   };
   shadows: {
     sm: { x: number; y: number; blur: number; spread: number; color: string; opacity: number };
     md: { x: number; y: number; blur: number; spread: number; color: string; opacity: number };
     lg: { x: number; y: number; blur: number; spread: number; color: string; opacity: number };
+  };
+  gradients?: {
+    enabled: boolean;
+    direction: string | null;
+    colors: string[] | null;
   };
 }
 
@@ -312,6 +318,13 @@ function generateTokens(opts: {
   mood?: string[];
   voice?: string;
   preset?: PresetDefaults | null;
+  // Vision-extracted fields
+  border_radius?: number;
+  shadow_style?: 'none' | 'subtle' | 'medium' | 'pronounced';
+  spacing_density?: 'compact' | 'normal' | 'spacious';
+  has_gradients?: boolean;
+  gradient_direction?: string | null;
+  gradient_colors?: string[] | null;
 }): DesignTokens {
   const preset = opts.preset?.defaults;
 
@@ -333,33 +346,56 @@ function generateTokens(opts: {
   const heading_font = opts.heading_font || preset?.heading_font || 'Inter';
   const body_font = opts.body_font || preset?.body_font || 'Inter';
 
-  // Spacing
-  const unit = preset?.spacing_unit || 8;
+  // Spacing — vision density overrides preset
+  const densityMap: Record<string, number> = { compact: 6, normal: 8, spacious: 10 };
+  const unit = (opts.spacing_density && densityMap[opts.spacing_density]) || preset?.spacing_unit || 8;
 
-  // Radius
-  const radius = preset?.radius || { sm: 4, md: 8, lg: 12 };
+  // Radius — vision border_radius populates the full scale
+  let radius: { sm: number; md: number; lg: number; xl: number };
+  if (opts.border_radius != null) {
+    const base = opts.border_radius;
+    radius = {
+      sm: Math.max(2, Math.round(base * 0.5)),
+      md: base,
+      lg: Math.round(base * 1.5),
+      xl: Math.round(base * 2),
+    };
+  } else {
+    const pr = preset?.radius || { sm: 4, md: 8, lg: 12 };
+    radius = { sm: pr.sm, md: pr.md, lg: pr.lg, xl: Math.round(pr.lg * 1.5) };
+  }
 
-  // Shadows
-  const shadowLevel = preset?.shadows || 'subtle';
+  // Shadows — vision shadow_style overrides preset
+  const shadowMap: Record<string, 'none' | 'subtle' | 'pronounced'> = {
+    none: 'none', subtle: 'subtle', medium: 'subtle', pronounced: 'pronounced',
+  };
+  const shadowLevel = (opts.shadow_style && shadowMap[opts.shadow_style]) || preset?.shadows || 'subtle';
   const shadows = generateShadows(shadowLevel, primary);
+
+  // Gradients
+  const gradients = opts.has_gradients ? {
+    enabled: true,
+    direction: opts.gradient_direction || null,
+    colors: opts.gradient_colors || null,
+  } : undefined;
 
   // Type scale (major third 1.25)
   const baseSize = 16;
-  const ratio = 1.25;
-  const h2 = Math.round(baseSize * Math.pow(ratio, 4));
+  const scaleRatio = 1.25;
+  const h2 = Math.round(baseSize * Math.pow(scaleRatio, 4));
   const scale = {
-    display: Math.round(baseSize * Math.pow(ratio, 6)),
-    h1: Math.round(baseSize * Math.pow(ratio, 5)),
+    display: Math.round(baseSize * Math.pow(scaleRatio, 6)),
+    h1: Math.round(baseSize * Math.pow(scaleRatio, 5)),
     h2,
-    h3: Math.round(baseSize * Math.pow(ratio, 3)),
-    heading: h2, // alias for h2 — used by cross-format patterns
-    body_lg: Math.round(baseSize * ratio),
+    h3: Math.round(baseSize * Math.pow(scaleRatio, 3)),
+    heading: h2,
+    body_lg: Math.round(baseSize * scaleRatio),
     body: baseSize,
-    body_sm: Math.round(baseSize / ratio),
-    caption: Math.round(baseSize / (ratio * ratio)),
+    body_sm: Math.round(baseSize / scaleRatio),
+    caption: Math.round(baseSize / (scaleRatio * scaleRatio)),
   };
 
-  return {
+  const tokens: DesignTokens = {
     name: opts.name,
     created: new Date().toISOString(),
     preset_used: opts.preset?.name || null,
@@ -402,10 +438,15 @@ function generateTokens(opts: {
       sm: radius.sm,
       md: radius.md,
       lg: radius.lg,
+      xl: radius.xl,
       full: 9999,
     },
     shadows,
   };
+
+  if (gradients) tokens.gradients = gradients;
+
+  return tokens;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -750,6 +791,36 @@ interface ExtractedDesignTokens {
   colorConfidence: 'high' | 'medium' | 'low';  // confidence of primary color source
 }
 
+// ─── EXTRACTION LIMITATIONS — READ BEFORE MODIFYING ─────────────────────
+//
+// This extraction pipeline is intentionally "best effort". Here's what works
+// and what doesn't, so future sessions don't try to "fix" it without context:
+//
+// WHAT WORKS:
+// - CSS hex color extraction from inline styles and <style> blocks
+// - :root / body CSS variable detection (--primary, --brand, etc.)
+// - Google Fonts URL parsing (link tags and JS-injected)
+// - @font-face family detection for self-hosted fonts
+// - Typekit/Adobe Fonts URL detection
+// - Vision-based structural analysis (border radius, shadows, spacing density)
+//
+// WHAT DOESN'T WORK (and why):
+// - Modern JS-rendered sites (React/Next/Vue) serve minimal HTML — most
+//   styles are in JS bundles or CSS-in-JS, invisible to our HTML parser.
+// - CSS custom properties like var(--font-monospace) leak through as font
+//   names because we can't resolve CSS variable chains.
+// - Sites behind Cloudflare/bot-protection return challenge pages, not content.
+// - Vision can detect structural properties (rounded vs sharp, shadows vs flat)
+//   but cannot reliably identify exact hex colors or font names from a screenshot.
+// - Dark-themed sites get light-theme defaults because the color generation
+//   pipeline assumes light backgrounds when CSS extraction finds no surface colors.
+//
+// DESIGN DECISION:
+// Rather than making extraction "smarter" (diminishing returns), we pair it
+// with refine_design_system — a guided refinement tool that asks the user
+// 5 targeted questions and patches the draft tokens. This "draft + refine"
+// pattern is more reliable than any amount of automated extraction.
+// ────────────────────────────────────────────────────────────────────────────
 function extractDesignTokens(html: string): ExtractedDesignTokens {
   // Known web fonts for normalization
   const KNOWN_FONTS = [
@@ -931,6 +1002,228 @@ function extractDesignTokens(html: string): ExtractedDesignTokens {
     fontDetectionDetails,
     typekitDetected,
     colorConfidence,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// DS-25 Hybrid: Vision Extraction (screenshot + Claude vision)
+// ═══════════════════════════════════════════════════════════
+
+interface VisionExtraction {
+  heading_font: string | null;
+  body_font: string | null;
+  border_radius: number;
+  has_gradients: boolean;
+  gradient_direction: string | null;
+  gradient_colors: string[] | null;
+  shadow_style: 'none' | 'subtle' | 'medium' | 'pronounced';
+  card_style: 'flat' | 'bordered' | 'elevated' | 'ghost';
+  button_style: 'filled' | 'outlined' | 'ghost' | 'pill';
+  spacing_density: 'compact' | 'normal' | 'spacious';
+  overall_mood: string[];
+  design_personality: string;
+  confidence: Record<string, number>;
+}
+
+const VISION_DEFAULTS: VisionExtraction = {
+  heading_font: null,
+  body_font: null,
+  border_radius: 8,
+  has_gradients: false,
+  gradient_direction: null,
+  gradient_colors: null,
+  shadow_style: 'subtle',
+  card_style: 'bordered',
+  button_style: 'filled',
+  spacing_density: 'normal',
+  overall_mood: ['modern', 'professional', 'clean'],
+  design_personality: 'A modern, professional web presence.',
+  confidence: {},
+};
+
+async function fetchScreenshot(url: string): Promise<Buffer | null> {
+  const services = [
+    `https://image.thum.io/get/width/1440/${url}`,
+    `https://mini.s-shot.ru/1440x900/JPEG/1440/${url}`,
+  ];
+
+  for (const screenshotUrl of services) {
+    try {
+      const buf = await new Promise<Buffer>((resolve, reject) => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const mod = screenshotUrl.startsWith('https') ? require('https') : require('http');
+        const req = mod.get(screenshotUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FigmentoBot/1.0)' },
+        }, (res: { statusCode: number; headers: Record<string, string>; on: (e: string, cb: (chunk: Buffer) => void) => void }) => {
+          if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
+          const contentType = res.headers['content-type'] || '';
+          if (!contentType.startsWith('image/')) { reject(new Error(`Not an image: ${contentType}`)); return; }
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => resolve(Buffer.concat(chunks)));
+        });
+        req.on('error', reject);
+        req.setTimeout(20000, () => { req.destroy(); reject(new Error('Screenshot timeout')); });
+      });
+      if (buf.length > 5000) return buf; // valid image (>5KB)
+    } catch {
+      continue; // try next service
+    }
+  }
+  return null;
+}
+
+async function visionExtract(screenshotBase64: string): Promise<VisionExtraction | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const visionPrompt = `Analyze this website screenshot as a senior UI designer. Extract the design system and return ONLY this JSON (no markdown, no explanation):
+{
+  "heading_font": "font name used for headings",
+  "body_font": "font name used for body text",
+  "border_radius": number in px (0=sharp corners, 4=slight, 8=medium, 16=rounded, 24=very rounded, 999=pill),
+  "has_gradients": boolean,
+  "gradient_direction": "linear-to-right" | "linear-to-bottom" | "radial" | null,
+  "gradient_colors": ["#hex1", "#hex2"] or null,
+  "shadow_style": "none" | "subtle" | "medium" | "pronounced",
+  "card_style": "flat" | "bordered" | "elevated" | "ghost",
+  "button_style": "filled" | "outlined" | "ghost" | "pill",
+  "spacing_density": "compact" | "normal" | "spacious",
+  "overall_mood": ["keyword1", "keyword2", "keyword3"],
+  "design_personality": "one sentence describing the brand aesthetic",
+  "confidence": { "heading_font": 0.0-1.0, "body_font": 0.0-1.0, "border_radius": 0.0-1.0, "has_gradients": 0.0-1.0, "shadow_style": 0.0-1.0, "card_style": 0.0-1.0, "button_style": 0.0-1.0, "spacing_density": 0.0-1.0, "overall_mood": 0.0-1.0, "design_personality": 0.0-1.0 }
+}`;
+
+    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const body = {
+      contents: [{
+        parts: [
+          { inline_data: { mime_type: 'image/png', data: screenshotBase64 } },
+          { text: visionPrompt },
+        ],
+      }],
+      generationConfig: {
+        maxOutputTokens: 1024,
+        temperature: 0.1,
+      },
+    };
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json() as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) return null;
+
+    // Parse JSON — handle potential markdown wrapping
+    let jsonStr = text.trim();
+    const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) jsonStr = jsonMatch[1].trim();
+
+    const parsed = JSON.parse(jsonStr) as VisionExtraction;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+interface HybridMergeResult {
+  heading_font?: string;
+  body_font?: string;
+  border_radius?: number;
+  shadow_style?: 'none' | 'subtle' | 'medium' | 'pronounced';
+  spacing_density?: 'compact' | 'normal' | 'spacious';
+  has_gradients: boolean;
+  gradient_direction?: string | null;
+  gradient_colors?: string[] | null;
+  mood: string[];
+  voice: string | null;
+  extraction_method: 'hybrid' | 'css_only' | 'vision_only';
+  css_extracted: { colors: string[]; fonts: string[] };
+  vision_extracted: Record<string, unknown> | null;
+  confidence: Record<string, number>;
+  tokens_generated: number;
+}
+
+function mergeExtractions(
+  css: ExtractedDesignTokens,
+  vision: VisionExtraction | null,
+): HybridMergeResult {
+  const conf = vision?.confidence || {};
+  const THRESHOLD = 0.6;
+
+  // CSS colors always win (more accurate)
+  const cssColors = css.colors;
+  const cssFonts = css.fonts;
+
+  // Vision wins for everything CSS can't reliably give us
+  // But only if confidence >= threshold; otherwise fall back to defaults
+  const pickVision = <T>(field: string, visionVal: T | null | undefined, fallback: T): T => {
+    if (!vision || visionVal == null) return fallback;
+    if ((conf[field] ?? 0) < THRESHOLD) return fallback;
+    return visionVal;
+  };
+
+  // Fonts: vision wins over CSS for heading/body distinction (CSS often can't tell which is which)
+  // But if CSS found fonts and vision didn't, use CSS
+  const heading_font = pickVision('heading_font', vision?.heading_font, css.headingFont) || undefined;
+  const body_font = pickVision('body_font', vision?.body_font, css.bodyFont) || undefined;
+
+  // Border radius: vision wins (CSS average is unreliable)
+  const border_radius = pickVision('border_radius', vision?.border_radius, css.borderRadius) ?? VISION_DEFAULTS.border_radius;
+
+  // Shadow, spacing, gradients: vision only
+  const shadow_style = pickVision('shadow_style', vision?.shadow_style, VISION_DEFAULTS.shadow_style);
+  const spacing_density = pickVision('spacing_density', vision?.spacing_density, VISION_DEFAULTS.spacing_density);
+  const has_gradients = pickVision('has_gradients', vision?.has_gradients, false);
+  const gradient_direction = has_gradients ? (vision?.gradient_direction || null) : null;
+  const gradient_colors = has_gradients ? (vision?.gradient_colors || null) : null;
+
+  // Mood + personality: vision only
+  const mood = pickVision('overall_mood', vision?.overall_mood, VISION_DEFAULTS.overall_mood);
+  const voice = pickVision('design_personality', vision?.design_personality, null);
+
+  const method = vision ? 'hybrid' : 'css_only';
+
+  return {
+    heading_font,
+    body_font,
+    border_radius,
+    shadow_style,
+    spacing_density,
+    has_gradients,
+    gradient_direction,
+    gradient_colors,
+    mood,
+    voice,
+    extraction_method: method,
+    css_extracted: { colors: cssColors, fonts: cssFonts },
+    vision_extracted: vision ? {
+      heading_font: vision.heading_font,
+      body_font: vision.body_font,
+      border_radius: vision.border_radius,
+      shadow_style: vision.shadow_style,
+      card_style: vision.card_style,
+      button_style: vision.button_style,
+      spacing_density: vision.spacing_density,
+      has_gradients: vision.has_gradients,
+      gradient_direction: vision.gradient_direction,
+      gradient_colors: vision.gradient_colors,
+      overall_mood: vision.overall_mood,
+      design_personality: vision.design_personality,
+    } : null,
+    confidence: conf,
+    tokens_generated: 0, // filled by caller
   };
 }
 
@@ -1935,30 +2228,45 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
   );
 
   // ═══════════════════════════════════════════════════════════
-  // DS-25: generate_design_system_from_url
+  // DS-25: generate_design_system_from_url (Hybrid Vision Pipeline)
   // ═══════════════════════════════════════════════════════════
 
   server.tool(
     'generate_design_system_from_url',
-    'Extract a design system from a website URL by fetching the page HTML/CSS and analyzing colors, fonts, and border radius. Generates tokens using the auto-generation engine and saves as a new design system.',
+    'Generates a design system draft from a URL. Extracts what it can via CSS and vision, then guides you through refining the result. Best used as a starting point, not a final output.',
     {
       url: z.string().describe('The website URL to extract design tokens from (e.g. "https://stripe.com")'),
       name: z.string().optional().describe('Design system name (defaults to domain name, e.g. "stripe")'),
       preset: z.string().optional().describe('Optional preset to blend with extracted values: shadcn, material, minimal, luxury, vibrant'),
     },
     async (params: { url: string; name?: string; preset?: string }) => {
-      // Fetch page
+      // ─── Step 1: CSS extraction (colors + fonts — accurate and cheap) ────
       let pageContent: string;
       try {
         pageContent = await fetchUrl(params.url);
       } catch (err) {
         throw new Error(`Failed to fetch ${params.url}: ${(err as Error).message}`);
       }
+      const cssExtracted = extractDesignTokens(pageContent);
 
-      // Extract tokens from HTML/CSS
-      const extracted = extractDesignTokens(pageContent);
+      // ─── Step 2: Vision extraction (screenshot + Claude vision) ──────────
+      let visionResult: VisionExtraction | null = null;
+      let screenshotSource: string | null = null;
+      try {
+        const screenshotBuf = await fetchScreenshot(params.url);
+        if (screenshotBuf) {
+          const base64 = screenshotBuf.toString('base64');
+          screenshotSource = 'screenshot_service';
+          visionResult = await visionExtract(base64);
+        }
+      } catch {
+        // Vision extraction is best-effort — CSS alone is sufficient
+      }
 
-      // Determine system name from domain if not provided
+      // ─── Step 3: Merge (CSS colors win, vision wins for everything else) ─
+      const merged = mergeExtractions(cssExtracted, visionResult);
+
+      // ─── Step 4: Map to tokens ──────────────────────────────────────────
       let systemName = params.name;
       if (!systemName) {
         try {
@@ -1971,22 +2279,28 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
       systemName = systemName.replace(/[^a-z0-9-]/gi, '').toLowerCase();
       if (!systemName) systemName = 'extracted';
 
-      // Determine preset
       let preset: ReturnType<typeof loadPreset> | null = null;
       if (params.preset) {
         preset = loadPreset(params.preset);
       }
 
-      // Generate full token set
       const tokens = generateTokens({
         name: systemName,
-        primary_color: extracted.primaryColor,
-        secondary_color: extracted.secondaryColor,
-        accent_color: extracted.accentColor,
-        heading_font: extracted.headingFont,
-        body_font: extracted.bodyFont,
-        mood: extracted.mood,
+        primary_color: cssExtracted.primaryColor,
+        secondary_color: cssExtracted.secondaryColor,
+        accent_color: cssExtracted.accentColor,
+        heading_font: merged.heading_font,
+        body_font: merged.body_font,
+        mood: merged.mood,
+        voice: merged.voice,
         preset,
+        // Vision-extracted fields
+        border_radius: merged.border_radius,
+        shadow_style: merged.shadow_style,
+        spacing_density: merged.spacing_density,
+        has_gradients: merged.has_gradients,
+        gradient_direction: merged.gradient_direction,
+        gradient_colors: merged.gradient_colors,
       });
 
       // Save to disk
@@ -1997,42 +2311,240 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
       const tokensPath = nodePath.join(systemDir, 'tokens.yaml');
       fs.writeFileSync(tokensPath, yaml.dump(tokens, { lineWidth: 120 }), 'utf-8');
 
+      // ─── Step 5: Extraction report ─────────────────────────────────────
+      const tokenFieldCount = Object.keys(tokens.colors).length
+        + Object.keys(tokens.typography).length
+        + Object.keys(tokens.spacing).length
+        + Object.keys(tokens.radius).length
+        + Object.keys(tokens.shadows).length
+        + (tokens.gradients ? 1 : 0);
+
+      // ─── Overall confidence score ──────────────────────────────────────
+      // Weighted average: color extraction quality (40%), font detection (25%),
+      // vision structural data (35%)
+      const colorScore = cssExtracted.colorConfidence === 'high' ? 1.0
+        : cssExtracted.colorConfidence === 'medium' ? 0.6 : 0.2;
+      const fontScore = cssExtracted.fonts.length > 0 && cssExtracted.fontDetectionMethod !== 'none' ? 0.8 : 0.1;
+      const visionConfValues = Object.values(merged.confidence || {}) as number[];
+      const visionScore = visionConfValues.length > 0
+        ? visionConfValues.reduce((a, b) => a + b, 0) / visionConfValues.length
+        : 0;
+      const overallConfidence = Math.round((colorScore * 0.40 + fontScore * 0.25 + visionScore * 0.35) * 100);
+
+      // ─── Post-extraction refinement prompt ─────────────────────────────
+      const refinementPrompt = `\n\nDraft created with ${overallConfidence}% confidence. To refine it, tell me:\n`
+        + `1. What is your exact primary brand color? (hex or description)\n`
+        + `2. What fonts do you use? (or "not sure")\n`
+        + `3. Sharp corners, slightly rounded, or very rounded?\n`
+        + `4. Light or dark background?\n`
+        + `5. 3 words that describe the brand personality?\n`
+        + `\nThen call refine_design_system with the answers to update the tokens.`;
+
       return {
         content: [{
           type: 'text' as const,
           text: JSON.stringify({
             name: systemName,
             sourceUrl: params.url,
-            extracted: {
-              colorsFound: extracted.colors.length,
-              brandColors: extracted.colors.slice(0, 5),
-              primaryColor: extracted.primaryColor || '(none found — generated)',
-              secondaryColor: extracted.secondaryColor || '(none found — generated)',
-              accentColor: extracted.accentColor || '(none found — generated)',
-              colorConfidence: extracted.colorConfidence,
-              fontsFound: extracted.fonts,
-              fontDetectionMethod: extracted.fontDetectionMethod === 'none'
-                ? '(not detected — fallback Inter used)'
-                : extracted.fontDetectionMethod,
-              fontDetectionDetails: extracted.fontDetectionDetails,
-              headingFont: extracted.headingFont
-                ? `${extracted.headingFont} [via ${extracted.fontDetectionDetails[extracted.headingFont] || extracted.fontDetectionMethod}]`
-                : '(none found — generated, fallback: Inter)',
-              bodyFont: extracted.bodyFont
-                ? `${extracted.bodyFont} [via ${extracted.fontDetectionDetails[extracted.bodyFont] || extracted.fontDetectionMethod}]`
-                : '(none found — generated, fallback: Inter)',
-              typekitDetected: extracted.typekitDetected || null,
-              borderRadius: extracted.borderRadius ?? '(none found)',
+            extraction_method: merged.extraction_method,
+            overallConfidence: `${overallConfidence}%`,
+            css_extracted: {
+              colorsFound: cssExtracted.colors.length,
+              brandColors: cssExtracted.colors.slice(0, 5),
+              primaryColor: cssExtracted.primaryColor || '(none found — generated)',
+              secondaryColor: cssExtracted.secondaryColor || '(none found — generated)',
+              accentColor: cssExtracted.accentColor || '(none found — generated)',
+              colorConfidence: cssExtracted.colorConfidence,
+              fonts: cssExtracted.fonts,
+              fontDetectionMethod: cssExtracted.fontDetectionMethod === 'none'
+                ? '(not detected — fallback to vision or Inter)'
+                : cssExtracted.fontDetectionMethod,
+              typekitDetected: cssExtracted.typekitDetected || null,
             },
+            vision_extracted: merged.vision_extracted ? {
+              ...merged.vision_extracted,
+              screenshotSource,
+              apiKeyConfigured: !!process.env.GEMINI_API_KEY,
+            } : {
+              status: !process.env.GEMINI_API_KEY
+                ? 'skipped — GEMINI_API_KEY not set'
+                : screenshotSource === null
+                  ? 'skipped — screenshot services unavailable'
+                  : 'skipped — vision analysis failed',
+            },
+            confidence: merged.confidence,
             generatedTokens: {
+              total: tokenFieldCount,
               colors: Object.keys(tokens.colors).length,
               headingFont: tokens.typography.heading.family,
               bodyFont: tokens.typography.body.family,
               spacingUnit: tokens.spacing.unit,
+              borderRadius: tokens.radius,
+              shadowStyle: merged.shadow_style,
+              spacingDensity: merged.spacing_density,
+              hasGradients: tokens.gradients?.enabled || false,
+              mood: tokens.mood,
+              voice: tokens.voice,
               presetUsed: tokens.preset_used,
             },
             savedAs: systemName,
             tokensPath,
+            refinementPrompt,
+          }, null, 2),
+        }],
+      };
+    }
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // DS-26: refine_design_system
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'refine_design_system',
+    'Refine a draft design system with user-provided corrections. Use after generate_design_system_from_url to fix colors, fonts, border radius, dark/light mode, and mood. Returns a diff of what changed.',
+    {
+      name: z.string().describe('Design system name to refine'),
+      primary_color: z.string().optional().describe('Exact primary brand color as hex (e.g. "#5E6AD2")'),
+      fonts: z.string().optional().describe('Font specification, e.g. "Inter for headings, Georgia for body" or just "Inter for both"'),
+      border_radius: z.enum(['sharp', 'slight', 'medium', 'rounded', 'pill']).optional()
+        .describe('Corner rounding style: sharp (0–2px), slight (4px), medium (8px), rounded (16px), pill (999px)'),
+      dark_mode: z.boolean().optional().describe('true = dark background, false = light background'),
+      mood: z.array(z.string()).optional().describe('3 words describing brand personality, e.g. ["minimal", "sharp", "focused"]'),
+    },
+    async (params: {
+      name: string;
+      primary_color?: string;
+      fonts?: string;
+      border_radius?: 'sharp' | 'slight' | 'medium' | 'rounded' | 'pill';
+      dark_mode?: boolean;
+      mood?: string[];
+    }) => {
+      const safeName = params.name.replace(/[^a-z0-9-]/gi, '').toLowerCase();
+      const tokensPath = nodePath.join(getDesignSystemsDir(), safeName, 'tokens.yaml');
+
+      if (!fs.existsSync(tokensPath)) {
+        const available = listAvailableSystems();
+        throw new Error(`Design system not found: ${safeName}. Available: ${available.join(', ')}`);
+      }
+
+      const content = fs.readFileSync(tokensPath, 'utf-8');
+      const tokens = yaml.load(content) as Record<string, unknown>;
+      const changes: Record<string, { from: unknown; to: unknown }> = {};
+
+      // Helper to track changes
+      const apply = (dotPath: string, newValue: unknown) => {
+        const oldValue = getByDotPath(tokens, dotPath);
+        if (oldValue !== newValue) {
+          changes[dotPath] = { from: oldValue, to: newValue };
+          setByDotPath(tokens, dotPath, newValue);
+        }
+      };
+
+      // ─── Primary color + derived colors ────────────────────────────
+      if (params.primary_color) {
+        const pc = params.primary_color;
+        apply('colors.primary', pc);
+        apply('colors.primary_light', lighten(pc, 0.3));
+        apply('colors.primary_dark', darken(pc, 0.2));
+        apply('colors.on_primary', bestTextColor(pc));
+
+        // Re-derive secondary and accent from the new primary
+        const currentSecondary = getByDotPath(tokens, 'colors.secondary') as string | undefined;
+        const currentAccent = getByDotPath(tokens, 'colors.accent') as string | undefined;
+        // Only re-derive if current values look auto-generated (not manually set before)
+        if (currentSecondary) {
+          apply('colors.secondary', rotateHue(pc, 180));
+        }
+        if (currentAccent) {
+          apply('colors.accent', rotateHue(pc, 30));
+        }
+
+        // Update shadow colors to match new primary
+        for (const size of ['sm', 'md', 'lg'] as const) {
+          apply(`shadows.${size}.color`, pc);
+        }
+      }
+
+      // ─── Fonts ─────────────────────────────────────────────────────
+      if (params.fonts) {
+        const fontStr = params.fonts.trim();
+        // Parse patterns: "Inter for both", "Inter for headings, Georgia for body"
+        const bothMatch = fontStr.match(/^(.+?)\s+for\s+both$/i);
+        const splitMatch = fontStr.match(/^(.+?)\s+for\s+headings?\s*,\s*(.+?)\s+for\s+body$/i);
+
+        if (bothMatch) {
+          const font = bothMatch[1].trim();
+          apply('typography.heading.family', font);
+          apply('typography.body.family', font);
+        } else if (splitMatch) {
+          apply('typography.heading.family', splitMatch[1].trim());
+          apply('typography.body.family', splitMatch[2].trim());
+        } else {
+          // Single font name — use for both
+          apply('typography.heading.family', fontStr);
+          apply('typography.body.family', fontStr);
+        }
+      }
+
+      // ─── Border radius ─────────────────────────────────────────────
+      if (params.border_radius) {
+        const radiusMap: Record<string, { sm: number; md: number; lg: number; xl: number }> = {
+          sharp:   { sm: 0, md: 2, lg: 4, xl: 6 },
+          slight:  { sm: 2, md: 4, lg: 6, xl: 8 },
+          medium:  { sm: 4, md: 8, lg: 12, xl: 16 },
+          rounded: { sm: 8, md: 16, lg: 24, xl: 32 },
+          pill:    { sm: 999, md: 999, lg: 999, xl: 999 },
+        };
+        const r = radiusMap[params.border_radius];
+        apply('radius.sm', r.sm);
+        apply('radius.md', r.md);
+        apply('radius.lg', r.lg);
+        apply('radius.xl', r.xl);
+      }
+
+      // ─── Dark mode ─────────────────────────────────────────────────
+      if (params.dark_mode != null) {
+        const primary = (getByDotPath(tokens, 'colors.primary') as string) || '#5E6AD2';
+        const { h: primaryH } = hexToHsl(primary);
+
+        if (params.dark_mode) {
+          // Dark theme: near-black surface/background, light text
+          apply('colors.surface', hslToHex(primaryH, 0.08, 0.12));
+          apply('colors.background', hslToHex(primaryH, 0.06, 0.08));
+          apply('colors.border', hslToHex(primaryH, 0.10, 0.20));
+          apply('colors.on_surface', '#F0F0F3');
+          apply('colors.on_surface_muted', hslToHex(primaryH, 0.06, 0.55));
+        } else {
+          // Light theme: near-white surface/background, dark text
+          apply('colors.surface', hslToHex(primaryH, 0.02, 0.99));
+          apply('colors.background', hslToHex(primaryH, 0.03, 0.97));
+          apply('colors.border', desaturate(lighten(primary, 0.55), 0.6));
+          apply('colors.on_surface', hslToHex(primaryH, 0.08, 0.09));
+          apply('colors.on_surface_muted', hslToHex(primaryH, 0.05, 0.45));
+        }
+      }
+
+      // ─── Mood ──────────────────────────────────────────────────────
+      if (params.mood && params.mood.length > 0) {
+        apply('mood', params.mood);
+      }
+
+      // ─── Save ──────────────────────────────────────────────────────
+      fs.writeFileSync(tokensPath, yaml.dump(tokens, { lineWidth: 120 }), 'utf-8');
+
+      const changeCount = Object.keys(changes).length;
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            refined: safeName,
+            changesApplied: changeCount,
+            diff: changes,
+            tip: changeCount > 0
+              ? `${changeCount} token(s) updated. Call design_system_preview to see the result visually.`
+              : 'No changes were needed — the system already matched your inputs.',
           }, null, 2),
         }],
       };

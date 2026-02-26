@@ -1,17 +1,20 @@
 name: landing_page_full
-description: "6-section full landing page — hero, features, image+text, stats, testimonial, and CTA. All sections use the landing_page (1440×900) format, placed left-to-right on the canvas."
+description: "6-section full landing page — hero, features, image+text, stats, testimonial, and CTA. All sections use the landing_page (1440×900) format. In connected mode sections stack vertically as one continuous page; in isolated mode they are placed left-to-right."
 frame_count: 6
 formats_used: [landing_page]
 estimated_time: "3-4 minutes"
 layout: sequential
 gap: 80
+default_composition_mode: connected
 
 props:
   # Primary prop names (also accepts legacy aliases below)
+  eyebrow: { type: string, required: false, default: "Introducing", description: "Small caps label above hero headline" }
   headline: { type: string, required: false, default: "Make it happen.", description: "Hero headline (also accepted as tagline)" }
   tagline: { type: string, required: false, default: "", description: "Alias for headline — hero main value proposition" }
   subheadline: { type: string, required: false, default: "Built for teams that move fast.", description: "Supporting hero subheadline" }
   cta_label: { type: string, required: false, default: "Get Started Free", description: "Primary CTA button text" }
+  cta_secondary_label: { type: string, required: false, default: "See how it works", description: "Ghost CTA button text" }
   feature_1_title: { type: string, required: false, default: "Lightning Fast", description: "Feature 1 title" }
   feature_1_desc: { type: string, required: false, default: "Built for performance from day one.", description: "Feature 1 description" }
   feature_2_title: { type: string, required: false, default: "Easy to Use", description: "Feature 2 title" }
@@ -34,21 +37,26 @@ props:
   testimonial_quote: { type: string, required: false, default: "", description: "Alias for quote" }
   testimonial_author: { type: string, required: false, default: "", description: "Alias for author_name" }
   testimonial_role: { type: string, required: false, default: "", description: "Alias for author_title" }
+  cta_subtext: { type: string, required: false, default: "No credit card required. Free for 14 days.", description: "Subtext under CTA banner headline" }
 
 frames:
   - id: hero
     name: "Hero Section"
     pattern: hero_block
     format: landing_page
+    section_background: primary
     props:
+      eyebrow: "{{eyebrow}}"
       headline: "{{headline}}"
       subheadline: "{{subheadline}}"
       cta_label: "{{cta_label}}"
+      cta_secondary_label: "{{cta_secondary_label}}"
 
   - id: features
     name: "Features Section"
     pattern: feature_grid
     format: landing_page
+    section_background: surface
     props:
       title_1: "{{feature_1_title}}"
       desc_1: "{{feature_1_desc}}"
@@ -61,6 +69,7 @@ frames:
     name: "Image + Text Section"
     pattern: image_text_row
     format: landing_page
+    section_background: background
     props:
       heading: "{{section_title}}"
       body: "{{section_body}}"
@@ -69,6 +78,7 @@ frames:
     name: "Stats / Social Proof"
     pattern: data_row
     format: landing_page
+    section_background: primary
     props:
       value: "{{stat_1_value}}"
       label: "{{stat_1_label}}"
@@ -77,6 +87,7 @@ frames:
     name: "Testimonial Section"
     pattern: testimonial
     format: landing_page
+    section_background: surface
     props:
       quote: "{{quote}}"
       author: "{{author_name}}"
@@ -86,6 +97,8 @@ frames:
     name: "Final CTA Section"
     pattern: cta_banner
     format: landing_page
+    section_background: primary
     props:
       headline: "{{headline}}"
+      subtext: "{{cta_subtext}}"
       cta_label: "{{cta_label}}"

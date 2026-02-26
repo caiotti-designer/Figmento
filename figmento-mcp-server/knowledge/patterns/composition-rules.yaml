@@ -1,0 +1,63 @@
+version: 1
+description: "Defines how patterns connect when used together in templates. Applied when composition_mode is 'connected'."
+
+# ─── Background Rhythm ──────────────────────────────────────────────────────
+
+alternating_backgrounds:
+  description: "Sections alternate between surface and background colors for visual rhythm"
+  rule: "Non-special sections alternate: odd indices (1,3,5) use colors.background, even indices (2,4,6) use colors.surface"
+  exception: "Patterns listed in pattern_fill_defaults with primary fill always use primary regardless of position"
+
+pattern_fill_defaults:
+  # Patterns that always use a specific fill in connected mode (override alternating rule)
+  hero_block: primary
+  cta_banner: primary
+  data_row: primary
+  # Patterns that follow the alternating rule (defaults shown for reference)
+  feature_grid: surface
+  testimonial: surface
+  image_text_row: background
+  content_section: background
+  pricing_card: surface
+  contact_block: background
+  gallery: surface
+
+# ─── Vertical Rhythm ────────────────────────────────────────────────────────
+
+vertical_rhythm:
+  description: "Consistent spacing between sections creates a breathing layout"
+  section_gap: 0
+  layout_direction: vertical
+  rule: "Sections butt up against each other with no gap — internal padding creates rhythm, not external margins. Frames stack vertically in connected mode."
+
+# ─── Color Continuity ───────────────────────────────────────────────────────
+
+color_continuity:
+  description: "The primary color threads through every section"
+  rules:
+    - "Every section has at least one element using primary color (eyebrow, icon, accent bar, button)"
+    - "Never have 3 consecutive sections with no primary color touch point"
+
+# ─── Section Transitions ────────────────────────────────────────────────────
+
+section_transitions:
+  description: "Recommended background pairs for common pattern sequences"
+  hero_to_features: surface
+  features_to_image_text: background
+  image_text_to_data: primary
+  data_to_testimonial: surface
+  testimonial_to_cta: primary
+  data_between: primary
+  page_rhythm: "dark→light→light→dark→light→dark (bold open → breathe → breathe → bold break → breathe → bold close)"
+
+# ─── Typography Hierarchy ───────────────────────────────────────────────────
+
+typography_hierarchy:
+  description: "Each section should have a clearly dominant text element — never two equal-weight headlines competing"
+  rule: "Verify no two adjacent sections both use display scale. If detected, log a warning."
+  sizes:
+    hero: display
+    section_headings: h1
+    card_titles: h3
+    body: body
+    captions: body_sm

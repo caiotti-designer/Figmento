@@ -160,24 +160,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
     }
   );
 
-  server.tool(
-    'create_icon',
-    'Create a Lucide icon on the Figma canvas. Provide SVG path data for precise rendering, or just the icon name for a basic fallback shape.',
-    {
-      iconName: z.string().describe('Lucide icon name (e.g., "check", "x", "chevron-right", "circle")'),
-      size: z.number().optional().describe('Icon size in pixels (default: 24)'),
-      color: z.string().optional().describe('Icon color as hex (default: "#333333")'),
-      svgPaths: z.array(z.string()).optional().describe('SVG path data strings from Lucide. Each path is rendered as a stroked vector scaled to the icon size.'),
-      name: z.string().optional().describe('Layer name'),
-      x: z.number().optional(),
-      y: z.number().optional(),
-      parentId: z.string().optional().describe('Parent frame nodeId to append to'),
-    },
-    async (params) => {
-      const data = await sendDesignCommand('create_icon', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
-    }
-  );
+  // NOTE: create_icon has moved to tools/icons.ts with auto SVG loading from lucide-static
 
   server.tool(
     'place_generated_image',
@@ -236,10 +219,10 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
   );
 
   server.tool(
-    'fetch_unsplash_image',
-    'Fetch a relevant photo from Unsplash as a base64-encoded fallback when AI image generation fails or is unavailable. Extracts keywords from the prompt automatically, or accepts explicit keywords. Downloads the image server-side and returns { source: "unsplash_fallback", url, base64, width, height }. Use the base64 field with create_image or set_fill to place the photo on canvas.',
+    'fetch_placeholder_image',
+    'Fetch a placeholder photo from picsum.photos as a base64-encoded fallback when AI image generation fails or is unavailable. Extracts keywords from the prompt to seed consistent images, or accepts explicit keywords. Downloads the image server-side and returns { source: "placeholder_image", url, base64, width, height }. Use the base64 field with create_image or set_fill to place the photo on canvas.',
     {
-      prompt: z.string().optional().describe('Image generation prompt — 2-3 meaningful nouns are extracted as search keywords'),
+      prompt: z.string().optional().describe('Image generation prompt — 2-3 meaningful nouns are extracted as seed keywords'),
       keywords: z.string().optional().describe('Explicit search keywords, overrides prompt extraction (e.g. "fintech office minimal")'),
       width: z.number().default(1080).describe('Image width in pixels (default: 1080)'),
       height: z.number().default(1080).describe('Image height in pixels (default: 1080)'),
@@ -256,27 +239,27 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
         'professional', 'modern', 'clean', 'minimal', 'beautiful', 'stunning',
       ]);
 
-      let keyword: string;
+      let seed: string;
       if (params.keywords) {
-        keyword = params.keywords.trim().replace(/\s+/g, ',');
+        seed = params.keywords.trim().replace(/\s+/g, '-');
       } else if (params.prompt) {
         const words = params.prompt
           .toLowerCase()
           .replace(/[^a-z0-9\s]/g, ' ')
           .split(/\s+/)
           .filter((w) => w.length > 3 && !STOP_WORDS.has(w));
-        keyword = words.slice(0, 3).join(',') || 'workspace';
+        seed = words.slice(0, 3).join('-') || 'default';
       } else {
-        keyword = 'workspace';
+        seed = 'default';
       }
 
       const width = params.width ?? 1080;
       const height = params.height ?? 1080;
-      const unsplashUrl = `https://source.unsplash.com/featured/${width}x${height}/?${encodeURIComponent(keyword)}`;
+      const picsumUrl = `https://picsum.photos/seed/${encodeURIComponent(seed)}/${width}/${height}`;
 
-      const response = await fetch(unsplashUrl);
+      const response = await fetch(picsumUrl, { redirect: 'follow' });
       if (!response.ok) {
-        throw new Error(`Unsplash fetch failed: ${response.status} ${response.statusText}`);
+        throw new Error(`Picsum fetch failed: ${response.status} ${response.statusText}`);
       }
 
       const finalUrl = response.url;
@@ -288,7 +271,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
         content: [{
           type: 'text' as const,
           text: JSON.stringify({
-            source: 'unsplash_fallback',
+            source: 'placeholder_image',
             url: finalUrl,
             base64,
             width,

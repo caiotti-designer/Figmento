@@ -1,36 +1,36 @@
-name: linear
-created: '2026-02-26T02:51:46.486Z'
+name: mailchimp
+created: '2026-02-26T02:41:07.154Z'
 preset_used: null
 mood:
-  - minimal
-  - sharp
-  - focused
-voice: The brand aesthetic is clean, modern, and focused on functionality, conveying a sense of efficiency and reliability.
+  - professional
+  - modern
+  - clean
+voice: The brand aesthetic is modern, clean, and professional, with a focus on data-driven marketing and ease of use.
 colors:
-  primary: '#5E6AD2'
-  primary_light: '#B6BBEA'
-  primary_dark: '#3B4490'
-  secondary: '#D26A5E'
-  accent: '#826AD2'
-  surface: '#1B1D22'
-  background: '#131316'
-  border: '#2E3038'
+  primary: '#2563EB'
+  primary_light: '#B1C7F8'
+  primary_dark: '#0E3B9C'
+  secondary: '#EBAD25'
+  accent: '#4A25EB'
+  surface: '#FCFCFD'
+  background: '#F7F7F8'
+  border: '#FFFFFF'
   on_primary: '#FFFFFF'
-  on_surface: '#F0F0F3'
-  on_surface_muted: '#8B8D98'
+  on_surface: '#151619'
+  on_surface_muted: '#6D7178'
   success: '#16A34A'
   warning: '#EAB308'
   error: '#DC2626'
   info: '#2563EB'
 typography:
   heading:
-    family: Inter
+    family: sans-serif
     weights:
       - 600
       - 700
       - 800
   body:
-    family: Inter
+    family: sans-serif
     weights:
       - 400
       - 500
@@ -56,10 +56,10 @@ spacing:
   3xl: 64
 radius:
   none: 0
-  sm: 2
-  md: 4
-  lg: 6
-  xl: 8
+  sm: 4
+  md: 8
+  lg: 12
+  xl: 16
   full: 9999
 shadows:
   sm:
@@ -67,19 +67,19 @@ shadows:
     'y': 0
     blur: 0
     spread: 0
-    color: '#5E6AD2'
+    color: '#2563EB'
     opacity: 0
   md:
     x: 0
     'y': 0
     blur: 0
     spread: 0
-    color: '#5E6AD2'
+    color: '#2563EB'
     opacity: 0
   lg:
     x: 0
     'y': 0
     blur: 0
     spread: 0
-    color: '#5E6AD2'
+    color: '#2563EB'
     opacity: 0

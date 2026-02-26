@@ -15,7 +15,7 @@
                      |   Figmento MCP Server        |
                      |   (Node.js / TypeScript)     |
                      |                              |
-                     |  Design Tools:               |
+                     |  Canvas Tools:               |
                      |   create_frame, create_text  |
                      |   create_rectangle, ellipse  |
                      |   create_image, create_icon  |
@@ -31,14 +31,24 @@
                      |   clone_node, group_nodes    |
                      |   reorder_child, append      |
                      |                              |
-                     |  Template Tools:             |
-                     |   scan_template              |
-                     |   apply_template_text/image  |
+                     |  Design System Tools:        |
+                     |   create/get/list/update/    |
+                     |   delete_design_system       |
+                     |   create_component           |
+                     |   get_format_rules           |
+                     |   scan_frame_structure       |
+                     |   brand_consistency_check    |
+                     |                              |
+                     |  Pattern & Template Tools:   |
+                     |   create_from_pattern        |
+                     |   create_from_template       |
+                     |   scan/apply templates       |
                      |   create_carousel            |
                      |   create_presentation        |
                      |                              |
                      |  Export Tools:                |
-                     |   export_node, evaluate      |
+                     |   get_screenshot, export     |
+                     |   evaluate_design            |
                      |   export_node_to_file        |
                      |                              |
                      |  Intelligence Tools:         |
@@ -56,7 +66,7 @@
                      |   (Node.js / ws)             |
                      |                              |
                      |  - Channel-based routing     |
-                     |  - MCP ←→ Plugin bridging    |
+                     |  - MCP <-> Plugin bridging   |
                      |  - Multi-file support        |
                      +==============================+
                                     |
@@ -68,7 +78,7 @@
                      |  - WS listener in UI iframe  |
                      |  - Executes Figma API cmds   |
                      |  - Returns node IDs, exports |
-                     |  - Minimal status UI         |
+                     |  - Chat UI (Anthropic/Gemini)|
                      +==============================+
                                     |
                               [Figma Plugin API]
@@ -79,8 +89,8 @@
     External:
     +====================+
     |  mcp-image server  |  (Gemini 3 Pro Image generation)
-    |  Already configured|  → generates images to disk
-    +====================+  → Figmento MCP reads & places into Figma
+    |  Already configured|  -> generates images to disk
+    +====================+  -> Figmento MCP reads & places into Figma
 ```
 
 ---
@@ -89,18 +99,21 @@
 
 ### Component 1 — Figmento Figma Plugin
 
-A thin WebSocket command executor. All design intelligence lives in the MCP server — the plugin only executes Figma API operations.
+A WebSocket command executor with built-in LLM chat UI. All design intelligence lives in the MCP server — the plugin executes Figma API operations and optionally routes direct LLM conversations.
 
 ```
 figmento-plugin/
 ├── src/
-│   ├── code.ts                 # Command router — 30+ action handlers
+│   ├── code.ts                 # Sandbox — command router, 30+ action handlers
 │   ├── element-creators.ts     # createElement() factory, all node creation
 │   ├── color-utils.ts          # hexToRgb, rgbToHex, getFontStyle
 │   ├── svg-utils.ts            # scalePathData, parsePath for icons
 │   ├── gradient-utils.ts       # Gradient transform calculations
 │   ├── types.ts                # UIElement, WSCommand/WSResponse, plugin messages
-│   └── ui.html                 # Minimal connection UI with WS client
+│   ├── system-prompt.ts        # LLM chat system prompt (built from knowledge YAMLs)
+│   ├── tools-schema.ts         # JSON Schema definitions mirroring MCP tools (for direct LLM chat)
+│   ├── ui-app.ts               # UI application — Chat (Anthropic/Gemini), Bridge, Settings tabs
+│   └── ui.html                 # Plugin iframe with WS client
 ├── manifest.json               # Plugin manifest with WS domain allowlist
 ├── build.js                    # esbuild pipeline
 ├── package.json
@@ -116,7 +129,7 @@ figmento-plugin/
 | Scene management | `get_selection`, `get_node_info`, `get_page_nodes`, `delete_node`, `move_node`, `resize_node`, `rename_node`, `append_child`, `reorder_child`, `clone_node`, `group_nodes` |
 | Batch | `batch_execute` (multi-command with tempId chaining), `clone_with_overrides`, `create_design` (UIAnalysis) |
 | Templates | `scan_template`, `apply_template_text`, `apply_template_image` |
-| Export | `export_node` |
+| Export | `export_node`, `get_screenshot` |
 
 ### Component 2 — Figmento MCP Server
 
@@ -124,31 +137,33 @@ figmento-plugin/
 figmento-mcp-server/
 ├── src/
 │   ├── index.ts                # Entry point (stdio transport)
-│   ├── server.ts               # MCP server setup, tool module registration
+│   ├── server.ts               # MCP server setup, 11 tool module registrations
 │   ├── tools/
 │   │   ├── canvas.ts           # create_frame, create_text, create_rectangle, create_ellipse,
-│   │   │                       #   create_image, create_icon, place_generated_image, set_text
+│   │   │                       #   create_image, create_icon, place_generated_image,
+│   │   │                       #   fetch_placeholder_image, set_text
 │   │   ├── style.ts            # set_fill, set_stroke, set_effects, set_corner_radius,
 │   │   │                       #   set_opacity, set_auto_layout
 │   │   ├── scene.ts            # get_selection, get_node_info, get_page_nodes, delete_node,
 │   │   │                       #   move_node, resize_node, rename_node, append_child,
 │   │   │                       #   reorder_child, clone_node, group_nodes
 │   │   ├── batch.ts            # batch_execute, clone_with_overrides, create_design
-│   │   ├── export.ts           # export_node, evaluate_design, export_node_to_file
+│   │   ├── export.ts           # get_screenshot, export_node, evaluate_design, export_node_to_file
 │   │   ├── template.ts         # scan_template, apply_template_text, apply_template_image,
 │   │   │                       #   create_carousel, create_presentation
 │   │   ├── connection.ts       # connect_to_figma, disconnect_from_figma
-│   │   └── intelligence.ts     # get_size_preset, get_font_pairing, get_type_scale,
-│   │                           #   get_color_palette, get_contrast_check, get_spacing_scale,
-│   │                           #   get_layout_guide, get_brand_kit, save_brand_kit
+│   │   ├── intelligence.ts     # get_size_preset, get_font_pairing, get_type_scale,
+│   │   │                       #   get_color_palette, get_contrast_check, get_spacing_scale,
+│   │   │                       #   get_layout_guide, get_brand_kit, save_brand_kit
+│   │   ├── design-system.ts    # create/get/list/update/delete_design_system, create_component,
+│   │   │                       #   list_components, get_format_rules, list_formats,
+│   │   │                       #   scan_frame_structure, design_system_preview,
+│   │   │                       #   generate_design_system_from_url, brand_consistency_check
+│   │   ├── patterns.ts         # create_from_pattern, list_patterns
+│   │   └── ds-templates.ts     # create_from_template, list_templates
 │   ├── ws-client.ts            # WebSocket client (auto-reconnect, command queue, heartbeat)
 │   └── types.ts                # WSCommand, WSResponse, CommandErrorCode, FillDef, EffectDef
-├── knowledge/
-│   ├── size-presets.yaml       # Social media + print + presentation sizes
-│   ├── typography.yaml         # Type scales, font pairings, line heights
-│   ├── color-system.yaml       # Mood palettes, WCAG contrast, safe combos
-│   ├── layout.yaml             # 8px grid, spacing scale, margins, safe zones
-│   └── brand-kit-schema.yaml   # Brand kit YAML format + example
+├── knowledge/                  # Design intelligence knowledge base (see section below)
 ├── package.json
 └── tsconfig.json
 ```
@@ -170,11 +185,11 @@ figmento-ws-relay/
 // Client joins a channel
 { "type": "join", "channel": "figmento-abc123" }
 
-// MCP → Plugin command
+// MCP -> Plugin command
 { "type": "command", "id": "cmd-001", "channel": "figmento-abc123",
   "action": "create_frame", "params": { "name": "Hero", "width": 1080, "height": 1350 } }
 
-// Plugin → MCP response
+// Plugin -> MCP response
 { "type": "response", "id": "cmd-001", "channel": "figmento-abc123",
   "success": true, "data": { "nodeId": "42:17" } }
 ```
@@ -194,6 +209,7 @@ figmento-ws-relay/
 | `create_image` | Place image from base64 data |
 | `create_icon` | Place Lucide icon by name with optional SVG paths |
 | `place_generated_image` | Read image file from disk (mcp-image output), send to Figma as image fill |
+| `fetch_placeholder_image` | Fetch placeholder photo from picsum.photos as base64 fallback when AI generation is unavailable |
 | `set_text` | Update existing text node content and style properties |
 
 ### Style Tools (`tools/style.ts`)
@@ -228,13 +244,14 @@ figmento-ws-relay/
 | MCP Tool | Description |
 |----------|-------------|
 | `batch_execute` | Execute up to 50 commands in a single WS round trip. Supports `tempId` chaining — reference nodes created earlier in the batch via `$tempId`. Failed commands don't abort the batch. |
-| `clone_with_overrides` | Clone a node N times in one call with positional offsets and named child property overrides (text, color, fontSize, fontWeight, opacity). Replaces clone → find → set_text × N pattern. |
+| `clone_with_overrides` | Clone a node N times in one call with positional offsets and named child property overrides (text, color, fontSize, fontWeight, opacity). Replaces clone -> find -> set_text x N pattern. |
 | `create_design` | Create a complete design from a UIAnalysis JSON structure in one operation. |
 
 ### Export / Evaluation Tools (`tools/export.ts`)
 
 | MCP Tool | Description |
 |----------|-------------|
+| `get_screenshot` | Capture PNG screenshot of a Figma node and render inline for visual verification |
 | `export_node` | Export node as PNG/SVG/JPG base64 |
 | `evaluate_design` | Export + deep node tree + computed stats (font sizes, typography levels, element count) |
 | `export_node_to_file` | Export node to a file on disk |
@@ -272,6 +289,101 @@ Server-side only — no WS needed. Reads from `knowledge/` YAML files.
 | `get_brand_kit` | Load a saved brand kit |
 | `save_brand_kit` | Save a brand kit for reuse |
 
+### Design System Tools (`tools/design-system.ts`)
+
+The design system module provides token-driven design with auto-generation, component instantiation, format-aware rules, and brand consistency checking.
+
+| MCP Tool | Description |
+|----------|-------------|
+| `create_design_system` | Create a design system with auto-generated tokens from minimal input (preset, colors, fonts, or mood keywords). Missing values are auto-generated using color theory. |
+| `get_design_system` | Load an existing design system by name. Returns complete token object (colors, fonts, spacing, radius, shadows). |
+| `list_design_systems` | List all saved design systems with summary info (name, preset, primary color). |
+| `update_design_system` | Update specific tokens using dot-path keys (e.g. `{ "colors.primary": "#FF0000" }`). |
+| `delete_design_system` | Delete a design system and all its files. |
+| `create_component` | Instantiate a design system component on Figma canvas. Loads tokens, resolves recipe, sends batch commands. Components: button, badge, card, divider, avatar. |
+| `list_components` | List all available components with their variants, props, and descriptions. |
+| `get_format_rules` | Get complete format adapter rules for a specific output format (dimensions, safe zones, typography scale, layout rules). |
+| `list_formats` | List all available format adapters (social, print, presentation, web, email, advertising) with size variants and dimensions. |
+| `scan_frame_structure` | Deep-scan a Figma frame and return its complete structure tree (types, positions, sizes, styles, text content, children). |
+| `design_system_preview` | Generate a visual swatch sheet on canvas showing all color tokens, typography scale, component samples, and spacing. |
+| `generate_design_system_from_url` | Extract a design system from a website URL by analyzing HTML/CSS for colors, fonts, and border radius. |
+| `brand_consistency_check` | Check if Figma frames are brand-consistent against a design system. Returns score (0-100), issues list, and pass/fail. |
+
+### Pattern Tools (`tools/patterns.ts`)
+
+Cross-format design patterns that adapt to any format and design system.
+
+| MCP Tool | Description |
+|----------|-------------|
+| `create_from_pattern` | Instantiate a cross-format pattern on canvas with design system tokens and format-specific adaptations. Patterns: hero_block, feature_grid, pricing_card, testimonial, contact_block, content_section, image_text_row, gallery, data_row, cta_banner. Supports size_variant selection. |
+| `list_patterns` | List all available patterns with names, descriptions, props, and variants. |
+
+### Project Template Tools (`tools/ds-templates.ts`)
+
+Multi-frame project templates that compose patterns into complete deliverables.
+
+| MCP Tool | Description |
+|----------|-------------|
+| `create_from_template` | Instantiate a multi-frame project template on canvas. Templates: social_media_kit (9 frames), pitch_deck (8 slides), brand_stationery (4 frames), landing_page_full (6 sections), restaurant_menu (5 frames). |
+| `list_templates` | List all available templates with names, descriptions, frame counts, and formats used. |
+
+---
+
+## Knowledge Base
+
+The `knowledge/` directory provides design intelligence as YAML files, organized hierarchically:
+
+```
+figmento-mcp-server/knowledge/
+├── size-presets.yaml               # Dimensions for all social/print/presentation/web formats
+├── typography.yaml                 # Type scales, font pairings, line heights, letter spacing
+├── color-system.yaml               # Mood-based palettes, WCAG contrast, safe combos
+├── layout.yaml                     # 8px grid, spacing scale, margins, safe zones
+├── brand-kit-schema.yaml           # Brand kit YAML format + example
+├── print-design.yaml               # Print-specific layout patterns & typography rules
+│
+├── design-systems/                 # Pre-built design system token sets
+│   ├── payflow/tokens.yaml
+│   ├── stripe/tokens.yaml
+│   ├── noir-cafe/tokens.yaml
+│   ├── linear/tokens.yaml
+│   ├── flowdesk/tokens.yaml
+│   └── testbrand/tokens.yaml
+│
+├── presets/                        # Design system presets (starting points)
+│   ├── shadcn.yaml
+│   ├── material.yaml
+│   ├── minimal.yaml
+│   ├── luxury.yaml
+│   └── vibrant.yaml
+│
+├── components/                     # Component recipes
+│   ├── core.yaml                   # button, badge, card, divider, avatar
+│   └── web-ui.yaml                 # Web UI component definitions
+│
+├── formats/                        # Format-specific rules & dimensions
+│   ├── social/                     # 14 formats (instagram_post, tiktok, youtube, etc.)
+│   ├── print/                      # 14 formats (brochure, business_card, poster, etc.)
+│   ├── web/                        # 10 formats (landing_page, dashboard, error_404, etc.)
+│   ├── advertising/                # 6 formats (facebook_ad, google_leaderboard, etc.)
+│   ├── email/                      # 3 formats (email_banner, header, newsletter)
+│   └── presentation/               # 2 formats (slide_16_9, slide_4_3)
+│
+├── patterns/
+│   └── cross-format.yaml           # 10 pattern recipes (hero_block, feature_grid, etc.)
+│
+├── templates/                      # Multi-frame project templates
+│   ├── social_media_kit.yaml       # 9 frames
+│   ├── pitch_deck.yaml             # 8 slides
+│   ├── brand_stationery.yaml       # 4 frames
+│   ├── landing_page_full.yaml      # 6 sections
+│   └── restaurant_menu.yaml        # 5 frames
+│
+└── brand-kits/                     # User-saved brand kits (initially empty)
+```
+
+**Totals:** 70+ YAML files, 6 pre-built design systems, 5 presets, 49 format adapters, 10 cross-format patterns, 5 project templates.
+
 ---
 
 ## Key Design Decisions
@@ -280,7 +392,7 @@ Server-side only — no WS needed. Reads from `knowledge/` YAML files.
 
 - Figma plugins run in an iframe sandbox — they can make outbound connections but can't host a server
 - WebSocket gives us bidirectional real-time communication
-- The relay pattern (plugin ↔ relay ↔ MCP server) is proven by Figsor/Cursor-Talk-To-Figma plugins
+- The relay pattern (plugin <-> relay <-> MCP server) is proven by Figsor/Cursor-Talk-To-Figma plugins
 
 ### Why a separate relay server?
 
@@ -291,22 +403,30 @@ Server-side only — no WS needed. Reads from `knowledge/` YAML files.
 ### Why both granular tools and batch tools?
 
 - **Granular tools** (`create_frame`, `create_text`, etc.) give fine control for iterative refinement
-- **`batch_execute`** cuts round trips from N to 1 — a 25-element design goes from 25 sequential calls (~5s) to 1 batch call (~200ms). `tempId` chaining enables parent→child references within the batch.
-- **`clone_with_overrides`** replaces the N-step clone→find→setText pattern for repeated elements
+- **`batch_execute`** cuts round trips from N to 1 — a 25-element design goes from 25 sequential calls (~5s) to 1 batch call (~200ms). `tempId` chaining enables parent->child references within the batch.
+- **`clone_with_overrides`** replaces the N-step clone->find->setText pattern for repeated elements
 - **`create_design`** (UIAnalysis JSON) creates an entire nested design tree in one call — best for initial full-design creation
 
 ### Why YAML for knowledge base?
 
 - Human-readable and editable
 - Easy for Claude to parse and reference
-- Users can customize (add their own size presets, brand kits)
+- Users can customize (add their own size presets, brand kits, design systems)
 - Git-friendly for version control
+
+### Why a Design System layer?
+
+- **Token-driven design** ensures brand consistency across all outputs
+- **Auto-generation** from minimal input (just a primary color + mood) makes setup fast
+- **Format adapters** enforce correct dimensions, safe zones, and typography scales per platform
+- **Cross-format patterns** let the same "hero_block" recipe produce an Instagram post, landing page, or email header with format-appropriate sizing
+- **Component recipes** resolve to batch commands — a single `create_component("button")` becomes a frame + padding + text + fill + radius in one round trip
 
 ---
 
 ## Implementation Status
 
-All 3 phases are **implemented and operational**.
+All 4 phases are **implemented and operational**.
 
 ### Phase 1 — WebSocket Bridge + Minimal MCP (Complete)
 
@@ -321,21 +441,28 @@ All 3 phases are **implemented and operational**.
 - Image pipeline: `place_generated_image` reads from mcp-image output, converts server-side
 - Multi-slide: `create_carousel` and `create_presentation`
 - Error contract: `CommandErrorCode` enum with `recoverable` hint on all failures
+- `get_screenshot` for inline visual verification during design iteration
+- `fetch_placeholder_image` fallback when AI image generation is unavailable
 
 ### Phase 3 — Design Intelligence (Complete)
 
-- Knowledge base: 5 YAML files covering sizes, typography, colors, layout, brand kits
+- Knowledge base: 5 core YAML files covering sizes, typography, colors, layout, brand kits
 - 9 intelligence tools (server-side, no WS needed)
 - Comprehensive CLAUDE.md design system prompt with workflow patterns, typography rules, color guides, layout composition rules, self-evaluation checklist
 - `evaluate_design` tool for automated design QA (export + structural analysis + stats)
 
-### Recent additions
+### Phase 4 — Design System Engine (Complete)
 
-- `batch_execute` — multi-command batching with tempId chaining (up to 50 commands per batch)
-- `clone_with_overrides` — clone N times with child property overrides in one call
-- `reorder_child` — reorder children within a parent frame
-- `set_text` — update text node content/style on existing nodes
-- `evaluate_design` — export + deep node tree + typography/layout stats
+- **Token engine:** Auto-generates complete design system tokens from minimal input (preset, primary color, mood)
+- **6 pre-built design systems:** payflow, stripe, noir-cafe, linear, flowdesk, testbrand
+- **5 presets:** shadcn, material, minimal, luxury, vibrant
+- **Component recipes:** button, badge, card, divider, avatar — resolved to batch commands with design system tokens
+- **49 format adapters** across 6 categories (social, print, web, email, advertising, presentation) with dimensions, safe zones, typography scales
+- **10 cross-format patterns:** hero_block, feature_grid, pricing_card, testimonial, contact_block, content_section, image_text_row, gallery, data_row, cta_banner
+- **5 project templates:** social_media_kit, pitch_deck, brand_stationery, landing_page_full, restaurant_menu
+- **Brand consistency checker:** Compares frame colors/fonts against design system, returns 0-100 score
+- **URL-based extraction:** Generate design system tokens by analyzing any website's HTML/CSS
+- **Visual preview:** `design_system_preview` generates swatch sheet on canvas
 
 ---
 
@@ -351,6 +478,15 @@ cd figmento-ws-relay && npm run build
 # Figma Plugin
 cd figmento-plugin && npm run build
 ```
+
+---
+
+## Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/render-html.js` | Render HTML to PNG using headless Chromium (Puppeteer). Viewport: 2480x3508 (A4 at 300dpi). Used in HTML-to-Figma pipeline for print designs. |
+| `scripts/run-mcp-image.js` | Spawns mcp-image subprocess with env validation. Loads .env, checks GEMINI_API_KEY/OPENAI_API_KEY. |
 
 ---
 
@@ -379,4 +515,4 @@ cd figmento-plugin && npm run build
 
 ---
 
-*Figmento MCP Project Briefing v2.0 — February 2026*
+*Figmento MCP Project Briefing v3.0 — February 2026*

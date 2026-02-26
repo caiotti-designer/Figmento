@@ -2,13 +2,23 @@
 # Reusable layout patterns that adapt across social, print, web, and presentation formats.
 # All values use $tokens.* references for design system consistency.
 # Props use {{propName}} syntax for dynamic values.
+#
+# DESIGN RULES (v2 — applied globally):
+#   - All CTA buttons use cornerRadius: 999 (pill shape)
+#   - All card containers use $tokens.colors.border with opacity: 0.6 for subtle edges
+#   - All eyebrow/label text uses letterSpacing: 2, textCase: UPPER
+#   - Spacing is generous — prefer one step larger than "safe" (sm→md, md→lg, lg→xl)
+#   - Dark/gradient variants always set ALL child text to white (#FFFFFF) or on_primary
+#   - Body text lineHeight: 1.7 everywhere for comfortable reading
 
 hero_block:
-  description: "Hero section with headline, subheadline, and CTA button"
+  description: "Hero section with optional eyebrow, headline, subheadline, primary CTA pill, and ghost CTA"
   props:
+    eyebrow: { type: string, required: false, default: "" }
     headline: { type: string, required: true }
     subheadline: { type: string, required: false }
     cta_label: { type: string, required: false, default: "Get Started" }
+    cta_secondary_label: { type: string, required: false, default: "" }
   recipe:
     type: frame
     name: "Hero Block"
@@ -16,15 +26,27 @@ hero_block:
     primaryAxisSizingMode: HUG
     primaryAxisAlignItems: CENTER
     counterAxisAlignItems: CENTER
-    itemSpacing: "$tokens.spacing.xl"
-    paddingTop: "$tokens.spacing.xxl"
-    paddingBottom: "$tokens.spacing.xxl"
-    paddingLeft: "$tokens.spacing.xl"
-    paddingRight: "$tokens.spacing.xl"
+    itemSpacing: "$tokens.spacing.2xl"
+    paddingTop: "$tokens.spacing.3xl"
+    paddingBottom: "$tokens.spacing.3xl"
+    paddingLeft: "$tokens.spacing.2xl"
+    paddingRight: "$tokens.spacing.2xl"
     fills:
       - type: SOLID
         color: "$tokens.colors.background"
     children:
+      # Eyebrow — small caps label above headline
+      - type: text
+        content: "{{eyebrow}}"
+        fontSize: "$tokens.typography.scale.caption"
+        fontFamily: "$tokens.typography.body.family"
+        fontWeight: 600
+        color: "$tokens.colors.primary"
+        letterSpacing: 3
+        textCase: UPPER
+        textAlign: CENTER
+        layoutSizingHorizontal: FILL
+      # Headline
       - type: text
         content: "{{headline}}"
         fontSize: "$tokens.typography.scale.display"
@@ -33,6 +55,7 @@ hero_block:
         color: "$tokens.colors.on_surface"
         textAlign: CENTER
         layoutSizingHorizontal: FILL
+      # Subheadline
       - type: text
         content: "{{subheadline}}"
         fontSize: "$tokens.typography.scale.body_lg"
@@ -40,64 +63,123 @@ hero_block:
         fontWeight: 400
         color: "$tokens.colors.on_surface_muted"
         textAlign: CENTER
+        lineHeight: 1.7
         layoutSizingHorizontal: FILL
+      # CTA row — horizontal with primary pill + ghost pill
       - type: frame
-        name: "CTA Button"
+        name: "CTA Row"
         layoutMode: HORIZONTAL
         primaryAxisAlignItems: CENTER
         counterAxisAlignItems: CENTER
-        paddingTop: "$tokens.spacing.sm"
-        paddingBottom: "$tokens.spacing.sm"
-        paddingLeft: "$tokens.spacing.lg"
-        paddingRight: "$tokens.spacing.lg"
-        cornerRadius: "$tokens.radius.md"
-        fills:
-          - type: SOLID
-            color: "$tokens.colors.primary"
+        itemSpacing: "$tokens.spacing.md"
         children:
-          - type: text
-            content: "{{cta_label}}"
-            fontSize: "$tokens.typography.scale.body"
-            fontFamily: "$tokens.typography.body.family"
-            fontWeight: 600
-            color: "$tokens.colors.on_primary"
+          # Primary CTA — pill shaped
+          - type: frame
+            name: "CTA Button"
+            layoutMode: HORIZONTAL
+            primaryAxisAlignItems: CENTER
+            counterAxisAlignItems: CENTER
+            paddingTop: "$tokens.spacing.md"
+            paddingBottom: "$tokens.spacing.md"
+            paddingLeft: "$tokens.spacing.xl"
+            paddingRight: "$tokens.spacing.xl"
+            cornerRadius: 999
+            fills:
+              - type: SOLID
+                color: "$tokens.colors.primary"
+            children:
+              - type: text
+                content: "{{cta_label}}"
+                fontSize: "$tokens.typography.scale.body"
+                fontFamily: "$tokens.typography.body.family"
+                fontWeight: 600
+                color: "$tokens.colors.on_primary"
+          # Ghost CTA — outline only
+          - type: frame
+            name: "Ghost CTA"
+            layoutMode: HORIZONTAL
+            primaryAxisAlignItems: CENTER
+            counterAxisAlignItems: CENTER
+            paddingTop: "$tokens.spacing.md"
+            paddingBottom: "$tokens.spacing.md"
+            paddingLeft: "$tokens.spacing.xl"
+            paddingRight: "$tokens.spacing.xl"
+            cornerRadius: 999
+            fills: []
+            strokes:
+              - type: SOLID
+                color: "$tokens.colors.border"
+            strokeWeight: 1.5
+            children:
+              - type: text
+                content: "{{cta_secondary_label}}"
+                fontSize: "$tokens.typography.scale.body"
+                fontFamily: "$tokens.typography.body.family"
+                fontWeight: 600
+                color: "$tokens.colors.on_surface"
   variants:
     default: {}
     dark:
       fills:
         - type: SOLID
-          color: "$tokens.colors.primary_dark"
+          color: "$tokens.colors.on_surface"
       children:
+        - color: "rgba(255,255,255,0.6)"
         - color: "#FFFFFF"
         - color: "rgba(255,255,255,0.7)"
+        - children:
+            - children:
+                - color: "#FFFFFF"
+            - strokes:
+                - type: SOLID
+                  color: "rgba(255,255,255,0.25)"
+              children:
+                - color: "#FFFFFF"
     gradient:
       fills:
         - type: GRADIENT_LINEAR
+          gradientHandlePositions:
+            - { x: 0, y: 0 }
+            - { x: 1, y: 1 }
           gradientStops:
             - position: 0
               color: "$tokens.colors.primary"
             - position: 1
               color: "$tokens.colors.secondary"
       children:
+        - color: "rgba(255,255,255,0.6)"
         - color: "#FFFFFF"
         - color: "rgba(255,255,255,0.8)"
+        - children:
+            - fills:
+                - type: SOLID
+                  color: "#FFFFFF"
+              children:
+                - color: "$tokens.colors.primary"
+            - strokes:
+                - type: SOLID
+                  color: "rgba(255,255,255,0.3)"
+              children:
+                - color: "#FFFFFF"
   format_adaptations:
     social:
       width: 1080
-      paddingTop: 80
-      paddingBottom: 80
+      paddingTop: 100
+      paddingBottom: 100
       paddingLeft: 60
       paddingRight: 60
       children:
+        - fontSize: 20
         - fontSize: 72
         - fontSize: 32
     print:
       width: 2480
-      paddingTop: 120
-      paddingBottom: 120
+      paddingTop: 140
+      paddingBottom: 140
       paddingLeft: 96
       paddingRight: 96
       children:
+        - fontSize: 16
         - fontSize: 80
         - fontSize: 32
     presentation:
@@ -107,6 +189,7 @@ hero_block:
       paddingLeft: 100
       paddingRight: 100
       children:
+        - fontSize: 16
         - fontSize: 80
         - fontSize: 32
     web:
@@ -116,13 +199,14 @@ hero_block:
       paddingLeft: 64
       paddingRight: 64
       children:
+        - fontSize: 13
         - fontSize: 64
           width: 900
         - fontSize: 22
           width: 700
 
 feature_grid:
-  description: "Grid of feature cards with icon placeholder, title, and description"
+  description: "Grid of feature cards with icon, title, and description. After creating the pattern, call create_icon for each card using contextually appropriate Lucide icon names."
   props:
     title_1: { type: string, required: true }
     desc_1: { type: string, required: true }
@@ -130,17 +214,28 @@ feature_grid:
     desc_2: { type: string, required: true }
     title_3: { type: string, required: true }
     desc_3: { type: string, required: true }
+    icon_1: { type: string, default: "zap", description: "Lucide icon name for feature 1" }
+    icon_2: { type: string, default: "shield", description: "Lucide icon name for feature 2" }
+    icon_3: { type: string, default: "target", description: "Lucide icon name for feature 3" }
+  icon_placement: |
+    After creating the feature_grid, call create_icon for each feature card:
+    1. Use the Icon Container nodeId from each card as parentId
+    2. Set size to 32 (fits inside the 48×48 container with 8px padding each side), color to the design system primary color
+    3. Use contextually appropriate Lucide icon names based on feature titles
+    Example: create_icon(name="zap", size=32, color="#6366F1", parentId="<Icon Container nodeId>")
   recipe:
     type: frame
     name: "Feature Grid"
     layoutMode: HORIZONTAL
+    primaryAxisSizingMode: FIXED   # width locked to format; overridden to HUG for web via patterns.ts
+    counterAxisSizingMode: HUG     # height always hugs content — no dead white space
     primaryAxisAlignItems: MIN
     counterAxisAlignItems: MIN
-    itemSpacing: "$tokens.spacing.lg"
-    paddingTop: "$tokens.spacing.xl"
-    paddingBottom: "$tokens.spacing.xl"
-    paddingLeft: "$tokens.spacing.xl"
-    paddingRight: "$tokens.spacing.xl"
+    itemSpacing: "$tokens.spacing.xl"
+    paddingTop: "$tokens.spacing.2xl"
+    paddingBottom: "$tokens.spacing.2xl"
+    paddingLeft: "$tokens.spacing.2xl"
+    paddingRight: "$tokens.spacing.2xl"
     fills:
       - type: SOLID
         color: "$tokens.colors.surface"
@@ -148,28 +243,42 @@ feature_grid:
       - type: frame
         name: "Feature 1"
         layoutMode: VERTICAL
-        itemSpacing: "$tokens.spacing.sm"
-        paddingTop: "$tokens.spacing.lg"
-        paddingBottom: "$tokens.spacing.lg"
-        paddingLeft: "$tokens.spacing.md"
-        paddingRight: "$tokens.spacing.md"
+        itemSpacing: "$tokens.spacing.md"
+        paddingTop: "$tokens.spacing.xl"
+        paddingBottom: "$tokens.spacing.xl"
+        paddingLeft: "$tokens.spacing.lg"
+        paddingRight: "$tokens.spacing.lg"
         cornerRadius: "$tokens.radius.lg"
         layoutSizingHorizontal: FILL
         fills:
           - type: SOLID
             color: "$tokens.colors.background"
+        strokes:
+          - type: SOLID
+            color: "$tokens.colors.border"
+            opacity: 0.6
+        strokeWeight: 1
         children:
-          - type: ellipse
-            name: "Icon Placeholder"
-            width: 40
-            height: 40
+          # Rounded square icon container (not a circle)
+          - type: frame
+            name: "Icon Container"
+            width: 48
+            height: 48
+            cornerRadius: "$tokens.radius.md"
+            layoutMode: HORIZONTAL
+            primaryAxisAlignItems: CENTER
+            counterAxisAlignItems: CENTER
+            paddingTop: 8
+            paddingBottom: 8
+            paddingLeft: 8
+            paddingRight: 8
             fills:
               - type: SOLID
                 color: "$tokens.colors.primary"
-                opacity: 0.15
+                opacity: 0.12
           - type: text
             content: "{{title_1}}"
-            fontSize: "$tokens.typography.scale.h2"
+            fontSize: "$tokens.typography.scale.h3"
             fontFamily: "$tokens.typography.heading.family"
             fontWeight: 600
             color: "$tokens.colors.on_surface"
@@ -180,32 +289,46 @@ feature_grid:
             fontFamily: "$tokens.typography.body.family"
             fontWeight: 400
             color: "$tokens.colors.on_surface_muted"
+            lineHeight: 1.7
             layoutSizingHorizontal: FILL
       - type: frame
         name: "Feature 2"
         layoutMode: VERTICAL
-        itemSpacing: "$tokens.spacing.sm"
-        paddingTop: "$tokens.spacing.lg"
-        paddingBottom: "$tokens.spacing.lg"
-        paddingLeft: "$tokens.spacing.md"
-        paddingRight: "$tokens.spacing.md"
+        itemSpacing: "$tokens.spacing.md"
+        paddingTop: "$tokens.spacing.xl"
+        paddingBottom: "$tokens.spacing.xl"
+        paddingLeft: "$tokens.spacing.lg"
+        paddingRight: "$tokens.spacing.lg"
         cornerRadius: "$tokens.radius.lg"
         layoutSizingHorizontal: FILL
         fills:
           - type: SOLID
             color: "$tokens.colors.background"
+        strokes:
+          - type: SOLID
+            color: "$tokens.colors.border"
+            opacity: 0.6
+        strokeWeight: 1
         children:
-          - type: ellipse
-            name: "Icon Placeholder"
-            width: 40
-            height: 40
+          - type: frame
+            name: "Icon Container"
+            width: 48
+            height: 48
+            cornerRadius: "$tokens.radius.md"
+            layoutMode: HORIZONTAL
+            primaryAxisAlignItems: CENTER
+            counterAxisAlignItems: CENTER
+            paddingTop: 8
+            paddingBottom: 8
+            paddingLeft: 8
+            paddingRight: 8
             fills:
               - type: SOLID
                 color: "$tokens.colors.primary"
-                opacity: 0.15
+                opacity: 0.12
           - type: text
             content: "{{title_2}}"
-            fontSize: "$tokens.typography.scale.h2"
+            fontSize: "$tokens.typography.scale.h3"
             fontFamily: "$tokens.typography.heading.family"
             fontWeight: 600
             color: "$tokens.colors.on_surface"
@@ -216,32 +339,46 @@ feature_grid:
             fontFamily: "$tokens.typography.body.family"
             fontWeight: 400
             color: "$tokens.colors.on_surface_muted"
+            lineHeight: 1.7
             layoutSizingHorizontal: FILL
       - type: frame
         name: "Feature 3"
         layoutMode: VERTICAL
-        itemSpacing: "$tokens.spacing.sm"
-        paddingTop: "$tokens.spacing.lg"
-        paddingBottom: "$tokens.spacing.lg"
-        paddingLeft: "$tokens.spacing.md"
-        paddingRight: "$tokens.spacing.md"
+        itemSpacing: "$tokens.spacing.md"
+        paddingTop: "$tokens.spacing.xl"
+        paddingBottom: "$tokens.spacing.xl"
+        paddingLeft: "$tokens.spacing.lg"
+        paddingRight: "$tokens.spacing.lg"
         cornerRadius: "$tokens.radius.lg"
         layoutSizingHorizontal: FILL
         fills:
           - type: SOLID
             color: "$tokens.colors.background"
+        strokes:
+          - type: SOLID
+            color: "$tokens.colors.border"
+            opacity: 0.6
+        strokeWeight: 1
         children:
-          - type: ellipse
-            name: "Icon Placeholder"
-            width: 40
-            height: 40
+          - type: frame
+            name: "Icon Container"
+            width: 48
+            height: 48
+            cornerRadius: "$tokens.radius.md"
+            layoutMode: HORIZONTAL
+            primaryAxisAlignItems: CENTER
+            counterAxisAlignItems: CENTER
+            paddingTop: 8
+            paddingBottom: 8
+            paddingLeft: 8
+            paddingRight: 8
             fills:
               - type: SOLID
                 color: "$tokens.colors.primary"
-                opacity: 0.15
+                opacity: 0.12
           - type: text
             content: "{{title_3}}"
-            fontSize: "$tokens.typography.scale.h2"
+            fontSize: "$tokens.typography.scale.h3"
             fontFamily: "$tokens.typography.heading.family"
             fontWeight: 600
             color: "$tokens.colors.on_surface"
@@ -252,17 +389,34 @@ feature_grid:
             fontFamily: "$tokens.typography.body.family"
             fontWeight: 400
             color: "$tokens.colors.on_surface_muted"
+            lineHeight: 1.7
             layoutSizingHorizontal: FILL
   variants:
     default: {}
     minimal:
+      # Left border accent — more interesting than just removing fills
       children:
         - cornerRadius: 0
           fills: []
+          strokes:
+            - type: SOLID
+              color: "$tokens.colors.primary"
+          strokeWeight: 4
+          strokeSide: LEFT
         - cornerRadius: 0
           fills: []
+          strokes:
+            - type: SOLID
+              color: "$tokens.colors.primary"
+          strokeWeight: 4
+          strokeSide: LEFT
         - cornerRadius: 0
           fills: []
+          strokes:
+            - type: SOLID
+              color: "$tokens.colors.primary"
+          strokeWeight: 4
+          strokeSide: LEFT
   format_adaptations:
     social:
       layoutMode: VERTICAL
@@ -281,7 +435,7 @@ feature_grid:
       itemSpacing: 32
 
 pricing_card:
-  description: "Pricing card with plan name, price, feature list, and CTA"
+  description: "Pricing card with plan name, price, feature list, and CTA pill"
   # CORRECT PROP NAMES (common mistakes noted):
   #   plan       — NOT plan_name
   #   features   — single string with all features (e.g. "✓ Feature 1\n✓ Feature 2"), NOT feature_1/feature_2/feature_3
@@ -298,16 +452,21 @@ pricing_card:
     layoutMode: VERTICAL
     primaryAxisAlignItems: CENTER
     counterAxisAlignItems: CENTER
-    itemSpacing: "$tokens.spacing.md"
-    paddingTop: "$tokens.spacing.xl"
-    paddingBottom: "$tokens.spacing.xl"
-    paddingLeft: "$tokens.spacing.lg"
-    paddingRight: "$tokens.spacing.lg"
+    itemSpacing: "$tokens.spacing.lg"
+    paddingTop: "$tokens.spacing.2xl"
+    paddingBottom: "$tokens.spacing.2xl"
+    paddingLeft: "$tokens.spacing.xl"
+    paddingRight: "$tokens.spacing.xl"
     cornerRadius: "$tokens.radius.lg"
     width: 320
     fills:
       - type: SOLID
         color: "$tokens.colors.surface"
+    strokes:
+      - type: SOLID
+        color: "$tokens.colors.border"
+        opacity: 0.6
+    strokeWeight: 1
     effects:
       - type: DROP_SHADOW
         color: "$tokens.shadows.md.color"
@@ -315,14 +474,18 @@ pricing_card:
         offset: { x: "$tokens.shadows.md.x", y: "$tokens.shadows.md.y" }
         blur: "$tokens.shadows.md.blur"
     children:
+      # Plan name — smaller, label-like
       - type: text
         content: "{{plan}}"
-        fontSize: "$tokens.typography.scale.h2"
+        fontSize: "$tokens.typography.scale.body"
         fontFamily: "$tokens.typography.heading.family"
         fontWeight: 600
-        color: "$tokens.colors.on_surface"
+        color: "$tokens.colors.on_surface_muted"
+        letterSpacing: 2
+        textCase: UPPER
         textAlign: CENTER
         layoutSizingHorizontal: FILL
+      # Price — dominant, display scale
       - type: text
         content: "{{price}}"
         fontSize: "$tokens.typography.scale.display"
@@ -331,6 +494,7 @@ pricing_card:
         color: "$tokens.colors.primary"
         textAlign: CENTER
         layoutSizingHorizontal: FILL
+      # Period
       - type: text
         content: "{{period}}"
         fontSize: "$tokens.typography.scale.caption"
@@ -339,6 +503,7 @@ pricing_card:
         color: "$tokens.colors.on_surface_muted"
         textAlign: CENTER
         layoutSizingHorizontal: FILL
+      # Divider
       - type: rectangle
         name: "Divider"
         width: 260
@@ -346,6 +511,8 @@ pricing_card:
         fills:
           - type: SOLID
             color: "$tokens.colors.border"
+            opacity: 0.6
+      # Features — generous line height for readability
       - type: text
         content: "{{features}}"
         fontSize: "$tokens.typography.scale.body"
@@ -353,17 +520,19 @@ pricing_card:
         fontWeight: 400
         color: "$tokens.colors.on_surface"
         textAlign: CENTER
+        lineHeight: 1.7
         layoutSizingHorizontal: FILL
+      # CTA — pill shaped
       - type: frame
         name: "CTA Button"
         layoutMode: HORIZONTAL
         primaryAxisAlignItems: CENTER
         counterAxisAlignItems: CENTER
-        paddingTop: "$tokens.spacing.sm"
-        paddingBottom: "$tokens.spacing.sm"
+        paddingTop: "$tokens.spacing.md"
+        paddingBottom: "$tokens.spacing.md"
         paddingLeft: "$tokens.spacing.xl"
         paddingRight: "$tokens.spacing.xl"
-        cornerRadius: "$tokens.radius.md"
+        cornerRadius: 999
         fills:
           - type: SOLID
             color: "$tokens.colors.primary"
@@ -377,13 +546,18 @@ pricing_card:
   variants:
     default: {}
     highlighted:
+      strokes: []
       fills:
         - type: SOLID
           color: "$tokens.colors.primary"
       children:
-        - color: "#FFFFFF"
-        - color: "#FFFFFF"
+        # Insert "Most Popular" badge, then plan, price, period, divider, features, CTA
+        # Note: variants overlay on the base — so children[0] = plan, etc.
+        # Badge is prepended via a wrapper approach:
+        # We style the existing children for the highlighted state:
         - color: "rgba(255,255,255,0.7)"
+        - color: "#FFFFFF"
+        - color: "rgba(255,255,255,0.6)"
         - fills:
             - type: SOLID
               color: "rgba(255,255,255,0.2)"
@@ -412,7 +586,7 @@ pricing_card:
       paddingBottom: 40
 
 testimonial:
-  description: "Testimonial block with quote text, author name, and role"
+  description: "Testimonial block with decorative quote mark, quote text, divider, author name, and role"
   props:
     quote: { type: string, required: true }
     author: { type: string, required: true }
@@ -424,24 +598,52 @@ testimonial:
     primaryAxisSizingMode: HUG
     primaryAxisAlignItems: CENTER
     counterAxisAlignItems: CENTER
-    itemSpacing: "$tokens.spacing.lg"
-    paddingTop: "$tokens.spacing.xl"
-    paddingBottom: "$tokens.spacing.xl"
-    paddingLeft: "$tokens.spacing.xl"
-    paddingRight: "$tokens.spacing.xl"
+    itemSpacing: "$tokens.spacing.xl"
+    paddingTop: "$tokens.spacing.2xl"
+    paddingBottom: "$tokens.spacing.2xl"
+    paddingLeft: "$tokens.spacing.2xl"
+    paddingRight: "$tokens.spacing.2xl"
     cornerRadius: "$tokens.radius.lg"
     fills:
       - type: SOLID
         color: "$tokens.colors.surface"
+    strokes:
+      - type: SOLID
+        color: "$tokens.colors.border"
+        opacity: 0.6
+    strokeWeight: 1
     children:
+      # Decorative quote mark — large, muted, editorial
       - type: text
-        content: "\u201C{{quote}}\u201D"
+        content: "\u201C"
+        name: "Decorative Quote"
+        fontSize: "$tokens.typography.scale.display"
+        fontFamily: "$tokens.typography.heading.family"
+        fontWeight: 700
+        color: "$tokens.colors.primary"
+        opacity: 0.2
+        textAlign: CENTER
+        layoutSizingHorizontal: FILL
+      # Quote text
+      - type: text
+        content: "{{quote}}"
         fontSize: "$tokens.typography.scale.body_lg"
         fontFamily: "$tokens.typography.body.family"
         fontWeight: 400
         color: "$tokens.colors.on_surface"
         textAlign: CENTER
+        lineHeight: 1.7
         layoutSizingHorizontal: FILL
+      # Divider before author
+      - type: rectangle
+        name: "Author Divider"
+        width: 48
+        height: 2
+        fills:
+          - type: SOLID
+            color: "$tokens.colors.primary"
+            opacity: 0.4
+      # Author
       - type: text
         content: "{{author}}"
         fontSize: "$tokens.typography.scale.body"
@@ -450,6 +652,7 @@ testimonial:
         color: "$tokens.colors.on_surface"
         textAlign: CENTER
         layoutSizingHorizontal: FILL
+      # Role
       - type: text
         content: "{{role}}"
         fontSize: "$tokens.typography.scale.caption"
@@ -461,32 +664,39 @@ testimonial:
   variants:
     default: {}
     card:
+      # More pronounced shadow for the card variant
       effects:
         - type: DROP_SHADOW
-          color: "$tokens.shadows.md.color"
-          opacity: "$tokens.shadows.md.opacity"
-          offset: { x: "$tokens.shadows.md.x", y: "$tokens.shadows.md.y" }
-          blur: "$tokens.shadows.md.blur"
+          color: "$tokens.shadows.lg.color"
+          opacity: "$tokens.shadows.lg.opacity"
+          offset: { x: "$tokens.shadows.lg.x", y: "$tokens.shadows.lg.y" }
+          blur: "$tokens.shadows.lg.blur"
   format_adaptations:
     social:
       paddingTop: 80
       paddingBottom: 80
       children:
+        - fontSize: 96
         - fontSize: 32
     print:
       paddingTop: 64
       paddingBottom: 64
       children:
+        - fontSize: 72
         - fontSize: 28
     presentation:
       paddingTop: 80
       paddingBottom: 80
       children:
+        - fontSize: 96
         - fontSize: 40
     web:
       width: 800
       paddingTop: 48
       paddingBottom: 48
+      children:
+        - fontSize: 64
+        - fontSize: 20
 
 contact_block:
   description: "Contact information block with email, phone, and address fields"
@@ -501,14 +711,19 @@ contact_block:
     primaryAxisSizingMode: HUG
     primaryAxisAlignItems: MIN
     counterAxisAlignItems: MIN
-    itemSpacing: "$tokens.spacing.lg"
-    paddingTop: "$tokens.spacing.lg"
-    paddingBottom: "$tokens.spacing.lg"
-    paddingLeft: "$tokens.spacing.lg"
-    paddingRight: "$tokens.spacing.lg"
+    itemSpacing: "$tokens.spacing.xl"
+    paddingTop: "$tokens.spacing.xl"
+    paddingBottom: "$tokens.spacing.xl"
+    paddingLeft: "$tokens.spacing.xl"
+    paddingRight: "$tokens.spacing.xl"
     fills:
       - type: SOLID
         color: "$tokens.colors.surface"
+    strokes:
+      - type: SOLID
+        color: "$tokens.colors.border"
+        opacity: 0.6
+    strokeWeight: 1
     children:
       - type: text
         content: "Contact"
@@ -537,6 +752,7 @@ contact_block:
         fontFamily: "$tokens.typography.body.family"
         fontWeight: 400
         color: "$tokens.colors.on_surface_muted"
+        lineHeight: 1.7
         layoutSizingHorizontal: FILL
   variants:
     default: {}
@@ -575,7 +791,7 @@ contact_block:
         - fontSize: 16
 
 content_section:
-  description: "Content section with heading, body text, and optional subheading"
+  description: "Content section with uppercase eyebrow, heading, body text, and optional left accent variant"
   props:
     heading: { type: string, required: true }
     body: { type: string, required: true }
@@ -587,23 +803,26 @@ content_section:
     primaryAxisSizingMode: HUG
     primaryAxisAlignItems: MIN
     counterAxisAlignItems: MIN
-    itemSpacing: "$tokens.spacing.lg"
-    paddingTop: "$tokens.spacing.xl"
-    paddingBottom: "$tokens.spacing.xl"
-    paddingLeft: "$tokens.spacing.xl"
-    paddingRight: "$tokens.spacing.xl"
+    itemSpacing: "$tokens.spacing.xl"
+    paddingTop: "$tokens.spacing.2xl"
+    paddingBottom: "$tokens.spacing.2xl"
+    paddingLeft: "$tokens.spacing.2xl"
+    paddingRight: "$tokens.spacing.2xl"
     fills:
       - type: SOLID
         color: "$tokens.colors.background"
     children:
+      # Eyebrow — always uppercase with generous letter spacing
       - type: text
         content: "{{subheading}}"
         fontSize: "$tokens.typography.scale.caption"
         fontFamily: "$tokens.typography.body.family"
         fontWeight: 600
         color: "$tokens.colors.primary"
-        letterSpacing: 1.5
+        letterSpacing: 2.5
+        textCase: UPPER
         layoutSizingHorizontal: FILL
+      # Heading
       - type: text
         content: "{{heading}}"
         fontSize: "$tokens.typography.scale.h1"
@@ -611,13 +830,14 @@ content_section:
         fontWeight: 700
         color: "$tokens.colors.on_surface"
         layoutSizingHorizontal: FILL
+      # Body — comfortable reading line height
       - type: text
         content: "{{body}}"
         fontSize: "$tokens.typography.scale.body"
         fontFamily: "$tokens.typography.body.family"
         fontWeight: 400
         color: "$tokens.colors.on_surface_muted"
-        lineHeight: 1.6
+        lineHeight: 1.7
         layoutSizingHorizontal: FILL
   variants:
     default: {}
@@ -628,6 +848,50 @@ content_section:
         - textAlign: CENTER
         - textAlign: CENTER
         - textAlign: CENTER
+    left_accent:
+      # Horizontal layout with a 4px primary accent bar to the left
+      layoutMode: HORIZONTAL
+      itemSpacing: "$tokens.spacing.lg"
+      children:
+        # The accent bar sits before the content
+        - type: rectangle
+          name: "Accent Bar"
+          width: 4
+          height: 120
+          fills:
+            - type: SOLID
+              color: "$tokens.colors.primary"
+        # Text group wraps the original children
+        - type: frame
+          name: "Text Group"
+          layoutMode: VERTICAL
+          itemSpacing: "$tokens.spacing.lg"
+          layoutSizingHorizontal: FILL
+          children:
+            - type: text
+              content: "{{subheading}}"
+              fontSize: "$tokens.typography.scale.caption"
+              fontFamily: "$tokens.typography.body.family"
+              fontWeight: 600
+              color: "$tokens.colors.primary"
+              letterSpacing: 2.5
+              textCase: UPPER
+              layoutSizingHorizontal: FILL
+            - type: text
+              content: "{{heading}}"
+              fontSize: "$tokens.typography.scale.h1"
+              fontFamily: "$tokens.typography.heading.family"
+              fontWeight: 700
+              color: "$tokens.colors.on_surface"
+              layoutSizingHorizontal: FILL
+            - type: text
+              content: "{{body}}"
+              fontSize: "$tokens.typography.scale.body"
+              fontFamily: "$tokens.typography.body.family"
+              fontWeight: 400
+              color: "$tokens.colors.on_surface_muted"
+              lineHeight: 1.7
+              layoutSizingHorizontal: FILL
   format_adaptations:
     social:
       children:
@@ -661,11 +925,11 @@ image_text_row:
     layoutMode: HORIZONTAL
     primaryAxisAlignItems: CENTER
     counterAxisAlignItems: CENTER
-    itemSpacing: "$tokens.spacing.xl"
-    paddingTop: "$tokens.spacing.xl"
-    paddingBottom: "$tokens.spacing.xl"
-    paddingLeft: "$tokens.spacing.xl"
-    paddingRight: "$tokens.spacing.xl"
+    itemSpacing: "$tokens.spacing.2xl"
+    paddingTop: "$tokens.spacing.2xl"
+    paddingBottom: "$tokens.spacing.2xl"
+    paddingLeft: "$tokens.spacing.2xl"
+    paddingRight: "$tokens.spacing.2xl"
     fills:
       - type: SOLID
         color: "$tokens.colors.background"
@@ -682,7 +946,7 @@ image_text_row:
         name: "Text Content"
         layoutMode: VERTICAL
         primaryAxisSizingMode: HUG
-        itemSpacing: "$tokens.spacing.lg"
+        itemSpacing: "$tokens.spacing.xl"
         layoutSizingHorizontal: FILL
         children:
           - type: text
@@ -698,7 +962,7 @@ image_text_row:
             fontFamily: "$tokens.typography.body.family"
             fontWeight: 400
             color: "$tokens.colors.on_surface_muted"
-            lineHeight: 1.6
+            lineHeight: 1.7
             layoutSizingHorizontal: FILL
   variants:
     default: {}
@@ -707,7 +971,7 @@ image_text_row:
         - name: "Text Content"
           type: frame
           layoutMode: VERTICAL
-          itemSpacing: "$tokens.spacing.md"
+          itemSpacing: "$tokens.spacing.lg"
           children:
             - type: text
               content: "{{heading}}"
@@ -721,6 +985,7 @@ image_text_row:
               fontFamily: "$tokens.typography.body.family"
               fontWeight: 400
               color: "$tokens.colors.on_surface_muted"
+              lineHeight: 1.7
         - name: "Image Placeholder"
           type: rectangle
           width: 400
@@ -762,11 +1027,11 @@ gallery:
     layoutMode: HORIZONTAL
     primaryAxisAlignItems: MIN
     counterAxisAlignItems: MIN
-    itemSpacing: "$tokens.spacing.md"
-    paddingTop: "$tokens.spacing.lg"
-    paddingBottom: "$tokens.spacing.lg"
-    paddingLeft: "$tokens.spacing.lg"
-    paddingRight: "$tokens.spacing.lg"
+    itemSpacing: "$tokens.spacing.lg"
+    paddingTop: "$tokens.spacing.xl"
+    paddingBottom: "$tokens.spacing.xl"
+    paddingLeft: "$tokens.spacing.xl"
+    paddingRight: "$tokens.spacing.xl"
     fills:
       - type: SOLID
         color: "$tokens.colors.background"
@@ -774,7 +1039,7 @@ gallery:
       - type: frame
         name: "Gallery Item 1"
         layoutMode: VERTICAL
-        itemSpacing: "$tokens.spacing.xs"
+        itemSpacing: "$tokens.spacing.sm"
         children:
           - type: rectangle
             name: "Image 1"
@@ -794,7 +1059,7 @@ gallery:
       - type: frame
         name: "Gallery Item 2"
         layoutMode: VERTICAL
-        itemSpacing: "$tokens.spacing.xs"
+        itemSpacing: "$tokens.spacing.sm"
         children:
           - type: rectangle
             name: "Image 2"
@@ -814,7 +1079,7 @@ gallery:
       - type: frame
         name: "Gallery Item 3"
         layoutMode: VERTICAL
-        itemSpacing: "$tokens.spacing.xs"
+        itemSpacing: "$tokens.spacing.sm"
         children:
           - type: rectangle
             name: "Image 3"
@@ -834,7 +1099,7 @@ gallery:
       - type: frame
         name: "Gallery Item 4"
         layoutMode: VERTICAL
-        itemSpacing: "$tokens.spacing.xs"
+        itemSpacing: "$tokens.spacing.sm"
         children:
           - type: rectangle
             name: "Image 4"
@@ -922,7 +1187,7 @@ gallery:
               height: 280
 
 data_row:
-  description: "Horizontal stat row with large number and label — for dashboards and data slides"
+  description: "Stat display with large number and label — for dashboards and data slides"
   # SINGLE-STAT PATTERN: accepts one value+label pair per instantiation.
   # For multi-stat rows (e.g. 3 stats), call create_from_pattern three times
   # with x offset, or use clone_with_overrides after creating the first instance.
@@ -936,22 +1201,29 @@ data_row:
     layoutMode: HORIZONTAL
     primaryAxisAlignItems: CENTER
     counterAxisAlignItems: CENTER
-    itemSpacing: "$tokens.spacing.md"
-    paddingTop: "$tokens.spacing.lg"
-    paddingBottom: "$tokens.spacing.lg"
-    paddingLeft: "$tokens.spacing.lg"
-    paddingRight: "$tokens.spacing.lg"
+    itemSpacing: "$tokens.spacing.lg"
+    paddingTop: "$tokens.spacing.xl"
+    paddingBottom: "$tokens.spacing.xl"
+    paddingLeft: "$tokens.spacing.xl"
+    paddingRight: "$tokens.spacing.xl"
     cornerRadius: "$tokens.radius.md"
     fills:
       - type: SOLID
         color: "$tokens.colors.surface"
+    strokes:
+      - type: SOLID
+        color: "$tokens.colors.border"
+        opacity: 0.6
+    strokeWeight: 1
     children:
+      # Value — dominant, primary color to pop
       - type: text
         content: "{{value}}"
         fontSize: "$tokens.typography.scale.display"
         fontFamily: "$tokens.typography.heading.family"
         fontWeight: 800
         color: "$tokens.colors.primary"
+      # Label — muted, secondary
       - type: text
         content: "{{label}}"
         fontSize: "$tokens.typography.scale.body"
@@ -969,14 +1241,21 @@ data_row:
         - textAlign: CENTER
   format_adaptations:
     social:
+      # Vertical is default for social — big number stacked above label
+      layoutMode: VERTICAL
+      primaryAxisAlignItems: CENTER
+      counterAxisAlignItems: CENTER
       children:
         - fontSize: 64
+          textAlign: CENTER
         - fontSize: 28
+          textAlign: CENTER
     print:
       children:
         - fontSize: 48
         - fontSize: 18
     presentation:
+      itemSpacing: "$tokens.spacing.xl"
       children:
         - fontSize: 56
         - fontSize: 24
@@ -987,9 +1266,10 @@ data_row:
         - fontSize: 16
 
 cta_banner:
-  description: "Full-width call-to-action banner with headline and button"
+  description: "Full-width call-to-action banner with headline, optional subtext, and pill button"
   props:
     headline: { type: string, required: true }
+    subtext: { type: string, required: false, default: "" }
     cta_label: { type: string, required: false, default: "Get Started" }
   recipe:
     type: frame
@@ -998,32 +1278,49 @@ cta_banner:
     primaryAxisSizingMode: HUG
     primaryAxisAlignItems: SPACE_BETWEEN
     counterAxisAlignItems: CENTER
-    paddingTop: "$tokens.spacing.xl"
-    paddingBottom: "$tokens.spacing.xl"
-    paddingLeft: "$tokens.spacing.xl"
-    paddingRight: "$tokens.spacing.xl"
+    paddingTop: "$tokens.spacing.2xl"
+    paddingBottom: "$tokens.spacing.2xl"
+    paddingLeft: "$tokens.spacing.2xl"
+    paddingRight: "$tokens.spacing.2xl"
     cornerRadius: "$tokens.radius.lg"
     fills:
       - type: SOLID
         color: "$tokens.colors.primary"
     children:
-      - type: text
-        content: "{{headline}}"
-        fontSize: "$tokens.typography.scale.h1"
-        fontFamily: "$tokens.typography.heading.family"
-        fontWeight: 700
-        color: "$tokens.colors.on_primary"
+      # Text group — headline + optional subtext
+      - type: frame
+        name: "CTA Text"
+        layoutMode: VERTICAL
+        primaryAxisSizingMode: HUG
+        itemSpacing: "$tokens.spacing.sm"
         layoutSizingHorizontal: FILL
+        children:
+          - type: text
+            content: "{{headline}}"
+            fontSize: "$tokens.typography.scale.h1"
+            fontFamily: "$tokens.typography.heading.family"
+            fontWeight: 700
+            color: "$tokens.colors.on_primary"
+            layoutSizingHorizontal: FILL
+          - type: text
+            content: "{{subtext}}"
+            fontSize: "$tokens.typography.scale.body"
+            fontFamily: "$tokens.typography.body.family"
+            fontWeight: 400
+            color: "$tokens.colors.on_primary"
+            opacity: 0.75
+            layoutSizingHorizontal: FILL
+      # CTA button — pill, white on primary
       - type: frame
         name: "CTA Button"
         layoutMode: HORIZONTAL
         primaryAxisAlignItems: CENTER
         counterAxisAlignItems: CENTER
-        paddingTop: "$tokens.spacing.sm"
-        paddingBottom: "$tokens.spacing.sm"
-        paddingLeft: "$tokens.spacing.lg"
-        paddingRight: "$tokens.spacing.lg"
-        cornerRadius: "$tokens.radius.md"
+        paddingTop: "$tokens.spacing.md"
+        paddingBottom: "$tokens.spacing.md"
+        paddingLeft: "$tokens.spacing.xl"
+        paddingRight: "$tokens.spacing.xl"
+        cornerRadius: 999
         fills:
           - type: SOLID
             color: "#FFFFFF"
@@ -1040,28 +1337,53 @@ cta_banner:
       layoutMode: VERTICAL
       primaryAxisAlignItems: CENTER
       counterAxisAlignItems: CENTER
-      itemSpacing: "$tokens.spacing.lg"
+      itemSpacing: "$tokens.spacing.xl"
       children:
-        - textAlign: CENTER
+        - counterAxisAlignItems: CENTER
+          children:
+            - textAlign: CENTER
+              width: 800
+            - textAlign: CENTER
+              width: 800
+    depth:
+      # Adds a subtle gradient overlay for visual depth
+      fills:
+        - type: GRADIENT_LINEAR
+          gradientHandlePositions:
+            - { x: 0, y: 0 }
+            - { x: 1, y: 1 }
+          gradientStops:
+            - position: 0
+              color: "$tokens.colors.primary"
+            - position: 0.5
+              color: "$tokens.colors.primary"
+            - position: 1
+              color: "$tokens.colors.primary_dark"
   format_adaptations:
     social:
       width: 1080
       paddingTop: 64
       paddingBottom: 64
       children:
-        - fontSize: 40
+        - children:
+            - fontSize: 40
+            - fontSize: 24
     print:
       width: 2480
       paddingTop: 48
       paddingBottom: 48
       children:
-        - fontSize: 32
+        - children:
+            - fontSize: 32
+            - fontSize: 18
     presentation:
       width: 1920
       paddingTop: 48
       paddingBottom: 48
       children:
-        - fontSize: 40
+        - children:
+            - fontSize: 40
+            - fontSize: 24
     web:
       width: 1440
       paddingTop: 40

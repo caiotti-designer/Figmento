@@ -37,6 +37,10 @@ interface PatternRecipe {
 
 let patternCache: Record<string, PatternRecipe> | null = null;
 
+export function clearPatternCache(): void {
+  patternCache = null;
+}
+
 function loadPatterns(): Record<string, PatternRecipe> {
   if (patternCache) return patternCache;
   const patternsDir = nodePath.join(getKnowledgeDir(), 'patterns');
@@ -109,6 +113,9 @@ export function registerPatternTools(server: McpServer, sendDesignCommand: SendD
       y: z.coerce.number().optional().describe('Y position'),
     },
     async (params) => {
+      // Always reload patterns from disk — ensures YAML edits are hot without server restart
+      clearPatternCache();
+
       // 1. Load design system tokens
       const safeName = params.system.replace(/[^a-z0-9-]/gi, '').toLowerCase();
       const tokensPath = nodePath.join(getDesignSystemsDir(), safeName, 'tokens.yaml');
@@ -203,22 +210,27 @@ export function registerPatternTools(server: McpServer, sendDesignCommand: SendD
         }
       }
 
-      // Override root frame dimensions in recipe — format always wins
+      // Override root frame dimensions in recipe — format always wins.
+      // For web formats: only enforce width (patterns hug their content height).
+      // For all other formats (social, print, presentation): enforce both dimensions.
+      const isWebFormat = formatCategory === 'web';
       if (enforcedWidth !== undefined) recipe.width = enforcedWidth;
-      if (enforcedHeight !== undefined) recipe.height = enforcedHeight;
+      if (enforcedHeight !== undefined && !isWebFormat) recipe.height = enforcedHeight;
 
       // When enforcing canvas dimensions on auto-layout frames, lock sizing to FIXED
       // so Figma doesn't collapse the frame to hug its contents.
       // VERTICAL layout: primaryAxis = height, counterAxis = width
       // HORIZONTAL layout: primaryAxis = width, counterAxis = height
+      // Web exception: only lock the width axis — height stays HUG so sections
+      // collapse to their natural content height instead of filling 1024px of dead space.
       if ((enforcedWidth !== undefined || enforcedHeight !== undefined) && recipe.layoutMode) {
         const isVertical = recipe.layoutMode === 'VERTICAL';
         if (isVertical) {
-          if (enforcedHeight !== undefined) recipe.primaryAxisSizingMode = 'FIXED';
+          if (enforcedHeight !== undefined && !isWebFormat) recipe.primaryAxisSizingMode = 'FIXED';
           if (enforcedWidth !== undefined) recipe.counterAxisSizingMode = 'FIXED';
         } else {
           if (enforcedWidth !== undefined) recipe.primaryAxisSizingMode = 'FIXED';
-          if (enforcedHeight !== undefined) recipe.counterAxisSizingMode = 'FIXED';
+          if (enforcedHeight !== undefined && !isWebFormat) recipe.counterAxisSizingMode = 'FIXED';
         }
       }
 

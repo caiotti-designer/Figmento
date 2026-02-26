@@ -80,6 +80,7 @@ export interface UIElement {
   generatedImage?: string;
   scaleMode?: 'FILL' | 'FIT' | 'CROP' | 'TILE';
   svgPaths?: string[];
+  strokeWeight?: number;
 
   opacity?: number;
   clipsContent?: boolean;

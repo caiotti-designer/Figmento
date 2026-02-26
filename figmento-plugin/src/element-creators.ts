@@ -230,11 +230,14 @@ async function createIconPlaceholder(element: UIElement): Promise<FrameNode> {
 
   frame.fills = [];
   const size = Math.min(element.width, element.height);
-  const strokeWidth = Math.max(1.5, size * 0.08);
+  const scale = size / 24;
+  // Use explicit strokeWeight if provided (scaled), otherwise auto-calculate
+  const strokeWidth = element.strokeWeight !== undefined
+    ? element.strokeWeight * scale
+    : Math.max(1.5, size * 0.08);
 
   // If we have pre-fetched SVG paths from Lucide, use them
   if (svgPaths && svgPaths.length > 0) {
-    const scale = size / 24;
     for (let i = 0; i < svgPaths.length; i++) {
       const vector = createStrokedVector(scalePathData(svgPaths[i], scale), iconColor, strokeWidth);
       frame.appendChild(vector);

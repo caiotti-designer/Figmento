@@ -1,0 +1,86 @@
+name: noir-cafe
+created: '2026-02-26T00:31:58.553Z'
+preset_used: luxury
+mood:
+  - dark
+  - luxury
+  - minimal
+  - coffee
+  - elegant
+voice: Refined, understated elegance. Speaks softly but with authority. Every word is intentional.
+colors:
+  primary: '#1A1A1A'
+  primary_light: '#676767'
+  primary_dark: '#000000'
+  secondary: '#F5E6D3'
+  accent: '#C9A96E'
+  surface: '#0D0D0D'
+  background: '#000000'
+  border: '#333333'
+  on_primary: '#FFFFFF'
+  on_surface: '#191515'
+  on_surface_muted: '#786D6D'
+  success: '#16A34A'
+  warning: '#EAB308'
+  error: '#DC2626'
+  info: '#2563EB'
+typography:
+  heading:
+    family: Cormorant Garamond
+    weights:
+      - 600
+      - 700
+      - 800
+  body:
+    family: Proza Libre
+    weights:
+      - 400
+      - 500
+      - 600
+  scale:
+    display: 61
+    h1: 49
+    h2: 39
+    h3: 31
+    heading: 39
+    body_lg: 20
+    body: 16
+    body_sm: 13
+    caption: 10
+spacing:
+  unit: 8
+  xs: 4
+  sm: 8
+  md: 16
+  lg: 24
+  xl: 32
+  2xl: 48
+  3xl: 64
+radius:
+  none: 0
+  sm: 0
+  md: 4
+  lg: 8
+  full: 9999
+shadows:
+  sm:
+    x: 0
+    'y': 1
+    blur: 2
+    spread: 0
+    color: '#1A1A1A'
+    opacity: 0.05
+  md:
+    x: 0
+    'y': 4
+    blur: 8
+    spread: -2
+    color: '#1A1A1A'
+    opacity: 0.08
+  lg:
+    x: 0
+    'y': 8
+    blur: 24
+    spread: -4
+    color: '#1A1A1A'
+    opacity: 0.12

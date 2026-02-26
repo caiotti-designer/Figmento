@@ -1,8 +1,11 @@
 name: stripe
-created: '2026-02-25T20:23:32.563Z'
+created: '2026-02-26T02:41:01.630Z'
 preset_used: null
-mood: []
-voice: null
+mood:
+  - clean
+  - minimalist
+  - modern
+voice: The brand aesthetic is clean, modern, and minimalist, focusing on simplicity and functionality.
 colors:
   primary: '#4285f4'
   primary_light: '#D3E2FC'
@@ -53,29 +56,36 @@ spacing:
   3xl: 64
 radius:
   none: 0
-  sm: 4
-  md: 8
-  lg: 12
+  sm: 500
+  md: 999
+  lg: 1499
+  xl: 1998
   full: 9999
 shadows:
   sm:
     x: 0
-    'y': 1
-    blur: 2
+    'y': 0
+    blur: 0
     spread: 0
     color: '#4285f4'
-    opacity: 0.05
+    opacity: 0
   md:
     x: 0
-    'y': 4
-    blur: 8
-    spread: -2
+    'y': 0
+    blur: 0
+    spread: 0
     color: '#4285f4'
-    opacity: 0.08
+    opacity: 0
   lg:
     x: 0
-    'y': 8
-    blur: 24
-    spread: -4
+    'y': 0
+    blur: 0
+    spread: 0
     color: '#4285f4'
-    opacity: 0.12
+    opacity: 0
+gradients:
+  enabled: true
+  direction: radial
+  colors:
+    - '#FFFFFF'
+    - '#D3D3D3'
