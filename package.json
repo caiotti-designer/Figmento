@@ -16,6 +16,8 @@
   },
   "homepage": "https://github.com/caiotti-designer/Figmento#readme",
   "dependencies": {
+    "mcp-image": "^0.7.0",
+    "openai": "^6.25.0",
     "puppeteer": "^24.37.5"
   }
 }

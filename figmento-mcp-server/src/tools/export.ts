@@ -69,6 +69,8 @@ export function registerEvaluateDesignTool(server: McpServer, sendDesignCommand:
       format: z.string().optional().describe('Export format: PNG or JPG (default: PNG)'),
       scale: z.number().optional().describe('Export scale (default: 2 for high-res evaluation)'),
       depth: z.number().optional().describe('How many levels deep to traverse the node tree (default: 3). Use higher values for complex designs.'),
+      outputDir: z.string().optional().describe('Custom output directory (default: temp/exports in project root). Must be within project directory.'),
+      fileName: z.string().optional().describe('Custom file name without extension (e.g. "eval-variant-A"). Allows saving multiple evaluations without overwriting. Only alphanumeric, hyphens, and underscores allowed. Defaults to "eval-latest".'),
     },
     async (params) => {
       // 1. Export the node to a file on disk
@@ -88,11 +90,42 @@ export function registerEvaluateDesignTool(server: McpServer, sendDesignCommand:
       const base64Clean = base64String.replace(/^data:image\/[a-z]+;base64,/, '');
 
       const projectRoot = process.cwd();
-      const targetDir = nodePath.join(projectRoot, 'temp', 'exports');
+      const defaultDir = nodePath.join(projectRoot, 'temp', 'exports');
+
+      let targetDir: string;
+      if (params.outputDir) {
+        const resolvedDir = nodePath.resolve(params.outputDir as string);
+        const normalizedDir = nodePath.normalize(resolvedDir);
+        const allowedRoot = nodePath.resolve(projectRoot);
+        if (!normalizedDir.startsWith(allowedRoot + nodePath.sep) && normalizedDir !== allowedRoot) {
+          throw new Error(
+            `Access denied: outputDir must be within project root (${allowedRoot}). Got: ${normalizedDir}`
+          );
+        }
+        targetDir = normalizedDir;
+      } else {
+        targetDir = defaultDir;
+      }
+
       fs.mkdirSync(targetDir, { recursive: true });
 
       const ext = format.toLowerCase();
-      const filePath = nodePath.join(targetDir, `eval-latest.${ext}`);
+      let evalFilename: string;
+      if (params.fileName) {
+        const sanitized = (params.fileName as string).replace(/[^a-zA-Z0-9_-]/g, '');
+        if (!sanitized) {
+          throw new Error('fileName must contain at least one alphanumeric character, hyphen, or underscore.');
+        }
+        evalFilename = `${sanitized}.${ext}`;
+      } else if (params.outputDir) {
+        const timestamp = Date.now();
+        const safeNodeId = params.nodeId.replace(/[^a-zA-Z0-9_-]/g, '_');
+        evalFilename = `eval-${safeNodeId}-${timestamp}.${ext}`;
+      } else {
+        evalFilename = `eval-latest.${ext}`;
+      }
+
+      const filePath = nodePath.join(targetDir, evalFilename);
       const buffer = Buffer.from(base64Clean, 'base64');
       fs.writeFileSync(filePath, buffer);
 

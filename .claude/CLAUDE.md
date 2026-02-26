@@ -366,6 +366,26 @@ Follow this workflow for every design request:
 
 ### Common Design Patterns
 
+**Ad / Banner / Hero Section pattern (full-bleed image + text):**
+Use nested auto-layout frames, NOT flat absolute positioning. Structure:
+```
+Root Frame (NONE layout, exact dimensions)
+├── background (RECTANGLE, solid fill matching theme)
+├── hero-image (RECTANGLE, IMAGE fill, top ~64% of frame)
+├── overlay (RECTANGLE, 2-stop gradient — see Rule 4b)
+├── logo (FRAME, VERTICAL auto-layout, absolute top-left)
+├── badge (FRAME, VERTICAL auto-layout, circular cornerRadius, absolute top-right)
+└── content (FRAME, VERTICAL auto-layout, padding 96/64, itemSpacing 40)
+    ├── text-group (FRAME, VERTICAL, itemSpacing 32)
+    │   ├── headline (96px bold serif)
+    │   ├── subheadline (32px regular sans)
+    │   └── price (32px base / 48px sale bold)
+    └── cta-group (FRAME, VERTICAL, itemSpacing 32)
+        ├── cta-button (FRAME, HORIZONTAL auto-layout, padding 20/96)
+        └── note (24px, muted)
+```
+Key: the `content` frame uses auto-layout to handle all vertical spacing. Never manually position text nodes with absolute x/y inside the text area — let auto-layout handle it. This pattern scales to web heroes (auto-layout = flexbox).
+
 **Button pattern:**
 To create a button, use `create_frame` with auto-layout (`layoutMode: "HORIZONTAL"`), padding (12–16px vertical, 24–32px horizontal), `cornerRadius` (8–24), background fill, then `create_text` as a child with `layoutSizingHorizontal: "FILL"`. Do NOT create separate rect + text — always use an auto-layout frame as the container.
 
@@ -479,6 +499,7 @@ node scripts/render-html.js input.html output.png
 
 - Use CSS Grid and Flexbox for layouts
 - Use gradients, subtle shadows, and layered backgrounds for depth
+- For hero sections with full-bleed images: use `background: linear-gradient(to top, rgba(bg,1) 0%, rgba(bg,0) 40%), url(image)` — 2-stop gradient, 40% breakpoint, color matched to section background
 - Typography: Google Fonts, proper hierarchy with font-size, weight, letter-spacing
 - Colors: sophisticated palettes with primary, secondary, accent, neutrals
 - Whitespace: generous padding and margins (print needs breathing room)
@@ -551,6 +572,20 @@ Never use flat solid fills on hero sections or full-page frames. Always apply at
 - Dark-to-slightly-less-dark gradient (creates depth without distraction)
 - Subtle radial glow at center (primary color at 8-12% opacity over near-black)
 - Full-bleed gradient from primary_dark to primary
+
+### Rule 4b — Hero Overlay Gradient (Full-Bleed Image + Text)
+When placing text over a hero image, use a gradient overlay rectangle — NOT a flat semi-transparent overlay.
+
+**The correct gradient (Figma `set_fill`):**
+- Direction: `bottom-top`
+- Stop 1: position `0`, background color, opacity `0` (transparent at top of overlay)
+- Stop 2: position `0.4`, background color, opacity `1` (solid at 40% mark)
+
+**Critical rules:**
+1. **Only 2 stops.** Never 3+. Two stops = smooth professional fade. Three stops = harsh banding.
+2. **Gradient color = section background color.** Dark theme → dark gradient. Light theme → light gradient. Navy theme → navy gradient. NEVER hardcode a dark color on a light-themed section.
+3. **40% breakpoint.** The solid portion starts at 40% of overlay height, leaving 60% solid for text readability.
+4. **This pattern applies to web CSS too:** `background: linear-gradient(to top, rgba(bg,1) 0%, rgba(bg,0) 40%)` over `background-image`.
 
 ### Rule 5 — Spatial Generosity
 Increase all padding by 1.5× what feels "enough". Designs need room to breathe.

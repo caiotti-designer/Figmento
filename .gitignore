@@ -52,3 +52,5 @@ temp/
 # Generated output
 output/
 generated-images/
+**/output/*.png
+**/output/*.jpg

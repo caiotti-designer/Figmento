@@ -449,16 +449,29 @@ async function setupTextNode(node: TextNode, element: UIElement): Promise<void> 
         }
       }
     } else {
+      // Step down within same family before falling back to system fonts
       try {
-        await loadFont('Inter', 'Regular');
-        node.fontName = { family: 'Inter', style: 'Regular' };
-        loadedFamily = 'Inter';
-        loadedStyle = 'Regular';
-      } catch (_e2) {
-        await loadFont('Roboto', 'Regular');
-        node.fontName = { family: 'Roboto', style: 'Regular' };
-        loadedFamily = 'Roboto';
-        loadedStyle = 'Regular';
+        await loadFont(fontFamily, 'Bold');
+        node.fontName = { family: fontFamily, style: 'Bold' };
+        loadedStyle = 'Bold';
+      } catch (_eBold) {
+        try {
+          await loadFont(fontFamily, 'Regular');
+          node.fontName = { family: fontFamily, style: 'Regular' };
+          loadedStyle = 'Regular';
+        } catch (_eReg) {
+          try {
+            await loadFont('Inter', 'Regular');
+            node.fontName = { family: 'Inter', style: 'Regular' };
+            loadedFamily = 'Inter';
+            loadedStyle = 'Regular';
+          } catch (_e2) {
+            await loadFont('Roboto', 'Regular');
+            node.fontName = { family: 'Roboto', style: 'Regular' };
+            loadedFamily = 'Roboto';
+            loadedStyle = 'Regular';
+          }
+        }
       }
     }
   }
