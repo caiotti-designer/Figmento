@@ -32,6 +32,7 @@ import {
   setAspectRatio,
   updateProgress,
   setResetTemplateFillCallback,
+  setCanLeaveAdAnalyzerCallback,
   toggleCompare,
   submitFeedback,
 } from './screenshot';
@@ -59,6 +60,10 @@ import { initHeroUI, setupHeroListeners } from './hero-generator';
 import { AIProvider } from '../types';
 import { apiState, imageGenState } from './state';
 import { addToQueue, startBatchProcessing, clearQueue, notifyDesignCreated } from './batch';
+import { initChat, resolveChatCommand, loadMemoryEntries } from './chat';
+import { initBridge, handleBridgeCommandResult } from './bridge';
+import { initChatSettings, loadChatSettings } from './chat-settings';
+import { initAdAnalyzer, canLeaveAdAnalyzer } from './ad-analyzer';
 
 function setupEventListeners(): void {
   // Settings panel
@@ -194,6 +199,9 @@ function setupEventListeners(): void {
   if (dom.backToHomeBtn) {
     dom.backToHomeBtn.addEventListener('click', goBackToHome);
   }
+  if (dom.breadcrumbBack) {
+    dom.breadcrumbBack.addEventListener('click', goBackToHome);
+  }
   if (dom.breadcrumbHome) {
     dom.breadcrumbHome.addEventListener('click', goBackToHome);
   }
@@ -225,7 +233,7 @@ function setupEventListeners(): void {
   // Image model selection
   if (dom.imageModelSelect) {
     dom.imageModelSelect.addEventListener('change', () => {
-      imageGenState.imageGenModel = dom.imageModelSelect!.value as 'imagen-4' | 'gemini-image';
+      imageGenState.imageGenModel = dom.imageModelSelect!.value as 'gemini-3.1-flash-image-preview' | 'gpt-image-1.5';
       saveSettings();
     });
   }
@@ -233,7 +241,7 @@ function setupEventListeners(): void {
   // Model selection per provider
   if (dom.geminiModelSelect) {
     dom.geminiModelSelect.addEventListener('change', () => {
-      const model = dom.geminiModelSelect!.value as 'gemini-3-pro-preview' | 'gemini-3-flash-preview';
+      const model = dom.geminiModelSelect!.value as 'gemini-3.1-pro-preview' | 'gemini-3.1-flash-image-preview';
       apiState.geminiModel = model;
       imageGenState.geminiModel = model;
       saveSettings();
@@ -290,7 +298,24 @@ function setupEventListeners(): void {
     onSlideStyleResult: handleSlideStyleResult,
     onAddSlideComplete: handleAddSlideComplete,
     onAddSlideError: handleAddSlideError,
+    onCommandResult: (response: Record<string, unknown>) => {
+      const cmdId = response.id as string;
+      if (cmdId && cmdId.startsWith('chat-')) {
+        resolveChatCommand(cmdId, !!response.success, (response.data || {}) as Record<string, unknown>, response.error as string | undefined);
+      } else {
+        handleBridgeCommandResult(response);
+      }
+    },
+    onSettingsLoaded: (settings: Record<string, string>) => {
+      loadChatSettings(settings);
+    },
+    onMemoryLoaded: (entries) => {
+      loadMemoryEntries(entries);
+    },
   });
+
+  // Load chat memory from clientStorage
+  postMessage({ type: 'load-memory' });
 }
 
 function initializeApp(): void {
@@ -335,8 +360,18 @@ function initializeApp(): void {
 
   // 9. Wire cross-module callbacks
   setResetTemplateFillCallback(resetTemplateFill);
+  setCanLeaveAdAnalyzerCallback(canLeaveAdAnalyzer);
 
-  // 10. Restore saved mode or show mode selector
+  // 9b. Initialize ad analyzer
+  initAdAnalyzer();
+
+  // 10. Initialize unified tabs (Chat, Modes, Bridge, Settings)
+  initUnifiedTabs();
+  initChat();
+  initBridge();
+  initChatSettings();
+
+  // 11. Restore saved mode or show mode selector
   const savedMode = getSavedMode();
   if (savedMode) {
     selectPluginMode(savedMode);
@@ -345,10 +380,24 @@ function initializeApp(): void {
     if (modeSelectorEl) modeSelectorEl.classList.remove('hidden');
   }
 
-  // 10. Focus drop zone for paste
+  // 12. Focus drop zone for paste
   setTimeout(() => {
     dom.dropZone?.focus();
   }, 100);
+}
+
+/** Initialize the unified 4-tab layout (Chat, Modes, Bridge, Settings). */
+function initUnifiedTabs() {
+  document.querySelectorAll('.unified-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = (btn as HTMLElement).dataset.tab!;
+      document.querySelectorAll('.unified-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.unified-tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      const tabEl = document.getElementById(tab);
+      if (tabEl) tabEl.classList.add('active');
+    });
+  });
 }
 
 // Boot

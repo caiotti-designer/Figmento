@@ -13,6 +13,9 @@ export interface MessageCallbacks {
   onSlideStyleResult: (style: any, error?: string) => void;
   onAddSlideComplete: () => void;
   onAddSlideError: (error: string) => void;
+  onCommandResult?: (response: Record<string, unknown>) => void;
+  onSettingsLoaded?: (settings: Record<string, string>) => void;
+  onMemoryLoaded?: (entries: Array<{ entry: string; timestamp: string }>) => void;
 }
 
 const handleFigmaMessage = (event: MessageEvent, callbacks: MessageCallbacks): void => {
@@ -43,6 +46,12 @@ const handleFigmaMessage = (event: MessageEvent, callbacks: MessageCallbacks): v
     callbacks.onAddSlideComplete();
   } else if (msg.type === 'add-slide-error') {
     callbacks.onAddSlideError(msg.error);
+  } else if (msg.type === 'command-result' && callbacks.onCommandResult) {
+    callbacks.onCommandResult(msg.response);
+  } else if (msg.type === 'settings-loaded' && callbacks.onSettingsLoaded) {
+    callbacks.onSettingsLoaded(msg.settings || {});
+  } else if (msg.type === 'memory-loaded' && callbacks.onMemoryLoaded) {
+    callbacks.onMemoryLoaded(msg.entries || []);
   }
 };
 

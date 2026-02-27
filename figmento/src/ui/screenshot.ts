@@ -724,9 +724,14 @@ export const resetToStart = (): void => {
  * Set this from the template module to avoid circular dependencies.
  */
 export let onResetTemplateFill: (() => void) | null = null;
+export let onCanLeaveAdAnalyzer: (() => boolean) | null = null;
 
 export const setResetTemplateFillCallback = (callback: () => void): void => {
   onResetTemplateFill = callback;
+};
+
+export const setCanLeaveAdAnalyzerCallback = (callback: () => boolean): void => {
+  onCanLeaveAdAnalyzer = callback;
 };
 
 export const goBackToHome = (): void => {
@@ -744,6 +749,9 @@ export const goBackToHome = (): void => {
     activeFlow = document.getElementById('presentationFlow') as HTMLDivElement;
   } else if (modeState.currentMode === 'hero-generator') {
     activeFlow = document.getElementById('heroGeneratorFlow') as HTMLDivElement;
+  } else if (modeState.currentMode === 'ad-analyzer') {
+    if (onCanLeaveAdAnalyzer && !onCanLeaveAdAnalyzer()) return;
+    activeFlow = document.getElementById('adAnalyzerFlow') as HTMLDivElement;
   } else {
     activeFlow = document.getElementById('templateFillFlow') as HTMLDivElement;
   }

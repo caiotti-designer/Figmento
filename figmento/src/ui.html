@@ -115,13 +115,7 @@
        ═══════════════════════════════════════════════════════════════ */
 
     .app-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: var(--space-md) var(--space-lg);
-      background: var(--color-bg-base);
-      border-bottom: 1px solid var(--color-border);
-      flex-shrink: 0;
+      display: none;
     }
 
     .logo {
@@ -280,13 +274,45 @@
     .breadcrumb {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px var(--space-lg);
+      gap: 8px;
+      padding: 10px var(--space-lg);
       background: var(--color-bg-base);
       border-bottom: 1px solid var(--color-border);
       font-size: var(--text-sm);
       flex-shrink: 0;
       animation: breadcrumbIn 0.2s ease;
+    }
+
+    .breadcrumb-back {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      background: transparent;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      padding: 0;
+      flex-shrink: 0;
+    }
+
+    .breadcrumb-back:hover {
+      background: var(--color-bg-elevated);
+      border-color: var(--color-primary);
+    }
+
+    .breadcrumb-back svg {
+      width: 14px;
+      height: 14px;
+      stroke: var(--color-text-secondary);
+      fill: none;
+      stroke-width: 2;
+    }
+
+    .breadcrumb-back:hover svg {
+      stroke: var(--color-primary);
     }
 
     .breadcrumb-home {
@@ -4176,6 +4202,347 @@
     }
 
     /* ═══════════════════════════════════════════════════════════════
+       AD ANALYZER
+       ═══════════════════════════════════════════════════════════════ */
+
+    #adAnalyzerFlow {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .aa-section-label {
+      font-size: var(--text-base);
+      font-weight: var(--font-semibold);
+      color: var(--color-text-primary);
+      margin-bottom: var(--space-sm);
+    }
+
+    .aa-drop-zone {
+      border: 2px dashed var(--color-border-strong);
+      border-radius: var(--radius-md);
+      padding: var(--space-xl);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all var(--transition-base);
+      background: var(--color-bg-elevated);
+      min-height: 120px;
+      position: relative;
+      margin-bottom: var(--space-lg);
+    }
+
+    .aa-drop-zone:hover,
+    .aa-drop-zone.drag-over {
+      border-color: var(--color-primary);
+      background: var(--color-bg-surface);
+    }
+
+    .aa-drop-hint {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-sm);
+      color: var(--color-text-tertiary);
+      font-size: var(--text-base);
+    }
+
+    .aa-drop-hint svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    .aa-drop-hint-sub {
+      font-size: var(--text-xs);
+      color: var(--color-text-tertiary);
+      opacity: 0.7;
+    }
+
+    .aa-preview {
+      position: relative;
+      width: 100%;
+    }
+
+    .aa-preview img {
+      width: 100%;
+      max-height: 200px;
+      object-fit: contain;
+      border-radius: var(--radius-sm);
+    }
+
+    .aa-preview-dims {
+      font-size: var(--text-xs);
+      color: var(--color-text-tertiary);
+      text-align: center;
+      margin-top: var(--space-xs);
+    }
+
+    .aa-change-btn {
+      position: absolute;
+      top: var(--space-sm);
+      right: var(--space-sm);
+      background: var(--color-bg-deep);
+      color: var(--color-text-primary);
+      border: 1px solid var(--color-border);
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      font-size: var(--text-xs);
+      cursor: pointer;
+    }
+
+    .aa-brief-form {
+      margin-bottom: var(--space-lg);
+    }
+
+    .aa-field {
+      margin-bottom: var(--space-md);
+    }
+
+    .aa-field label {
+      display: block;
+      font-size: var(--text-sm);
+      color: var(--color-text-secondary);
+      margin-bottom: var(--space-xs);
+    }
+
+    .aa-required {
+      color: var(--color-error);
+    }
+
+    .aa-optional {
+      color: var(--color-text-tertiary);
+      font-size: var(--text-xs);
+    }
+
+    .aa-field input,
+    .aa-field select,
+    .aa-field textarea {
+      width: 100%;
+      padding: 6px 10px;
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      color: var(--color-text-primary);
+      font-family: var(--font-family);
+      font-size: var(--text-base);
+      outline: none;
+      transition: border-color var(--transition-fast);
+      box-sizing: border-box;
+    }
+
+    .aa-field input:focus,
+    .aa-field select:focus,
+    .aa-field textarea:focus {
+      border-color: var(--color-primary);
+    }
+
+    .aa-bridge-status {
+      margin-bottom: var(--space-lg);
+      padding: var(--space-md);
+      border-radius: var(--radius-sm);
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--color-border);
+    }
+
+    .aa-bridge-connected,
+    .aa-bridge-disconnected {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      font-size: var(--text-sm);
+      color: var(--color-text-secondary);
+    }
+
+    .aa-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-warning);
+      flex-shrink: 0;
+    }
+
+    .aa-status-dot.connected {
+      background: var(--color-success);
+    }
+
+    .aa-status-dot.running {
+      background: var(--color-primary);
+      animation: pulse 1.5s ease infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .aa-channel-id {
+      font-family: monospace;
+      font-size: var(--text-xs);
+      background: var(--color-bg-surface);
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      color: var(--color-primary);
+      margin-left: auto;
+    }
+
+    .aa-link-btn {
+      background: none;
+      border: none;
+      color: var(--color-primary);
+      cursor: pointer;
+      font-size: var(--text-sm);
+      font-family: var(--font-family);
+      text-decoration: underline;
+      margin-left: auto;
+      padding: 0;
+    }
+
+    .aa-notice {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-sm);
+      padding: var(--space-md);
+      background: var(--color-warning-dim);
+      border: 1px solid rgba(255, 179, 0, 0.3);
+      border-radius: var(--radius-sm);
+      font-size: var(--text-xs);
+      color: var(--color-warning);
+      line-height: 1.5;
+      margin-bottom: var(--space-md);
+    }
+
+    .aa-launch-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-sm);
+    }
+
+    .aa-status-panel {
+      margin-top: var(--space-lg);
+    }
+
+    .aa-status-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      font-size: var(--text-sm);
+      color: var(--color-text-secondary);
+      margin-bottom: var(--space-md);
+    }
+
+    .aa-activity-log {
+      background: var(--color-bg-deep);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: var(--space-sm);
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: var(--text-xs);
+      color: var(--color-text-tertiary);
+    }
+
+    .aa-activity-log .aa-log-entry {
+      padding: 1px 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .aa-activity-log .aa-log-entry.cmd {
+      color: var(--color-primary);
+    }
+
+    .aa-activity-log .aa-log-entry.ok {
+      color: var(--color-success);
+    }
+
+    .aa-activity-log .aa-log-entry.err {
+      color: var(--color-error);
+    }
+
+    .aa-inactivity-hint {
+      margin-top: var(--space-md);
+      padding: var(--space-md);
+      background: var(--color-warning-dim);
+      border-radius: var(--radius-sm);
+      font-size: var(--text-xs);
+      color: var(--color-warning);
+    }
+
+    .aa-report-panel {
+      margin-top: var(--space-lg);
+    }
+
+    .aa-report-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      font-size: var(--text-lg);
+      font-weight: var(--font-semibold);
+      color: var(--color-success);
+      margin-bottom: var(--space-lg);
+    }
+
+    .aa-report-content {
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      font-size: var(--text-sm);
+      color: var(--color-text-secondary);
+      line-height: 1.6;
+      max-height: 400px;
+      overflow-y: auto;
+      margin-bottom: var(--space-lg);
+    }
+
+    .aa-report-content h1,
+    .aa-report-content h2,
+    .aa-report-content h3 {
+      color: var(--color-text-primary);
+      margin: var(--space-md) 0 var(--space-sm) 0;
+    }
+
+    .aa-report-content h1 { font-size: var(--text-xl); }
+    .aa-report-content h2 { font-size: var(--text-lg); }
+    .aa-report-content h3 { font-size: var(--text-md); }
+
+    .aa-report-content strong {
+      color: var(--color-text-primary);
+    }
+
+    .aa-report-content code {
+      background: var(--color-bg-surface);
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: var(--text-xs);
+    }
+
+    .aa-report-content ul,
+    .aa-report-content ol {
+      padding-left: var(--space-lg);
+      margin: var(--space-sm) 0;
+    }
+
+    .aa-report-actions {
+      display: flex;
+      gap: var(--space-sm);
+    }
+
+    .aa-report-actions .btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-sm);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
        RESPONSIVE
        ═══════════════════════════════════════════════════════════════ */
 
@@ -4212,10 +4579,436 @@
         scroll-behavior: auto !important;
       }
     }
+
+    /* ═══════════════════════════════════════════════════════════════
+       UNIFIED TAB BAR (Chat | Modes | Bridge | Settings)
+       ═══════════════════════════════════════════════════════════════ */
+
+    .unified-tab-bar {
+      display: flex;
+      background: var(--color-bg-base);
+      border-bottom: 1px solid var(--color-border);
+      flex-shrink: 0;
+    }
+
+    .unified-tab-btn {
+      flex: 1;
+      padding: 10px 8px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--color-text-tertiary);
+      font-family: var(--font-family);
+      font-size: var(--text-xs);
+      font-weight: var(--font-semibold);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+    }
+
+    .unified-tab-btn:hover { color: var(--color-text-secondary); }
+    .unified-tab-btn.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+
+    .unified-tab-content { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+    .unified-tab-content.active { display: flex; }
+
+    /* ── Chat Tab ── */
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-md);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .chat-welcome {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      gap: var(--space-sm);
+      opacity: 0.6;
+    }
+
+    .chat-welcome-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light, #8BFF00));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--color-bg-deep);
+    }
+
+    .chat-welcome-title { font-size: var(--text-lg); font-weight: var(--font-bold); color: var(--color-text-primary); }
+    .chat-welcome-subtitle { font-size: var(--text-sm); color: var(--color-text-tertiary); text-align: center; max-width: 260px; }
+
+    .chat-bubble {
+      max-width: 90%;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      font-size: var(--text-md);
+      line-height: 1.5;
+      word-wrap: break-word;
+    }
+
+    .chat-bubble.user {
+      align-self: flex-end;
+      background: var(--color-primary);
+      color: var(--color-bg-deep);
+      border-bottom-right-radius: 4px;
+    }
+
+    .chat-bubble.assistant {
+      align-self: flex-start;
+      background: var(--color-bg-elevated);
+      color: var(--color-text-primary);
+      border-bottom-left-radius: 4px;
+    }
+
+    .chat-bubble code {
+      background: rgba(0,0,0,0.3);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: var(--text-sm);
+    }
+
+    .chat-error { color: var(--color-error); }
+
+    .tool-action {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      margin: 2px 0;
+      background: var(--color-bg-base);
+      border-left: 3px solid var(--color-primary);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      font-size: var(--text-xs);
+      font-family: 'SF Mono', 'Consolas', monospace;
+      color: var(--color-text-secondary);
+    }
+
+    .tool-action.error { border-left-color: var(--color-error); }
+    .tool-icon { font-weight: 700; color: var(--color-primary); font-size: 10px; }
+    .tool-action.error .tool-icon { color: var(--color-error); }
+    .tool-name { color: #60a5fa; font-weight: 600; }
+    .tool-summary { color: var(--color-text-tertiary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .chat-loading {
+      display: none;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+      color: var(--color-text-tertiary);
+      font-size: var(--text-sm);
+    }
+
+    .chat-loading .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--color-bg-surface);
+      border-top-color: var(--color-primary);
+      border-radius: 50%;
+      animation: chat-spin 0.8s linear infinite;
+    }
+
+    @keyframes chat-spin { to { transform: rotate(360deg); } }
+
+    .chat-input-area {
+      display: flex;
+      gap: var(--space-sm);
+      padding: var(--space-md);
+      border-top: 1px solid var(--color-border);
+      background: var(--color-bg-deep);
+      flex-shrink: 0;
+    }
+
+    .chat-input-area textarea {
+      flex: 1;
+      background: var(--color-bg-base);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      color: var(--color-text-primary);
+      font-size: var(--text-md);
+      font-family: var(--font-family);
+      resize: none;
+      outline: none;
+      min-height: 40px;
+      max-height: 100px;
+    }
+
+    .chat-input-area textarea:focus { border-color: var(--color-primary); }
+    .chat-input-area textarea::placeholder { color: var(--color-text-tertiary); }
+
+    .chat-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .chat-send-btn {
+      background: var(--color-primary);
+      color: var(--color-bg-deep);
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: var(--space-sm) var(--space-lg);
+      font-size: var(--text-sm);
+      font-weight: var(--font-semibold);
+      font-family: var(--font-family);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      white-space: nowrap;
+    }
+
+    .chat-send-btn:hover:not(:disabled) { opacity: 0.9; }
+    .chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .chat-new-btn {
+      background: var(--color-bg-elevated);
+      color: var(--color-text-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all var(--transition-fast);
+    }
+
+    .chat-new-btn:hover { background: var(--color-bg-surface); color: var(--color-text-primary); }
+
+    /* ── Bridge Tab ── */
+
+    .bridge-content { padding: var(--space-lg); overflow-y: auto; }
+
+    .bridge-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: var(--space-lg);
+    }
+
+    .bridge-content .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--color-error);
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+
+    .bridge-content .status-dot.connected { background: var(--color-success); }
+
+    .bridge-section { margin-bottom: var(--space-lg); }
+
+    .bridge-section-label {
+      display: block;
+      font-size: var(--text-xs);
+      font-weight: var(--font-semibold);
+      color: var(--color-text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      margin-bottom: 6px;
+    }
+
+    .bridge-input-row { display: flex; gap: var(--space-sm); }
+
+    .bridge-content input[type="text"] {
+      flex: 1;
+      background: var(--color-bg-base);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: var(--space-sm) var(--space-md);
+      color: var(--color-text-primary);
+      font-size: var(--text-md);
+      font-family: var(--font-family);
+      outline: none;
+    }
+
+    .bridge-content input[type="text"]:focus { border-color: var(--color-primary); }
+
+    .bridge-btn {
+      background: var(--color-primary);
+      color: var(--color-bg-deep);
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: var(--space-sm) var(--space-lg);
+      font-size: var(--text-sm);
+      font-weight: var(--font-semibold);
+      font-family: var(--font-family);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      white-space: nowrap;
+    }
+
+    .bridge-btn:hover { opacity: 0.9; }
+    .bridge-btn.btn-danger { background: var(--color-error); color: #fff; }
+
+    .channel-display {
+      background: var(--color-bg-base);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: var(--text-xl);
+      font-weight: var(--font-semibold);
+      color: var(--color-primary);
+      text-align: center;
+      user-select: all;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .channel-display:hover { border-color: var(--color-primary); background: var(--color-bg-elevated); }
+    .channel-display.copied { border-color: var(--color-success); background: rgba(0, 230, 118, 0.08); }
+
+    .channel-hint { font-size: var(--text-2xs); font-weight: 400; color: var(--color-text-tertiary); margin-top: 4px; transition: color 0.2s; }
+
+    .log-area {
+      background: var(--color-bg-deep);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: 10px;
+      height: 180px;
+      overflow-y: auto;
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: var(--text-xs);
+      line-height: 1.6;
+    }
+
+    .log-entry { color: var(--color-text-tertiary); }
+    .log-entry.cmd { color: #60a5fa; }
+    .log-entry.ok { color: var(--color-success); }
+    .log-entry.err { color: var(--color-error); }
+    .log-entry.sys { color: #a78bfa; }
+
+    .bridge-stats {
+      display: flex;
+      gap: var(--space-lg);
+      margin-top: var(--space-md);
+      font-size: var(--text-xs);
+      color: var(--color-text-tertiary);
+    }
+
+    .bridge-stats span { font-weight: var(--font-semibold); color: var(--color-text-secondary); }
+
+    /* ── Chat Settings Tab ── */
+
+    .chat-settings-content { padding: var(--space-lg); overflow-y: auto; }
+
+    .chat-settings-group { margin-bottom: 20px; }
+
+    .chat-settings-group h3 {
+      font-size: var(--text-md);
+      font-weight: var(--font-semibold);
+      color: var(--color-text-primary);
+      margin-bottom: var(--space-md);
+    }
+
+    .chat-settings-field { margin-bottom: var(--space-md); }
+
+    .chat-settings-field label {
+      display: block;
+      font-size: var(--text-xs);
+      font-weight: var(--font-semibold);
+      color: var(--color-text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+      margin-bottom: 6px;
+    }
+
+    .chat-settings-field select,
+    .chat-settings-field input[type="password"] {
+      width: 100%;
+      background: var(--color-bg-base);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: var(--space-sm) var(--space-md);
+      color: var(--color-text-primary);
+      font-size: var(--text-md);
+      font-family: var(--font-family);
+      outline: none;
+    }
+
+    .chat-settings-field select:focus,
+    .chat-settings-field input[type="password"]:focus { border-color: var(--color-primary); }
+
+    .chat-settings-field .hint {
+      font-size: var(--text-2xs);
+      color: var(--color-text-tertiary);
+      margin-top: 4px;
+    }
+
+    .chat-settings-save-btn {
+      width: 100%;
+      background: var(--color-primary);
+      color: var(--color-bg-deep);
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: var(--space-sm) var(--space-lg);
+      font-size: var(--text-sm);
+      font-weight: var(--font-semibold);
+      font-family: var(--font-family);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .chat-settings-save-btn:hover { opacity: 0.9; }
+
+    .settings-status {
+      display: none;
+      padding: var(--space-sm) var(--space-md);
+      border-radius: var(--radius-sm);
+      font-size: var(--text-sm);
+      font-weight: var(--font-semibold);
+      margin-top: var(--space-md);
+    }
+
+    .settings-status.success { background: var(--color-success-dim); color: var(--color-success); }
+    .settings-status.error { background: var(--color-error-dim); color: var(--color-error); }
   </style>
 </head>
 
 <body>
+  <!-- Unified Tab Bar -->
+  <div class="unified-tab-bar">
+    <button class="unified-tab-btn active" data-tab="tab-chat">Chat</button>
+    <button class="unified-tab-btn" data-tab="tab-modes">Modes</button>
+    <button class="unified-tab-btn" data-tab="tab-bridge">Bridge</button>
+    <button class="unified-tab-btn" data-tab="tab-settings">Settings</button>
+  </div>
+
+  <!-- Chat Tab -->
+  <div id="tab-chat" class="unified-tab-content active">
+    <div id="chat-messages" class="chat-messages"></div>
+    <div id="chat-loading" class="chat-loading">
+      <div class="spinner"></div>
+      <span>Thinking...</span>
+    </div>
+    <div class="chat-input-area">
+      <textarea id="chat-input" placeholder="Describe what you want to create..." rows="1"></textarea>
+      <div class="chat-actions">
+        <button id="chat-send" class="chat-send-btn">Send</button>
+        <button id="chat-new" class="chat-new-btn" title="New Chat">+</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modes Tab (existing design tools UI) -->
+  <div id="tab-modes" class="unified-tab-content">
   <!-- Header -->
   <header class="app-header">
     <div class="header-left">
@@ -4237,6 +5030,9 @@
   </header>
   <!-- Breadcrumb -->
   <div class="breadcrumb hidden" id="breadcrumb">
+    <button class="breadcrumb-back" id="breadcrumbBack" title="Back to Home" aria-label="Back to home">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+    </button>
     <span class="breadcrumb-home" id="breadcrumbHome">Home</span>
     <span class="breadcrumb-separator">/</span>
     <span class="breadcrumb-current" id="breadcrumbCurrent"></span>
@@ -4320,6 +5116,26 @@
         <div class="mode-card-content">
           <h3>Hero Generator</h3>
           <p>Create stunning hero images with AI</p>
+        </div>
+        <svg class="mode-card-arrow" viewBox="0 0 24 24">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </div>
+      <div class="mode-card" role="button" tabindex="0" data-mode="ad-analyzer">
+        <div class="mode-card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="12" r="6" />
+            <circle cx="12" cy="12" r="2" />
+            <line x1="12" y1="2" x2="12" y2="5" />
+            <line x1="12" y1="19" x2="12" y2="22" />
+            <line x1="2" y1="12" x2="5" y2="12" />
+            <line x1="19" y1="12" x2="22" y2="12" />
+          </svg>
+        </div>
+        <div class="mode-card-content">
+          <h3>Ad Analyzer</h3>
+          <p>Analyze ads and build 3 redesigned variants</p>
         </div>
         <svg class="mode-card-arrow" viewBox="0 0 24 24">
           <polyline points="9 18 15 12 9 6" />
@@ -4715,7 +5531,7 @@
                 <span class="toggle-slider"></span>
               </label>
               <select id="textImageGenModel" class="styled-select image-gen-model-select hidden">
-                <option value="gemini-3-pro-image-preview">Nano Banana Pro</option>
+                <option value="gemini-3.1-flash-image-preview">Gemini 3.1 Flash Image</option>
                 <option value="gpt-image-1.5">GPT Image 1.5</option>
               </select>
             </div>
@@ -5409,6 +6225,128 @@ img: for image placeholders"></textarea>
     </div>
   </div>
 
+  <!-- Ad Analyzer Flow -->
+  <div id="adAnalyzerFlow" class="flow hidden">
+    <div class="flow-scroll" style="padding: var(--space-lg); overflow-y: auto; flex: 1;">
+
+      <!-- Upload Panel -->
+      <div class="aa-upload-panel" id="aaUploadPanel">
+        <div class="aa-section-label">Original Ad</div>
+        <div class="aa-drop-zone" id="aaDropZone" role="button" tabindex="0" aria-label="Upload ad image: click or drag and drop">
+          <div class="aa-drop-hint" id="aaDropHint">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            <span>Drop ad image or click to upload</span>
+            <span class="aa-drop-hint-sub">PNG or JPG, max 2048px</span>
+          </div>
+          <div class="aa-preview" id="aaPreview" style="display:none;">
+            <img id="aaPreviewImage" src="" alt="Ad preview">
+            <div class="aa-preview-dims" id="aaPreviewDims"></div>
+            <button class="aa-change-btn" id="aaChangeBtn">Change</button>
+          </div>
+          <input type="file" id="aaFileInput" accept="image/png,image/jpeg" hidden>
+        </div>
+      </div>
+
+      <!-- Brief Form -->
+      <div class="aa-brief-form" id="aaBriefForm">
+        <div class="aa-section-label">Brief</div>
+        <div class="aa-field">
+          <label for="aaProductName">Product Name <span class="aa-required">*</span></label>
+          <input type="text" id="aaProductName" placeholder="e.g. ErgoCloud Sofa" autocomplete="off">
+        </div>
+        <div class="aa-field">
+          <label for="aaProductCategory">Product Category <span class="aa-required">*</span></label>
+          <input type="text" id="aaProductCategory" placeholder="e.g. Furniture, Fashion, SaaS" autocomplete="off">
+        </div>
+        <div class="aa-field">
+          <label for="aaPlatform">Platform</label>
+          <select id="aaPlatform">
+            <option value="instagram-4x5">Instagram 4:5 (1080x1350)</option>
+            <option value="instagram-1x1">Instagram 1:1 (1080x1080)</option>
+            <option value="instagram-story">Instagram Story 9:16 (1080x1920)</option>
+            <option value="facebook-feed">Facebook Feed</option>
+          </select>
+        </div>
+        <div class="aa-field">
+          <label for="aaNotes">Notes <span class="aa-optional">(optional)</span></label>
+          <textarea id="aaNotes" rows="2" placeholder="Any specific instructions, brand colors, etc."></textarea>
+        </div>
+      </div>
+
+      <!-- Bridge Status -->
+      <div class="aa-bridge-status" id="aaBridgeStatus">
+        <div class="aa-bridge-connected" id="aaBridgeConnected" style="display:none;">
+          <span class="aa-status-dot connected"></span>
+          <span>Bridge Connected</span>
+          <code class="aa-channel-id" id="aaChannelId"></code>
+        </div>
+        <div class="aa-bridge-disconnected" id="aaBridgeDisconnected">
+          <span class="aa-status-dot"></span>
+          <span>Connect the Bridge tab first</span>
+          <button class="aa-link-btn" id="aaGoToBridge">Go to Bridge</button>
+        </div>
+      </div>
+
+      <!-- Launch Section -->
+      <div class="aa-launch-section" id="aaLaunchSection">
+        <div class="aa-notice">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:14px;height:14px;flex-shrink:0;">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span>This workflow takes 5-15 minutes and runs in Claude Code. Once started, it cannot be cancelled from the plugin.</span>
+        </div>
+        <button class="btn btn-primary aa-launch-btn" id="aaCopyBriefBtn" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+          Copy Brief &amp; Start
+        </button>
+      </div>
+
+      <!-- Status Panel (hidden until copy) -->
+      <div class="aa-status-panel" id="aaStatusPanel" style="display:none;">
+        <div class="aa-status-header">
+          <span class="aa-status-dot running"></span>
+          <span>Workflow running — watching for Bridge activity...</span>
+        </div>
+        <div class="aa-activity-log" id="aaActivityLog"></div>
+        <div class="aa-inactivity-hint" id="aaInactivityHint" style="display:none;">
+          No activity detected. Make sure you pasted the prompt into Claude Code.
+        </div>
+      </div>
+
+      <!-- Report Panel (hidden until complete) -->
+      <div class="aa-report-panel" id="aaReportPanel" style="display:none;">
+        <div class="aa-report-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="1.5" style="width:18px;height:18px;">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+          <span>Workflow Complete</span>
+        </div>
+        <div class="aa-report-content" id="aaReportContent"></div>
+        <div class="aa-report-actions">
+          <button class="btn btn-primary" id="aaViewInFigmaBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            View in Figma
+          </button>
+          <button class="btn btn-secondary" id="aaRunAgainBtn">Run Again</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- Settings Overlay -->
   <div class="settings-overlay" id="settingsOverlay" aria-hidden="true"></div>
   <!-- Settings Panel -->
@@ -5430,8 +6368,8 @@ img: for image placeholders"></textarea>
         <div class="gemini-model-select" id="geminiModelSelectWrapper"
           style="margin-top: 8px; margin-bottom: 8px; padding-left: 32px;"><select class="model-dropdown"
             id="geminiModelSelect" style="width: 100%;">
-            <option value="gemini-3-pro-preview" selected>Gemini 3 Pro (Best quality)</option>
-            <option value="gemini-3-flash-preview">Gemini 3 Flash (Faster)</option>
+            <option value="gemini-3.1-pro-preview" selected>Gemini 3.1 Pro (Best quality)</option>
+            <option value="gemini-3.1-flash-image-preview">Gemini 3.1 Flash (Faster)</option>
           </select></div><label class="provider-option" data-provider="claude"><input type="radio" name="provider"
             value="claude">
           <div class="provider-option-content">
@@ -5442,20 +6380,21 @@ img: for image placeholders"></textarea>
         <div class="claude-model-select" id="claudeModelSelectWrapper"
           style="margin-top: 8px; margin-bottom: 8px; padding-left: 32px; display: none;"><select class="model-dropdown"
             id="claudeModelSelect" style="width: 100%;">
-            <option value="claude-sonnet-4-20250514" selected>Claude Sonnet 4 (Balanced)</option>
-            <option value="claude-opus-4-5-20250514">Claude Opus 4.5 (Best quality)</option>
+            <option value="claude-sonnet-4-6" selected>Claude Sonnet 4.6 (Balanced)</option>
+            <option value="claude-opus-4-6">Claude Opus 4.6 (Best quality)</option>
+            <option value="claude-haiku-4-5">Claude Haiku 4.5 (Fastest)</option>
           </select></div><label class="provider-option" data-provider="openai"><input type="radio" name="provider"
             value="openai">
           <div class="provider-option-content">
-            <div class="provider-option-name">GPT-4 Vision (OpenAI)</div>
+            <div class="provider-option-name">GPT (OpenAI)</div>
           </div>
           <div class="provider-option-status" id="providerStatus-openai"></div>
         </label>
         <div class="openai-model-select" id="openaiModelSelectWrapper"
           style="margin-top: 8px; margin-bottom: 8px; padding-left: 32px; display: none;"><select class="model-dropdown"
             id="openaiModelSelect" style="width: 100%;">
-            <option value="gpt-4o" selected>GPT-4o (Balanced)</option>
-            <option value="gpt-4o-mini">GPT-4o Mini (Faster)</option>
+            <option value="gpt-5.2" selected>GPT-5.2 (Best quality)</option>
+            <option value="gpt-5-mini">GPT-5 Mini (Faster)</option>
           </select></div>
       </div>
       <div class="settings-section api-key-section">
@@ -5474,8 +6413,8 @@ img: for image placeholders"></textarea>
         <div class="image-model-select" id="imageModelSelectWrapper" style="margin-top: 12px;">
           <div class="settings-label" style="margin-bottom: 6px;">Image Model</div><select class="model-dropdown"
             id="imageModelSelect">
-            <option value="imagen-4" selected>Imagen 4 Fast (Fastest)</option>
-            <option value="gemini-image">Gemini 3 Pro Image</option>
+            <option value="gemini-3.1-flash-image-preview" selected>Gemini 3.1 Flash Image</option>
+            <option value="gpt-image-1.5">GPT Image 1.5</option>
           </select>
         </div>
       </div>
@@ -5490,6 +6429,103 @@ img: for image placeholders"></textarea>
   </aside>
   <!-- Toast Container -->
   <div class="toast-container" id="toastContainer" role="log" aria-live="polite" aria-label="Notifications"></div>
+  </div><!-- end tab-modes -->
+
+  <!-- Bridge Tab -->
+  <div id="tab-bridge" class="unified-tab-content">
+    <div class="bridge-content">
+      <div class="bridge-header">
+        <div id="bridge-dot" class="status-dot"></div>
+        <h2 style="font-size:var(--text-lg);font-weight:var(--font-semibold);color:var(--color-text-primary);">MCP Bridge</h2>
+        <span id="bridge-status" style="font-size:var(--text-sm);color:var(--color-text-tertiary);">Disconnected</span>
+      </div>
+
+      <div class="bridge-section">
+        <label class="bridge-section-label">WebSocket Server</label>
+        <div class="bridge-input-row">
+          <input type="text" id="bridge-url" value="wss://figmento-production.up.railway.app" />
+          <button id="bridge-connect" class="bridge-btn">Connect</button>
+        </div>
+      </div>
+
+      <div class="bridge-section">
+        <label class="bridge-section-label">Channel ID</label>
+        <div class="channel-display" id="channel-display" onclick="copyChannelId()">
+          <span id="bridge-channel">---</span>
+          <div class="channel-hint" id="channel-hint">Click to copy</div>
+        </div>
+      </div>
+
+      <div class="bridge-section">
+        <label class="bridge-section-label">Activity Log</label>
+        <div id="bridge-log" class="log-area"></div>
+      </div>
+
+      <div class="bridge-stats">
+        Commands: <span id="bridge-cmd-count">0</span>
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        Errors: <span id="bridge-err-count">0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Tab (Chat API keys & model) -->
+  <div id="tab-settings" class="unified-tab-content">
+    <div class="chat-settings-content">
+      <div class="chat-settings-group">
+        <h3>Chat Model</h3>
+        <div class="chat-settings-field">
+          <label>Model</label>
+          <select id="settings-model">
+            <optgroup label="Google Gemini">
+              <option value="gemini-3.1-flash-image-preview">Gemini 3.1 Flash</option>
+              <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
+            </optgroup>
+            <optgroup label="Anthropic Claude">
+              <option value="claude-opus-4-6">Claude Opus 4.6</option>
+              <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+              <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
+            </optgroup>
+            <optgroup label="OpenAI">
+              <option value="gpt-5.2">GPT-5.2</option>
+              <option value="gpt-5-mini">GPT-5 Mini</option>
+            </optgroup>
+          </select>
+        </div>
+        <div id="key-gemini-chat" class="chat-settings-field">
+          <label>Google Gemini API Key</label>
+          <input type="password" id="settings-gemini-key" placeholder="AI..." />
+          <div class="hint">Used for chat and image generation. Get one at aistudio.google.com</div>
+        </div>
+        <div id="key-anthropic-chat" class="chat-settings-field" style="display:none;">
+          <label>Anthropic API Key</label>
+          <input type="password" id="settings-api-key" placeholder="sk-ant-..." />
+          <div class="hint">Get one at console.anthropic.com</div>
+        </div>
+        <div id="key-openai-chat" class="chat-settings-field" style="display:none;">
+          <label>OpenAI API Key</label>
+          <input type="password" id="settings-openai-key" placeholder="sk-..." />
+          <div class="hint">Get one at platform.openai.com</div>
+        </div>
+      </div>
+
+      <div class="chat-settings-group" id="section-image-gen">
+        <h3>Image Generation</h3>
+        <div id="image-gen-separate" class="chat-settings-field">
+          <label>Google Gemini API Key</label>
+          <input type="password" id="settings-gemini-key-alt" placeholder="AI..." />
+          <div class="hint">Needed for AI image generation (Imagen 3) when using Claude for chat.</div>
+        </div>
+        <div id="image-gen-shared" class="chat-settings-field" style="display:none;">
+          <div class="hint" style="color:var(--color-text-tertiary);">Using the same Gemini key for image generation.</div>
+        </div>
+      </div>
+
+      <button id="settings-save" class="chat-settings-save-btn">Save Settings</button>
+      <div id="settings-status" class="settings-status"></div>
+    </div>
+  </div>
+
   <!-- SCRIPT_PLACEHOLDER -->
 </body>
 

@@ -878,7 +878,7 @@ export const generateSingleSlideWithClaude = async (prompt: string, apiKey: stri
 };
 
 export const generateSingleSlideWithGemini = async (prompt: string, apiKey: string): Promise<UIAnalysis> => {
-  const model = imageGenState.geminiModel || 'gemini-3-pro-preview';
+  const model = imageGenState.geminiModel || 'gemini-3.1-pro-preview';
   const response = await fetch(
     'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent',
     {
@@ -1152,7 +1152,7 @@ export const analyzePresentationWithClaude = async (prompt: string, apiKey: stri
 };
 
 export const analyzePresentationWithGemini = async (prompt: string, apiKey: string): Promise<PresentationAnalysis> => {
-  const model = imageGenState.geminiModel || 'gemini-3-pro-preview';
+  const model = imageGenState.geminiModel || 'gemini-3.1-pro-preview';
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent';
 
   const response = await fetch(url, {
