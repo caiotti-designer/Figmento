@@ -46,6 +46,13 @@
                      |   create_carousel            |
                      |   create_presentation        |
                      |                              |
+                     |  Icon Tools:                 |
+                     |   create_icon, list_icons    |
+                     |                              |
+                     |  Ad Analyzer Tools:          |
+                     |   start_ad_analyzer          |
+                     |   complete_ad_analyzer       |
+                     |                              |
                      |  Export Tools:                |
                      |   get_screenshot, export     |
                      |   evaluate_design            |
@@ -79,6 +86,7 @@
                      |  - Executes Figma API cmds   |
                      |  - Returns node IDs, exports |
                      |  - Chat UI (Anthropic/Gemini)|
+                     |  - Ad Analyzer mode          |
                      +==============================+
                                     |
                               [Figma Plugin API]
@@ -99,21 +107,34 @@
 
 ### Component 1 — Figmento Figma Plugin
 
-A WebSocket command executor with built-in LLM chat UI. All design intelligence lives in the MCP server — the plugin executes Figma API operations and optionally routes direct LLM conversations.
+A WebSocket command executor with built-in LLM chat UI and Ad Analyzer mode. All design intelligence lives in the MCP server — the plugin executes Figma API operations, routes direct LLM conversations, and provides a guided workflow for ad analysis and redesign.
 
 ```
-figmento-plugin/
+figmento/                          # Unified plugin (figmento-plugin/ is deprecated)
 ├── src/
-│   ├── code.ts                 # Sandbox — command router, 30+ action handlers
+│   ├── code.ts                 # Sandbox — command router, 40+ action handlers
 │   ├── element-creators.ts     # createElement() factory, all node creation
 │   ├── color-utils.ts          # hexToRgb, rgbToHex, getFontStyle
 │   ├── svg-utils.ts            # scalePathData, parsePath for icons
 │   ├── gradient-utils.ts       # Gradient transform calculations
 │   ├── types.ts                # UIElement, WSCommand/WSResponse, plugin messages
-│   ├── system-prompt.ts        # LLM chat system prompt (built from knowledge YAMLs)
-│   ├── tools-schema.ts         # JSON Schema definitions mirroring MCP tools (for direct LLM chat)
-│   ├── ui-app.ts               # UI application — Chat (Anthropic/Gemini), Bridge, Settings tabs
-│   └── ui.html                 # Plugin iframe with WS client
+│   ├── ui.html                 # Plugin iframe — modes, chat, bridge, ad analyzer
+│   └── ui/
+│       ├── index.ts            # UI entry point, module init orchestration
+│       ├── bridge.ts           # WebSocket Bridge — channel management, command routing
+│       ├── ad-analyzer.ts      # Ad Analyzer mode — upload, brief, status, report UI
+│       ├── chat.ts             # Chat UI (Anthropic/Gemini direct LLM conversations)
+│       ├── chat-settings.ts    # Chat model & provider settings
+│       ├── system-prompt.ts    # LLM chat system prompt (built from knowledge YAMLs)
+│       ├── tools-schema.ts     # JSON Schema definitions mirroring MCP tools
+│       ├── screenshot.ts       # Screenshot-to-layout mode
+│       ├── text-layout.ts      # Text-to-design mode
+│       ├── presentation.ts     # Presentation mode
+│       ├── images.ts           # Image generation (Gemini/GPT)
+│       ├── template.ts         # Template fill mode
+│       ├── messages.ts         # Figma sandbox message handlers
+│       ├── settings.ts         # API key & provider settings
+│       └── state.ts            # Centralized application state
 ├── manifest.json               # Plugin manifest with WS domain allowlist
 ├── build.js                    # esbuild pipeline
 ├── package.json
@@ -130,6 +151,7 @@ figmento-plugin/
 | Batch | `batch_execute` (multi-command with tempId chaining), `clone_with_overrides`, `create_design` (UIAnalysis) |
 | Templates | `scan_template`, `apply_template_text`, `apply_template_image` |
 | Export | `export_node`, `get_screenshot` |
+| Workflow | `ad-analyzer-complete` (forwards report to UI), `zoom-to-node` (viewport navigation) |
 
 ### Component 2 — Figmento MCP Server
 
@@ -137,7 +159,7 @@ figmento-plugin/
 figmento-mcp-server/
 ├── src/
 │   ├── index.ts                # Entry point (stdio transport)
-│   ├── server.ts               # MCP server setup, 11 tool module registrations
+│   ├── server.ts               # MCP server setup, 13 tool module registrations
 │   ├── tools/
 │   │   ├── canvas.ts           # create_frame, create_text, create_rectangle, create_ellipse,
 │   │   │                       #   create_image, create_icon, place_generated_image,
@@ -160,7 +182,9 @@ figmento-mcp-server/
 │   │   │                       #   scan_frame_structure, design_system_preview,
 │   │   │                       #   generate_design_system_from_url, brand_consistency_check
 │   │   ├── patterns.ts         # create_from_pattern, list_patterns
-│   │   └── ds-templates.ts     # create_from_template, list_templates
+│   │   ├── ds-templates.ts     # create_from_template, list_templates
+│   │   ├── icons.ts            # create_icon (Lucide 1900+), list_icons
+│   │   └── ad-analyzer.ts      # start_ad_analyzer, complete_ad_analyzer
 │   ├── ws-client.ts            # WebSocket client (auto-reconnect, command queue, heartbeat)
 │   └── types.ts                # WSCommand, WSResponse, CommandErrorCode, FillDef, EffectDef
 ├── knowledge/                  # Design intelligence knowledge base (see section below)
@@ -173,9 +197,13 @@ figmento-mcp-server/
 ```
 figmento-ws-relay/
 ├── src/
-│   ├── index.ts                # Server entry point
-│   ├── relay.ts                # WebSocket server, channel routing
+│   ├── index.ts                # Server entry point (HTTP health + WS upgrade)
+│   ├── relay.ts                # WebSocket server, channel routing, heartbeat
 │   └── types.ts                # Message protocol types
+├── .env.example                # Environment variable template
+├── Procfile                    # Railway deployment process definition
+├── railway.json                # Railway deployment configuration
+├── README.md                   # Setup and deployment guide
 ├── package.json
 └── tsconfig.json
 ```
@@ -327,6 +355,24 @@ Multi-frame project templates that compose patterns into complete deliverables.
 | `create_from_template` | Instantiate a multi-frame project template on canvas. Templates: social_media_kit (9 frames), pitch_deck (8 slides), brand_stationery (4 frames), landing_page_full (6 sections), restaurant_menu (5 frames). |
 | `list_templates` | List all available templates with names, descriptions, frame counts, and formats used. |
 
+### Icon Tools (`tools/icons.ts`)
+
+Lucide icon library integration (1900+ icons).
+
+| MCP Tool | Description |
+|----------|-------------|
+| `create_icon` | Place a Lucide icon on canvas by name. Auto-loads SVG path data from bundled icon set. Supports color, size, and parent placement. |
+| `list_icons` | Search or browse available Lucide icons by name or category (arrows, media, communication, data, ui, nature, commerce, social, dev, shapes). |
+
+### Ad Analyzer Tools (`tools/ad-analyzer.ts`)
+
+Guided workflow for analyzing ads and building redesigned variants.
+
+| MCP Tool | Description |
+|----------|-------------|
+| `start_ad_analyzer` | Initialize the Ad Analyzer workflow. Receives brief + base64 image from plugin, saves image to disk, returns brief, critical rules, and MISSION.md instructions for Phases 2-5. |
+| `complete_ad_analyzer` | Signal workflow completion. Sends design report markdown and carousel node IDs to the plugin via Bridge, which displays the report in the UI. |
+
 ---
 
 ## Knowledge Base
@@ -426,7 +472,7 @@ figmento-mcp-server/knowledge/
 
 ## Implementation Status
 
-All 4 phases are **implemented and operational**.
+All 5 phases are **implemented and operational**.
 
 ### Phase 1 — WebSocket Bridge + Minimal MCP (Complete)
 
@@ -464,19 +510,31 @@ All 4 phases are **implemented and operational**.
 - **URL-based extraction:** Generate design system tokens by analyzing any website's HTML/CSS
 - **Visual preview:** `design_system_preview` generates swatch sheet on canvas
 
+### Phase 5 — Ad Analyzer, Bridge, Chat & Shared Core (Complete)
+
+- **Ad Analyzer mode:** Plugin UI for uploading ads, filling briefs, copying prompts to Claude Code, watching Bridge activity, and displaying completion reports with "View in Figma" navigation
+- **MCP tools:** `start_ad_analyzer` (saves image to disk, returns brief + rules + MISSION.md instructions), `complete_ad_analyzer` (sends report to plugin via Bridge)
+- **Bridge module:** Extracted to standalone `bridge.ts` with channel management, command routing, copy-to-clipboard, and exported getters (`getBridgeChannelId`, `getBridgeConnected`)
+- **Chat UI:** Full LLM chat with Anthropic/Gemini support, chat settings, system prompt, and tools schema modules
+- **Icon tools:** `create_icon` (Lucide 1900+ icons with auto SVG loading), `list_icons` (search by name/category)
+- **Shared core package:** `packages/figmento-core/` with extracted color-utils, element-creators, gradient-utils, svg-utils, types
+- **WS relay deployment:** Railway config (Procfile, railway.json), .env.example, improved channel-based relay with heartbeat
+- **Plugin consolidation:** Unified `figmento/` plugin, `figmento-plugin/` deprecated
+- **Tests:** 12 suites, 291 tests passing
+
 ---
 
 ## Build Commands
 
 ```bash
+# Figma Plugin (unified)
+cd figmento && npm run build
+
 # MCP Server
 cd figmento-mcp-server && npm run build
 
 # WebSocket Relay
 cd figmento-ws-relay && npm run build
-
-# Figma Plugin
-cd figmento-plugin && npm run build
 ```
 
 ---
@@ -515,4 +573,4 @@ cd figmento-plugin && npm run build
 
 ---
 
-*Figmento MCP Project Briefing v3.0 — February 2026*
+*Figmento MCP Project Briefing v4.0 — February 2026*

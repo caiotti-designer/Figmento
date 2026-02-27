@@ -1,6 +1,6 @@
 /**
- * Figmento Plugin — UI Application
- * Handles Chat (Anthropic + Gemini), Bridge (WebSocket), and Settings tabs.
+ * Figmento Chat Module — AI design agent chat (Anthropic + Gemini).
+ * Ported from figmento-plugin/src/ui-app.ts chat sections.
  */
 
 import { FIGMENTO_TOOLS, ToolDefinition } from './tools-schema';
@@ -10,7 +10,6 @@ import { buildSystemPrompt } from './system-prompt';
 // TYPES
 // ═══════════════════════════════════════════════════════════════
 
-// Anthropic types
 interface Message {
   role: 'user' | 'assistant';
   content: string | ContentBlock[];
@@ -37,7 +36,6 @@ interface APIResponse {
   usage: { input_tokens: number; output_tokens: number };
 }
 
-// Gemini types
 interface GeminiPart {
   text?: string;
   functionCall?: { name: string; args: Record<string, unknown> };
@@ -54,8 +52,11 @@ interface PendingCommand {
   reject: (error: Error) => void;
 }
 
-function isGeminiModel(model: string): boolean {
-  return model.startsWith('gemini-');
+export interface ChatSettings {
+  anthropicApiKey: string;
+  geminiApiKey: string;
+  openaiApiKey: string;
+  model: string;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -63,22 +64,19 @@ function isGeminiModel(model: string): boolean {
 // ═══════════════════════════════════════════════════════════════
 
 let conversationHistory: Message[] = [];
+let geminiHistory: GeminiContent[] = [];
+let openaiHistory: Array<Record<string, unknown>> = [];
 let isProcessing = false;
 let chatCommandCounter = 0;
 const pendingChatCommands = new Map<string, PendingCommand>();
+let memoryEntries: string[] = [];
 
-// Bridge state
-let ws: WebSocket | null = null;
-let bridgeChannelId: string | null = null;
-let isBridgeConnected = false;
-let bridgeCommandCount = 0;
-let bridgeErrorCount = 0;
-
-// Settings
-let settings = {
+// Settings reference — updated from outside via updateChatSettings()
+let chatSettings: ChatSettings = {
   anthropicApiKey: '',
-  model: 'gemini-2.5-flash-preview-05-20',
   geminiApiKey: '',
+  openaiApiKey: '',
+  model: 'gemini-3.1-flash-image-preview',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -95,112 +93,52 @@ function escapeHtml(text: string): string {
   return div.innerHTML;
 }
 
-// ═══════════════════════════════════════════════════════════════
-// TABS
-// ═══════════════════════════════════════════════════════════════
+function postToSandbox(msg: Record<string, unknown>) {
+  parent.postMessage({ pluginMessage: msg }, '*');
+}
 
-function initTabs() {
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tab = (btn as HTMLElement).dataset.tab!;
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      btn.classList.add('active');
-      $(tab).classList.add('active');
-    });
-  });
+function isGeminiModel(model: string): boolean {
+  return model.startsWith('gemini-');
+}
+
+function isOpenAIModel(model: string): boolean {
+  return model.startsWith('gpt-') || model.startsWith('o');
 }
 
 // ═══════════════════════════════════════════════════════════════
-// SETTINGS
+// PUBLIC API
 // ═══════════════════════════════════════════════════════════════
 
-function initSettings() {
-  postToSandbox({ type: 'get-settings' });
-
-  $('settings-save').addEventListener('click', saveSettings);
-
-  const modelSelect = $('settings-model') as HTMLSelectElement;
-  modelSelect.value = settings.model;
-  modelSelect.addEventListener('change', updateSettingsUI);
-  updateSettingsUI();
+export function updateChatSettings(s: ChatSettings) {
+  chatSettings = s;
 }
 
-function updateSettingsUI() {
-  const model = ($('settings-model') as HTMLSelectElement).value;
-  const useGemini = model.startsWith('gemini-');
-
-  // Chat key section: show the right input
-  $('key-gemini-chat').style.display = useGemini ? 'block' : 'none';
-  $('key-anthropic-chat').style.display = useGemini ? 'none' : 'block';
-
-  // Image gen section: show separate key input only for Claude models
-  $('image-gen-separate').style.display = useGemini ? 'none' : 'block';
-  $('image-gen-shared').style.display = useGemini ? 'block' : 'none';
+export function getChatSettings(): ChatSettings {
+  return chatSettings;
 }
 
-function saveSettings() {
-  const model = ($('settings-model') as HTMLSelectElement).value;
-  const useGemini = model.startsWith('gemini-');
+/** Load memory entries from sandbox into chat state. */
+export function loadMemoryEntries(entries: Array<{ entry: string; timestamp: string }>) {
+  memoryEntries = entries.map(e => e.entry);
+}
 
-  settings.model = model;
-  settings.anthropicApiKey = ($('settings-api-key') as HTMLInputElement).value.trim();
-
-  // Gemini key comes from either the chat input or the alt image-gen input
-  if (useGemini) {
-    settings.geminiApiKey = ($('settings-gemini-key') as HTMLInputElement).value.trim();
+/** Resolve a pending chat command (called by message router). */
+export function resolveChatCommand(cmdId: string, success: boolean, data: Record<string, unknown>, error?: string) {
+  const pending = pendingChatCommands.get(cmdId);
+  if (!pending) return;
+  pendingChatCommands.delete(cmdId);
+  if (success) {
+    pending.resolve(data);
   } else {
-    // When Claude is selected, read from the image-gen alt field
-    const altKey = ($('settings-gemini-key-alt') as HTMLInputElement).value.trim();
-    if (altKey) settings.geminiApiKey = altKey;
-    // Also check if the main field has a value (from a previous Gemini session)
-    const mainKey = ($('settings-gemini-key') as HTMLInputElement).value.trim();
-    if (mainKey && !altKey) settings.geminiApiKey = mainKey;
+    pending.reject(new Error(error || 'Command failed'));
   }
-
-  postToSandbox({
-    type: 'save-settings',
-    settings: {
-      anthropicApiKey: settings.anthropicApiKey,
-      model: settings.model,
-      geminiApiKey: settings.geminiApiKey,
-    },
-  });
-
-  showSettingsStatus('Settings saved!', false);
-}
-
-function loadSettings(saved: Record<string, string>) {
-  if (saved.anthropicApiKey) {
-    settings.anthropicApiKey = saved.anthropicApiKey;
-    ($('settings-api-key') as HTMLInputElement).value = saved.anthropicApiKey;
-  }
-  if (saved.model) {
-    settings.model = saved.model;
-    ($('settings-model') as HTMLSelectElement).value = saved.model;
-  }
-  if (saved.geminiApiKey) {
-    settings.geminiApiKey = saved.geminiApiKey;
-    // Populate both Gemini key inputs so the value is visible regardless of which model is selected
-    ($('settings-gemini-key') as HTMLInputElement).value = saved.geminiApiKey;
-    ($('settings-gemini-key-alt') as HTMLInputElement).value = saved.geminiApiKey;
-  }
-  updateSettingsUI();
-}
-
-function showSettingsStatus(text: string, isError: boolean) {
-  const el = $('settings-status');
-  el.textContent = text;
-  el.className = 'settings-status ' + (isError ? 'error' : 'success');
-  el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 3000);
 }
 
 // ═══════════════════════════════════════════════════════════════
 // CHAT — UI
 // ═══════════════════════════════════════════════════════════════
 
-function initChat() {
+export function initChat() {
   const input = $('chat-input') as HTMLTextAreaElement;
   const sendBtn = $('chat-send');
 
@@ -215,6 +153,7 @@ function initChat() {
   $('chat-new').addEventListener('click', () => {
     conversationHistory = [];
     geminiHistory = [];
+    openaiHistory = [];
     $('chat-messages').innerHTML = '';
     addChatWelcome();
   });
@@ -233,7 +172,6 @@ function addChatWelcome() {
 
 function appendChatBubble(role: 'user' | 'assistant', html: string) {
   const messagesEl = $('chat-messages');
-  // Remove welcome if present
   const welcome = messagesEl.querySelector('.chat-welcome');
   if (welcome) welcome.remove();
 
@@ -271,13 +209,18 @@ async function sendMessage() {
   const text = input.value.trim();
   if (!text || isProcessing) return;
 
-  const useGemini = isGeminiModel(settings.model);
+  const useGemini = isGeminiModel(chatSettings.model);
+  const useOpenAI = isOpenAIModel(chatSettings.model);
 
-  if (useGemini && !settings.geminiApiKey) {
+  if (useGemini && !chatSettings.geminiApiKey) {
     appendChatBubble('assistant', '<span class="chat-error">Set your Gemini API key in Settings first.</span>');
     return;
   }
-  if (!useGemini && !settings.anthropicApiKey) {
+  if (useOpenAI && !chatSettings.openaiApiKey) {
+    appendChatBubble('assistant', '<span class="chat-error">Set your OpenAI API key in Settings first.</span>');
+    return;
+  }
+  if (!useGemini && !useOpenAI && !chatSettings.anthropicApiKey) {
     appendChatBubble('assistant', '<span class="chat-error">Set your Anthropic API key in Settings first.</span>');
     return;
   }
@@ -290,6 +233,9 @@ async function sendMessage() {
     if (useGemini) {
       geminiHistory.push({ role: 'user', parts: [{ text }] });
       await runGeminiLoop();
+    } else if (useOpenAI) {
+      openaiHistory.push({ role: 'user', content: text });
+      await runOpenAILoop();
     } else {
       conversationHistory.push({ role: 'user', content: text });
       await runAnthropicLoop();
@@ -343,9 +289,9 @@ async function runAnthropicLoop() {
 
 async function callAnthropicAPI(): Promise<APIResponse> {
   const body = {
-    model: settings.model,
+    model: chatSettings.model,
     max_tokens: 8192,
-    system: buildSystemPrompt(),
+    system: buildSystemPrompt(memoryEntries),
     tools: FIGMENTO_TOOLS,
     messages: conversationHistory,
   };
@@ -354,7 +300,7 @@ async function callAnthropicAPI(): Promise<APIResponse> {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': settings.anthropicApiKey,
+      'x-api-key': chatSettings.anthropicApiKey,
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true',
     },
@@ -371,14 +317,12 @@ async function callAnthropicAPI(): Promise<APIResponse> {
 
 // ── Gemini conversation loop ──
 
-let geminiHistory: GeminiContent[] = [];
-
 async function runGeminiLoop() {
   let maxIterations = 50;
   while (maxIterations-- > 0) {
     const response = await callGeminiAPI();
 
-    const candidate = response.candidates?.[0];
+    const candidate = (response as any).candidates?.[0];
     if (!candidate?.content?.parts) {
       appendChatBubble('assistant', '<span class="chat-error">Empty response from Gemini</span>');
       break;
@@ -397,12 +341,10 @@ async function runGeminiLoop() {
       appendChatBubble('assistant', formatMarkdown(textParts.join('\n')));
     }
 
-    // Store model response in history
     geminiHistory.push({ role: 'model', parts });
 
     if (functionCalls.length === 0) break;
 
-    // Execute function calls and collect responses
     const responseParts: GeminiPart[] = [];
     for (const fc of functionCalls) {
       const { name, args } = fc.functionCall!;
@@ -417,6 +359,10 @@ async function runGeminiLoop() {
         } else {
           resultData = JSON.parse(imgResult.content || '{}');
         }
+      } else if (name === 'update_memory') {
+        const memResult = await executeUpdateMemory(`gemini-mem-${Date.now()}`, args);
+        resultData = memResult.is_error ? { error: memResult.content } : { saved: true };
+        isErr = !!memResult.is_error;
       } else {
         try {
           resultData = await sendCommandToSandbox(name, args);
@@ -430,15 +376,20 @@ async function runGeminiLoop() {
         }
       }
 
+      let cleanedResult: Record<string, unknown>;
+      if (isErr) {
+        cleanedResult = { error: resultData.error };
+      } else if (SCREENSHOT_TOOLS.has(name)) {
+        cleanedResult = { result: JSON.parse(summarizeScreenshotResult(name, resultData)) };
+      } else {
+        cleanedResult = { result: stripBase64FromResult(resultData) };
+      }
+
       responseParts.push({
-        functionResponse: {
-          name,
-          response: isErr ? { error: resultData.error } : { result: resultData },
-        },
+        functionResponse: { name, response: cleanedResult },
       });
     }
 
-    // Add function responses to history
     geminiHistory.push({ role: 'user', parts: responseParts });
   }
 }
@@ -448,14 +399,14 @@ async function callGeminiAPI(): Promise<Record<string, unknown>> {
 
   const body = {
     contents: geminiHistory,
-    systemInstruction: { parts: [{ text: buildSystemPrompt() }] },
+    systemInstruction: { parts: [{ text: buildSystemPrompt(memoryEntries) }] },
     tools: [{ functionDeclarations: geminiTools }],
     toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
     generationConfig: { maxOutputTokens: 8192 },
   };
 
   const resp = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.geminiApiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${chatSettings.model}:generateContent?key=${chatSettings.geminiApiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -474,23 +425,18 @@ async function callGeminiAPI(): Promise<Record<string, unknown>> {
 // ── Gemini tool schema converter ──
 
 function convertToolsToGemini(tools: ToolDefinition[]): Record<string, unknown>[] {
-  const converted = tools.map(tool => ({
+  return tools.map(tool => ({
     name: tool.name,
     description: tool.description,
     parameters: convertSchemaToGemini(tool.input_schema),
   }));
-  console.log('[Figmento] Converted Gemini tool schemas:', JSON.stringify(converted, null, 2));
-  return converted;
 }
 
 function convertSchemaToGemini(schema: Record<string, unknown>): Record<string, unknown> {
-  // Handle oneOf first — Gemini doesn't support it, flatten to first option
-  // but preserve any sibling properties like description
   if (schema.oneOf) {
     const options = schema.oneOf as Record<string, unknown>[];
     if (options.length > 0) {
       const flattened = convertSchemaToGemini(options[0]);
-      // Carry over description from the parent schema if the flattened result lacks one
       if (schema.description && !flattened.description) {
         flattened.description = schema.description;
       }
@@ -517,19 +463,212 @@ function convertSchemaToGemini(schema: Record<string, unknown>): Record<string, 
 
   if (schema.required) result.required = schema.required;
 
-  // Handle arrays: Gemini requires "items" for ARRAY type
   if (schema.items) {
     result.items = convertSchemaToGemini(schema.items as Record<string, unknown>);
   } else if (result.type === 'ARRAY' && !result.items) {
-    // Array without items schema — default to generic object so Gemini doesn't reject it
     result.items = { type: 'OBJECT' };
   }
 
-  // Gemini doesn't support minItems/maxItems — strip them
-  // (they were already not being copied, but this is explicit)
+  return result;
+}
+
+// ── OpenAI conversation loop ──
+
+async function runOpenAILoop() {
+  let maxIterations = 50;
+  while (maxIterations-- > 0) {
+    const response = await callOpenAIAPI();
+
+    const choice = (response as any).choices?.[0];
+    if (!choice?.message) {
+      appendChatBubble('assistant', '<span class="chat-error">Empty response from OpenAI</span>');
+      break;
+    }
+
+    const message = choice.message;
+
+    if (message.content) {
+      appendChatBubble('assistant', formatMarkdown(message.content));
+    }
+
+    // Store assistant message in history
+    openaiHistory.push(message);
+
+    const toolCalls = message.tool_calls;
+    if (!toolCalls || toolCalls.length === 0) break;
+
+    // Execute each tool call and push results
+    for (const tc of toolCalls) {
+      const fnName = tc.function.name;
+      let args: Record<string, unknown>;
+      try {
+        args = JSON.parse(tc.function.arguments);
+      } catch {
+        args = {};
+      }
+
+      let resultContent: string;
+      let isErr = false;
+
+      if (fnName === 'generate_image') {
+        const imgResult = await executeGenerateImage(`openai-${Date.now()}`, args);
+        resultContent = imgResult.content || '{}';
+        isErr = !!imgResult.is_error;
+      } else if (fnName === 'update_memory') {
+        const memResult = await executeUpdateMemory(`openai-mem-${Date.now()}`, args);
+        resultContent = memResult.content || '{}';
+        isErr = !!memResult.is_error;
+      } else {
+        try {
+          const data = await sendCommandToSandbox(fnName, args);
+          const summary = formatToolSummary(fnName, data);
+          appendToolAction(fnName, summary);
+          resultContent = SCREENSHOT_TOOLS.has(fnName)
+            ? summarizeScreenshotResult(fnName, data)
+            : JSON.stringify(stripBase64FromResult(data));
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Unknown error';
+          appendToolAction(fnName, msg, true);
+          resultContent = `Error: ${msg}`;
+          isErr = true;
+        }
+      }
+
+      openaiHistory.push({
+        role: 'tool',
+        tool_call_id: tc.id,
+        content: isErr ? `Error: ${resultContent}` : resultContent,
+      });
+    }
+  }
+}
+
+async function callOpenAIAPI(): Promise<Record<string, unknown>> {
+  const openaiTools = convertToolsToOpenAI(FIGMENTO_TOOLS);
+
+  const body = {
+    model: chatSettings.model,
+    max_tokens: 8192,
+    messages: [
+      { role: 'system', content: buildSystemPrompt(memoryEntries) },
+      ...openaiHistory,
+    ],
+    tools: openaiTools,
+    tool_choice: 'auto',
+  };
+
+  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${chatSettings.openaiApiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`OpenAI API error ${resp.status}: ${errBody}`);
+  }
+
+  return resp.json();
+}
+
+// ── OpenAI tool schema converter ──
+
+function convertToolsToOpenAI(tools: ToolDefinition[]): Record<string, unknown>[] {
+  return tools.map(tool => ({
+    type: 'function',
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: convertSchemaToOpenAI(tool.input_schema),
+    },
+  }));
+}
+
+function convertSchemaToOpenAI(schema: Record<string, unknown>): Record<string, unknown> {
+  // OpenAI supports JSON Schema natively, but oneOf on top-level params
+  // can cause issues — flatten to first option (same strategy as Gemini)
+  if (schema.oneOf) {
+    const options = schema.oneOf as Record<string, unknown>[];
+    if (options.length > 0) {
+      const flattened = convertSchemaToOpenAI(options[0]);
+      if (schema.description && !flattened.description) {
+        flattened.description = schema.description;
+      }
+      return flattened;
+    }
+  }
+
+  const result: Record<string, unknown> = {};
+
+  if (schema.type) result.type = schema.type;
+  if (schema.description) result.description = schema.description;
+  if (schema.enum) result.enum = schema.enum;
+  if (schema.required) result.required = schema.required;
+
+  if (schema.properties) {
+    const props: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(schema.properties as Record<string, unknown>)) {
+      props[key] = convertSchemaToOpenAI(value as Record<string, unknown>);
+    }
+    result.properties = props;
+  }
+
+  if (schema.items) {
+    result.items = convertSchemaToOpenAI(schema.items as Record<string, unknown>);
+  }
+
+  if (schema.minimum !== undefined) result.minimum = schema.minimum;
+  if (schema.maximum !== undefined) result.maximum = schema.maximum;
+  if (schema.minItems !== undefined) result.minItems = schema.minItems;
+  if (schema.maxItems !== undefined) result.maxItems = schema.maxItems;
 
   return result;
 }
+
+// ═══════════════════════════════════════════════════════════════
+// CHAT — BASE64 STRIPPING (prevent token overflow)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Strip base64 image data from tool results before appending to
+ * conversation history. Screenshots / exports return multi-MB base64
+ * strings that blow context limits (especially Gemini).
+ */
+function stripBase64FromResult(data: Record<string, unknown>): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (typeof value === 'string' && value.startsWith('data:image/')) {
+      cleaned[key] = '[image data stripped]';
+    } else if (typeof value === 'string' && value.length > 50000) {
+      cleaned[key] = '[large data stripped]';
+    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+      cleaned[key] = stripBase64FromResult(value as Record<string, unknown>);
+    } else {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}
+
+/** For screenshot/export tools, replace the entire result with a compact placeholder. */
+function summarizeScreenshotResult(toolName: string, data: Record<string, unknown>): string {
+  const nodeId = data.nodeId || 'unknown';
+  const w = data.width || '?';
+  const h = data.height || '?';
+  const name = data.name || '';
+  const label = name ? `"${name}" (${nodeId})` : `${nodeId}`;
+  return JSON.stringify({
+    nodeId,
+    width: w,
+    height: h,
+    note: `Screenshot exported for ${label} at ${w}×${h}. Use get_node_info to inspect structure.`,
+  });
+}
+
+const SCREENSHOT_TOOLS = new Set(['get_screenshot', 'export_node']);
 
 // ═══════════════════════════════════════════════════════════════
 // CHAT — TOOL EXECUTION
@@ -538,21 +677,27 @@ function convertSchemaToGemini(schema: Record<string, unknown>): Record<string, 
 async function executeToolCall(toolUse: ContentBlock): Promise<ContentBlock> {
   const { id, name, input } = toolUse;
 
-  // Special case: generate_image calls Gemini directly
   if (name === 'generate_image') {
     return await executeGenerateImage(id!, input!);
   }
 
-  // All other tools go to the Figma sandbox
+  if (name === 'update_memory') {
+    return await executeUpdateMemory(id!, input!);
+  }
+
   try {
     const data = await sendCommandToSandbox(name!, input || {});
     const summary = formatToolSummary(name!, data);
     appendToolAction(name!, summary);
 
+    const historyContent = SCREENSHOT_TOOLS.has(name!)
+      ? summarizeScreenshotResult(name!, data)
+      : JSON.stringify(stripBase64FromResult(data));
+
     return {
       type: 'tool_result',
       tool_use_id: id,
-      content: JSON.stringify(data),
+      content: historyContent,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -609,7 +754,7 @@ function formatToolSummary(name: string, data: Record<string, unknown>): string 
 async function executeGenerateImage(toolUseId: string, input: Record<string, unknown>): Promise<ContentBlock> {
   const prompt = input.prompt as string;
 
-  if (!settings.geminiApiKey) {
+  if (!chatSettings.geminiApiKey) {
     appendToolAction('generate_image', 'No Gemini API key set', true);
     return {
       type: 'tool_result',
@@ -623,13 +768,13 @@ async function executeGenerateImage(toolUseId: string, input: Record<string, unk
     appendToolAction('generate_image', `Generating: "${prompt.substring(0, 60)}..."`);
 
     const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${settings.geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${chatSettings.geminiApiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          instances: [{ prompt }],
-          parameters: { sampleCount: 1 },
+          contents: [{ parts: [{ text: `Generate an image: ${prompt}` }] }],
+          generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
         }),
       }
     );
@@ -639,17 +784,22 @@ async function executeGenerateImage(toolUseId: string, input: Record<string, unk
     }
 
     const result = await resp.json();
-    const base64 = result.predictions?.[0]?.bytesBase64Encoded;
+    const parts = result.candidates?.[0]?.content?.parts || [];
+    const imgPart = parts.find((p: Record<string, unknown>) => p.inlineData);
+    const base64 = imgPart?.inlineData?.data;
     if (!base64) throw new Error('No image returned from Gemini');
 
-    // Place the image on canvas via create_image
     const imageData = `data:image/png;base64,${base64}`;
     const createParams: Record<string, unknown> = {
       imageData,
       name: (input.name as string) || 'AI Generated Image',
-      width: (input.width as number) || 400,
-      height: (input.height as number) || 400,
     };
+    // Only pass explicit dimensions — when parentId is set, let
+    // handleCreateImage auto-fill the parent frame instead.
+    if (input.width) createParams.width = input.width;
+    if (input.height) createParams.height = input.height;
+    if (!input.parentId && !createParams.width) createParams.width = 400;
+    if (!input.parentId && !createParams.height) createParams.height = 400;
     if (input.x !== undefined) createParams.x = input.x;
     if (input.y !== undefined) createParams.y = input.y;
     if (input.parentId) createParams.parentId = input.parentId;
@@ -675,190 +825,34 @@ async function executeGenerateImage(toolUseId: string, input: Record<string, unk
 }
 
 // ═══════════════════════════════════════════════════════════════
-// BRIDGE (WebSocket — existing functionality)
+// CHAT — MEMORY
 // ═══════════════════════════════════════════════════════════════
 
-function initBridge() {
-  $('bridge-connect').addEventListener('click', toggleBridge);
-}
-
-function generateChannelId(): string {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-  return `figmento-${hex}`;
-}
-
-function setBridgeConnected(connected: boolean) {
-  isBridgeConnected = connected;
-  $('bridge-dot').className = 'status-dot' + (connected ? ' connected' : '');
-  $('bridge-status').textContent = connected ? 'Connected' : 'Disconnected';
-  $('bridge-connect').textContent = connected ? 'Disconnect' : 'Connect';
-  ($('bridge-connect') as HTMLElement).className = 'btn' + (connected ? ' btn-danger' : ' btn-primary');
-  $('bridge-channel').textContent = connected ? bridgeChannelId! : '---';
-  $('channel-hint').textContent = connected ? 'Click to copy' : 'Select & copy to use with Claude Code';
-}
-
-// Expose globally for onclick in HTML
-(window as any).copyChannelId = function copyChannelId() {
-  if (!bridgeChannelId) return;
-  const display = $('channel-display');
-  const hint = $('channel-hint');
-
-  // Use textarea + execCommand — works in Figma's sandboxed iframe
-  const ta = document.createElement('textarea');
-  ta.value = bridgeChannelId;
-  ta.style.position = 'fixed';
-  ta.style.left = '-9999px';
-  ta.style.top = '-9999px';
-  document.body.appendChild(ta);
-  ta.select();
-  let ok = false;
-  try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
-  document.body.removeChild(ta);
-
-  if (ok) {
-    display.classList.add('copied');
-    hint.textContent = 'Copied!';
-    hint.style.color = '#4ade80';
-    setTimeout(() => {
-      display.classList.remove('copied');
-      hint.textContent = 'Click to copy';
-      hint.style.color = '';
-    }, 1500);
-  } else {
-    // Last resort: select the channel text for manual Ctrl+C
-    const range = document.createRange();
-    range.selectNodeContents($('bridge-channel'));
-    const sel = window.getSelection();
-    sel?.removeAllRanges();
-    sel?.addRange(range);
-    hint.textContent = 'Press Ctrl+C to copy';
-    setTimeout(() => { hint.textContent = 'Click to copy'; }, 2000);
-  }
-};
-
-function addBridgeLog(text: string, type: string = 'sys') {
-  const area = $('bridge-log');
-  const entry = document.createElement('div');
-  entry.className = 'log-entry ' + type;
-  const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  entry.textContent = `${time}  ${text}`;
-  area.appendChild(entry);
-  area.scrollTop = area.scrollHeight;
-  while (area.children.length > 100) area.removeChild(area.firstChild!);
-}
-
-function toggleBridge() {
-  if (isBridgeConnected) {
-    if (ws) { ws.close(); ws = null; }
-    setBridgeConnected(false);
-    addBridgeLog('Disconnected', 'sys');
-  } else {
-    connectBridge();
-  }
-}
-
-function connectBridge() {
-  const url = ($('bridge-url') as HTMLInputElement).value.trim();
-  if (!url) return;
-
-  bridgeChannelId = generateChannelId();
-  addBridgeLog(`Connecting to ${url}...`, 'sys');
-
-  try {
-    ws = new WebSocket(url);
-  } catch (e) {
-    addBridgeLog(`Failed: ${(e as Error).message}`, 'err');
-    return;
+async function executeUpdateMemory(toolUseId: string, input: Record<string, unknown>): Promise<ContentBlock> {
+  const entry = (input.entry as string) || '';
+  if (!entry) {
+    return {
+      type: 'tool_result',
+      tool_use_id: toolUseId,
+      content: 'Error: entry is required',
+      is_error: true,
+    };
   }
 
-  ws.onopen = () => {
-    addBridgeLog('WebSocket connected', 'ok');
-    ws!.send(JSON.stringify({ type: 'join', channel: bridgeChannelId }));
+  // Save to clientStorage via sandbox
+  postToSandbox({ type: 'save-memory', entry });
+
+  // Also update local state so it's available immediately
+  memoryEntries.push(entry);
+
+  appendToolAction('update_memory', `Saved: "${entry.substring(0, 60)}${entry.length > 60 ? '...' : ''}"`);
+
+  return {
+    type: 'tool_result',
+    tool_use_id: toolUseId,
+    content: JSON.stringify({ saved: true, entry }),
   };
-
-  ws.onmessage = (event) => {
-    let msg: Record<string, unknown>;
-    try { msg = JSON.parse(event.data as string); } catch { return; }
-
-    if (msg.type === 'joined') {
-      setBridgeConnected(true);
-      addBridgeLog(`Joined channel: ${msg.channel} (${msg.clients} client(s))`, 'ok');
-      return;
-    }
-
-    if (msg.type === 'command') {
-      bridgeCommandCount++;
-      $('bridge-cmd-count').textContent = String(bridgeCommandCount);
-      addBridgeLog(`CMD ${msg.id}: ${msg.action}`, 'cmd');
-      postToSandbox({ type: 'execute-command', command: msg });
-      return;
-    }
-
-    if (msg.type === 'error') {
-      addBridgeLog(`Server error: ${msg.error}`, 'err');
-    }
-  };
-
-  ws.onclose = () => {
-    setBridgeConnected(false);
-    addBridgeLog('WebSocket disconnected', 'err');
-    ws = null;
-  };
-
-  ws.onerror = () => addBridgeLog('WebSocket error', 'err');
 }
-
-// ═══════════════════════════════════════════════════════════════
-// SANDBOX COMMUNICATION
-// ═══════════════════════════════════════════════════════════════
-
-function postToSandbox(msg: Record<string, unknown>) {
-  parent.postMessage({ pluginMessage: msg }, '*');
-}
-
-// Handle messages from the Figma sandbox
-window.onmessage = (event: MessageEvent) => {
-  const msg = event.data?.pluginMessage;
-  if (!msg) return;
-
-  if (msg.type === 'command-result') {
-    const resp = msg.response;
-    const cmdId = resp.id as string;
-
-    // Route to chat if it's a chat command
-    if (cmdId.startsWith('chat-')) {
-      const pending = pendingChatCommands.get(cmdId);
-      if (pending) {
-        pendingChatCommands.delete(cmdId);
-        if (resp.success) {
-          pending.resolve(resp.data || {});
-        } else {
-          pending.reject(new Error(resp.error || 'Command failed'));
-        }
-      }
-      return;
-    }
-
-    // Otherwise route to bridge
-    if (resp.success) {
-      addBridgeLog(`RSP ${cmdId}: OK`, 'ok');
-    } else {
-      bridgeErrorCount++;
-      $('bridge-err-count').textContent = String(bridgeErrorCount);
-      addBridgeLog(`RSP ${cmdId}: ERR ${resp.error}`, 'err');
-    }
-
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(resp));
-    }
-  }
-
-  if (msg.type === 'settings-loaded') {
-    loadSettings(msg.settings || {});
-  }
-};
 
 // ═══════════════════════════════════════════════════════════════
 // MARKDOWN (minimal)
@@ -871,14 +865,3 @@ function formatMarkdown(text: string): string {
     .replace(/`(.*?)`/g, '<code>$1</code>')
     .replace(/\n/g, '<br>');
 }
-
-// ═══════════════════════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════════════════════
-
-document.addEventListener('DOMContentLoaded', () => {
-  initTabs();
-  initChat();
-  initBridge();
-  initSettings();
-});

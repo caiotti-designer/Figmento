@@ -8,6 +8,7 @@
 | ADR updates | 2026-02-24 | 1.1 | Dual-plugin strategy, error contracts, idempotency, revised sequence | @architect (Aria) |
 | Implementation complete | 2026-02-24 | 1.2 | All 26 stories (S-01–S-26) implemented across Milestones 1–6 | @dev (Dex) |
 | S-27: export_node_to_file | 2026-02-24 | 1.3 | Add file-based export for self-evaluation pipeline | @dev (Dex) |
+| Plugin unification | 2026-02-27 | 2.0 | Merge figmento-plugin/ into figmento/ — unified 4-tab plugin with chat agent, MCP bridge, and all 5 design modes | @dev (Dex) |
 
 ---
 
@@ -65,47 +66,52 @@ This document supplements the existing [PROJECT-BRIEFING.md](../PROJECT-BRIEFING
 - Base64 is the only image transport mechanism to the plugin (Figma's `createImage()` requires decoded bytes)
 - Large base64 payloads (images) can strain the WS relay — max payload set to 10MB, no chunking or compression
 
-### 1.2 Dual-Plugin Strategy (ADR)
+### 1.2 Plugin Unification (ADR — v2.0, supersedes Dual-Plugin Strategy)
 
-**Decision:** Both `figmento/` (original standalone plugin) and `figmento-plugin/` (MCP-driven thin executor) coexist as **separate Figma plugin manifests**. This is intentional — the original plugin retains its full AI-powered UI for standalone use, while the MCP plugin is stripped to a WebSocket command executor.
+**Decision (v2.0):** The two plugins have been **merged into a single unified plugin** at `figmento/`. The former `figmento-plugin/` is deprecated.
 
-**Shared Code Problem:**
-Both plugins currently maintain independent copies of core files:
+**Previous Strategy (v1.0–1.3):** Both plugins coexisted as separate manifests. This was intentional initially — the original plugin retained its full AI-powered UI for standalone use, while the MCP plugin was a stripped WebSocket command executor. However, the shared code drift risk (4 duplicated files) and user friction of managing two plugins led to the unification decision.
 
-| File | figmento/ | figmento-plugin/ | Status |
-|------|-----------|-------------------|--------|
-| `element-creators.ts` | 649 lines | 649 lines | Identical — will drift |
-| `color-utils.ts` | 101 lines | 101 lines | Identical — will drift |
-| `svg-utils.ts` | 388 lines | 388 lines | Identical — will drift |
-| `types.ts` (core subset) | UIElement, Fill, Stroke, etc. | UIElement, Fill, Stroke, etc. | Diverged — MCP plugin has WS types |
+**Unification Architecture:**
 
-**Risk:** Any bug fix or enhancement to element creation logic must be applied to both copies. Drift is inevitable and creates subtle bugs (e.g., a fix to font loading in one plugin not reaching the other).
+The merged plugin combines all capabilities into a single Figma plugin with a **4-tab UI**:
 
-**Recommended Strategy: Extract `packages/figmento-core/`**
+| Tab | Source | Purpose |
+|-----|--------|---------|
+| **Chat** (default) | figmento-plugin/ `ui-app.ts` | AI chat agent with iterative tool_use loop (Claude/Gemini/OpenAI) |
+| **Modes** | figmento/ original UI | 5 design modes: Screenshot, Text, Carousel, Presentation, Hero, Template |
+| **Bridge** | figmento-plugin/ `ui-app.ts` | WebSocket relay for MCP/Claude Code |
+| **Settings** | figmento-plugin/ `ui-app.ts` | Chat-specific API keys and model selection |
+
+**Shared Code: `packages/figmento-core/`**
+
+The core shared files were extracted into a proper shared package:
 
 ```
 packages/
 └── figmento-core/
-    ├── src/
-    │   ├── element-creators.ts    # Single source of truth
-    │   ├── color-utils.ts         # Single source of truth
-    │   ├── svg-utils.ts           # Single source of truth
-    │   └── types.ts               # Core design types only (UIElement, Fill, Stroke, etc.)
-    ├── package.json               # "figmento-core", private: true
-    └── tsconfig.json
+    └── src/
+        ├── element-creators.ts    # Single source of truth (figmento-plugin/ version — more complete)
+        ├── color-utils.ts         # Merged utility functions
+        ├── svg-utils.ts           # SVG path operations
+        ├── gradient-utils.ts      # Gradient transform matrices (was figmento-plugin/ only)
+        └── types.ts               # Core types (UIElement, Fill, Stroke) + WS types (WSCommand, WSResponse, CommandErrorCode)
 ```
 
-- Both plugins import from `figmento-core` as a workspace dependency
-- Plugin-specific types (WSCommand, WSResponse, PluginMessage) stay in their respective `types.ts`
-- Build: each plugin's esbuild bundles the core code inline (no runtime dependency resolution needed in Figma sandbox)
+- `figmento/src/` re-exports from `../../packages/figmento-core/src/` via thin shim files
+- `figmento/src/code.ts` imports `getGradientTransform` directly from core
+- esbuild resolves relative imports at build time — no npm package resolution needed
 
-**Current Status (v1.2):** S-22 was **deferred**. The `create_icon` tool (S-16) was implemented by adding a `handleCreateIcon` handler in `figmento-plugin/src/code.ts` that delegates to the existing `createIconPlaceholder()` in `element-creators.ts` — no modification to the shared file was needed, so the extraction trigger was not hit. The shared files remain duplicated but identical. Extraction should be triggered the moment any shared file needs a divergent change.
+**Sandbox Architecture:**
 
-**Evaluation criteria for extraction timing:**
-- Extract the moment any shared file (`element-creators.ts`, `color-utils.ts`, `svg-utils.ts`) needs a change
-- The practical trigger has not yet been hit — all new functionality was added via new handler functions, not by modifying shared files
+The merged `figmento/src/code.ts` handles **both** message patterns:
 
-**Alternative considered:** Git submodule or symlinks. Rejected — esbuild doesn't follow symlinks reliably in the Figma plugin context, and submodules add workflow friction.
+1. **Legacy mode messages** (existing 5 modes): `create-design`, `create-carousel`, `create-presentation`, `scan-template`, etc. → `createDesignFromAnalysis()` path
+2. **Command-routed messages** (chat + bridge): `execute-command` → `executeCommand()` switch with 32 handlers
+
+Both coexist via the Figma `figma.ui.onmessage` handler that dispatches by `msg.type`.
+
+**Migration path:** Over time, as design modes are upgraded to use the iterative tool loop, their legacy message handlers can be removed from the sandbox. This is a future epic (one story per mode).
 
 ---
 
@@ -339,17 +345,47 @@ figmento-mcp-server/
 ├── .prettierrc
 └── package.json              # deps: js-yaml; devDeps: jest, ts-jest, eslint, prettier, @typescript-eslint
 
-figmento-plugin/
+packages/
+└── figmento-core/
+    └── src/
+        ├── element-creators.ts   # 724 lines — Figma node factories (single source of truth)
+        ├── color-utils.ts        # 112 lines — hex/rgb conversion + getFontStyle
+        ├── svg-utils.ts          # 389 lines — SVG path operations
+        ├── gradient-utils.ts     # 35 lines — gradient transform matrices
+        └── types.ts              # ~200 lines — UIElement, WSCommand/Response, CommandErrorCode + all mode types
+
+figmento/  (UNIFIED PLUGIN — merges figmento/ + figmento-plugin/)
 ├── src/
-│   ├── code.ts               # ~900 lines — command router (28 cases) + handlers
-│   ├── element-creators.ts   # 649 lines — Figma node factories (unchanged)
-│   ├── color-utils.ts        # 101 lines — hex/rgb conversion + getFontStyle
-│   ├── svg-utils.ts          # 388 lines — SVG path operations
-│   ├── types.ts              # ~163 lines — UIElement, WSCommand/Response, CommandErrorCode, CommandError
-│   ├── ui-app.ts             # 846 lines — UI iframe WS bridge
-│   ├── tools-schema.ts       # 421 lines — tool definitions
-│   └── system-prompt.ts      # 341 lines — AI system prompt
+│   ├── code.ts               # ~1800 lines — merged sandbox (legacy mode handlers + 32-case command router)
+│   ├── element-creators.ts   # Re-export shim → packages/figmento-core/
+│   ├── color-utils.ts        # Re-export shim → packages/figmento-core/
+│   ├── svg-utils.ts          # Re-export shim → packages/figmento-core/
+│   ├── types.ts              # Re-export shim → packages/figmento-core/
+│   └── ui/
+│       ├── index.ts           # Entry point — wires all modules, 4-tab init
+│       ├── chat.ts            # AI chat agent — 3-provider tool_use loop (Claude/Gemini/OpenAI)
+│       ├── chat-settings.ts   # Chat API key + model management
+│       ├── bridge.ts          # WebSocket MCP bridge
+│       ├── tools-schema.ts    # 22 Anthropic tool definitions
+│       ├── system-prompt.ts   # 341 lines — design intelligence
+│       ├── messages.ts        # Figma message router (legacy + command-result)
+│       ├── settings.ts        # Design mode settings (existing)
+│       ├── screenshot.ts      # Screenshot-to-Layout mode
+│       ├── text-layout.ts     # Text-to-Layout mode
+│       ├── presentation.ts    # Presentation mode
+│       ├── template.ts        # Template Fill mode
+│       ├── hero-generator.ts  # Hero Generator mode
+│       ├── batch.ts           # Batch processing
+│       ├── state.ts           # DOM refs + shared state
+│       └── utils.ts           # Shared UI utilities
+├── src/ui.html               # Unified 4-tab HTML (Chat, Modes, Bridge, Settings)
+├── manifest.json             # Merged network allowlist (Anthropic + OpenAI + Gemini + WS bridge)
+├── build.js                  # esbuild: code.ts → IIFE, ui/ → inline JS in HTML
 └── package.json
+
+figmento-plugin/  (DEPRECATED — merged into figmento/)
+├── src/                      # Original source preserved for reference
+└── DEPRECATED.md
 
 figmento-ws-relay/
 ├── src/
@@ -386,7 +422,7 @@ figmento-ws-relay/
 # Build all (from root)
 cd figmento-ws-relay && npm run build
 cd figmento-mcp-server && npm run build
-cd figmento-plugin && npm run build
+cd figmento && npm run build          # Unified plugin (replaces figmento-plugin)
 ```
 
 **MCP Server Registration (Claude Code):**
@@ -401,7 +437,7 @@ cd figmento-plugin && npm run build
 
 **Startup Sequence:**
 1. `figmento-ws-relay` — start relay on port 3055
-2. Load `figmento-plugin` in Figma — connects to relay
+2. Load `figmento` (unified plugin) in Figma — Bridge tab connects to relay
 3. Claude Code starts MCP server automatically — connects via `connect_to_figma` tool
 
 ### 6.3 Rollback Strategy
@@ -702,7 +738,7 @@ All 26 stories have been implemented across 6 milestones. S-22 (shared module ex
 
 **Pattern for WS-routed tools (requires plugin handler):**
 1. Define Zod schema in the appropriate `tools/*.ts` module
-2. Add handler function in `figmento-plugin/src/code.ts`
+2. Add handler function in `figmento/src/code.ts`
 3. Add case to `executeCommand()` switch
 4. Use `CommandError` codes for structured error reporting
 5. Register in `server.ts` via the module's `registerXTools()` function
@@ -715,7 +751,7 @@ All 26 stories have been implemented across 6 milestones. S-22 (shared module ex
 **Key files:**
 - `figmento-mcp-server/src/tools/` — 7 modules: connection, canvas, style, scene, batch, intelligence, template
 - `figmento-mcp-server/src/server.ts` — tool registration hub (~30 lines)
-- `figmento-plugin/src/code.ts` — command router + handler functions
+- `figmento/src/code.ts` — merged sandbox: command router + handler functions + legacy mode handlers
 - `figmento-mcp-server/src/ws-client.ts` — WS client with reconnection, queue, heartbeat
 
 **Critical rules:**
@@ -726,4 +762,4 @@ All 26 stories have been implemented across 6 milestones. S-22 (shared module ex
 
 ---
 
-*— Architecture document v1.3 — All milestones 1-6 implemented (24/27 stories complete, 1 deferred, 2 partial)*
+*— Architecture document v2.0 — Plugin unification complete. figmento/ is now the single unified plugin (5 modes + chat agent + MCP bridge). figmento-plugin/ deprecated.*

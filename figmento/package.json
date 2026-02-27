@@ -1,7 +1,7 @@
 {
   "name": "figmento",
   "version": "1.0.0",
-  "description": "Figma plugin that converts screenshots into editable designs using AI vision",
+  "description": "Unified Figma AI design plugin — 5 design modes, chat agent with iterative tool loop, and MCP WebSocket bridge",
   "main": "dist/code.js",
   "scripts": {
     "build": "node build.js",

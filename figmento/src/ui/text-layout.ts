@@ -90,7 +90,7 @@ const referenceImageRoles: ImageRole[] = [];
 let currentLayoutPreset: LayoutPreset = 'auto';
 const carouselConfig: CarouselConfig = { enabled: false, slideCount: 'auto', slideFormat: 'square' };
 let textImageGenEnabled = false;
-let textImageGenModel: ImageGenModel = 'gemini-3-pro-image-preview';
+let textImageGenModel: ImageGenModel = 'gemini-3.1-flash-image-preview';
 let customStyleEnabled = false;
 
 // Processing state
@@ -157,6 +157,8 @@ export const selectPluginMode = (mode: PluginMode): void => {
     if (templateFillFlow) templateFillFlow.classList.add('hidden');
     if (presentationFlow) presentationFlow.classList.add('hidden');
     if (heroGeneratorFlow) heroGeneratorFlow.classList.add('hidden');
+    const adAnalyzerFlow = document.getElementById('adAnalyzerFlow') as HTMLDivElement;
+    if (adAnalyzerFlow) adAnalyzerFlow.classList.add('hidden');
 
     if (mode === 'screenshot-to-layout') {
       screenshotFlow.classList.remove('hidden');
@@ -173,6 +175,8 @@ export const selectPluginMode = (mode: PluginMode): void => {
     } else if (mode === 'hero-generator') {
       if (heroGeneratorFlow) heroGeneratorFlow.classList.remove('hidden');
       postMessage({ type: 'select-mode', mode: 'hero-generator' });
+    } else if (mode === 'ad-analyzer') {
+      if (adAnalyzerFlow) adAnalyzerFlow.classList.remove('hidden');
     }
 
     // Show navigation
@@ -184,6 +188,7 @@ export const selectPluginMode = (mode: PluginMode): void => {
       'template-fill': 'Template Fill',
       'text-to-presentation': 'Text to Presentation',
       'hero-generator': 'Hero Generator',
+      'ad-analyzer': 'Ad Analyzer',
     };
     breadcrumbCurrent.textContent = modeNames[mode] || mode;
   }, 200);
