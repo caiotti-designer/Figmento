@@ -1,51 +1,29 @@
 /**
- * Figmento Chat Module — AI design agent chat (Anthropic + Gemini).
+ * Figmento Chat Module — AI design agent chat (Anthropic + Gemini + OpenAI).
  * Ported from figmento-plugin/src/ui-app.ts chat sections.
+ *
+ * Loop logic lives in tool-use-loop.ts. This module owns:
+ *  - DOM manipulation (chat bubbles, tool action rows, loading state)
+ *  - Conversation history state (per provider)
+ *  - Special tool handlers: generate_image, update_memory
+ *  - Sandbox bridge (sendCommandToSandbox)
  */
 
-import { FIGMENTO_TOOLS, ToolDefinition } from './tools-schema';
+import { FIGMENTO_TOOLS } from './tools-schema';
 import { buildSystemPrompt } from './system-prompt';
+import {
+  runToolUseLoop,
+  ToolCallResult,
+  AnthropicMessage,
+  GeminiContent,
+  SCREENSHOT_TOOLS,
+  stripBase64FromResult,
+  summarizeScreenshotResult,
+} from './tool-use-loop';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════
-
-interface Message {
-  role: 'user' | 'assistant';
-  content: string | ContentBlock[];
-}
-
-interface ContentBlock {
-  type: 'text' | 'tool_use' | 'tool_result';
-  text?: string;
-  id?: string;
-  name?: string;
-  input?: Record<string, unknown>;
-  tool_use_id?: string;
-  content?: string;
-  is_error?: boolean;
-}
-
-interface APIResponse {
-  id: string;
-  type: string;
-  role: string;
-  content: ContentBlock[];
-  stop_reason: string | null;
-  model: string;
-  usage: { input_tokens: number; output_tokens: number };
-}
-
-interface GeminiPart {
-  text?: string;
-  functionCall?: { name: string; args: Record<string, unknown> };
-  functionResponse?: { name: string; response: Record<string, unknown> };
-}
-
-interface GeminiContent {
-  role: 'user' | 'model';
-  parts: GeminiPart[];
-}
 
 interface PendingCommand {
   resolve: (data: Record<string, unknown>) => void;
@@ -63,7 +41,7 @@ export interface ChatSettings {
 // STATE
 // ═══════════════════════════════════════════════════════════════
 
-let conversationHistory: Message[] = [];
+let conversationHistory: AnthropicMessage[] = [];
 let geminiHistory: GeminiContent[] = [];
 let openaiHistory: Array<Record<string, unknown>> = [];
 let isProcessing = false;
@@ -201,7 +179,7 @@ function setProcessing(processing: boolean) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// CHAT — API
+// CHAT — MESSAGE SENDING
 // ═══════════════════════════════════════════════════════════════
 
 async function sendMessage() {
@@ -248,469 +226,97 @@ async function sendMessage() {
   }
 }
 
-// ── Anthropic conversation loop ──
+// ═══════════════════════════════════════════════════════════════
+// CHAT — PROVIDER LOOP WRAPPERS (delegate to runToolUseLoop)
+// ═══════════════════════════════════════════════════════════════
 
-async function runAnthropicLoop() {
-  let maxIterations = 50;
-  while (maxIterations-- > 0) {
-    const response = await callAnthropicAPI();
-
-    const textParts: string[] = [];
-    const toolUses: ContentBlock[] = [];
-
-    for (const block of response.content) {
-      if (block.type === 'text' && block.text) {
-        textParts.push(block.text);
-      } else if (block.type === 'tool_use') {
-        toolUses.push(block);
-      }
-    }
-
-    if (textParts.length > 0) {
-      appendChatBubble('assistant', formatMarkdown(textParts.join('\n')));
-    }
-
-    if (toolUses.length === 0) {
-      conversationHistory.push({ role: 'assistant', content: response.content });
-      break;
-    }
-
-    conversationHistory.push({ role: 'assistant', content: response.content });
-
-    const toolResults: ContentBlock[] = [];
-    for (const toolUse of toolUses) {
-      const result = await executeToolCall(toolUse);
-      toolResults.push(result);
-    }
-
-    conversationHistory.push({ role: 'user', content: toolResults });
-  }
-}
-
-async function callAnthropicAPI(): Promise<APIResponse> {
-  const body = {
+async function runAnthropicLoop(): Promise<void> {
+  await runToolUseLoop({
+    provider: 'claude',
+    apiKey: chatSettings.anthropicApiKey,
     model: chatSettings.model,
-    max_tokens: 8192,
-    system: buildSystemPrompt(memoryEntries),
+    systemPrompt: buildSystemPrompt(memoryEntries),
     tools: FIGMENTO_TOOLS,
     messages: conversationHistory,
-  };
-
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': chatSettings.anthropicApiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify(body),
+    onToolCall: buildToolCallHandler(),
+    onProgress: () => { /* progress reserved for future mode UI */ },
+    onTextChunk: (text) => appendChatBubble('assistant', formatMarkdown(text)),
   });
-
-  if (!resp.ok) {
-    const errBody = await resp.text();
-    throw new Error(`Anthropic API error ${resp.status}: ${errBody}`);
-  }
-
-  return resp.json();
 }
 
-// ── Gemini conversation loop ──
-
-async function runGeminiLoop() {
-  let maxIterations = 50;
-  while (maxIterations-- > 0) {
-    const response = await callGeminiAPI();
-
-    const candidate = (response as any).candidates?.[0];
-    if (!candidate?.content?.parts) {
-      appendChatBubble('assistant', '<span class="chat-error">Empty response from Gemini</span>');
-      break;
-    }
-
-    const parts = candidate.content.parts as GeminiPart[];
-    const textParts: string[] = [];
-    const functionCalls: GeminiPart[] = [];
-
-    for (const part of parts) {
-      if (part.text) textParts.push(part.text);
-      if (part.functionCall) functionCalls.push(part);
-    }
-
-    if (textParts.length > 0) {
-      appendChatBubble('assistant', formatMarkdown(textParts.join('\n')));
-    }
-
-    geminiHistory.push({ role: 'model', parts });
-
-    if (functionCalls.length === 0) break;
-
-    const responseParts: GeminiPart[] = [];
-    for (const fc of functionCalls) {
-      const { name, args } = fc.functionCall!;
-      let resultData: Record<string, unknown>;
-      let isErr = false;
-
-      if (name === 'generate_image') {
-        const imgResult = await executeGenerateImage(`gemini-${Date.now()}`, args);
-        if (imgResult.is_error) {
-          resultData = { error: imgResult.content };
-          isErr = true;
-        } else {
-          resultData = JSON.parse(imgResult.content || '{}');
-        }
-      } else if (name === 'update_memory') {
-        const memResult = await executeUpdateMemory(`gemini-mem-${Date.now()}`, args);
-        resultData = memResult.is_error ? { error: memResult.content } : { saved: true };
-        isErr = !!memResult.is_error;
-      } else {
-        try {
-          resultData = await sendCommandToSandbox(name, args);
-          const summary = formatToolSummary(name, resultData);
-          appendToolAction(name, summary);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : 'Unknown error';
-          appendToolAction(name, msg, true);
-          resultData = { error: msg };
-          isErr = true;
-        }
-      }
-
-      let cleanedResult: Record<string, unknown>;
-      if (isErr) {
-        cleanedResult = { error: resultData.error };
-      } else if (SCREENSHOT_TOOLS.has(name)) {
-        cleanedResult = { result: JSON.parse(summarizeScreenshotResult(name, resultData)) };
-      } else {
-        cleanedResult = { result: stripBase64FromResult(resultData) };
-      }
-
-      responseParts.push({
-        functionResponse: { name, response: cleanedResult },
-      });
-    }
-
-    geminiHistory.push({ role: 'user', parts: responseParts });
-  }
-}
-
-async function callGeminiAPI(): Promise<Record<string, unknown>> {
-  const geminiTools = convertToolsToGemini(FIGMENTO_TOOLS);
-
-  const body = {
-    contents: geminiHistory,
-    systemInstruction: { parts: [{ text: buildSystemPrompt(memoryEntries) }] },
-    tools: [{ functionDeclarations: geminiTools }],
-    toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
-    generationConfig: { maxOutputTokens: 8192 },
-  };
-
-  const resp = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${chatSettings.model}:generateContent?key=${chatSettings.geminiApiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }
-  );
-
-  if (!resp.ok) {
-    const errBody = await resp.text();
-    throw new Error(`Gemini API error ${resp.status}: ${errBody}`);
-  }
-
-  return resp.json();
-}
-
-// ── Gemini tool schema converter ──
-
-function convertToolsToGemini(tools: ToolDefinition[]): Record<string, unknown>[] {
-  return tools.map(tool => ({
-    name: tool.name,
-    description: tool.description,
-    parameters: convertSchemaToGemini(tool.input_schema),
-  }));
-}
-
-function convertSchemaToGemini(schema: Record<string, unknown>): Record<string, unknown> {
-  if (schema.oneOf) {
-    const options = schema.oneOf as Record<string, unknown>[];
-    if (options.length > 0) {
-      const flattened = convertSchemaToGemini(options[0]);
-      if (schema.description && !flattened.description) {
-        flattened.description = schema.description;
-      }
-      return flattened;
-    }
-  }
-
-  const result: Record<string, unknown> = {};
-
-  if (schema.type) {
-    result.type = (schema.type as string).toUpperCase();
-  }
-
-  if (schema.description) result.description = schema.description;
-  if (schema.enum) result.enum = schema.enum;
-
-  if (schema.properties) {
-    const props: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(schema.properties as Record<string, unknown>)) {
-      props[key] = convertSchemaToGemini(value as Record<string, unknown>);
-    }
-    result.properties = props;
-  }
-
-  if (schema.required) result.required = schema.required;
-
-  if (schema.items) {
-    result.items = convertSchemaToGemini(schema.items as Record<string, unknown>);
-  } else if (result.type === 'ARRAY' && !result.items) {
-    result.items = { type: 'OBJECT' };
-  }
-
-  return result;
-}
-
-// ── OpenAI conversation loop ──
-
-async function runOpenAILoop() {
-  let maxIterations = 50;
-  while (maxIterations-- > 0) {
-    const response = await callOpenAIAPI();
-
-    const choice = (response as any).choices?.[0];
-    if (!choice?.message) {
-      appendChatBubble('assistant', '<span class="chat-error">Empty response from OpenAI</span>');
-      break;
-    }
-
-    const message = choice.message;
-
-    if (message.content) {
-      appendChatBubble('assistant', formatMarkdown(message.content));
-    }
-
-    // Store assistant message in history
-    openaiHistory.push(message);
-
-    const toolCalls = message.tool_calls;
-    if (!toolCalls || toolCalls.length === 0) break;
-
-    // Execute each tool call and push results
-    for (const tc of toolCalls) {
-      const fnName = tc.function.name;
-      let args: Record<string, unknown>;
-      try {
-        args = JSON.parse(tc.function.arguments);
-      } catch {
-        args = {};
-      }
-
-      let resultContent: string;
-      let isErr = false;
-
-      if (fnName === 'generate_image') {
-        const imgResult = await executeGenerateImage(`openai-${Date.now()}`, args);
-        resultContent = imgResult.content || '{}';
-        isErr = !!imgResult.is_error;
-      } else if (fnName === 'update_memory') {
-        const memResult = await executeUpdateMemory(`openai-mem-${Date.now()}`, args);
-        resultContent = memResult.content || '{}';
-        isErr = !!memResult.is_error;
-      } else {
-        try {
-          const data = await sendCommandToSandbox(fnName, args);
-          const summary = formatToolSummary(fnName, data);
-          appendToolAction(fnName, summary);
-          resultContent = SCREENSHOT_TOOLS.has(fnName)
-            ? summarizeScreenshotResult(fnName, data)
-            : JSON.stringify(stripBase64FromResult(data));
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : 'Unknown error';
-          appendToolAction(fnName, msg, true);
-          resultContent = `Error: ${msg}`;
-          isErr = true;
-        }
-      }
-
-      openaiHistory.push({
-        role: 'tool',
-        tool_call_id: tc.id,
-        content: isErr ? `Error: ${resultContent}` : resultContent,
-      });
-    }
-  }
-}
-
-async function callOpenAIAPI(): Promise<Record<string, unknown>> {
-  const openaiTools = convertToolsToOpenAI(FIGMENTO_TOOLS);
-
-  const body = {
+async function runGeminiLoop(): Promise<void> {
+  await runToolUseLoop({
+    provider: 'gemini',
+    apiKey: chatSettings.geminiApiKey,
     model: chatSettings.model,
-    max_tokens: 8192,
-    messages: [
-      { role: 'system', content: buildSystemPrompt(memoryEntries) },
-      ...openaiHistory,
-    ],
-    tools: openaiTools,
-    tool_choice: 'auto',
-  };
-
-  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${chatSettings.openaiApiKey}`,
-    },
-    body: JSON.stringify(body),
+    systemPrompt: buildSystemPrompt(memoryEntries),
+    tools: FIGMENTO_TOOLS,
+    messages: geminiHistory,
+    onToolCall: buildToolCallHandler(),
+    onProgress: () => { /* progress reserved for future mode UI */ },
+    onTextChunk: (text) => appendChatBubble('assistant', formatMarkdown(text)),
   });
-
-  if (!resp.ok) {
-    const errBody = await resp.text();
-    throw new Error(`OpenAI API error ${resp.status}: ${errBody}`);
-  }
-
-  return resp.json();
 }
 
-// ── OpenAI tool schema converter ──
-
-function convertToolsToOpenAI(tools: ToolDefinition[]): Record<string, unknown>[] {
-  return tools.map(tool => ({
-    type: 'function',
-    function: {
-      name: tool.name,
-      description: tool.description,
-      parameters: convertSchemaToOpenAI(tool.input_schema),
-    },
-  }));
-}
-
-function convertSchemaToOpenAI(schema: Record<string, unknown>): Record<string, unknown> {
-  // OpenAI supports JSON Schema natively, but oneOf on top-level params
-  // can cause issues — flatten to first option (same strategy as Gemini)
-  if (schema.oneOf) {
-    const options = schema.oneOf as Record<string, unknown>[];
-    if (options.length > 0) {
-      const flattened = convertSchemaToOpenAI(options[0]);
-      if (schema.description && !flattened.description) {
-        flattened.description = schema.description;
-      }
-      return flattened;
-    }
-  }
-
-  const result: Record<string, unknown> = {};
-
-  if (schema.type) result.type = schema.type;
-  if (schema.description) result.description = schema.description;
-  if (schema.enum) result.enum = schema.enum;
-  if (schema.required) result.required = schema.required;
-
-  if (schema.properties) {
-    const props: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(schema.properties as Record<string, unknown>)) {
-      props[key] = convertSchemaToOpenAI(value as Record<string, unknown>);
-    }
-    result.properties = props;
-  }
-
-  if (schema.items) {
-    result.items = convertSchemaToOpenAI(schema.items as Record<string, unknown>);
-  }
-
-  if (schema.minimum !== undefined) result.minimum = schema.minimum;
-  if (schema.maximum !== undefined) result.maximum = schema.maximum;
-  if (schema.minItems !== undefined) result.minItems = schema.minItems;
-  if (schema.maxItems !== undefined) result.maxItems = schema.maxItems;
-
-  return result;
+async function runOpenAILoop(): Promise<void> {
+  await runToolUseLoop({
+    provider: 'openai',
+    apiKey: chatSettings.openaiApiKey,
+    model: chatSettings.model,
+    systemPrompt: buildSystemPrompt(memoryEntries),
+    tools: FIGMENTO_TOOLS,
+    messages: openaiHistory,
+    onToolCall: buildToolCallHandler(),
+    onProgress: () => { /* progress reserved for future mode UI */ },
+    onTextChunk: (text) => appendChatBubble('assistant', formatMarkdown(text)),
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
-// CHAT — BASE64 STRIPPING (prevent token overflow)
+// CHAT — TOOL CALL HANDLER
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Strip base64 image data from tool results before appending to
- * conversation history. Screenshots / exports return multi-MB base64
- * strings that blow context limits (especially Gemini).
+ * Returns the unified onToolCall callback used by all three provider loops.
+ * Handles special tools (generate_image, update_memory) and routes all
+ * other tools through the sandbox bridge.
+ *
+ * Returned `content` is a sanitized string (base64 stripped, screenshot
+ * summarized) ready for insertion into provider-specific message history.
+ * Error messages do NOT include an "Error: " prefix — the loop adds it
+ * where required by the provider protocol.
  */
-function stripBase64FromResult(data: Record<string, unknown>): Record<string, unknown> {
-  const cleaned: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (typeof value === 'string' && value.startsWith('data:image/')) {
-      cleaned[key] = '[image data stripped]';
-    } else if (typeof value === 'string' && value.length > 50000) {
-      cleaned[key] = '[large data stripped]';
-    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-      cleaned[key] = stripBase64FromResult(value as Record<string, unknown>);
-    } else {
-      cleaned[key] = value;
+function buildToolCallHandler(): (name: string, args: Record<string, unknown>) => Promise<ToolCallResult> {
+  return async (name: string, args: Record<string, unknown>): Promise<ToolCallResult> => {
+    if (name === 'generate_image') {
+      return executeGenerateImage(args);
     }
-  }
-  return cleaned;
-}
 
-/** For screenshot/export tools, replace the entire result with a compact placeholder. */
-function summarizeScreenshotResult(toolName: string, data: Record<string, unknown>): string {
-  const nodeId = data.nodeId || 'unknown';
-  const w = data.width || '?';
-  const h = data.height || '?';
-  const name = data.name || '';
-  const label = name ? `"${name}" (${nodeId})` : `${nodeId}`;
-  return JSON.stringify({
-    nodeId,
-    width: w,
-    height: h,
-    note: `Screenshot exported for ${label} at ${w}×${h}. Use get_node_info to inspect structure.`,
-  });
-}
+    if (name === 'update_memory') {
+      return executeUpdateMemory(args);
+    }
 
-const SCREENSHOT_TOOLS = new Set(['get_screenshot', 'export_node']);
+    try {
+      const data = await sendCommandToSandbox(name, args);
+      const summary = formatToolSummary(name, data);
+      appendToolAction(name, summary);
+
+      const content = SCREENSHOT_TOOLS.has(name)
+        ? summarizeScreenshotResult(name, data)
+        : JSON.stringify(stripBase64FromResult(data));
+
+      return { content, is_error: false };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      appendToolAction(name, msg, true);
+      return { content: msg, is_error: true };
+    }
+  };
+}
 
 // ═══════════════════════════════════════════════════════════════
-// CHAT — TOOL EXECUTION
+// CHAT — SANDBOX BRIDGE
 // ═══════════════════════════════════════════════════════════════
-
-async function executeToolCall(toolUse: ContentBlock): Promise<ContentBlock> {
-  const { id, name, input } = toolUse;
-
-  if (name === 'generate_image') {
-    return await executeGenerateImage(id!, input!);
-  }
-
-  if (name === 'update_memory') {
-    return await executeUpdateMemory(id!, input!);
-  }
-
-  try {
-    const data = await sendCommandToSandbox(name!, input || {});
-    const summary = formatToolSummary(name!, data);
-    appendToolAction(name!, summary);
-
-    const historyContent = SCREENSHOT_TOOLS.has(name!)
-      ? summarizeScreenshotResult(name!, data)
-      : JSON.stringify(stripBase64FromResult(data));
-
-    return {
-      type: 'tool_result',
-      tool_use_id: id,
-      content: historyContent,
-    };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Unknown error';
-    appendToolAction(name!, msg, true);
-
-    return {
-      type: 'tool_result',
-      tool_use_id: id,
-      content: `Error: ${msg}`,
-      is_error: true,
-    };
-  }
-}
 
 function sendCommandToSandbox(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
@@ -748,18 +354,16 @@ function formatToolSummary(name: string, data: Record<string, unknown>): string 
 }
 
 // ═══════════════════════════════════════════════════════════════
-// GEMINI IMAGE GENERATION
+// SPECIAL TOOL HANDLERS
 // ═══════════════════════════════════════════════════════════════
 
-async function executeGenerateImage(toolUseId: string, input: Record<string, unknown>): Promise<ContentBlock> {
+async function executeGenerateImage(input: Record<string, unknown>): Promise<ToolCallResult> {
   const prompt = input.prompt as string;
 
   if (!chatSettings.geminiApiKey) {
     appendToolAction('generate_image', 'No Gemini API key set', true);
     return {
-      type: 'tool_result',
-      tool_use_id: toolUseId,
-      content: 'Error: Gemini API key not configured. Ask the user to add it in Settings.',
+      content: 'Gemini API key not configured. Ask the user to add it in Settings.',
       is_error: true,
     };
   }
@@ -794,8 +398,6 @@ async function executeGenerateImage(toolUseId: string, input: Record<string, unk
       imageData,
       name: (input.name as string) || 'AI Generated Image',
     };
-    // Only pass explicit dimensions — when parentId is set, let
-    // handleCreateImage auto-fill the parent frame instead.
     if (input.width) createParams.width = input.width;
     if (input.height) createParams.height = input.height;
     if (!input.parentId && !createParams.width) createParams.width = 400;
@@ -807,36 +409,18 @@ async function executeGenerateImage(toolUseId: string, input: Record<string, unk
     const data = await sendCommandToSandbox('create_image', createParams);
     appendToolAction('generate_image', `Placed image: ${data.name} (${data.nodeId})`);
 
-    return {
-      type: 'tool_result',
-      tool_use_id: toolUseId,
-      content: JSON.stringify(data),
-    };
+    return { content: JSON.stringify(data), is_error: false };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     appendToolAction('generate_image', msg, true);
-    return {
-      type: 'tool_result',
-      tool_use_id: toolUseId,
-      content: `Error: ${msg}`,
-      is_error: true,
-    };
+    return { content: msg, is_error: true };
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// CHAT — MEMORY
-// ═══════════════════════════════════════════════════════════════
-
-async function executeUpdateMemory(toolUseId: string, input: Record<string, unknown>): Promise<ContentBlock> {
+async function executeUpdateMemory(input: Record<string, unknown>): Promise<ToolCallResult> {
   const entry = (input.entry as string) || '';
   if (!entry) {
-    return {
-      type: 'tool_result',
-      tool_use_id: toolUseId,
-      content: 'Error: entry is required',
-      is_error: true,
-    };
+    return { content: 'entry is required', is_error: true };
   }
 
   // Save to clientStorage via sandbox
@@ -847,11 +431,7 @@ async function executeUpdateMemory(toolUseId: string, input: Record<string, unkn
 
   appendToolAction('update_memory', `Saved: "${entry.substring(0, 60)}${entry.length > 60 ? '...' : ''}"`);
 
-  return {
-    type: 'tool_result',
-    tool_use_id: toolUseId,
-    content: JSON.stringify({ saved: true, entry }),
-  };
+  return { content: JSON.stringify({ saved: true, entry }), is_error: false };
 }
 
 // ═══════════════════════════════════════════════════════════════

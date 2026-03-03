@@ -11,10 +11,190 @@ import {
   PRESENTATION_COLOR_THEMES,
 } from '../types';
 import { presentationState, addSlideState, apiState, imageGenState, GOOGLE_FONTS } from './state';
-import { postMessage, showToast, debounce, escapeHtml } from './utils';
+import { postMessage, showToast, debounce, escapeHtml, computeToolCallProgress, toolNameToProgressMessage } from './utils';
 import { fetchAllIcons } from './icons';
-import { validateAndFixAnalysis } from './api';
 import { openSettings } from './settings';
+import { buildSystemPrompt } from './system-prompt';
+import { FIGMENTO_TOOLS } from './tools-schema';
+import {
+  runToolUseLoop,
+  ToolCallResult,
+  AnthropicMessage,
+  GeminiContent,
+  ContentBlock,
+  SCREENSHOT_TOOLS,
+  stripBase64FromResult,
+  summarizeScreenshotResult,
+} from './tool-use-loop';
+import { SlideDesignSystem, ToolCallLogEntry, extractDesignSystem, formatConsistencyConstraint } from './slide-utils';
+
+// ═══════════════════════════════════════════════════════════════
+// PENDING-COMMAND BRIDGE  (mirrors screenshot.ts / chat.ts pattern)
+// ═══════════════════════════════════════════════════════════════
+
+interface PendingPresentationCommand {
+  resolve: (data: Record<string, unknown>) => void;
+  reject: (error: Error) => void;
+}
+
+let presentationCommandCounter = 0;
+const pendingPresentationCommands = new Map<string, PendingPresentationCommand>();
+
+function sendPresentationCommand(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const cmdId = `presentation-${++presentationCommandCounter}-${Date.now()}`;
+
+    const timer = setTimeout(() => {
+      pendingPresentationCommands.delete(cmdId);
+      reject(new Error(`Command timeout: ${action}`));
+    }, 30000);
+
+    pendingPresentationCommands.set(cmdId, {
+      resolve: (data) => { clearTimeout(timer); resolve(data); },
+      reject: (err) => { clearTimeout(timer); reject(err); },
+    });
+
+    postMessage({
+      type: 'execute-command',
+      command: {
+        type: 'command',
+        id: cmdId,
+        channel: 'presentation',
+        action,
+        params,
+      },
+    });
+  });
+}
+
+export function resolvePresentationCommand(
+  cmdId: string,
+  success: boolean,
+  data: Record<string, unknown>,
+  error?: string,
+): void {
+  const pending = pendingPresentationCommands.get(cmdId);
+  if (!pending) return;
+  pendingPresentationCommands.delete(cmdId);
+  if (success) {
+    pending.resolve(data);
+  } else {
+    pending.reject(new Error(error || 'Command failed'));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FUNCTION-CALLING: TYPES + BUILDERS
+// ═══════════════════════════════════════════════════════════════
+
+/** Map apiState.currentProvider to runToolUseLoop provider string. */
+function getPresentationProvider(): 'claude' | 'gemini' | 'openai' {
+  const p = apiState.currentProvider as string;
+  if (p === 'gemini') return 'gemini';
+  if (p === 'openai') return 'openai';
+  return 'claude';
+}
+
+/** Get the active model string for the current provider. */
+function getPresentationModel(): string {
+  const p = apiState.currentProvider as string;
+  if (p === 'gemini') return apiState.geminiModel;
+  if (p === 'openai') return apiState.openaiModel;
+  return apiState.claudeModel;
+}
+
+type SlideType = 'title' | 'content' | 'image' | 'closing';
+
+/**
+ * Determines slide type from index and total count.
+ */
+function getSlideType(slideIndex: number, totalSlides: number): SlideType {
+  if (slideIndex === 0) return 'title';
+  if (slideIndex === totalSlides - 1) return 'closing';
+  // Alternate content / image for middle slides
+  return slideIndex % 3 === 0 ? 'image' : 'content';
+}
+
+/**
+ * Builds the instruction text for a single slide.
+ */
+function buildSlideInstruction(
+  topic: string,
+  slideType: SlideType,
+  slideIndex: number,
+  totalSlides: number,
+  slideWidth: number,
+  slideHeight: number,
+  designSystem: SlideDesignSystem | null,
+  font: string,
+  colorTheme: string | null,
+): string {
+  const parts: string[] = [];
+
+  parts.push(`You are creating slide ${slideIndex + 1} of ${totalSlides} for a presentation.`);
+  parts.push(`Presentation topic: "${topic}"`);
+  parts.push(`Slide format: ${slideWidth}×${slideHeight}px. Start with create_frame using these exact dimensions.`);
+
+  // Slide type instructions
+  const typeInstructions: Record<SlideType, string> = {
+    title: 'This is the TITLE slide. Establish the visual identity: dominant headline, minimal content, strong background. Set the color scheme and font that subsequent slides will follow.',
+    content: 'This is a CONTENT slide. Include 3-5 bullet points or a key statement. Maintain the visual system from the title slide. Content area should take ~60% of the slide.',
+    image: 'This is an IMAGE slide. Use a visually dominant element (large image area or bold graphic) with a short title overlay.',
+    closing: 'This is the CLOSING slide. Echo the title slide visual treatment. Include a bold closing statement or call to action.',
+  };
+  parts.push(typeInstructions[slideType]);
+
+  // Design constraints
+  if (font) parts.push(`Font preference: ${font}`);
+  if (colorTheme) parts.push(`Color theme: ${colorTheme}`);
+
+  // Cross-slide consistency (slides 2+)
+  if (designSystem) {
+    const constraint = formatConsistencyConstraint(designSystem);
+    if (constraint) {
+      parts.push(`Visual consistency — slide 1 established: ${constraint}. Maintain this system.`);
+    }
+  }
+
+  parts.push(`\nDo NOT return JSON. Use design tools (create_frame, create_text, set_fill, set_auto_layout, etc.) to build this slide directly. End with run_refinement_check if you created 5+ elements.`);
+
+  return parts.join('\n');
+}
+
+/**
+ * Builds the initial messages array for a single slide's runToolUseLoop call.
+ */
+function buildSlideInitialMessages(
+  topic: string,
+  slideType: SlideType,
+  slideIndex: number,
+  totalSlides: number,
+  slideWidth: number,
+  slideHeight: number,
+  designSystem: SlideDesignSystem | null,
+  font: string,
+  colorTheme: string | null,
+  provider: 'claude' | 'gemini' | 'openai',
+): AnthropicMessage[] | GeminiContent[] | Array<Record<string, unknown>> {
+  const instruction = buildSlideInstruction(
+    topic, slideType, slideIndex, totalSlides,
+    slideWidth, slideHeight, designSystem, font, colorTheme,
+  );
+
+  if (provider === 'gemini') {
+    return [{ role: 'user', parts: [{ text: instruction }] }] as GeminiContent[];
+  }
+
+  if (provider === 'openai') {
+    return [{ role: 'user', content: [{ type: 'text', text: instruction }] }];
+  }
+
+  // Anthropic
+  return [{
+    role: 'user',
+    content: [{ type: 'text', text: instruction } as ContentBlock],
+  }] as AnthropicMessage[];
+}
 
 // ═══════════════════════════════════════════════════════════════
 // PRESENTATION FLOW UI
@@ -539,58 +719,128 @@ export const handleGeneratePresentation = async (): Promise<void> => {
     showSlideNumbers: presentationState.showSlideNumbers,
   };
 
-  setPresentationProgress(0, 'Analyzing content structure...');
+  setPresentationProgress(0, 'Starting presentation...');
 
   // Small delay before starting the async work
   await new Promise<void>((resolve) => setTimeout(resolve, 100));
 
   if (!presentationState.isProcessing) return;
 
-  setPresentationProgress(5, 'Parsing content for slides...');
-  simulatePresentationProgress(10, 55, 30000);
+  const provider = getPresentationProvider();
+  const model = getPresentationModel();
+  const totalSlides = input.slideCount;
+  const slideWidth = input.format.width;
+  const slideHeight = input.format.height;
+  const font = input.font || '';
+  const colorTheme = input.colorTheme ? (typeof input.colorTheme === 'string' ? input.colorTheme : (input.colorTheme as any).name || null) : null;
+
+  // Per-slide tool call log for design system extraction
+  const slideFrameIds: string[] = [];
+  let designSystem: SlideDesignSystem | null = null;
 
   try {
-    const result = await analyzePresentationDesign(input, apiKey);
+    for (let i = 0; i < totalSlides; i++) {
+      if (!presentationState.isProcessing) return;
 
-    if (!presentationState.isProcessing) return;
+      const slideType = getSlideType(i, totalSlides);
+      const slideLabel = `Slide ${i + 1} of ${totalSlides}`;
+      setPresentationProgress(
+        Math.round((i / totalSlides) * 90),
+        `${slideLabel} — Preparing...`,
+      );
 
-    stopPresentationSimulation();
-    setPresentationProgress(60, 'Validating slides...');
+      // Collect tool calls for slide 1 to extract design system
+      const slide1Log: ToolCallLogEntry[] = [];
+      let toolCallCount = 0;
 
-    const validatedSlides: UIAnalysis[] = [];
-    for (let s = 0; s < result.slides.length; s++) {
-      const slide = result.slides[s];
-      if (!slide.backgroundColor) slide.backgroundColor = '#FFFFFF';
-      if (!slide.width) slide.width = input.format.width;
-      if (!slide.height) slide.height = input.format.height;
-      if (!Array.isArray(slide.elements)) slide.elements = [];
-      const validatedSlide = validateAndFixAnalysis(slide);
-      enforcePresentationFont(validatedSlide, input.font);
-      validatedSlides.push(validatedSlide);
+      const messages = buildSlideInitialMessages(
+        content, slideType, i, totalSlides,
+        slideWidth, slideHeight, designSystem,
+        font, colorTheme, provider,
+      );
+
+      await runToolUseLoop({
+        provider,
+        apiKey,
+        model,
+        systemPrompt: buildSystemPrompt(),
+        tools: FIGMENTO_TOOLS,
+        messages,
+        maxIterations: 30,
+        onToolCall: async (name: string, args: Record<string, unknown>): Promise<ToolCallResult> => {
+          try {
+            const data = await sendPresentationCommand(name, args);
+
+            // Capture create_frame result to track slide frame IDs
+            if (name === 'create_frame' && data.nodeId) {
+              slideFrameIds.push(data.nodeId as string);
+            }
+
+            // Log all tool calls from slide 1 for design system extraction
+            if (i === 0) {
+              slide1Log.push({ name, args, result: data });
+            }
+
+            const content2 = SCREENSHOT_TOOLS.has(name)
+              ? summarizeScreenshotResult(name, data)
+              : JSON.stringify(stripBase64FromResult(data));
+            return { content: content2, is_error: false };
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Unknown error';
+            return { content: msg, is_error: true };
+          }
+        },
+        onProgress: (_message: string, toolName?: string) => {
+          if (toolName) {
+            toolCallCount++;
+            const toolPercent = computeToolCallProgress(toolCallCount);
+            // Map 0-95% tool progress to the slice for this slide
+            const sliceStart = Math.round((i / totalSlides) * 90);
+            const sliceEnd = Math.round(((i + 1) / totalSlides) * 90);
+            const slicedPercent = Math.round(sliceStart + (toolPercent / 100) * (sliceEnd - sliceStart));
+            setPresentationProgress(
+              slicedPercent,
+              `Slide ${i + 1}/${totalSlides} — ${toolNameToProgressMessage(toolName, 'text-layout')}`,
+            );
+          }
+        },
+        onTextChunk: () => { /* no streaming text UI */ },
+      });
+
+      // After slide 1, extract design system for consistency
+      if (i === 0) {
+        designSystem = extractDesignSystem(slide1Log);
+      }
     }
 
-    setPresentationProgress(70, 'Fetching icons...');
-    const finalSlides = await Promise.all(validatedSlides.map((slide) => fetchAllIcons(slide)));
-
     if (!presentationState.isProcessing) return;
 
-    setPresentationProgress(90, 'Creating presentation...');
+    // Post-process: position slides side-by-side (gap 40px)
+    // The AI may not have set x coordinates, so we enforce positioning
+    setPresentationProgress(92, 'Positioning slides...');
+    for (let i = 0; i < slideFrameIds.length; i++) {
+      const frameId = slideFrameIds[i];
+      if (frameId) {
+        try {
+          await sendPresentationCommand('move_node', {
+            nodeId: frameId,
+            x: i * (slideWidth + 40),
+            y: 0,
+          });
+        } catch (_e) {
+          // Non-critical — continue even if positioning fails
+        }
+      }
+    }
 
-    postMessage({
-      type: 'create-presentation',
-      data: {
-        slides: finalSlides,
-        font: presentationState.font,
-        format: presentationState.format,
-      },
-    });
+    setPresentationProgress(100, 'Complete!');
 
-    // Show success
     const presSuccessDetails = document.getElementById('presSuccessDetails');
     if (presSuccessDetails) {
-      presSuccessDetails.textContent = finalSlides.length + ' slides generated';
+      presSuccessDetails.textContent = `${totalSlides} slides generated`;
     }
-    showPresentationSuccess();
+
+    setTimeout(() => showPresentationSuccess(), 500);
   } catch (error: any) {
     if (error.message === 'Cancelled') return;
     console.error('Presentation generation error:', error);

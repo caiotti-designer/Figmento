@@ -5,17 +5,175 @@ import {
   apiState,
   progressState,
   modeState,
-  designSettings,
   MAX_IMAGE_SIZE,
   MAX_IMAGE_DIMENSION,
 } from './state';
-import { postMessage, showToast, compressImage } from './utils';
+import { postMessage, showToast, compressImage, computeToolCallProgress, toolNameToProgressMessage } from './utils';
 import { classifyError, CancelledError } from './errors';
-import { analyzeImageStreaming } from './api';
-import { fetchAllIcons } from './icons';
-import { generateImagesForPlaceholders } from './images';
 import { openSettings, showValidationStatus, closeSettings } from './settings';
-import { generateCacheKey, getCachedResponse, setCachedResponse } from './cache';
+import { buildSystemPrompt } from './system-prompt';
+import { FIGMENTO_TOOLS } from './tools-schema';
+import {
+  runToolUseLoop,
+  ToolCallResult,
+  AnthropicMessage,
+  GeminiContent,
+  ContentBlock,
+  SCREENSHOT_TOOLS,
+  stripBase64FromResult,
+  summarizeScreenshotResult,
+} from './tool-use-loop';
+
+// ═══════════════════════════════════════════════════════════════
+// PENDING-COMMAND BRIDGE  (mirrors chat.ts's sendCommandToSandbox)
+// ═══════════════════════════════════════════════════════════════
+
+interface PendingScreenshotCommand {
+  resolve: (data: Record<string, unknown>) => void;
+  reject: (error: Error) => void;
+}
+
+let screenshotCommandCounter = 0;
+const pendingScreenshotCommands = new Map<string, PendingScreenshotCommand>();
+
+/**
+ * Sends a tool command to the Figma sandbox and returns a promise that
+ * resolves when the sandbox replies. Uses the 'screenshot-' cmdId prefix
+ * so index.ts can route the response to resolveScreenshotCommand.
+ */
+function sendScreenshotCommand(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const cmdId = `screenshot-${++screenshotCommandCounter}-${Date.now()}`;
+
+    const timer = setTimeout(() => {
+      pendingScreenshotCommands.delete(cmdId);
+      reject(new Error(`Command timeout: ${action}`));
+    }, 30000);
+
+    pendingScreenshotCommands.set(cmdId, {
+      resolve: (data) => { clearTimeout(timer); resolve(data); },
+      reject: (err) => { clearTimeout(timer); reject(err); },
+    });
+
+    postMessage({
+      type: 'execute-command',
+      command: {
+        type: 'command',
+        id: cmdId,
+        channel: 'screenshot',
+        action,
+        params,
+      },
+    });
+  });
+}
+
+/**
+ * Resolves a pending screenshot command response.
+ * Called by index.ts onCommandResult when cmdId starts with 'screenshot-'.
+ */
+export function resolveScreenshotCommand(
+  cmdId: string,
+  success: boolean,
+  data: Record<string, unknown>,
+  error?: string,
+): void {
+  const pending = pendingScreenshotCommands.get(cmdId);
+  if (!pending) return;
+  pendingScreenshotCommands.delete(cmdId);
+  if (success) {
+    pending.resolve(data);
+  } else {
+    pending.reject(new Error(error || 'Command failed'));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCREENSHOT ANALYSIS — VISION MESSAGE BUILDERS
+// ═══════════════════════════════════════════════════════════════
+
+const SCREENSHOT_INSTRUCTION = `You are recreating a UI design in Figma from the provided screenshot.
+
+Analyze the screenshot carefully:
+- Identify the overall layout structure (frames, sections, containers)
+- Note the color scheme (backgrounds, text colors, accent colors)
+- Identify typography (font sizes, weights, text hierarchy)
+- Identify key UI elements (buttons, cards, navigation, images, icons)
+
+Then recreate the design using the available tools:
+1. Start with the root frame — set appropriate dimensions based on the screenshot layout
+2. Add elements top-down, most important first (headlines, containers, then details)
+3. Use set_auto_layout for containers whenever possible
+4. Match colors as closely as possible using set_fill and set_stroke
+5. Recreate text content faithfully with correct font sizes and weights
+6. If there are icons, use create_icon with the closest matching Lucide icon name
+7. End with run_refinement_check if you created 5 or more elements
+
+Do NOT return any JSON or text description — call the design tools directly to build the design.`;
+
+/**
+ * Builds the initial messages array for runToolUseLoop with the screenshot
+ * as a vision content block in the correct format for the given provider.
+ */
+function buildScreenshotInitialMessages(
+  imageBase64: string,
+  provider: 'claude' | 'gemini' | 'openai',
+): AnthropicMessage[] | GeminiContent[] | Array<Record<string, unknown>> {
+  // Extract MIME type and raw base64 from data URL
+  const match = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
+  const mimeType = match ? match[1] : 'image/png';
+  const rawBase64 = match ? match[2] : imageBase64;
+
+  if (provider === 'gemini') {
+    const messages: GeminiContent[] = [{
+      role: 'user',
+      parts: [
+        { inlineData: { mimeType, data: rawBase64 } } as Record<string, unknown> as any,
+        { text: SCREENSHOT_INSTRUCTION },
+      ],
+    }];
+    return messages;
+  }
+
+  if (provider === 'openai') {
+    return [{
+      role: 'user',
+      content: [
+        { type: 'image_url', image_url: { url: imageBase64 } },
+        { type: 'text', text: SCREENSHOT_INSTRUCTION },
+      ],
+    }];
+  }
+
+  // Anthropic (claude)
+  const messages: AnthropicMessage[] = [{
+    role: 'user',
+    content: [
+      {
+        type: 'image',
+        source: { type: 'base64', media_type: mimeType, data: rawBase64 },
+      } as unknown as ContentBlock,
+      { type: 'text', text: SCREENSHOT_INSTRUCTION } as ContentBlock,
+    ],
+  }];
+  return messages;
+}
+
+/** Map apiState.currentProvider to runToolUseLoop provider string. */
+function getScreenshotProvider(): 'claude' | 'gemini' | 'openai' {
+  const p = apiState.currentProvider as string;
+  if (p === 'gemini') return 'gemini';
+  if (p === 'openai') return 'openai';
+  return 'claude';
+}
+
+/** Get the active model string for the current provider. */
+function getScreenshotModel(): string {
+  const p = apiState.currentProvider as string;
+  if (p === 'gemini') return apiState.geminiModel;
+  if (p === 'openai') return apiState.openaiModel;
+  return apiState.claudeModel;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // STEP NAVIGATION
@@ -427,6 +585,7 @@ export const setupProcessingView = async (): Promise<void> => {
 };
 
 export const startProcessing = async (): Promise<void> => {
+  const provider = getScreenshotProvider();
   const apiKey = apiState.savedApiKeys[apiState.currentProvider];
   if (!apiKey) {
     openSettings();
@@ -457,51 +616,47 @@ export const startProcessing = async (): Promise<void> => {
     }
     if (!screenshotState.isProcessing) throw new CancelledError();
 
-    // Step 3: Analyzing UI layout with streaming (10% -> 58%)
-    setProgress(10, 'Analyzing UI layout...');
+    // Step 3: AI recreates design tool-by-tool (10% -> 100%)
+    setProgress(10, 'Analyzing screenshot...');
 
-    const cacheKey = generateCacheKey(optimizedBase64, apiState.currentProvider, {
-      font: designSettings.selectedFontFamily,
-      brandColors: designSettings.brandColors,
-      grid: designSettings.enableGridSystem,
-      prompt: designSettings.customPrompt,
+    const model = getScreenshotModel();
+    const messages = buildScreenshotInitialMessages(optimizedBase64, provider);
+    let toolCallCount = 0;
+
+    await runToolUseLoop({
+      provider,
+      apiKey,
+      model,
+      systemPrompt: buildSystemPrompt(),
+      tools: FIGMENTO_TOOLS,
+      messages,
+      onToolCall: async (name: string, args: Record<string, unknown>): Promise<ToolCallResult> => {
+        try {
+          const data = await sendScreenshotCommand(name, args);
+          const content = SCREENSHOT_TOOLS.has(name)
+            ? summarizeScreenshotResult(name, data)
+            : JSON.stringify(stripBase64FromResult(data));
+          return { content, is_error: false };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Unknown error';
+          return { content: msg, is_error: true };
+        }
+      },
+      onProgress: (_message: string, toolName?: string) => {
+        if (toolName) {
+          toolCallCount++;
+          const percent = computeToolCallProgress(toolCallCount);
+          setProgress(percent, toolNameToProgressMessage(toolName, 'screenshot'));
+        }
+      },
+      onTextChunk: () => { /* screenshot mode has no text output UI */ },
     });
 
-    let analysis = getCachedResponse(cacheKey);
-    if (analysis) {
-      setProgress(58, 'Using cached analysis...');
-    } else {
-      analysis = await analyzeImageStreaming(optimizedBase64, apiState.currentProvider, apiKey, setProgress);
-      if (analysis && analysis.elements) {
-        setCachedResponse(cacheKey, analysis);
-      }
-    }
-    if (!screenshotState.isProcessing) throw new CancelledError();
-
-    setProgress(60, 'Fetching icons...');
-    if (!analysis || !analysis.elements) {
-      throw new Error('Invalid response from AI. Please try again.');
-    }
-
-    // Step 4: Fetching icons
-    const analysisWithIcons = await fetchAllIcons(analysis);
-    if (!screenshotState.isProcessing) throw new CancelledError();
-
-    // Step 5: Generating images
-    setProgress(75, 'Generating images...');
-    const analysisComplete = await generateImagesForPlaceholders(
-      analysisWithIcons,
-      apiKey,
-      (percent: number, message: string) => setProgress(percent, message)
-    );
     if (!screenshotState.isProcessing) return;
 
-    // Step 6: Creating Figma elements
-    setProgress(95, 'Creating Figma elements...');
-    postMessage({
-      type: 'create-design',
-      data: analysisComplete,
-    });
+    setProgress(100, 'Complete!');
+    setTimeout(() => showSuccess(), 500);
+
   } catch (error: unknown) {
     if (!screenshotState.isProcessing) return;
 
@@ -549,63 +704,6 @@ export const setProgress = (percent: number, message?: string): void => {
       statusText.textContent = message;
     }
   }
-};
-
-export const simulateProgress = (startPercent: number, endPercent: number): void => {
-  stopSimulation();
-
-  const startTime = Date.now();
-  progressState.currentProgress = startPercent;
-
-  // Adaptive asymptotic progress: never stops, never reaches ceiling
-  const FAST_PHASE_MS = 15000; // First 15s: reach ~80% of range
-  const MEDIUM_PHASE_MS = 45000; // Next 30s: reach ~92% of range
-  const SLOW_PHASE_RATE = 0.02; // After 45s: creep at 0.02%/sec
-
-  progressState.progressInterval = window.setInterval(() => {
-    if (!screenshotState.isProcessing) {
-      stopSimulation();
-      return;
-    }
-
-    const elapsed = Date.now() - startTime;
-    const range = endPercent - startPercent;
-    let newPercent: number;
-
-    if (elapsed < FAST_PHASE_MS) {
-      // Phase 1: ease-out cubic, 0 -> 80% of range
-      const t = elapsed / FAST_PHASE_MS;
-      const eased = 1 - Math.pow(1 - t, 3);
-      newPercent = startPercent + range * 0.8 * eased;
-    } else if (elapsed < FAST_PHASE_MS + MEDIUM_PHASE_MS) {
-      // Phase 2: slow linear, 80% -> 92% of range
-      const t2 = (elapsed - FAST_PHASE_MS) / MEDIUM_PHASE_MS;
-      newPercent = startPercent + range * (0.8 + 0.12 * t2);
-    } else {
-      // Phase 3: asymptotic creep toward ceiling, never reaches it
-      const extraSeconds = (elapsed - FAST_PHASE_MS - MEDIUM_PHASE_MS) / 1000;
-      const remaining = endPercent - (startPercent + range * 0.92);
-      newPercent = startPercent + range * 0.92 + remaining * (1 - Math.exp(-SLOW_PHASE_RATE * extraSeconds));
-    }
-
-    // Never exceed ceiling
-    newPercent = Math.min(newPercent, endPercent - 0.01);
-    progressState.currentProgress = newPercent;
-
-    if (dom.processingProgressBar) {
-      dom.processingProgressBar.style.width = newPercent + '%';
-    }
-    if (dom.processingPercent) {
-      dom.processingPercent.textContent = newPercent.toFixed(2);
-    }
-
-    // Update status text based on elapsed time to reassure user
-    if (elapsed > 60000 && elapsed < 60200) {
-      updateProcessingStatus('Still analyzing complex layout...');
-    } else if (elapsed > 30000 && elapsed < 30200) {
-      updateProcessingStatus('Processing detailed elements...');
-    }
-  }, 100);
 };
 
 export const stopSimulation = (): void => {

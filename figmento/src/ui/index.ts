@@ -35,7 +35,9 @@ import {
   setCanLeaveAdAnalyzerCallback,
   toggleCompare,
   submitFeedback,
+  resolveScreenshotCommand,
 } from './screenshot';
+import { resolveTextLayoutCommand } from './text-layout';
 import {
   initModeUI,
   initModeSelector,
@@ -54,6 +56,7 @@ import {
   handleSlideStyleResult,
   handleAddSlideComplete,
   handleAddSlideError,
+  resolvePresentationCommand,
 } from './presentation';
 import { initMessageHandler } from './messages';
 import { initHeroUI, setupHeroListeners } from './hero-generator';
@@ -302,6 +305,12 @@ function setupEventListeners(): void {
       const cmdId = response.id as string;
       if (cmdId && cmdId.startsWith('chat-')) {
         resolveChatCommand(cmdId, !!response.success, (response.data || {}) as Record<string, unknown>, response.error as string | undefined);
+      } else if (cmdId && cmdId.startsWith('screenshot-')) {
+        resolveScreenshotCommand(cmdId, !!response.success, (response.data || {}) as Record<string, unknown>, response.error as string | undefined);
+      } else if (cmdId && cmdId.startsWith('text-layout-')) {
+        resolveTextLayoutCommand(cmdId, !!response.success, (response.data || {}) as Record<string, unknown>, response.error as string | undefined);
+      } else if (cmdId && cmdId.startsWith('presentation-')) {
+        resolvePresentationCommand(cmdId, !!response.success, (response.data || {}) as Record<string, unknown>, response.error as string | undefined);
       } else {
         handleBridgeCommandResult(response);
       }
