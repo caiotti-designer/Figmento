@@ -1,0 +1,14 @@
+id: hero-light
+category: web
+subcategory: hero
+tags: [light, warm, wellness, asymmetric, photography, three-column, serif-bold, olive-accent, overlapping-elements, social-proof]
+palette: light
+layout: asymmetric-three-column
+notable: "Portrait photographs overlap the column boundaries — faces bleed between layout zones, breaking the grid in a way that feels organic rather than designed, perfectly matching a mental health brand's message of human connection over structure."
+source: client-work
+industry: [health, wellness, mental-health, medical]
+composition_notes:
+  zones: "Left 40%: text block (headline + body + CTA + avatar social proof); Center 35%: primary portrait photo overlapping both adjacent columns; Right 25%: secondary content card with second portrait"
+  typography_scale: "Display ~48px bold serif, secondary heading ~22px medium, body ~14px regular, badge labels ~11px — clear 3-level hierarchy"
+  color_distribution: "55% warm white/cream (#FAFAF8), 25% photography warm skin/earth tones, 12% dark text (#1C1C1C), 8% olive/sage green accent (#6B7C5C)"
+  whitespace_strategy: "Left column has ~64px left margin and ~40px between elements; photos use negative margin to overlap columns — the collision IS the whitespace strategy, creating breathing room around the text by letting images absorb the tension"

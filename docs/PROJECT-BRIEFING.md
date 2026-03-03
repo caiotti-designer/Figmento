@@ -110,7 +110,7 @@
 A WebSocket command executor with built-in LLM chat UI and Ad Analyzer mode. All design intelligence lives in the MCP server — the plugin executes Figma API operations, routes direct LLM conversations, and provides a guided workflow for ad analysis and redesign.
 
 ```
-figmento/                          # Unified plugin (figmento-plugin/ is deprecated)
+figmento/                          # Unified plugin (figmento/ is deprecated)
 ├── src/
 │   ├── code.ts                 # Sandbox — command router, 40+ action handlers
 │   ├── element-creators.ts     # createElement() factory, all node creation
@@ -519,7 +519,7 @@ All 5 phases are **implemented and operational**.
 - **Icon tools:** `create_icon` (Lucide 1900+ icons with auto SVG loading), `list_icons` (search by name/category)
 - **Shared core package:** `packages/figmento-core/` with extracted color-utils, element-creators, gradient-utils, svg-utils, types
 - **WS relay deployment:** Railway config (Procfile, railway.json), .env.example, improved channel-based relay with heartbeat
-- **Plugin consolidation:** Unified `figmento/` plugin, `figmento-plugin/` deprecated
+- **Plugin consolidation:** Unified `figmento/` plugin, `figmento/` deprecated
 - **Tests:** 12 suites, 291 tests passing
 
 ---

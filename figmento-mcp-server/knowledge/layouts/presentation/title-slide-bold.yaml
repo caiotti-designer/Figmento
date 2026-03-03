@@ -1,0 +1,63 @@
+name: "Presentation — Title Slide Bold"
+id: title-slide-bold
+category: presentation
+subcategory: title_slide
+description: "Bold title slide with heroic-scale headline, tagline, and subtle visual accent — designed to fill the room"
+
+mood: [bold, confident, professional, impactful]
+industry: [saas, startup, consulting, keynote]
+
+canvas:
+  aspect_ratio: "16:9"
+  reference_size:
+    width: 1920
+    height: 1080
+
+zones:
+  - name: branding
+    y_start_pct: 3
+    y_end_pct: 12
+    positioning: absolute
+    elements:
+      - { role: company-logo, type: frame }
+    typography_hierarchy:
+      company-name: caption
+
+  - name: headline-center
+    y_start_pct: 25
+    y_end_pct: 62
+    elements:
+      - { role: presentation-title, type: text }
+    typography_hierarchy:
+      presentation-title: display
+
+  - name: tagline
+    y_start_pct: 64
+    y_end_pct: 75
+    elements:
+      - { role: subtitle, type: text }
+      - { role: presenter-name, type: text }
+    typography_hierarchy:
+      subtitle: h3
+      presenter-name: body
+
+  - name: visual-accent
+    y_start_pct: 80
+    y_end_pct: 97
+    elements:
+      - { role: decorative-element, type: rectangle }
+      - { role: date-info, type: text }
+    typography_hierarchy:
+      date-info: caption
+
+rhythm:
+  whitespace_ratio: 0.60
+  dominant_gesture: "center-focused — headline commands attention from across the room"
+  section_gap_scale: "dramatic: 40→64→48"
+
+anti_generic:
+  - "Headline must be display-scale (64px+ for 1920×1080) with tight letter-spacing — it must be readable from the back of the room"
+  - "Background must NOT be plain white — use a dark theme, gradient, or tinted solid. White slides look amateur in 2025."
+  - "Visual accent (bottom zone) must add depth — subtle gradient bar, geometric shape, or accent line. Never leave the bottom empty."
+
+memorable_element: "Headline at heroic scale that occupies 40%+ of the slide — fills the room and commands instant attention"

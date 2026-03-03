@@ -1,0 +1,53 @@
+name: "Instagram — Split Horizontal"
+id: instagram-split-horizontal
+category: social
+subcategory: instagram_post
+description: "Image occupies top half, content sits in a solid-color bottom half with clear zone separation"
+
+mood: [clean, structured, fresh, bright]
+industry: [ecommerce, food-beverage, wellness, beauty]
+
+canvas:
+  aspect_ratio: "4:5"
+  reference_size:
+    width: 1080
+    height: 1350
+
+zones:
+  - name: image-zone
+    y_start_pct: 0
+    y_end_pct: 52
+    elements:
+      - { role: hero-image, type: image }
+
+  - name: divider
+    y_start_pct: 52
+    y_end_pct: 53
+    elements:
+      - { role: accent-line, type: rectangle }
+
+  - name: content-zone
+    y_start_pct: 53
+    y_end_pct: 100
+    elements:
+      - { role: headline, type: text }
+      - { role: subheadline, type: text }
+      - { role: body-text, type: text }
+      - { role: cta-button, type: frame }
+    typography_hierarchy:
+      headline: h1
+      subheadline: h3
+      body-text: body
+      cta-button: body
+
+rhythm:
+  whitespace_ratio: 0.50
+  dominant_gesture: "top-to-bottom — image captures, content converts"
+  section_gap_scale: "even: 24→32→24"
+
+anti_generic:
+  - "Content zone background must be a solid brand color or warm neutral — never white or light gray"
+  - "A thin accent-colored divider line (2-4px) between image and content zones creates the signature separation"
+  - "Safe zones: text stays within 150px top/bottom, 60px sides"
+
+memorable_element: "Bold color-block divider line between image and content zones — a single accent stripe that anchors the composition"

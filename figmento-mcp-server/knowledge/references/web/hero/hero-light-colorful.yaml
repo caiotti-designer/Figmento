@@ -1,0 +1,14 @@
+id: hero-light-colorful
+category: web
+subcategory: hero
+tags: [light, playful, colorful, 3d-illustration, centered, gradient-background, bold-sans, agency, lavender, floating-elements]
+palette: light
+layout: centered-stack
+notable: "Soft lavender-to-white gradient background with 3D illustrated blob/star shapes orbiting the content — the floating objects add depth and motion energy without cluttering the centered text hierarchy."
+source: dribbble
+industry: [agency, branding, marketing]
+composition_notes:
+  zones: "8% nav; 10% trust badge; 30% headline block; 15% subtitle + CTAs; 37% ambient illustration zone (top/sides/bottom)"
+  typography_scale: "Display ~44px bold sans-serif, body ~15px regular — headline dominates with minimal scale steps; social proof badge in ~11px uppercase"
+  color_distribution: "60% lavender-white gradient (#F0EEFB → #FFFFFF), 20% 3D illustration purples/greens, 12% dark text (#1A1A1A), 8% purple CTA (#7B5CF0)"
+  whitespace_strategy: "Content column narrow (~540px) in wide viewport — illustration elements use the remaining space as breathing room rather than filling it with content"

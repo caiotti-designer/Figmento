@@ -1,0 +1,60 @@
+name: "Brochure — Single Panel"
+id: brochure-panel
+category: print
+subcategory: brochure
+description: "Single panel of a trifold brochure with image area, headline, body content, and footer — designed for print bleed awareness"
+
+mood: [professional, informative, structured, corporate]
+industry: [healthcare, real-estate, education, hospitality]
+
+canvas:
+  aspect_ratio: "1:2"
+  reference_size:
+    width: 1050
+    height: 2100
+
+zones:
+  - name: image-area
+    y_start_pct: 0
+    y_end_pct: 38
+    elements:
+      - { role: panel-image, type: image }
+
+  - name: headline-zone
+    y_start_pct: 40
+    y_end_pct: 52
+    elements:
+      - { role: panel-headline, type: text }
+      - { role: accent-underline, type: rectangle }
+    typography_hierarchy:
+      panel-headline: h1
+
+  - name: body-content
+    y_start_pct: 54
+    y_end_pct: 84
+    elements:
+      - { role: body-text, type: text }
+      - { role: bullet-points, type: frame }
+    typography_hierarchy:
+      body-text: body
+
+  - name: footer
+    y_start_pct: 87
+    y_end_pct: 97
+    elements:
+      - { role: contact-info, type: text }
+      - { role: company-logo, type: frame }
+    typography_hierarchy:
+      contact-info: caption
+
+rhythm:
+  whitespace_ratio: 0.50
+  dominant_gesture: "top-to-bottom — image establishes mood, headline hooks, body informs"
+  section_gap_scale: "fibonacci-adjacent: 16→24→40"
+
+anti_generic:
+  - "Image-to-text transition must be clean — either hard edge with generous gap (24px+) or accent line divider. No gradients on print."
+  - "Print bleed awareness: 9px bleed minimum. No critical text within 18px of trim edge. Mark bleed area in design notes."
+  - "Body text ≥18px, headlines ≥36px for print readability at 300dpi"
+
+memorable_element: "Strong image-to-text transition — the moment where photography meets typography defines the panel's character"

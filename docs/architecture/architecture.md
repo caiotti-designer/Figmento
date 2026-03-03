@@ -8,7 +8,7 @@
 | ADR updates | 2026-02-24 | 1.1 | Dual-plugin strategy, error contracts, idempotency, revised sequence | @architect (Aria) |
 | Implementation complete | 2026-02-24 | 1.2 | All 26 stories (S-01–S-26) implemented across Milestones 1–6 | @dev (Dex) |
 | S-27: export_node_to_file | 2026-02-24 | 1.3 | Add file-based export for self-evaluation pipeline | @dev (Dex) |
-| Plugin unification | 2026-02-27 | 2.0 | Merge figmento-plugin/ into figmento/ — unified 4-tab plugin with chat agent, MCP bridge, and all 5 design modes | @dev (Dex) |
+| Plugin unification | 2026-02-27 | 2.0 | Merge figmento/ into figmento/ — unified 4-tab plugin with chat agent, MCP bridge, and all 5 design modes | @dev (Dex) |
 
 ---
 
@@ -68,7 +68,7 @@ This document supplements the existing [PROJECT-BRIEFING.md](../PROJECT-BRIEFING
 
 ### 1.2 Plugin Unification (ADR — v2.0, supersedes Dual-Plugin Strategy)
 
-**Decision (v2.0):** The two plugins have been **merged into a single unified plugin** at `figmento/`. The former `figmento-plugin/` is deprecated.
+**Decision (v2.0):** The two plugins have been **merged into a single unified plugin** at `figmento/`. The former `figmento/` is deprecated.
 
 **Previous Strategy (v1.0–1.3):** Both plugins coexisted as separate manifests. This was intentional initially — the original plugin retained its full AI-powered UI for standalone use, while the MCP plugin was a stripped WebSocket command executor. However, the shared code drift risk (4 duplicated files) and user friction of managing two plugins led to the unification decision.
 
@@ -78,10 +78,10 @@ The merged plugin combines all capabilities into a single Figma plugin with a **
 
 | Tab | Source | Purpose |
 |-----|--------|---------|
-| **Chat** (default) | figmento-plugin/ `ui-app.ts` | AI chat agent with iterative tool_use loop (Claude/Gemini/OpenAI) |
+| **Chat** (default) | figmento/ `ui-app.ts` | AI chat agent with iterative tool_use loop (Claude/Gemini/OpenAI) |
 | **Modes** | figmento/ original UI | 5 design modes: Screenshot, Text, Carousel, Presentation, Hero, Template |
-| **Bridge** | figmento-plugin/ `ui-app.ts` | WebSocket relay for MCP/Claude Code |
-| **Settings** | figmento-plugin/ `ui-app.ts` | Chat-specific API keys and model selection |
+| **Bridge** | figmento/ `ui-app.ts` | WebSocket relay for MCP/Claude Code |
+| **Settings** | figmento/ `ui-app.ts` | Chat-specific API keys and model selection |
 
 **Shared Code: `packages/figmento-core/`**
 
@@ -91,10 +91,10 @@ The core shared files were extracted into a proper shared package:
 packages/
 └── figmento-core/
     └── src/
-        ├── element-creators.ts    # Single source of truth (figmento-plugin/ version — more complete)
+        ├── element-creators.ts    # Single source of truth (figmento/ version — more complete)
         ├── color-utils.ts         # Merged utility functions
         ├── svg-utils.ts           # SVG path operations
-        ├── gradient-utils.ts      # Gradient transform matrices (was figmento-plugin/ only)
+        ├── gradient-utils.ts      # Gradient transform matrices (was figmento/ only)
         └── types.ts               # Core types (UIElement, Fill, Stroke) + WS types (WSCommand, WSResponse, CommandErrorCode)
 ```
 
@@ -354,7 +354,7 @@ packages/
         ├── gradient-utils.ts     # 35 lines — gradient transform matrices
         └── types.ts              # ~200 lines — UIElement, WSCommand/Response, CommandErrorCode + all mode types
 
-figmento/  (UNIFIED PLUGIN — merges figmento/ + figmento-plugin/)
+figmento/  (UNIFIED PLUGIN — merges figmento/ + figmento/)
 ├── src/
 │   ├── code.ts               # ~1800 lines — merged sandbox (legacy mode handlers + 32-case command router)
 │   ├── element-creators.ts   # Re-export shim → packages/figmento-core/
@@ -383,7 +383,7 @@ figmento/  (UNIFIED PLUGIN — merges figmento/ + figmento-plugin/)
 ├── build.js                  # esbuild: code.ts → IIFE, ui/ → inline JS in HTML
 └── package.json
 
-figmento-plugin/  (DEPRECATED — merged into figmento/)
+figmento/  (DEPRECATED — merged into figmento/)
 ├── src/                      # Original source preserved for reference
 └── DEPRECATED.md
 
@@ -422,7 +422,7 @@ figmento-ws-relay/
 # Build all (from root)
 cd figmento-ws-relay && npm run build
 cd figmento-mcp-server && npm run build
-cd figmento && npm run build          # Unified plugin (replaces figmento-plugin)
+cd figmento && npm run build          # Unified plugin (replaces figmento)
 ```
 
 **MCP Server Registration (Claude Code):**
@@ -461,9 +461,9 @@ cd figmento && npm run build          # Unified plugin (replaces figmento-plugin
 
 **Decision:** Define a structured `CommandError` type to replace ad-hoc `throw new Error(string)` in the plugin command pipeline. This is a **prerequisite** for WS reconnection and command queuing — the queue needs to know whether a failed command is worth retrying.
 
-**Implementation:** The `classifyError()` function in `figmento-plugin/src/code.ts` maps error messages to structured codes via pattern matching on the error string. The catch block in `executeCommand()` calls `classifyError()` and populates `errorCode` and `recoverable` in the response. Existing handlers continue to work unchanged — plain `throw new Error()` maps to `UNKNOWN`.
+**Implementation:** The `classifyError()` function in `figmento/src/code.ts` maps error messages to structured codes via pattern matching on the error string. The catch block in `executeCommand()` calls `classifyError()` and populates `errorCode` and `recoverable` in the response. Existing handlers continue to work unchanged — plain `throw new Error()` maps to `UNKNOWN`.
 
-**CommandError type (in `figmento-plugin/src/types.ts` and `figmento-mcp-server/src/types.ts`):**
+**CommandError type (in `figmento/src/types.ts` and `figmento-mcp-server/src/types.ts`):**
 
 ```typescript
 export interface CommandError {
@@ -762,4 +762,4 @@ All 26 stories have been implemented across 6 milestones. S-22 (shared module ex
 
 ---
 
-*— Architecture document v2.0 — Plugin unification complete. figmento/ is now the single unified plugin (5 modes + chat agent + MCP bridge). figmento-plugin/ deprecated.*
+*— Architecture document v2.0 — Plugin unification complete. figmento/ is now the single unified plugin (5 modes + chat agent + MCP bridge). figmento/ deprecated.*

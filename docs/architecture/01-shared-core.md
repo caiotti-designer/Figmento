@@ -1,6 +1,6 @@
 # Shared Core — Element Creators, Color Utils, SVG Utils, Types
 
-> Duplicated in `figmento/src/` and `figmento-plugin/src/`. This doc describes the canonical behavior.
+> Duplicated in `figmento/src/` and `figmento/src/`. This doc describes the canonical behavior.
 
 ## element-creators.ts (~649 lines)
 

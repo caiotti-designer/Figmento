@@ -1,0 +1,41 @@
+name: "CTA — Full Width Band"
+id: cta-full-width
+category: web
+subcategory: cta
+description: "Full-width call-to-action band with primary background, bold headline, and oversized pill CTA button"
+
+mood: [bold, action, energetic, conversion]
+industry: [saas, ecommerce, newsletter, app]
+
+canvas:
+  aspect_ratio: "16:5"
+  reference_size:
+    width: 1440
+    height: 450
+
+zones:
+  - name: cta-band
+    y_start_pct: 10
+    y_end_pct: 90
+    elements:
+      - { role: headline, type: text }
+      - { role: subheadline, type: text }
+      - { role: cta-button, type: frame }
+      - { role: trust-note, type: text }
+    typography_hierarchy:
+      headline: h1
+      subheadline: body
+      cta-button: h3
+      trust-note: caption
+
+rhythm:
+  whitespace_ratio: 0.60
+  dominant_gesture: "top-to-bottom centered, tight vertical stack"
+  section_gap_scale: "tight: 16→24→32"
+
+anti_generic:
+  - "Background MUST be primary brand color or dark gradient — never white or light gray, which makes the CTA disappear"
+  - "CTA button must be a contrasting color from the background (e.g., white on primary, primary on dark) — never same-hue-different-shade"
+  - "Pill button (cornerRadius: 999) with generous horizontal padding (≥48px) — rectangular small buttons feel timid"
+
+memorable_element: "Oversized pill CTA button (h3-scale text, 999 radius, 48px+ horizontal padding) that dominates the section"

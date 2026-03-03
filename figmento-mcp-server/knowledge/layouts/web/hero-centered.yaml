@@ -1,0 +1,63 @@
+name: "Hero — Centered Stack"
+id: hero-centered
+category: web
+subcategory: hero
+description: "Centered content stack with eyebrow, headline, subheadline, dual CTAs, and social proof strip"
+
+mood: [versatile, clean, confident, modern]
+industry: [saas, startup, agency, productivity]
+
+canvas:
+  aspect_ratio: "16:10"
+  reference_size:
+    width: 1440
+    height: 900
+
+zones:
+  - name: nav
+    y_start_pct: 0
+    y_end_pct: 8
+    elements:
+      - { role: logo, type: frame }
+      - { role: nav-links, type: frame }
+      - { role: nav-cta, type: frame }
+    typography_hierarchy:
+      nav-links: caption
+      nav-cta: caption
+
+  - name: hero-content
+    y_start_pct: 20
+    y_end_pct: 70
+    elements:
+      - { role: eyebrow, type: text }
+      - { role: headline, type: text }
+      - { role: subheadline, type: text }
+      - { role: cta-primary, type: frame }
+      - { role: cta-secondary, type: text }
+    typography_hierarchy:
+      eyebrow: caption
+      headline: display
+      subheadline: h3
+      cta-primary: body
+      cta-secondary: caption
+
+  - name: social-proof
+    y_start_pct: 78
+    y_end_pct: 88
+    elements:
+      - { role: proof-label, type: text }
+      - { role: logos-strip, type: frame }
+    typography_hierarchy:
+      proof-label: caption
+
+rhythm:
+  whitespace_ratio: 0.55
+  dominant_gesture: "top-to-bottom centered"
+  section_gap_scale: "fibonacci-adjacent: 24→40→64"
+
+anti_generic:
+  - "Headline font must differ from body font OR use ≥3 weight steps between levels"
+  - "At least one element must break visual symmetry — offset CTA group, asymmetric spacing, or oversized text that spans near-full width"
+  - "Social proof strip must NOT be a row of identical gray logos — add subtle opacity variation or colored accent on one"
+
+memorable_element: "Oversized headline spanning near-full canvas width with tight letter-spacing (-0.02em)"

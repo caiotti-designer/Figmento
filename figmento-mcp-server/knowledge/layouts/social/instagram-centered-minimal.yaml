@@ -1,0 +1,56 @@
+name: "Instagram — Centered Minimal"
+id: instagram-centered-minimal
+category: social
+subcategory: instagram_post
+description: "Typography-driven centered layout on solid or subtle background — the text IS the design"
+
+mood: [minimal, typographic, elegant, bold]
+industry: [quotes, announcements, agency, editorial]
+
+canvas:
+  aspect_ratio: "4:5"
+  reference_size:
+    width: 1080
+    height: 1350
+
+zones:
+  - name: top-space
+    y_start_pct: 0
+    y_end_pct: 25
+    elements:
+      - { role: brand-mark, type: frame }
+    typography_hierarchy:
+      brand-mark: caption
+
+  - name: content-centered
+    y_start_pct: 25
+    y_end_pct: 75
+    elements:
+      - { role: headline, type: text }
+      - { role: subheadline, type: text }
+      - { role: accent-divider, type: rectangle }
+    typography_hierarchy:
+      headline: display
+      subheadline: h3
+
+  - name: bottom-space
+    y_start_pct: 75
+    y_end_pct: 100
+    elements:
+      - { role: cta-text, type: text }
+      - { role: handle, type: text }
+    typography_hierarchy:
+      cta-text: body
+      handle: caption
+
+rhythm:
+  whitespace_ratio: 0.65
+  dominant_gesture: "center-anchored — generous whitespace frames the message"
+  section_gap_scale: "dramatic: 48→64→48"
+
+anti_generic:
+  - "Headline must use ≥3 weight steps from body text — the weight contrast IS the visual hierarchy"
+  - "Background must NOT be plain white — use an off-white, tinted neutral, or deep solid color"
+  - "Safe zones: all text within 150px top/bottom, 60px sides"
+
+memorable_element: "Oversized headline with extreme weight contrast — the typography alone creates all the visual tension"

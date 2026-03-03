@@ -17,6 +17,8 @@ import { postMessage, showToast, safeGetItem, safeSetItem, fetchWithRetry, escap
 import { fetchAllIcons } from './icons';
 import { collectImageElements, generateWithGeminiImage } from './images';
 import { modeState, apiState, imageGenState, STORAGE_KEY_MODE } from './state';
+import { inferCategory, getRelevantBlueprint, formatBlueprintZones } from './blueprint-loader';
+import { getRelevantReferences } from './reference-loader';
 
 // ═══════════════════════════════════════════════════════════════
 // VALIDATION HELPERS (inline until api.ts module exists)
@@ -721,6 +723,10 @@ export const TEXT_LAYOUT_PROMPT = [
   '12. Design must be immediately usable as a social media post without modification',
   '13. NEVER use widths smaller than 100px for text elements in auto-layout - use FILL sizing',
   '14. CTA buttons must have generous padding and high-contrast colors',
+  '15. SPACING SCALE: itemSpacing and padding MUST be multiples of 4. Use: 8, 16, 24, 32, 48. Never arbitrary values like 13, 27, or 53.',
+  '16. GRADIENT DIRECTION: The SOLID end (opacity 1.0) of any gradient overlay MUST face the text zone. Text at bottom = solid at bottom. Text at top = solid at top. Use exactly 2 stops.',
+  '17. TYPOGRAPHY RATIO: Headline font size MUST be ≥ 2x body size. Use at least 3 distinct font sizes for visual hierarchy.',
+  '18. AVOID: centered text on EVERY element (vary alignment by hierarchy), equal padding on all frames (vary for rhythm), flat solid backgrounds on hero sections (add gradient or depth), gray rectangle placeholders (describe the image instead).',
 ].join('\n');
 
 // ═══════════════════════════════════════════════════════════════
@@ -818,6 +824,43 @@ export const getTextLayoutPrompt = (input: TextLayoutInput): string => {
     parts.push('');
   }
 
+  // MQ-4: Blueprint zone injection
+  {
+    const bpCategory = inferCategory(input.format.name);
+    const blueprint = getRelevantBlueprint(bpCategory);
+    if (blueprint) {
+      parts.push('## LAYOUT BLUEPRINT ZONES');
+      parts.push('Blueprint: "' + blueprint.name + '"');
+      parts.push('Layout zones (proportional guide): ' + formatBlueprintZones(blueprint, input.format.height));
+      parts.push('Distribute elements proportionally within these zones. Zone percentages are guidelines — adapt to content needs.');
+      parts.push('Memorable element to include: ' + blueprint.memorable_element);
+      parts.push('');
+    }
+  }
+
+  // MQ-5: Reference inspiration injection
+  {
+    const refCategory = inferCategory(input.format.name);
+    if (refCategory) {
+      const refs = getRelevantReferences(refCategory, undefined, undefined, 1);
+      if (refs.length > 0) {
+        const ref = refs[0];
+        parts.push('## REFERENCE INSPIRATION');
+        parts.push('Compositional principle: ' + ref.notable);
+        if (ref.composition_notes) {
+          if (ref.composition_notes.zones) {
+            parts.push('Zone breakdown: ' + ref.composition_notes.zones);
+          }
+          if (ref.composition_notes.whitespace_strategy) {
+            parts.push('Whitespace: ' + ref.composition_notes.whitespace_strategy);
+          }
+        }
+        parts.push('Adapt these proportional principles — use the brief\'s colors and content, not the reference\'s literal design.');
+        parts.push('');
+      }
+    }
+  }
+
   // Reference images
   if (input.referenceImages && input.referenceImages.length > 0) {
     parts.push('## REFERENCE IMAGES');
@@ -912,6 +955,7 @@ export const getCarouselPrompt = (input: TextLayoutInput): string => {
   parts.push('6. SLIDE INDICATORS: Add slide number dots at the bottom of each slide (small ellipses).');
   parts.push('7. BALANCE: Each slide should be visually complete on its own, but part of a series.');
   parts.push('8. PROGRESSION: Content should build logically from slide to slide.');
+  parts.push('9. CAROUSEL CONSISTENCY: Use identical itemSpacing and padding values across ALL slides. Define spacing values once and apply uniformly — never vary spacing between slides.');
   parts.push('');
 
   // Font enforcement

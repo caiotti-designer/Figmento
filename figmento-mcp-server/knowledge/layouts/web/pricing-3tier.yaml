@@ -1,0 +1,65 @@
+name: "Pricing — 3 Tier"
+id: pricing-3tier
+category: web
+subcategory: pricing
+description: "3 pricing cards side by side with the center (recommended) tier visually dominant via scale and color"
+
+mood: [conversion, saas, clear, structured]
+industry: [saas, productivity, hosting, api]
+
+canvas:
+  aspect_ratio: "16:10"
+  reference_size:
+    width: 1440
+    height: 900
+
+zones:
+  - name: section-heading
+    y_start_pct: 3
+    y_end_pct: 18
+    elements:
+      - { role: section-title, type: text }
+      - { role: section-description, type: text }
+      - { role: billing-toggle, type: frame }
+    typography_hierarchy:
+      section-title: h1
+      section-description: body
+
+  - name: pricing-cards
+    y_start_pct: 20
+    y_end_pct: 90
+    split:
+      type: equal
+      columns:
+        - name: tier-basic
+          width_pct: 33
+        - name: tier-pro
+          width_pct: 34
+        - name: tier-enterprise
+          width_pct: 33
+    elements:
+      - { role: tier-name, type: text }
+      - { role: tier-price, type: text }
+      - { role: tier-period, type: text }
+      - { role: tier-description, type: text }
+      - { role: feature-list, type: frame }
+      - { role: tier-cta, type: frame }
+      - { role: popular-badge, type: frame }
+    typography_hierarchy:
+      tier-name: h3
+      tier-price: display
+      tier-period: caption
+      tier-description: body
+      tier-cta: body
+
+rhythm:
+  whitespace_ratio: 0.45
+  dominant_gesture: "center-dominant — eye drawn to middle card first, then compares left and right"
+  section_gap_scale: "even: 24→24→40"
+
+anti_generic:
+  - "Center card MUST be 110% scale or have accent background + deeper shadow — identical cards is the #1 pricing anti-pattern"
+  - "Price number must use tabular figures and be the visually heaviest element in each card (display scale, bold weight)"
+  - "Feature lists must use check icons with the tier's accent color, not generic gray bullets"
+
+memorable_element: "Recommended tier card at 110% scale with accent background, 'Most Popular' badge, and elevated shadow creating unmistakable hierarchy"

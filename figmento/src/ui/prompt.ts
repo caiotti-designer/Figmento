@@ -322,8 +322,12 @@ export const ANALYSIS_PROMPT = [
   '7. Every element MUST have "children": [] even if empty',
   '8. DETECT ALL STROKES: add stroke for any visible border/outline',
   '9. TRANSPARENT FRAMES: Omit fills for frames where background shows through',
-  '10. Use auto-layout as the DEFAULT - only use absolute positioning for overlapping elements',
+  '10. AUTO-LAYOUT IS MANDATORY - use layoutMode VERTICAL or HORIZONTAL for ALL container frames with 2+ children. Only use absolute positioning (no layoutMode) for overlapping/background elements.',
   '11. MIXED-WEIGHT TEXT: Use "segments" when text has visible bold/regular differences. Segments text MUST concatenate to equal content exactly.',
+  '12. SPACING SCALE: itemSpacing and padding values must be multiples of 4. Preferred values: 4, 8, 12, 16, 20, 24, 32, 40, 48, 64. Never use arbitrary values like 13 or 27.',
+  '13. GRADIENT DIRECTION: Place the SOLID end of any gradient overlay behind the text zone. Text at bottom = solid at bottom. Text at top = solid at top. Use exactly 2 stops.',
+  '14. TYPOGRAPHY HIERARCHY: Include at least 3 distinct font sizes. Headline must be ≥ 2x body size. Use at least 2 distinct font weights.',
+  '15. MINIMUM FONT SIZES: Social (1080px wide): body ≥ 28px, headline ≥ 48px. Print (A4): body ≥ 24px, headline ≥ 64px. Presentation (1920px): body ≥ 20px, headline ≥ 40px.',
   '',
   'Return ONLY valid JSON. No explanations, no code blocks.',
 ].join('\n');

@@ -1,0 +1,64 @@
+name: "Business Card — Modern"
+id: business-card-modern
+category: print
+subcategory: business_card
+description: "Clean modern business card with name/title on the left and contact details on the right, anchored by a single accent element"
+
+mood: [professional, modern, clean, minimal]
+industry: [consulting, fintech, saas, agency]
+
+canvas:
+  aspect_ratio: "7:4"
+  reference_size:
+    width: 1050
+    height: 600
+
+zones:
+  - name: primary-info
+    y_start_pct: 15
+    y_end_pct: 65
+    split:
+      type: weighted
+      columns:
+        - name: name-title
+          width_pct: 60
+        - name: contact
+          width_pct: 40
+    elements:
+      - { role: full-name, type: text }
+      - { role: job-title, type: text }
+      - { role: company-name, type: text }
+      - { role: email, type: text }
+      - { role: phone, type: text }
+      - { role: website, type: text }
+    typography_hierarchy:
+      full-name: h2
+      job-title: body
+      company-name: body
+      email: caption
+      phone: caption
+      website: caption
+
+  - name: accent-zone
+    y_start_pct: 75
+    y_end_pct: 82
+    elements:
+      - { role: accent-line, type: rectangle }
+
+  - name: bleed-zone
+    y_start_pct: 95
+    y_end_pct: 100
+    elements:
+      - { role: bleed-area, type: rectangle }
+
+rhythm:
+  whitespace_ratio: 0.60
+  dominant_gesture: "left-to-right — name catches eye first, contact info follows naturally"
+  section_gap_scale: "minimal: 8→16→24"
+
+anti_generic:
+  - "Must include bleed zone awareness: 9px bleed on all sides (3.5×2in at 300dpi = 1050×600 with 9px bleed). No critical content within 18px of edges."
+  - "A single accent element (line, shape, or color block) must anchor the composition — without it, business cards look like Word templates"
+  - "Body text must be ≥18px and headings ≥24px for print legibility at 300dpi"
+
+memorable_element: "Single accent line or geometric shape anchoring the composition — minimal but gives the card its identity"

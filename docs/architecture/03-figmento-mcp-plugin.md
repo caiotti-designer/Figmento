@@ -1,4 +1,4 @@
-# Figmento MCP Plugin — `figmento-plugin/`
+# Figmento MCP Plugin — `figmento/`
 
 > Thin Figma plugin that receives commands from Claude Code via WebSocket relay. Executes Figma API calls and returns results.
 
@@ -13,7 +13,7 @@
 ## Architecture
 
 ```
-figmento-plugin/
+figmento/
 ├── src/
 │   ├── code.ts              # Figma sandbox — command executor (721 lines)
 │   ├── ui-app.ts            # UI iframe — WS bridge + Chat tabs (846 lines)

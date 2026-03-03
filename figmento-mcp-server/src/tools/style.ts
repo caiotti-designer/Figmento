@@ -20,7 +20,7 @@ export function registerStyleTools(server: McpServer, sendDesignCommand: SendDes
           color: z.string(),
           opacity: z.number().optional(),
         })).optional(),
-        gradientDirection: z.enum(['left-right', 'right-left', 'top-bottom', 'bottom-top']).optional().describe('Gradient direction (default: top-bottom)'),
+        gradientDirection: z.enum(['left-right', 'right-left', 'top-bottom', 'bottom-top']).optional().describe('Direction of gradient visual flow. "top-bottom" = starts at top, fades to bottom. "bottom-top" = starts at bottom, fades to top. (default: top-bottom)'),
       })).optional().describe('Full fills array (overrides color param)'),
     },
     async (params) => {

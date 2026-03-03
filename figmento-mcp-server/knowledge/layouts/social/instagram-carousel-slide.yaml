@@ -1,0 +1,57 @@
+name: "Instagram — Carousel Slide"
+id: instagram-carousel-slide
+category: social
+subcategory: instagram_carousel
+description: "Single carousel slide with consistent header bar, content area, and footer bar — designed for multi-slide consistency"
+
+mood: [educational, structured, informative, professional]
+industry: [saas, education, marketing, coaching]
+
+canvas:
+  aspect_ratio: "4:5"
+  reference_size:
+    width: 1080
+    height: 1350
+
+zones:
+  - name: header-bar
+    y_start_pct: 0
+    y_end_pct: 10
+    elements:
+      - { role: brand-name, type: text }
+      - { role: slide-indicator, type: text }
+    typography_hierarchy:
+      brand-name: caption
+      slide-indicator: caption
+
+  - name: content
+    y_start_pct: 10
+    y_end_pct: 85
+    elements:
+      - { role: slide-title, type: text }
+      - { role: slide-body, type: text }
+      - { role: visual-element, type: frame }
+    typography_hierarchy:
+      slide-title: h1
+      slide-body: body
+
+  - name: footer-bar
+    y_start_pct: 85
+    y_end_pct: 100
+    elements:
+      - { role: cta-text, type: text }
+      - { role: swipe-indicator, type: frame }
+    typography_hierarchy:
+      cta-text: caption
+
+rhythm:
+  whitespace_ratio: 0.50
+  dominant_gesture: "top-to-bottom — header anchors, content teaches, footer prompts action"
+  section_gap_scale: "even: 24→32→24"
+
+anti_generic:
+  - "Header and footer bars must have a tinted background (5-10% darker than main) creating clear persistent zones across slides"
+  - "Slide indicator (e.g., '03/10') must be in a fixed position across all slides — top-right corner recommended"
+  - "Safe zones: all text within 150px top/bottom, 60px sides"
+
+memorable_element: "Consistent slide number indicator in the corner — small but creates professional carousel identity across all slides"

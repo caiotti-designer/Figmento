@@ -1,0 +1,83 @@
+id: product-hero-pricing
+name: "Ad — Product Hero with Pricing"
+category: ads
+subcategory: product
+description: "Full-canvas product ad with image in upper zone, pricing hierarchy in lower zone, and a badge element. Designed for discount announcements and product launches."
+mood:
+  - commercial
+  - bold
+  - promotional
+  - luxury
+industry:
+  - consumer-electronics
+  - fashion
+  - beauty
+  - ecommerce
+canvas:
+  aspect_ratio: "4:5"
+  reference_size:
+    width: 1080
+    height: 1350
+
+zones:
+  - name: product-image
+    y_start_pct: 0
+    y_end_pct: 55
+    elements:
+      - role: product-photo
+        type: image
+        notes: "Product centered, floating on dark/neutral surface. No busy backgrounds."
+  - name: badge
+    y_start_pct: 4
+    y_end_pct: 20
+    x_start_pct: 72
+    x_end_pct: 92
+    elements:
+      - role: discount-badge
+        type: frame
+        notes: "Circular frame, accent color fill. cornerRadius = width/2. Contains discount text (e.g. '25% OFF'). Must NOT overlap product name or CTA."
+  - name: gradient-transition
+    y_start_pct: 40
+    y_end_pct: 60
+    elements:
+      - role: image-to-content-fade
+        type: rectangle
+        notes: "2-stop gradient only. direction=bottom-top. Stops: pos=0 opacity=0, pos=1.0 opacity=1. Color matches background."
+  - name: content
+    y_start_pct: 58
+    y_end_pct: 94
+    elements:
+      - role: tagline
+        type: text
+      - role: features
+        type: text
+        notes: "Inline, separated by · (middle dot). Gold/accent color."
+      - role: original-price
+        type: text
+        notes: "De-emphasized — small size, muted color. Prefix with 'was'. Never strike-through (Figma doesn't support it natively)."
+      - role: sale-price
+        type: text
+        notes: "DOMINANT element in content zone. 2-3x larger than original-price. Full-brightness color (white or accent)."
+      - role: cta-button
+        type: frame
+        notes: "Auto-layout frame with horizontal padding. Accent color fill. Dark text on light button. 2x itemSpacing gap above this vs other elements."
+    typography_hierarchy:
+      tagline: h2
+      features: body
+      original-price: caption
+      sale-price: display
+      cta-button: label
+
+rhythm:
+  whitespace_ratio: 0.35
+  dominant_gesture: "product image draws eye, price hierarchy drives decision, CTA closes"
+  section_gap_scale: "content zone: 8→16→24→48 (double gap before CTA)"
+
+anti_generic:
+  - "Sale price must be visually DOMINANT — if it doesn't dwarf the original price, the layout has failed. Use 2-3x font size difference minimum."
+  - "Badge must be circular, not a rounded rectangle. cornerRadius = frame.width / 2."
+  - "Gradient overlay color MUST match the canvas background exactly. Mismatched gradient = visible hard edge."
+  - "Features row in accent/gold color creates a visual mid-layer between image and price — don't skip it or collapse it into body text."
+  - "CTA button needs isolation — double the itemSpacing above it compared to other content gaps."
+
+memorable_element: "Oversized sale price number dominates the content zone — it should feel almost too large. The price IS the hero of the lower half."

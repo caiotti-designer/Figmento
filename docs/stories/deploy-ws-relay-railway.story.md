@@ -185,7 +185,7 @@ Deploy `figmento-ws-relay/` as a hosted Node.js service on Railway so any Figmen
 - [x] New format: `figmento-` + 32 hex chars (e.g., `figmento-a1b2c3d4e5f6...`)
 - [x] Verify browser compatibility (Web Crypto API is available in Figma plugin iframe)
 
-**Files:** `figmento-plugin/src/ui-app.ts`
+**Files:** `figmento/src/ui-app.ts`
 
 ### Task 4: Origin Validation
 - [x] Add `verifyClient` callback to `WebSocketServer` constructor
@@ -238,7 +238,7 @@ Deploy `figmento-ws-relay/` as a hosted Node.js service on Railway so any Figmen
 - [x] Update `networkAccess.reasoning` string to mention the Railway relay
 - [x] Verify plugin can connect to the WSS endpoint from a non-dev build
 
-**Files:** `figmento-plugin/src/ui.html`, `figmento-plugin/manifest.json`
+**Files:** `figmento/src/ui.html`, `figmento/manifest.json`
 
 ### Task 9: Documentation
 - [x] Create `figmento-ws-relay/.env.example` with all env vars documented
@@ -308,9 +308,9 @@ Proposed: `figmento-` + 32 hex chars = 16^32 = ~3.4 × 10^38 combinations (128-b
 | `figmento-ws-relay/.env.example` | CREATE | Environment variable documentation |
 | `figmento-ws-relay/README.md` | CREATE/MODIFY | Deployment and usage docs |
 | `figmento-ws-relay/package-lock.json` | MODIFY | Regenerated to sync with package.json (Railway npm ci) |
-| `figmento-plugin/src/ui-app.ts` | MODIFY | Secure channel ID generation |
-| `figmento-plugin/src/ui.html` | MODIFY | Default WSS URL |
-| `figmento-plugin/manifest.json` | MODIFY | Add Railway domain to networkAccess (https + wss) |
+| `figmento/src/ui-app.ts` | MODIFY | Secure channel ID generation |
+| `figmento/src/ui.html` | MODIFY | Default WSS URL |
+| `figmento/manifest.json` | MODIFY | Add Railway domain to networkAccess (https + wss) |
 | `figmento/src/ui.html` | MODIFY | Default WSS URL |
 | `figmento/manifest.json` | MODIFY | Add Railway domain to networkAccess (https + wss) |
 
@@ -329,7 +329,7 @@ Proposed: `figmento-` + 32 hex chars = 16^32 = ~3.4 × 10^38 combinations (128-b
 | 2026-02-27 | @po | Status: Draft → Ready |
 | 2026-02-27 | @dev | Tasks 1-6 implemented, built, smoke tested locally |
 | 2026-02-27 | @dev | Task 7: railway.json + Procfile created, deployed to Railway (figmento-production.up.railway.app) |
-| 2026-02-27 | @dev | Task 8: Plugin manifest + default URL updated (both figmento/ and figmento-plugin/). Required both `https://` and `wss://` in allowedDomains |
+| 2026-02-27 | @dev | Task 8: Plugin manifest + default URL updated (both figmento/ and figmento/). Required both `https://` and `wss://` in allowedDomains |
 | 2026-02-27 | @dev | Task 9: README.md + .env.example created |
 | 2026-02-27 | @dev | Task 10: Smoke test passed — WSS connection confirmed in Figma Bridge tab |
 | 2026-02-27 | @dev | Status: Ready → Done |

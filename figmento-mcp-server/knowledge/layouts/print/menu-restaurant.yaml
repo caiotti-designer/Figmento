@@ -1,0 +1,71 @@
+name: "Menu — Restaurant"
+id: menu-restaurant
+category: print
+subcategory: menu
+description: "Restaurant menu page with branded header, categorized item sections in 2-column grid, and footer with contact info"
+
+mood: [elegant, warm, appetizing, structured]
+industry: [restaurant, cafe, bar, catering]
+
+canvas:
+  aspect_ratio: "7:10"
+  reference_size:
+    width: 2100
+    height: 3000
+
+zones:
+  - name: header
+    y_start_pct: 0
+    y_end_pct: 12
+    elements:
+      - { role: restaurant-name, type: text }
+      - { role: tagline, type: text }
+      - { role: decorative-rule, type: rectangle }
+    typography_hierarchy:
+      restaurant-name: h1
+      tagline: caption
+
+  - name: menu-sections
+    y_start_pct: 14
+    y_end_pct: 88
+    split:
+      type: equal
+      columns:
+        - name: left-column
+          width_pct: 50
+        - name: right-column
+          width_pct: 50
+    elements:
+      - { role: section-title, type: text }
+      - { role: item-name, type: text }
+      - { role: item-description, type: text }
+      - { role: item-price, type: text }
+      - { role: section-divider, type: rectangle }
+    typography_hierarchy:
+      section-title: h2
+      item-name: body
+      item-description: caption
+      item-price: body
+
+  - name: footer
+    y_start_pct: 90
+    y_end_pct: 98
+    elements:
+      - { role: address, type: text }
+      - { role: hours, type: text }
+      - { role: phone, type: text }
+    typography_hierarchy:
+      address: caption
+      hours: caption
+
+rhythm:
+  whitespace_ratio: 0.45
+  dominant_gesture: "top-to-bottom, left-to-right column scan — structured reading pattern for menu browsing"
+  section_gap_scale: "even: 16→24→32"
+
+anti_generic:
+  - "Decorative dividers between menu sections are mandatory — thin rules, ornamental lines, or small illustrations. Without them, menus look like spreadsheets."
+  - "Print bleed awareness: 9px bleed, no critical text within 18px of trim. Minimum body text 18px at 300dpi."
+  - "Item name and price must be on the same visual line with a dot-leader or whitespace gap — never stacked vertically"
+
+memorable_element: "Decorative dividers between sections — ornamental rules or small culinary illustrations that give the menu its character"

@@ -1,0 +1,67 @@
+name: "Feature Grid — 3 Column"
+id: feature-grid-3col
+category: web
+subcategory: features
+description: "Section heading with 3-column card grid for features, benefits, or services"
+
+mood: [professional, organized, structured, clean]
+industry: [saas, enterprise, consulting, productivity]
+
+canvas:
+  aspect_ratio: "16:10"
+  reference_size:
+    width: 1440
+    height: 900
+
+zones:
+  - name: section-heading
+    y_start_pct: 5
+    y_end_pct: 25
+    elements:
+      - { role: eyebrow, type: text }
+      - { role: section-title, type: text }
+      - { role: section-description, type: text }
+    typography_hierarchy:
+      eyebrow: caption
+      section-title: h1
+      section-description: body
+
+  - name: feature-grid
+    y_start_pct: 28
+    y_end_pct: 85
+    split:
+      type: equal
+      columns:
+        - name: card-1
+          width_pct: 33
+        - name: card-2
+          width_pct: 34
+        - name: card-3
+          width_pct: 33
+    elements:
+      - { role: card-icon, type: frame }
+      - { role: card-title, type: text }
+      - { role: card-description, type: text }
+    typography_hierarchy:
+      card-title: h3
+      card-description: body
+
+  - name: bottom-space
+    y_start_pct: 88
+    y_end_pct: 100
+    elements:
+      - { role: section-cta, type: frame }
+    typography_hierarchy:
+      section-cta: body
+
+rhythm:
+  whitespace_ratio: 0.50
+  dominant_gesture: "top-to-bottom, then left-to-right across cards"
+  section_gap_scale: "fibonacci-adjacent: 24→40→64"
+
+anti_generic:
+  - "Center card must be visually elevated — larger shadow, slight scale increase (102-105%), or accent border-top"
+  - "Card icons must NOT all be the same size or weight — vary at least one to create visual interest"
+  - "Section heading must be left-aligned or left-of-center, never dead-center with equal padding — dead-center is the #1 generic AI pattern"
+
+memorable_element: "Center feature card elevated with deeper shadow and subtle accent border-top, creating clear visual dominance"

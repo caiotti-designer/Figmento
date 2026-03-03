@@ -987,6 +987,7 @@ export const PRESENTATION_PROMPT = [
   '6. CONSISTENCY: All slides MUST use the same design system',
   '7. IMAGE PLACEHOLDERS: Use type "image" with imageDescription for suggested images',
   '8. CLOSING SLIDE: End with clear CTA or "Thank You" slide',
+  '9. LAYOUT: Use auto-layout (layoutMode VERTICAL) for EVERY slide frame. All spacing from scale: 8, 16, 24, 32, 48. Apply consistent paddingTop/Right/Bottom/Left across all slides.',
   '',
   '# CONTENT SYNTAX',
   'Parse user content using these prefixes:',

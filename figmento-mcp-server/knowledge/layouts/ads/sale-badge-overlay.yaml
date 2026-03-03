@@ -1,0 +1,61 @@
+name: "Ad — Sale Badge Overlay"
+id: sale-badge-overlay
+category: ads
+subcategory: sale
+description: "Full-bleed lifestyle image with floating circular discount badge and bottom-aligned CTA"
+
+mood: [energetic, bold, sale, urgent]
+industry: [ecommerce, fashion, retail, electronics]
+
+canvas:
+  aspect_ratio: "4:5"
+  reference_size:
+    width: 1080
+    height: 1350
+
+zones:
+  - name: hero-image
+    y_start_pct: 0
+    y_end_pct: 100
+    elements:
+      - { role: lifestyle-image, type: image }
+
+  - name: badge-zone
+    y_start_pct: 3
+    y_end_pct: 18
+    positioning: absolute
+    elements:
+      - { role: discount-badge, type: frame }
+    typography_hierarchy:
+      discount-percent: h1
+      discount-label: caption
+
+  - name: gradient-overlay
+    y_start_pct: 55
+    y_end_pct: 100
+    elements:
+      - { role: bottom-gradient, type: rectangle }
+
+  - name: content-bottom
+    y_start_pct: 72
+    y_end_pct: 96
+    elements:
+      - { role: headline, type: text }
+      - { role: price-group, type: frame }
+      - { role: cta-button, type: frame }
+    typography_hierarchy:
+      headline: h1
+      price-sale: h2
+      cta-button: body
+
+rhythm:
+  whitespace_ratio: 0.35
+  dominant_gesture: "image-first, badge catches eye top-right, then scans down to CTA"
+  section_gap_scale: "tight: 16→24→32"
+
+anti_generic:
+  - "Badge must be circular (cornerRadius = width/2) positioned top-right, 15-20% of frame width. High-contrast fill (e.g., red, gold) against image."
+  - "Gradient overlay: 2 stops, bottom-to-top, color matches bg, opacity 0 → 0.8. Subtler than product-hero (0.8 not 1.0) to let image breathe."
+  - "CTA must be bottom-aligned and pill-shaped — it's the only actionable element so it must dominate the lower zone"
+
+memorable_element: "Bold circular discount badge with high-contrast percentage number floating over the lifestyle image"

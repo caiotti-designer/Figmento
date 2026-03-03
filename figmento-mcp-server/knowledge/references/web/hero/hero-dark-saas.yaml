@@ -1,0 +1,14 @@
+id: hero-dark-saas
+category: web
+subcategory: hero
+tags: [dark, cinematic, full-bleed, tech, ai, monospace, uppercase, teal-accent, immersive, sci-fi]
+palette: dark
+layout: full-bleed-overlay-left
+notable: "Full-bleed portrait fills the entire viewport with teal/cyan rim lighting — the model's gaze anchors the composition while left-aligned monospace text floats over the dark lower third, creating a editorial poster feel inside a browser."
+source: client-work
+industry: [tech, ai, saas]
+composition_notes:
+  zones: "100% full-bleed portrait background; text block occupies bottom-left 35% of frame; nav bar minimal 5% top strip"
+  typography_scale: "Display ~48px bold monospace uppercase, subhead ~13px regular, CTA ~12px tracked uppercase — extreme weight contrast with minimal size steps"
+  color_distribution: "78% near-black (#090C12), 15% portrait mid-tones, 5% teal/cyan accent (#00E5CC), 2% white text"
+  whitespace_strategy: "Negative space is the dark background itself — portrait fills it rather than margins; text left-anchored to ~5% from edge with no horizontal centering"

@@ -487,4 +487,98 @@ export const FIGMENTO_TOOLS: ToolDefinition[] = [
       required: ['prompt'],
     },
   },
+
+  // ── Figma Native (Variables, Styles) ──
+  {
+    name: 'read_figma_context',
+    description: 'Read the current Figma file\'s design context: all local Variables (with collections and modes), Paint Styles, Text Styles, Effect Styles, and available fonts. Call this FIRST when working with a file that has an existing design system — use the returned variable IDs and style IDs with bind_variable and apply_*_style tools instead of hardcoding values.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'bind_variable',
+    description: 'Bind a Figma Variable to a property on a node. Creates a LIVE binding — changing the variable value in Figma updates the node automatically. Use read_figma_context first to discover variable IDs. For fill/stroke binding, ensures a placeholder paint exists before binding.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'Target node ID' },
+        variableId: { type: 'string', description: 'Variable ID from read_figma_context response' },
+        field: { type: 'string', description: 'Node property to bind. Allowed: fills, strokes, opacity, width, height, paddingTop, paddingRight, paddingBottom, paddingLeft, itemSpacing, cornerRadius, fontSize, fontFamily, fontWeight' },
+      },
+      required: ['nodeId', 'variableId', 'field'],
+    },
+  },
+  {
+    name: 'apply_paint_style',
+    description: 'Apply a Figma Paint Style to a node\'s fills. The node will reference the style — updating the style updates all nodes using it. Use read_figma_context to discover available style IDs.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'Target node ID' },
+        styleId: { type: 'string', description: 'Paint Style ID from read_figma_context response' },
+      },
+      required: ['nodeId', 'styleId'],
+    },
+  },
+  {
+    name: 'apply_text_style',
+    description: 'Apply a Figma Text Style to a text node. Sets font family, size, weight, spacing, and line height from the style. Only works on TEXT nodes.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'Target TEXT node ID' },
+        styleId: { type: 'string', description: 'Text Style ID from read_figma_context response' },
+      },
+      required: ['nodeId', 'styleId'],
+    },
+  },
+  {
+    name: 'apply_effect_style',
+    description: 'Apply a Figma Effect Style to a node. Sets shadows and blurs from the style definition.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'Target node ID' },
+        styleId: { type: 'string', description: 'Effect Style ID from read_figma_context response' },
+      },
+      required: ['nodeId', 'styleId'],
+    },
+  },
+  // ── Design Quality ──
+  {
+    name: 'run_refinement_check',
+    description: 'Run a structural quality check on a design node. Checks: gradient direction (solid end must face text), auto-layout coverage (frames with 2+ children should have layoutMode), spacing scale (itemSpacing must be on the 8px grid), typography hierarchy (largest font must be ≥2× smallest), and empty placeholders (default-named or gray-filled nodes). Returns a report with nodeId, totalChecked, issues array, and passed boolean.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'The Figma node ID to check (root of the design)' },
+      },
+      required: ['nodeId'],
+    },
+  },
+
+  {
+    name: 'create_figma_variables',
+    description: 'Create a Figma Variable Collection with variables. Converts hex colors to native COLOR variables, numbers to FLOAT variables. Use "/" in names for folder grouping (e.g., "color/primary"). If a collection with the same name exists, returns its info instead of duplicating.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        collectionName: { type: 'string', description: 'Name for the variable collection (e.g., "Brand Colors", "Spacing")' },
+        variables: {
+          type: 'array',
+          description: 'Variables to create',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Variable name (e.g., "primary", "md")' },
+              type: { type: 'string', description: 'Variable type: COLOR, FLOAT, STRING, or BOOLEAN' },
+              value: { description: 'Value: hex string for COLOR, number for FLOAT, string for STRING, boolean for BOOLEAN' },
+              group: { type: 'string', description: 'Folder group prefix (e.g., "color" → creates "color/primary")' },
+            },
+            required: ['name', 'type', 'value'],
+          },
+        },
+      },
+      required: ['collectionName', 'variables'],
+    },
+  },
 ];

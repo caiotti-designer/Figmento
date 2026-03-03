@@ -13,6 +13,10 @@ import { registerPatternTools } from './tools/patterns';
 import { registerDsTemplateTools } from './tools/ds-templates';
 import { registerIconTools } from './tools/icons';
 import { registerAdAnalyzerTools } from './tools/ad-analyzer';
+import { registerLayoutTools } from './tools/layouts';
+import { registerReferenceTools } from './tools/references';
+import { registerFigmaNativeTools } from './tools/figma-native';
+import { registerRefinementTools } from './tools/refinement';
 
 /**
  * Creates and configures the Figmento MCP server with all design tools.
@@ -61,6 +65,10 @@ export function createFigmentoServer(): McpServer {
   registerDsTemplateTools(server, sendDesignCommand);
   registerIconTools(server, sendDesignCommand);
   registerAdAnalyzerTools(server, sendDesignCommand);
+  registerLayoutTools(server);
+  registerReferenceTools(server);
+  registerFigmaNativeTools(server, sendDesignCommand);
+  registerRefinementTools(server, sendDesignCommand);
 
   return server;
 }

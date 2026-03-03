@@ -17,6 +17,7 @@ import {
 import { hexToRgb, rgbToHex, getFontStyle, isContrastingColor } from './color-utils';
 import { createElement } from './element-creators';
 import { getGradientTransform } from './gradient-utils';
+import { postCreationRefinement, countNodes } from './refinement';
 
 // Storage keys for persistent data
 const API_KEYS_STORAGE_KEY = 'figmento-api-keys';
@@ -892,6 +893,16 @@ async function createDesignFromAnalysis(analysis: UIAnalysis, frameName?: string
   figma.currentPage.selection = [mainFrame];
   sendProgress('Complete! Created ' + createdElements + ' elements');
 
+  // MQ-8: Post-creation structural refinement (spacing, auto-layout)
+  try {
+    if (countNodes(mainFrame) >= 3) {
+      await postCreationRefinement(mainFrame);
+    }
+  } catch (err) {
+    console.warn('MQ Refinement: failed silently', err);
+    // Design is already created — do not re-throw
+  }
+
   return mainFrame;
 }
 
@@ -1083,6 +1094,20 @@ async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
         });
         return { ...baseResponse, success: true, data: {} };
       }
+      case 'read_figma_context':
+        return { ...baseResponse, success: true, data: await handleReadFigmaContext() };
+      case 'bind_variable':
+        return { ...baseResponse, success: true, data: await handleBindVariable(cmd.params) };
+      case 'apply_paint_style':
+        return { ...baseResponse, success: true, data: await handleApplyPaintStyle(cmd.params) };
+      case 'apply_text_style':
+        return { ...baseResponse, success: true, data: await handleApplyTextStyle(cmd.params) };
+      case 'apply_effect_style':
+        return { ...baseResponse, success: true, data: await handleApplyEffectStyle(cmd.params) };
+      case 'create_figma_variables':
+        return { ...baseResponse, success: true, data: await handleCreateFigmaVariables(cmd.params) };
+      case 'run_refinement_check':
+        return { ...baseResponse, success: true, data: await runRefinementCheck(String(cmd.params.nodeId)) };
       default:
         return { ...baseResponse, success: false, error: `Unknown action: ${cmd.action}` };
     }
@@ -2207,6 +2232,13 @@ async function executeSingleAction(action: string, params: Record<string, unknow
     case 'apply_template_image': return await handleApplyTemplateImageCmd(params);
     case 'clone_with_overrides': return await handleCloneWithOverrides(params);
     case 'set_text': return await handleSetText(params);
+    case 'read_figma_context': return await handleReadFigmaContext();
+    case 'bind_variable': return await handleBindVariable(params);
+    case 'apply_paint_style': return await handleApplyPaintStyle(params);
+    case 'apply_text_style': return await handleApplyTextStyle(params);
+    case 'apply_effect_style': return await handleApplyEffectStyle(params);
+    case 'create_figma_variables': return await handleCreateFigmaVariables(params);
+    case 'run_refinement_check': return await runRefinementCheck(String(params.nodeId));
     default:
       throw new Error(`Unknown action in batch: ${action}`);
   }
@@ -2538,4 +2570,436 @@ async function handleScanFrameStructure(params: Record<string, unknown>): Promis
   }
 
   return scanNode(node as SceneNode, 0) as unknown as Record<string, unknown>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FIGMA NATIVE: read_figma_context, bind_variable, apply_*_style
+// ═══════════════════════════════════════════════════════════════
+
+async function handleReadFigmaContext(): Promise<Record<string, unknown>> {
+  const rawVariables = await figma.variables.getLocalVariablesAsync();
+  const rawCollections = await figma.variables.getLocalVariableCollectionsAsync();
+
+  const modeNameMap = new Map<string, string>();
+  for (const col of rawCollections) {
+    for (const mode of col.modes) {
+      modeNameMap.set(mode.modeId, mode.name);
+    }
+  }
+
+  const variables = await Promise.all(rawVariables.map(async v => {
+    const resolvedValues: Record<string, unknown> = {};
+    for (const [modeId, value] of Object.entries(v.valuesByMode)) {
+      const modeName = modeNameMap.get(modeId) || modeId;
+      if (typeof value === 'object' && value !== null && 'type' in value && (value as Record<string, unknown>).type === 'VARIABLE_ALIAS') {
+        const aliasId = (value as VariableAlias).id;
+        const aliasVar = await figma.variables.getVariableByIdAsync(aliasId);
+        resolvedValues[modeName] = { alias: true, aliasName: aliasVar?.name || aliasId, aliasId };
+      } else if (v.resolvedType === 'COLOR' && typeof value === 'object' && value !== null && 'r' in value) {
+        const rgb = value as { r: number; g: number; b: number; a?: number };
+        resolvedValues[modeName] = { hex: rgbToHex(rgb), opacity: rgb.a !== undefined ? rgb.a : 1 };
+      } else {
+        resolvedValues[modeName] = value;
+      }
+    }
+    return { id: v.id, name: v.name, resolvedType: v.resolvedType, valuesByMode: resolvedValues };
+  }));
+
+  const collections = rawCollections.map(c => ({
+    id: c.id,
+    name: c.name,
+    modes: c.modes.map(m => ({ id: m.modeId, name: m.name })),
+    variableIds: c.variableIds,
+  }));
+
+  const rawPaintStyles = await figma.getLocalPaintStylesAsync();
+  const paintStyles = rawPaintStyles.map(s => ({
+    id: s.id,
+    name: s.name,
+    key: s.key,
+    paints: (s.paints as Paint[]).map(p => {
+      if (p.type === 'SOLID') return { type: 'SOLID', color: rgbToHex(p.color), opacity: p.opacity ?? 1 };
+      if (p.type === 'GRADIENT_LINEAR') return { type: 'GRADIENT_LINEAR', stops: (p as GradientPaint).gradientStops.map(gs => ({ position: gs.position, color: rgbToHex({ r: gs.color.r, g: gs.color.g, b: gs.color.b }), opacity: gs.color.a })) };
+      return { type: p.type };
+    }),
+  }));
+
+  const rawTextStyles = await figma.getLocalTextStylesAsync();
+  const textStyles = rawTextStyles.map(s => ({
+    id: s.id, name: s.name, key: s.key,
+    fontFamily: s.fontName.family, fontStyle: s.fontName.style,
+    fontSize: s.fontSize, letterSpacing: s.letterSpacing,
+    lineHeight: s.lineHeight, textCase: s.textCase, textDecoration: s.textDecoration,
+  }));
+
+  const rawEffectStyles = await figma.getLocalEffectStylesAsync();
+  const effectStyles = rawEffectStyles.map(s => ({
+    id: s.id, name: s.name, key: s.key,
+    effects: s.effects.map(e => ({
+      type: e.type, visible: e.visible,
+      ...(e.type === 'DROP_SHADOW' || e.type === 'INNER_SHADOW' ? {
+        color: rgbToHex({ r: (e as DropShadowEffect).color.r, g: (e as DropShadowEffect).color.g, b: (e as DropShadowEffect).color.b }),
+        opacity: (e as DropShadowEffect).color.a,
+        offset: (e as DropShadowEffect).offset,
+        radius: (e as DropShadowEffect).radius,
+        spread: (e as DropShadowEffect).spread,
+      } : {}),
+    })),
+  }));
+
+  const allFonts = await figma.listAvailableFontsAsync();
+  const familySet = new Set<string>();
+  const fonts: string[] = [];
+  for (const f of allFonts) {
+    if (!familySet.has(f.fontName.family)) {
+      familySet.add(f.fontName.family);
+      fonts.push(f.fontName.family);
+      if (fonts.length >= 100) break;
+    }
+  }
+
+  return { variables, collections, paintStyles, textStyles, effectStyles, fonts };
+}
+
+async function handleBindVariable(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  const variableId = params.variableId as string;
+  const field = params.field as string;
+  if (!nodeId || !variableId || !field) throw new Error('nodeId, variableId, and field are required');
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) throw new Error(`Node not found: ${nodeId}`);
+
+  const variable = await figma.variables.getVariableByIdAsync(variableId);
+  if (!variable) throw new Error(`Variable not found: ${variableId}`);
+
+  const fieldMapping: Record<string, VariableBindableNodeField> = {
+    fills: 'fills', strokes: 'strokes', opacity: 'opacity',
+    width: 'width', height: 'height',
+    paddingTop: 'paddingTop', paddingRight: 'paddingRight',
+    paddingBottom: 'paddingBottom', paddingLeft: 'paddingLeft',
+    itemSpacing: 'itemSpacing', cornerRadius: 'topLeftRadius',
+    fontSize: 'fontSize', fontFamily: 'fontFamily', fontWeight: 'fontWeight',
+  };
+
+  const figmaField = fieldMapping[field];
+  if (!figmaField) throw new Error(`Unsupported field: "${field}". Supported: ${Object.keys(fieldMapping).join(', ')}`);
+
+  if (field === 'fills' || field === 'strokes') {
+    if (!('fills' in node)) throw new Error(`Node ${nodeId} does not support fills/strokes`);
+    const geom = node as GeometryMixin;
+    const existing = (field === 'fills' ? geom.fills : geom.strokes) as Paint[];
+    const basePaint: SolidPaint = existing.length > 0 && existing[0].type === 'SOLID'
+      ? existing[0] as SolidPaint
+      : { type: 'SOLID', color: { r: 0, g: 0, b: 0 } };
+    const boundPaint = figma.variables.setBoundVariableForPaint(basePaint, 'color', variable);
+    if (field === 'fills') geom.fills = [boundPaint];
+    else geom.strokes = [boundPaint];
+  } else if (field === 'cornerRadius') {
+    for (const corner of ['topLeftRadius', 'topRightRadius', 'bottomLeftRadius', 'bottomRightRadius'] as VariableBindableNodeField[]) {
+      (node as SceneNode).setBoundVariable(corner, variable);
+    }
+  } else {
+    (node as SceneNode).setBoundVariable(figmaField, variable);
+  }
+
+  return {
+    success: true, nodeId, variableId, variableName: variable.name, field,
+    message: `Bound variable "${variable.name}" to ${field} on node "${(node as SceneNode).name}"`,
+  };
+}
+
+async function handleApplyPaintStyle(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  const styleId = params.styleId as string;
+  if (!nodeId || !styleId) throw new Error('nodeId and styleId are required');
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) throw new Error(`Node not found: ${nodeId}`);
+  if (!('fillStyleId' in node)) throw new Error(`Node ${nodeId} does not support paint styles`);
+
+  const style = await figma.getStyleByIdAsync(styleId);
+  if (!style) throw new Error(`Style not found: ${styleId}`);
+
+  (node as GeometryMixin).fillStyleId = styleId;
+  return { success: true, nodeId, styleId, styleName: style.name, message: `Applied paint style "${style.name}" to node "${(node as SceneNode).name}"` };
+}
+
+async function handleApplyTextStyle(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  const styleId = params.styleId as string;
+  if (!nodeId || !styleId) throw new Error('nodeId and styleId are required');
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) throw new Error(`Node not found: ${nodeId}`);
+  if (node.type !== 'TEXT') throw new Error(`Node ${nodeId} is not a text node (type: ${node.type})`);
+
+  const style = await figma.getStyleByIdAsync(styleId);
+  if (!style) throw new Error(`Style not found: ${styleId}`);
+
+  await figma.loadFontAsync((style as TextStyle).fontName);
+  (node as TextNode).textStyleId = styleId;
+  return { success: true, nodeId, styleId, styleName: style.name, message: `Applied text style "${style.name}" to node "${(node as SceneNode).name}"` };
+}
+
+async function handleApplyEffectStyle(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  const styleId = params.styleId as string;
+  if (!nodeId || !styleId) throw new Error('nodeId and styleId are required');
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) throw new Error(`Node not found: ${nodeId}`);
+  if (!('effectStyleId' in node)) throw new Error(`Node ${nodeId} does not support effect styles`);
+
+  const style = await figma.getStyleByIdAsync(styleId);
+  if (!style) throw new Error(`Style not found: ${styleId}`);
+
+  (node as BlendMixin).effectStyleId = styleId;
+  return { success: true, nodeId, styleId, styleName: style.name, message: `Applied effect style "${style.name}" to node "${(node as SceneNode).name}"` };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FIGMA NATIVE: create_figma_variables
+// ═══════════════════════════════════════════════════════════════
+
+async function handleCreateFigmaVariables(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const collectionName = params.collectionName as string;
+  const variables = params.variables as Array<{
+    name: string;
+    type: 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN';
+    value: unknown;
+    group?: string;
+  }>;
+
+  if (!collectionName || !variables || !Array.isArray(variables)) {
+    throw new Error('collectionName and variables array are required');
+  }
+
+  // Check if collection already exists
+  const existingCollections = await figma.variables.getLocalVariableCollectionsAsync();
+  const existing = existingCollections.find(c => c.name === collectionName);
+  if (existing) {
+    const existingVars = await figma.variables.getLocalVariablesAsync();
+    const collectionVars = existingVars.filter(v => existing.variableIds.includes(v.id));
+    return {
+      alreadyExists: true,
+      collectionId: existing.id,
+      collectionName: existing.name,
+      variableCount: collectionVars.length,
+      variables: collectionVars.map(v => ({ id: v.id, name: v.name, resolvedType: v.resolvedType })),
+    };
+  }
+
+  // Create new collection
+  const collection = figma.variables.createVariableCollection(collectionName);
+  const defaultModeId = collection.modes[0].modeId;
+  const createdVars: Array<{ id: string; name: string; type: string }> = [];
+
+  for (const varDef of variables) {
+    const fullName = varDef.group ? `${varDef.group}/${varDef.name}` : varDef.name;
+    const resolvedType = varDef.type as VariableResolvedDataType;
+    const variable = figma.variables.createVariable(fullName, collection, resolvedType);
+
+    if (varDef.type === 'COLOR' && typeof varDef.value === 'string') {
+      const rgb = hexToRgb(varDef.value);
+      variable.setValueForMode(defaultModeId, { r: rgb.r, g: rgb.g, b: rgb.b, a: 1 });
+    } else if (varDef.type === 'FLOAT' && typeof varDef.value === 'number') {
+      variable.setValueForMode(defaultModeId, varDef.value);
+    } else if (varDef.type === 'STRING' && typeof varDef.value === 'string') {
+      variable.setValueForMode(defaultModeId, varDef.value);
+    } else if (varDef.type === 'BOOLEAN' && typeof varDef.value === 'boolean') {
+      variable.setValueForMode(defaultModeId, varDef.value);
+    }
+
+    createdVars.push({ id: variable.id, name: fullName, type: varDef.type });
+  }
+
+  return {
+    alreadyExists: false,
+    collectionId: collection.id,
+    collectionName: collection.name,
+    variableCount: createdVars.length,
+    variables: createdVars,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// REFINEMENT CHECK HANDLER (MQ-6)
+// ═══════════════════════════════════════════════════════════════
+
+async function runRefinementCheck(nodeId: string): Promise<{
+  nodeId: string;
+  totalChecked: number;
+  issues: Array<{
+    nodeId: string;
+    nodeName: string;
+    check: 'gradient' | 'auto-layout' | 'spacing' | 'typography' | 'placeholder';
+    severity: 'warning' | 'error';
+    description: string;
+  }>;
+  passed: boolean;
+}> {
+  const SPACING_SCALE_SET = new Set([4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96, 128]);
+  const PLACEHOLDER_NAMES = /^(rectangle\s*\d*|frame\s*\d*|image\s*placeholder)$/i;
+  const PLACEHOLDER_COLORS = new Set(['#e0e0e0', '#cccccc', '#d9d9d9']);
+
+  type RefinementIssue = {
+    nodeId: string;
+    nodeName: string;
+    check: 'gradient' | 'auto-layout' | 'spacing' | 'typography' | 'placeholder';
+    severity: 'warning' | 'error';
+    description: string;
+  };
+
+  const issues: RefinementIssue[] = [];
+  let totalChecked = 0;
+  const allFontSizes: number[] = [];
+
+  const root = await figma.getNodeByIdAsync(nodeId);
+  if (!root) {
+    return { nodeId, totalChecked: 0, issues: [], passed: false };
+  }
+
+  function solidToHex(paint: SolidPaint): string {
+    const r = Math.round(paint.color.r * 255).toString(16).padStart(2, '0');
+    const g = Math.round(paint.color.g * 255).toString(16).padStart(2, '0');
+    const b = Math.round(paint.color.b * 255).toString(16).padStart(2, '0');
+    return '#' + r + g + b;
+  }
+
+  function collectTextChildren(node: SceneNode): TextNode[] {
+    const result: TextNode[] = [];
+    if ('children' in node) {
+      for (const child of (node as ChildrenMixin).children) {
+        if (child.type === 'TEXT') result.push(child);
+        if ('children' in child) {
+          for (const grandchild of (child as ChildrenMixin).children) {
+            if (grandchild.type === 'TEXT') result.push(grandchild as TextNode);
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  function walkNode(node: BaseNode): void {
+    totalChecked++;
+    const id = node.id;
+    const name = node.name;
+
+    if (!('type' in node)) return;
+    const sceneNode = node as SceneNode;
+
+    // Gradient direction check
+    if ('fills' in sceneNode && Array.isArray(sceneNode.fills)) {
+      const gradientFill = (sceneNode.fills as Paint[]).find(
+        (f): f is GradientPaint => f.type === 'GRADIENT_LINEAR'
+      );
+      if (gradientFill && 'children' in sceneNode) {
+        const textNodes = collectTextChildren(sceneNode);
+        if (textNodes.length === 0) {
+          issues.push({
+            nodeId: id, nodeName: name, check: 'gradient', severity: 'warning',
+            description: `"${name}" has a gradient fill but no sibling text nodes — verify gradient direction manually.`,
+          });
+        } else {
+          const handles = gradientFill.gradientHandlePositions;
+          if (handles && handles.length >= 2) {
+            const nodeH = (sceneNode as LayoutMixin).height || 1;
+            const nodeW = (sceneNode as LayoutMixin).width || 1;
+            const solidEnd = handles[1]; // handle[1] = solid/high-opacity end
+            const textCentroidY = textNodes.reduce((s, t) => s + (t.y + t.height / 2) / nodeH, 0) / textNodes.length;
+            const textCentroidX = textNodes.reduce((s, t) => s + (t.x + t.width / 2) / nodeW, 0) / textNodes.length;
+            const dy = Math.abs(handles[1].y - handles[0].y);
+            const dx = Math.abs(handles[1].x - handles[0].x);
+            if (dy >= dx) {
+              if ((solidEnd.y > 0.5) !== (textCentroidY > 0.5)) {
+                issues.push({
+                  nodeId: id, nodeName: name, check: 'gradient', severity: 'error',
+                  description: `"${name}" gradient solid end (${solidEnd.y > 0.5 ? 'bottom' : 'top'}) faces away from text zone (${textCentroidY > 0.5 ? 'bottom' : 'top'}).`,
+                });
+              }
+            } else {
+              if ((solidEnd.x > 0.5) !== (textCentroidX > 0.5)) {
+                issues.push({
+                  nodeId: id, nodeName: name, check: 'gradient', severity: 'error',
+                  description: `"${name}" gradient solid end (${solidEnd.x > 0.5 ? 'right' : 'left'}) faces away from text zone (${textCentroidX > 0.5 ? 'right' : 'left'}).`,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Auto-layout + spacing checks (FRAME only)
+    if (node.type === 'FRAME') {
+      const frame = node as FrameNode;
+      if (frame.children.length > 2 && frame.layoutMode === 'NONE') {
+        issues.push({
+          nodeId: id, nodeName: name, check: 'auto-layout', severity: 'warning',
+          description: `Frame "${name}" has ${frame.children.length} children but no auto-layout (layoutMode: NONE).`,
+        });
+      }
+      if (frame.layoutMode !== 'NONE' && frame.itemSpacing !== 0 && !SPACING_SCALE_SET.has(frame.itemSpacing)) {
+        issues.push({
+          nodeId: id, nodeName: name, check: 'spacing', severity: 'warning',
+          description: `Frame "${name}" itemSpacing ${frame.itemSpacing}px is not on the 8px scale [4,8,12,16,20,24,32,40,48,64,80,96,128].`,
+        });
+      }
+    }
+
+    // Collect font sizes for typography check
+    if (node.type === 'TEXT') {
+      const textNode = node as TextNode;
+      if (typeof textNode.fontSize === 'number') allFontSizes.push(textNode.fontSize);
+    }
+
+    // Placeholder check
+    if (node.type === 'RECTANGLE' || node.type === 'FRAME') {
+      const isDefaultName = PLACEHOLDER_NAMES.test(name);
+      let hasPlaceholderColor = false;
+      if ('fills' in sceneNode && Array.isArray(sceneNode.fills)) {
+        const solidFills = (sceneNode.fills as Paint[]).filter((f): f is SolidPaint => f.type === 'SOLID');
+        if (solidFills.length === 1 && PLACEHOLDER_COLORS.has(solidToHex(solidFills[0]))) {
+          hasPlaceholderColor = true;
+        }
+      }
+      if (isDefaultName || hasPlaceholderColor) {
+        issues.push({
+          nodeId: id, nodeName: name, check: 'placeholder', severity: 'warning',
+          description: `"${name}" appears to be an unfilled placeholder (default name or placeholder fill color).`,
+        });
+      }
+    }
+
+    // Recurse into children
+    if ('children' in node) {
+      for (const child of (node as BaseNode & ChildrenMixin).children) {
+        walkNode(child);
+      }
+    }
+  }
+
+  walkNode(root);
+
+  // Typography hierarchy check (runs after full tree walk)
+  const uniqueSizes = [...new Set(allFontSizes)].sort((a, b) => a - b);
+  if (uniqueSizes.length >= 2) {
+    const minSize = uniqueSizes[0];
+    const maxSize = uniqueSizes[uniqueSizes.length - 1];
+    if (maxSize < 2 * minSize) {
+      issues.push({
+        nodeId, nodeName: root.name, check: 'typography', severity: 'error',
+        description: `Typography lacks hierarchy — largest font (${maxSize}px) is less than 2× smallest (${minSize}px). Increase headline size.`,
+      });
+    }
+  }
+
+  return {
+    nodeId,
+    totalChecked,
+    issues,
+    passed: issues.every(i => i.severity !== 'error'),
+  };
 }
