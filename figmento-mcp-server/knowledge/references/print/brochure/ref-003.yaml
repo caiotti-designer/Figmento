@@ -1,0 +1,31 @@
+id: ref-003
+category: print
+subcategory: brochure
+tags:
+  - healthcare
+  - corporate
+  - procedural
+  - teal-gradient
+  - tabular-interior
+  - structured-grid
+  - insurance
+palette: dark
+layout: hero-cover-with-tabular-interior
+notable: "Stamping '2035' on a Standard Operating Procedures document reframes routine
+  compliance content as forward-looking institutional authority — a single word choice
+  that transforms the cover's mood entirely."
+source: behance
+industry:
+  - insurance
+  - healthcare
+composition_notes:
+  zones: "Cover: 100% blue-teal gradient, headline in upper-left 40%, tagline and
+    footer bottom 15%. Interior: 40% structured tables and numbered lists, 40% body
+    text columns, 20% small photography and diagrams."
+  typography_scale: "Cover display ~56px bold white, section headers ~16px teal
+    medium, body ~9px regular — lean print sizing suitable for dense procedural copy."
+  color_distribution: "Cover: teal-green (#1B7A72) → deep blue (#0A3D5C) gradient.
+    Interior: ~85% white/cream, ~10% teal accent (#1B7A72), ~5% photography."
+  whitespace_strategy: "Interior columns are tightly spaced with ruled dividers
+    between sections; the cover breathes by placing the tagline well below the
+    headline with a wide negative-space zone between the two text blocks."

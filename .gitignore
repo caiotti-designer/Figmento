@@ -54,3 +54,4 @@ output/
 generated-images/
 **/output/*.png
 **/output/*.jpg
+.claude/worktrees/

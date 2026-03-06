@@ -1,0 +1,59 @@
+name: "Presentation — Closing CTA"
+id: closing-cta
+category: presentation
+subcategory: closing
+description: "Summary and call-to-action closing slide with key takeaways and a dominant next-step prompt"
+
+mood: [action, closing, memorable, conversion]
+industry: [saas, sales, consulting, keynote]
+
+canvas:
+  aspect_ratio: "16:9"
+  reference_size:
+    width: 1920
+    height: 1080
+
+zones:
+  - name: summary-headline
+    y_start_pct: 15
+    y_end_pct: 38
+    elements:
+      - { role: closing-headline, type: text }
+    typography_hierarchy:
+      closing-headline: h1
+
+  - name: key-points
+    y_start_pct: 40
+    y_end_pct: 65
+    elements:
+      - { role: takeaway-1, type: text }
+      - { role: takeaway-2, type: text }
+      - { role: takeaway-3, type: text }
+    typography_hierarchy:
+      takeaway-1: body
+      takeaway-2: body
+      takeaway-3: body
+
+  - name: cta-zone
+    y_start_pct: 68
+    y_end_pct: 85
+    elements:
+      - { role: cta-headline, type: text }
+      - { role: cta-button, type: frame }
+      - { role: contact-info, type: text }
+    typography_hierarchy:
+      cta-headline: h2
+      cta-button: h3
+      contact-info: caption
+
+rhythm:
+  whitespace_ratio: 0.55
+  dominant_gesture: "top-to-bottom — summary reminds, key points anchor, CTA drives action"
+  section_gap_scale: "fibonacci-adjacent: 24→40→48"
+
+anti_generic:
+  - "CTA must get maximum visual weight — accent background, large button, contrasting color. It's the LAST thing the audience sees."
+  - "Key points must be concise (1 line each) with numbered or icon-prefixed bullets — not paragraph text"
+  - "Background should match or complement the title slide — visual consistency bookends the presentation"
+
+memorable_element: "Final CTA gets maximum visual weight — oversized button or accent-colored action prompt that's the last image burned into the audience's mind"

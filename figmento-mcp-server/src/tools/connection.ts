@@ -11,6 +11,19 @@ export function registerConnectionTools(server: McpServer, wsClient: FigmentoWSC
       url: z.string().optional().describe('WebSocket relay URL (default: ws://localhost:3055)'),
     },
     async ({ channel, url }) => {
+      // CR-5: If auto-connected via FIGMENTO_CHANNEL env var, skip reconnection.
+      // The MCP server was spawned by Claude Code SDK with the correct channel already set.
+      // Calling connect_to_figma again would disconnect from the correct channel.
+      const autoChannel = process.env.FIGMENTO_CHANNEL;
+      if (autoChannel && wsClient.isConnected) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Already connected to Figma via channel "${autoChannel}" (auto-connected). Ready for design tools — no need to call connect_to_figma.`,
+          }],
+        };
+      }
+
       const wsUrl = url || 'ws://localhost:3055';
 
       if (wsClient.isConnected) {
@@ -19,17 +32,36 @@ export function registerConnectionTools(server: McpServer, wsClient: FigmentoWSC
 
       try {
         await wsClient.connect(wsUrl, channel);
-        return {
-          content: [{
-            type: 'text' as const,
-            text: `Connected to Figma via channel "${channel}". You can now use design tools.`,
-          }],
-        };
       } catch (err) {
         return {
           content: [{
             type: 'text' as const,
             text: `Failed to connect: ${(err as Error).message}\n\nMake sure:\n1. The WebSocket relay server is running (cd figmento-ws-relay && npm start)\n2. The Figmento plugin is open in Figma and connected to the same relay\n3. The channel ID matches what's shown in the plugin`,
+          }],
+          isError: true,
+        };
+      }
+
+      // Verify the Figma plugin is actually listening on this channel
+      try {
+        await Promise.race([
+          wsClient.sendCommand('get_selection', {}),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('PLUGIN_TIMEOUT')), 5000)
+          ),
+        ]);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Connected to Figma via channel "${channel}". Plugin is responding — you can now use design tools.`,
+          }],
+        };
+      } catch {
+        wsClient.disconnect();
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `WebSocket connected but no Figma plugin is responding on channel "${channel}".\n\nIs the Figmento plugin running and connected to the same relay at ${wsUrl}?\n\nMake sure the plugin is open in Figma and shows this channel ID.`,
           }],
           isError: true,
         };

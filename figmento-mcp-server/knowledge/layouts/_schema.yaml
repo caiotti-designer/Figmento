@@ -1,0 +1,228 @@
+# ═══════════════════════════════════════════════════════════════
+# Figmento Layout Blueprint Schema — v1.0
+# ═══════════════════════════════════════════════════════════════
+# Defines the structure for all layout blueprints.
+# Blueprints encode proven visual compositions using proportional
+# zones (percentages) so they adapt to any canvas size.
+#
+# Categories: web, social, ads, print, presentation
+# ═══════════════════════════════════════════════════════════════
+
+schema_version: "1.0"
+
+# ───────────────────────────────────────────────────────────────
+# Field Definitions
+# ───────────────────────────────────────────────────────────────
+fields:
+
+  # --- Metadata ---
+  name:
+    type: string
+    required: true
+    description: "Human-readable blueprint name (e.g., 'Hero — Centered Stack')"
+
+  id:
+    type: string
+    required: true
+    description: "Machine-friendly identifier (e.g., 'hero-centered'). Matches the YAML filename without extension."
+
+  category:
+    type: enum
+    required: true
+    values: [web, social, ads, print, presentation]
+    description: "Top-level design category"
+
+  subcategory:
+    type: string
+    required: true
+    description: "Specific format within the category (e.g., 'hero', 'instagram_post', 'business_card')"
+
+  description:
+    type: string
+    required: true
+    description: "One-line summary of what this layout achieves"
+
+  mood:
+    type: array
+    required: true
+    min_items: 1
+    description: "Mood/style tags for matching (e.g., [modern, tech, confident])"
+
+  industry:
+    type: array
+    required: false
+    description: "Industry tags for contextual matching (e.g., [saas, fintech, ecommerce])"
+
+  # --- Canvas ---
+  canvas:
+    type: object
+    required: true
+    fields:
+      aspect_ratio:
+        type: string
+        required: true
+        description: "Aspect ratio as 'W:H' (e.g., '16:10', '4:5', '1:1')"
+      reference_size:
+        type: object
+        required: false
+        description: "A common pixel size for this format, used for resolved_example"
+        fields:
+          width: { type: number }
+          height: { type: number }
+
+  # --- Proportional Zones ---
+  zones:
+    type: array
+    required: true
+    min_items: 1
+    description: "Vertical zones dividing the canvas top-to-bottom, defined as percentages"
+    item_fields:
+      name:
+        type: string
+        required: true
+        description: "Zone identifier (e.g., 'nav', 'hero-content', 'footer')"
+      y_start_pct:
+        type: number
+        required: true
+        description: "Top edge of zone as percentage of canvas height (0-100)"
+      y_end_pct:
+        type: number
+        required: true
+        description: "Bottom edge of zone as percentage of canvas height (0-100)"
+      split:
+        type: object
+        required: false
+        description: "Horizontal division within the zone"
+        fields:
+          type:
+            type: enum
+            values: [equal, weighted]
+          columns:
+            type: array
+            description: "Column definitions with percentage widths"
+            item_fields:
+              name: { type: string }
+              width_pct: { type: number }
+      elements:
+        type: array
+        required: false
+        description: "Expected elements in this zone"
+        item_fields:
+          role:
+            type: string
+            description: "Element purpose (e.g., 'headline', 'cta-button', 'hero-image')"
+          type:
+            type: enum
+            values: [text, frame, image, rectangle, icon]
+      typography_hierarchy:
+        type: object
+        required: false
+        description: "Maps element roles to type scale levels within this zone"
+        fields:
+          # Keys are role names, values are scale levels
+          # e.g., headline: display, subheadline: h2, body: body
+      positioning:
+        type: enum
+        required: false
+        values: [flow, absolute]
+        default: flow
+        description: "'flow' = auto-layout within zone. 'absolute' = manual x/y (for floating elements like badges, logos)"
+
+  # --- Rhythm & Whitespace ---
+  rhythm:
+    type: object
+    required: true
+    fields:
+      whitespace_ratio:
+        type: number
+        required: true
+        description: "Target content-to-whitespace ratio (e.g., 0.55 means 55% content, 45% whitespace)"
+      dominant_gesture:
+        type: string
+        required: true
+        description: "Primary visual flow (e.g., 'top-to-bottom centered', 'left-to-right diagonal', 'Z-pattern')"
+      section_gap_scale:
+        type: string
+        required: false
+        description: "Gap progression pattern (e.g., 'fibonacci-adjacent: 24→40→64')"
+
+  # --- Anti-Generic Rules ---
+  anti_generic:
+    type: array
+    required: true
+    min_items: 2
+    description: "Rules that prevent generic AI output. Each rule is a specific, checkable constraint."
+
+  # --- Memorable Element ---
+  memorable_element:
+    type: string
+    required: true
+    description: "The ONE visual element that makes this layout unforgettable. Must be specific and actionable."
+
+# ───────────────────────────────────────────────────────────────
+# Complete Example Blueprint
+# ───────────────────────────────────────────────────────────────
+example:
+  name: "Hero — Centered Stack"
+  id: hero-centered
+  category: web
+  subcategory: hero
+  description: "Centered content stack with eyebrow, headline, subheadline, CTA, and social proof strip"
+
+  mood: [versatile, clean, confident]
+  industry: [saas, startup, agency]
+
+  canvas:
+    aspect_ratio: "16:10"
+    reference_size:
+      width: 1440
+      height: 900
+
+  zones:
+    - name: nav
+      y_start_pct: 0
+      y_end_pct: 8
+      elements:
+        - { role: logo, type: frame }
+        - { role: nav-links, type: frame }
+        - { role: nav-cta, type: frame }
+      typography_hierarchy:
+        nav-links: caption
+        nav-cta: caption
+
+    - name: hero-content
+      y_start_pct: 20
+      y_end_pct: 70
+      elements:
+        - { role: eyebrow, type: text }
+        - { role: headline, type: text }
+        - { role: subheadline, type: text }
+        - { role: cta-primary, type: frame }
+        - { role: cta-secondary, type: text }
+      typography_hierarchy:
+        eyebrow: caption
+        headline: display
+        subheadline: h3
+        cta-primary: body
+        cta-secondary: caption
+
+    - name: social-proof
+      y_start_pct: 78
+      y_end_pct: 88
+      elements:
+        - { role: logos-strip, type: frame }
+        - { role: proof-label, type: text }
+      typography_hierarchy:
+        proof-label: caption
+
+  rhythm:
+    whitespace_ratio: 0.55
+    dominant_gesture: "top-to-bottom centered"
+    section_gap_scale: "fibonacci-adjacent: 24→40→64"
+
+  anti_generic:
+    - "Headline font must differ from body font OR use ≥3 weight steps between levels"
+    - "At least one element must break visual symmetry (offset CTA, asymmetric spacing, oversized text)"
+    - "Social proof strip must NOT be a row of gray logos — add subtle opacity variation or tinted backgrounds"
+
+  memorable_element: "Oversized headline spanning near-full canvas width with tight letter-spacing (-0.02em)"

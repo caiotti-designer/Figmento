@@ -1,0 +1,14 @@
+id: hero-light-saas
+category: web
+subcategory: hero
+tags: [light, full-bleed, photography, centered, sky, clouds, italic-accent, mixed-style-headline, saas, airy]
+palette: light
+layout: centered-full-bleed
+notable: "An actual sky photograph fills the entire background — the cloud horizon line acts as a natural visual anchor for the UI cards at the bottom, grounding the otherwise float-in-air composition and making the 'scalable' metaphor literal."
+source: dribbble
+industry: [saas, business, fintech, operations]
+composition_notes:
+  zones: "8% nav pill; 15% badge + headline block; 12% CTA pair; 65% sky photography (background) with product UI cards emerging from the bottom ~20%"
+  typography_scale: "Display ~40px medium sans-serif with italic 'Growth' word as accent, body ~14px — stylistic variety within the headline substitutes for size hierarchy"
+  color_distribution: "65% sky-blue photography (#87C4E8 avg), 25% white/near-white cloud tones, 6% dark text (#0D0D0D), 4% pill-CTA black (#111111)"
+  whitespace_strategy: "Sky background creates infinite implied whitespace above; content block vertically centered in the upper two-thirds leaving the cloud horizon for UI card emergence"

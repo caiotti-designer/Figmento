@@ -1,0 +1,68 @@
+name: "LinkedIn — Professional Post"
+id: linkedin-post-professional
+category: social
+subcategory: linkedin_post
+description: "Data-driven insight layout with bold statistic, supporting text, and corporate branding"
+
+mood: [corporate, professional, data-driven, authoritative]
+industry: [consulting, fintech, enterprise, b2b]
+
+canvas:
+  aspect_ratio: "4:5"
+  reference_size:
+    width: 1080
+    height: 1350
+
+zones:
+  - name: headline-bar
+    y_start_pct: 0
+    y_end_pct: 18
+    elements:
+      - { role: topic-label, type: text }
+      - { role: headline, type: text }
+    typography_hierarchy:
+      topic-label: caption
+      headline: h2
+
+  - name: data-visual
+    y_start_pct: 18
+    y_end_pct: 68
+    elements:
+      - { role: big-number, type: text }
+      - { role: metric-label, type: text }
+      - { role: chart-placeholder, type: frame }
+    typography_hierarchy:
+      big-number: display
+      metric-label: h3
+
+  - name: insight-text
+    y_start_pct: 70
+    y_end_pct: 88
+    elements:
+      - { role: insight-body, type: text }
+      - { role: source-citation, type: text }
+    typography_hierarchy:
+      insight-body: body
+      source-citation: caption
+
+  - name: branding
+    y_start_pct: 90
+    y_end_pct: 100
+    elements:
+      - { role: company-name, type: text }
+      - { role: website-url, type: text }
+    typography_hierarchy:
+      company-name: body
+      website-url: caption
+
+rhythm:
+  whitespace_ratio: 0.50
+  dominant_gesture: "top-to-bottom — topic anchors, big number captures, insight educates, brand closes"
+  section_gap_scale: "even: 24→32→24"
+
+anti_generic:
+  - "The big-number/statistic must be display-scale (96px+) and visually dominate the entire layout — it's the hook"
+  - "Background must use a professional palette — navy, charcoal, or dark blue. Never bright colors for LinkedIn."
+  - "Source citation must be present — unsourced data looks amateur on LinkedIn"
+
+memorable_element: "Single bold statistic or data point at display scale that dominates the center — the number IS the content"

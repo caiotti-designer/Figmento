@@ -1,0 +1,58 @@
+name: "Hero — Split Image"
+id: hero-split-image
+category: web
+subcategory: hero
+description: "Clean 50/50 vertical split — text content on one side, full-height image on the other"
+
+mood: [clean, editorial, professional, elegant]
+industry: [agency, portfolio, luxury, real-estate]
+
+canvas:
+  aspect_ratio: "16:10"
+  reference_size:
+    width: 1440
+    height: 900
+
+zones:
+  - name: nav
+    y_start_pct: 0
+    y_end_pct: 8
+    elements:
+      - { role: logo, type: frame }
+      - { role: nav-links, type: frame }
+    typography_hierarchy:
+      nav-links: caption
+
+  - name: split-main
+    y_start_pct: 8
+    y_end_pct: 100
+    split:
+      type: equal
+      columns:
+        - name: content-side
+          width_pct: 50
+        - name: image-side
+          width_pct: 50
+    elements:
+      - { role: headline, type: text }
+      - { role: subheadline, type: text }
+      - { role: body-text, type: text }
+      - { role: cta-primary, type: frame }
+      - { role: hero-image, type: image }
+    typography_hierarchy:
+      headline: display
+      subheadline: h3
+      body-text: body
+      cta-primary: body
+
+rhythm:
+  whitespace_ratio: 0.50
+  dominant_gesture: "left-to-right split, eye oscillates between text and image"
+  section_gap_scale: "even: 32→32→32"
+
+anti_generic:
+  - "Content side must have a bold color block background (primary or accent) — never white or light gray"
+  - "Image must be full-bleed within its half — no padding or borders around the image"
+  - "Text content must be vertically centered within its half with generous padding (≥80px horizontal)"
+
+memorable_element: "Bold color block on the text side creating a strong contrast against the photographic half"

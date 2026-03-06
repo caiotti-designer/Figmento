@@ -39,7 +39,7 @@ export const loadSettings = (): void => {
     }
 
     const savedImageModel = safeGetItem(STORAGE_KEY_IMAGE_MODEL);
-    if (savedImageModel === 'imagen-4' || savedImageModel === 'gemini-image') {
+    if (savedImageModel === 'gemini-3.1-flash-image-preview' || savedImageModel === 'gpt-image-1.5') {
       imageGenState.imageGenModel = savedImageModel;
       if (dom.imageModelSelect) dom.imageModelSelect.value = savedImageModel;
     }

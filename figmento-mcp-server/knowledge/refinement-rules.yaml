@@ -1,0 +1,135 @@
+# Design Refinement Rules
+# Beauty checks that transform "good AI output" into "professional designer output"
+# Every rule has measurable conditions — not vague guidelines.
+
+optical_adjustments:
+  - id: circle-optical-size
+    rule: "Circles and rounded elements (cornerRadius > 50%): increase visual size +3% to appear same size as adjacent rectangles"
+    check: "If a circle is next to a rectangle of equal dimensions, the circle will look smaller. Scale the circle to 103% of the rectangle."
+    applies_to: [frame, rectangle, ellipse]
+
+  - id: descender-padding
+    rule: "Text blocks ending with descenders (g, y, p, q): add +4px bottom padding for optical centering in containers"
+    check: "Inspect the last character of bottom-aligned text. If it has a descender, add 4px extra padding below."
+    applies_to: [text]
+
+  - id: uppercase-letter-spacing
+    rule: "Uppercase text blocks: letter-spacing +0.05em minimum, +0.10em for labels/badges"
+    check: "If textCase is UPPER or text content is all-caps, letterSpacing must be >= 0.05em. For badge/chip text, >= 0.10em."
+    applies_to: [text]
+
+  - id: icon-text-alignment
+    rule: "Icons next to text: vertical-center icons at text x-height (not full line height) — offset icons up 1-2px"
+    check: "When an icon is inline with text, the icon center should align with the text x-height. This typically means offsetting the icon 1-2px upward from strict center."
+    applies_to: [icon, frame]
+
+  - id: auto-layout-edge-breathing
+    rule: "First/last elements in auto-layout: outer padding should be 1.25x the itemSpacing for visual breathing room"
+    check: "If itemSpacing is 24px, paddingTop/paddingBottom should be at least 30px (24 × 1.25). If they're equal or less, increase outer padding."
+    applies_to: [frame]
+
+typographic_refinement:
+  - id: display-letter-spacing
+    rule: "Display text (>40px): letter-spacing -0.02em to avoid floaty appearance"
+    check: "Any text node with fontSize > 40 should have letterSpacing <= -0.02em. If it's 0 or positive, tighten it."
+    applies_to: [text]
+
+  - id: inverted-pyramid
+    rule: "Headlines with line breaks: second line should be shorter (inverted pyramid shape)"
+    check: "If a multi-line headline has a second line equal to or longer than the first, either adjust width, font-size, or rewrite to create a narrowing shape."
+    applies_to: [text]
+
+  - id: tabular-figures
+    rule: "Number strings (prices, stats, percentages): use tabular figures if available (fontFeatures: 'tnum') for proper column alignment"
+    check: "Text nodes containing prices ($XX.XX), statistics, or percentage columns should use tabular figures for alignment."
+    applies_to: [text]
+
+  - id: line-length-cap
+    rule: "Body text line length: cap at 65-75 characters per line maximum"
+    check: "If body text (14-20px) has lines exceeding 75 characters, either increase font size, narrow the container, or add columns."
+    applies_to: [text]
+
+  - id: orphan-prevention
+    rule: "Orphan prevention: if last line of a paragraph has only 1-2 words, widen the container or adjust text to reflow"
+    check: "Inspect the last line of multi-line body text. If it contains fewer than 3 words, adjust the container width or text to prevent orphans."
+    applies_to: [text]
+
+color_micro_adjustments:
+  - id: warm-cool-shadows
+    rule: "Shadows must match palette temperature: warm palette → shadow tinted warm (add 10% brown). Cool palette → shadow tinted cool (add 10% blue). Never use pure black (#000000) shadows."
+    check: "If any shadow effect uses #000000 or pure gray, tint it. Warm palette: mix with #8B4513 at 10%. Cool palette: mix with #1E3A5F at 10%."
+    applies_to: [frame, rectangle]
+
+  - id: card-elevation
+    rule: "Card-on-background: card fill should be 3-5% lighter than section background, never identical"
+    check: "Compare card fill to parent/section background. If identical (ΔE < 1), lighten the card fill by 3-5% lightness in HSL."
+    applies_to: [frame, rectangle]
+
+  - id: accent-text-lightening
+    rule: "Accent color for text vs fills: when using accent color AS TEXT on dark bg, lighten it 15-20% from the fill version"
+    check: "If accent color (e.g. #C45A3C) is used as button fill AND as text elsewhere, the text version must be 15-20% lighter (e.g. #E8956A)."
+    applies_to: [text]
+
+  - id: hover-state-derivation
+    rule: "Hover state derivation: light theme → darken fill 10%. Dark theme → lighten fill 10%. Never invert or use unrelated color."
+    check: "If designing interactive states, hover color must be a 10% lightness shift in the same hue direction as the theme."
+    applies_to: [frame, rectangle]
+
+  - id: gradient-color-match
+    rule: "Gradient overlays on images: gradient end color MUST equal the section background color exactly"
+    check: "The opaque end of any overlay gradient must be the exact hex color of the section/frame background. Mismatched colors create ugly visible edges."
+    applies_to: [rectangle]
+
+  - id: gradient-contrast-check
+    trigger: "After any gradient overlay is placed on an image"
+    rule: "Verify gradient orientation matches text position — solid end must be behind text zone"
+    check:
+      - "Text zone (where text sits): gradient opacity ≥ 0.85"
+      - "Image zone (where image shows): gradient opacity ≤ 0.15"
+      - "If text is at bottom but gradient is solid at top: FLIP the direction"
+      - "If text is at top but gradient is solid at bottom: FLIP the direction"
+    fix: "Reverse gradient direction or swap stop opacity values"
+    applies_to: [rectangle]
+
+spatial_refinement:
+  - id: visual-weight-balance
+    rule: "Visual weight balance: if one side has a heavy element (image, icon cluster), the opposite side needs 15-20% more whitespace to compensate"
+    check: "In split layouts, the lighter side should have 15-20% more padding/margin than the heavier side."
+    applies_to: [frame]
+
+  - id: cta-isolation
+    rule: "CTA isolation: primary CTA must have at minimum 2x the surrounding element spacing"
+    check: "If section itemSpacing is 24px, the gap before the CTA must be >= 48px. CTA must be visually separated from content."
+    applies_to: [frame]
+
+  - id: content-density
+    rule: "Content density: no more than 60% of any section should be filled. 40% minimum breathing room."
+    check: "Sum of all child element areas / section area should be <= 0.60. If higher, increase section size or reduce element count."
+    applies_to: [frame]
+
+  - id: fibonacci-vertical-rhythm
+    rule: "Vertical rhythm: use Fibonacci-adjacent section gaps. If smallest gap is 24px, next is 40px, next is 64px (approximately 1:1.6:2.6)"
+    check: "Section gaps should follow approximate Fibonacci scaling: each subsequent gap is ~1.6x the previous. Gaps like 24→24→24 (equal) are mechanical."
+    applies_to: [frame]
+
+  - id: edge-proximity
+    rule: "Edge proximity: no element should be closer than the section margin to ANY frame edge"
+    check: "If margin is 48px, no element's bounding box should be within 48px of any frame edge. Check all four sides."
+    applies_to: [frame, text, rectangle, image]
+
+memorable_element:
+  - id: mandatory-standout
+    rule: "EVERY design MUST have one disproportionate visual element. This is non-negotiable."
+    check: "Identify the single element that breaks the pattern. If everything is proportional and evenly distributed, the design has failed."
+
+  - id: standout-options
+    rule: "Options for the memorable element: oversized number/statistic, image that bleeds an edge, high-contrast color block, dramatic negative space, accent-colored divider, circular badge/stamp, diagonal or rotated element"
+    check: "At least one element should be 2x+ larger than expected, or use a contrasting treatment that breaks the grid."
+
+  - id: bot-test
+    rule: "Test: if you removed the memorable element, would the design look like any other AI output? If yes, it's the right element."
+    check: "Mentally remove the standout element. If the remaining design is generic, the element is doing its job."
+
+  - id: content-relevance
+    rule: "The memorable element should be related to the content's most important message"
+    check: "The standout element must amplify the primary message, not distract from it. A giant price tag works for a sale ad. A giant icon doesn't."

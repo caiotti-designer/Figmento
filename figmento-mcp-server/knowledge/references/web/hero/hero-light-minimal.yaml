@@ -1,0 +1,14 @@
+id: hero-light-minimal
+category: web
+subcategory: hero
+tags: [light, minimal, split-layout, product-mockup, data-dashboard, asymmetric, clean, saas, mixed-weight-headline]
+palette: light
+layout: split-asymmetric-right
+notable: "The right-side product card layers a portrait photo behind a floating data dashboard UI — the contrast between warm human photography and cold data numbers makes the automation value prop visceral without a word of explanation."
+source: awwwards
+industry: [saas, data, productivity, ai]
+composition_notes:
+  zones: "8% nav; left 45%: text block (headline + body + CTA); right 55%: floating product card with photo + data overlay"
+  typography_scale: "Display ~48px mixed-weight (light 'The spreadsheet to automate manual' / bold 'data collection'), body ~13px — weight contrast within the headline replaces size contrast"
+  color_distribution: "70% white (#FFFFFF), 18% light grey (#F5F5F5), 8% dark text (#0D0D0D), 4% orange-red product accent (#E85C3A)"
+  whitespace_strategy: "Left column uses top padding ~120px to vertically center in viewport; generous line-height in headline (~1.1) gives architectural negative space within the type itself"

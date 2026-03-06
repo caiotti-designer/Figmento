@@ -5,7 +5,7 @@
 ## Identity
 
 - **Manifest name:** "Figmento"
-- **Manifest ID:** `figmento-plugin`
+- **Manifest ID:** `figmento`
 - **UI size:** 450×820
 - **Network domains:** `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `unpkg.com`, `fonts.googleapis.com`, `fonts.gstatic.com`
 

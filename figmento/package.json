@@ -1,7 +1,7 @@
 {
   "name": "figmento",
   "version": "1.0.0",
-  "description": "Figma plugin that converts screenshots into editable designs using AI vision",
+  "description": "Unified Figma AI design plugin — 5 design modes, chat agent with iterative tool loop, and MCP WebSocket bridge",
   "main": "dist/code.js",
   "scripts": {
     "build": "node build.js",
@@ -24,6 +24,7 @@
   "devDependencies": {
     "@figma/plugin-typings": "^1.98.0",
     "@types/jest": "^30.0.0",
+    "@types/js-yaml": "^4.0.9",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.54.0",
     "esbuild": "^0.20.0",
@@ -31,8 +32,10 @@
     "eslint-config-prettier": "^10.1.8",
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
+    "js-yaml": "^4.1.1",
     "prettier": "^3.8.1",
     "ts-jest": "^29.4.6",
+    "tsx": "^4.21.0",
     "typescript": "^5.3.0"
   }
 }

@@ -1,0 +1,70 @@
+name: "Feature Grid — Bento"
+id: feature-bento
+category: web
+subcategory: features
+description: "Asymmetric bento grid with one dominant large card and 2-3 smaller cards, creating dynamic visual hierarchy"
+
+mood: [modern, creative, dynamic, tech]
+industry: [saas, ai, creative-tools, startup]
+
+canvas:
+  aspect_ratio: "16:10"
+  reference_size:
+    width: 1440
+    height: 900
+
+zones:
+  - name: section-heading
+    y_start_pct: 3
+    y_end_pct: 18
+    elements:
+      - { role: section-title, type: text }
+      - { role: section-description, type: text }
+    typography_hierarchy:
+      section-title: h1
+      section-description: body
+
+  - name: bento-row-1
+    y_start_pct: 20
+    y_end_pct: 55
+    split:
+      type: weighted
+      columns:
+        - name: large-card
+          width_pct: 60
+        - name: small-card-stack
+          width_pct: 40
+    elements:
+      - { role: primary-card-visual, type: image }
+      - { role: primary-card-title, type: text }
+      - { role: primary-card-description, type: text }
+      - { role: secondary-card-1, type: frame }
+    typography_hierarchy:
+      primary-card-title: h2
+      primary-card-description: body
+
+  - name: bento-row-2
+    y_start_pct: 58
+    y_end_pct: 90
+    split:
+      type: weighted
+      columns:
+        - name: small-card-2
+          width_pct: 40
+        - name: small-card-3
+          width_pct: 60
+    elements:
+      - { role: secondary-card-2, type: frame }
+      - { role: secondary-card-3, type: frame }
+
+rhythm:
+  whitespace_ratio: 0.45
+  dominant_gesture: "Z-pattern — large card top-left anchors, then eye scans right and down"
+  section_gap_scale: "compact: 16→24→16"
+
+anti_generic:
+  - "Large card MUST have an accent or gradient background — never the same fill as small cards"
+  - "Card corner radii must be generous (16-24px) to create the distinctive bento feel — 4-8px looks generic"
+  - "At least one small card should use a contrasting background color or pattern, breaking the uniformity"
+
+memorable_element: "Oversized primary card with accent gradient background that visually anchors the entire grid"

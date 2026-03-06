@@ -64,3 +64,27 @@ categories:
       callout_box: "Rounded rectangle with accent left-border (4px) and light background"
       stat_highlight: "Oversized number in accent color with label below"
       cta_button: "Rounded rectangle in accent color with white text, centered"
+
+auto_layout_mandate:
+  description: "All print designs must use auto-layout exclusively. No absolute positioning."
+  page_structure:
+    root: "VERTICAL auto-layout, padding 72 all sides"
+    sections: "VERTICAL auto-layout, gap from spacing scale"
+    multi_column: "HORIZONTAL auto-layout parent, VERTICAL children"
+    cards: "HORIZONTAL auto-layout with wrapping or fixed columns"
+
+spacing_scale:
+  page_margin: 72
+  section_gap: { min: 48, max: 64, default: 56 }
+  content_gap: { min: 24, max: 32, default: 28 }
+  element_gap: { min: 12, max: 16, default: 14 }
+  tight_gap: { min: 4, max: 8, default: 6 }
+
+typography_a4_mandatory:
+  display: { min: 96, max: 120, weight: "700-800" }
+  h1_page_title: { min: 64, max: 80, weight: "700" }
+  h2_section: { min: 40, max: 48, weight: "600-700" }
+  h3_subsection: { min: 28, max: 32, weight: "600" }
+  body: { min: 24, max: 28, weight: "400" }
+  caption: { min: 18, max: 22, weight: "400" }
+  label: { min: 16, max: 18, weight: "500-600", transform: "uppercase", tracking: "0.1em" }

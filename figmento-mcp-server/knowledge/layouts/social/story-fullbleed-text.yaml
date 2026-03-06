@@ -1,0 +1,65 @@
+name: "Story — Full-Bleed Text"
+id: story-fullbleed-text
+category: social
+subcategory: story
+description: "Vertical 9:16 story format dominated by bold typography over a solid or gradient background"
+
+mood: [bold, dramatic, energetic, announcement]
+industry: [events, music, fashion, marketing]
+
+canvas:
+  aspect_ratio: "9:16"
+  reference_size:
+    width: 1080
+    height: 1920
+
+zones:
+  - name: top-breathing
+    y_start_pct: 0
+    y_end_pct: 12
+    elements:
+      - { role: brand-mark, type: frame }
+    typography_hierarchy:
+      brand-mark: caption
+
+  - name: main-text
+    y_start_pct: 15
+    y_end_pct: 60
+    elements:
+      - { role: headline, type: text }
+      - { role: subheadline, type: text }
+    typography_hierarchy:
+      headline: display
+      subheadline: h2
+
+  - name: supporting
+    y_start_pct: 62
+    y_end_pct: 78
+    elements:
+      - { role: body-text, type: text }
+      - { role: details, type: text }
+    typography_hierarchy:
+      body-text: body
+      details: caption
+
+  - name: cta
+    y_start_pct: 80
+    y_end_pct: 92
+    elements:
+      - { role: cta-button, type: frame }
+      - { role: swipe-text, type: text }
+    typography_hierarchy:
+      cta-button: h3
+      swipe-text: caption
+
+rhythm:
+  whitespace_ratio: 0.50
+  dominant_gesture: "top-to-bottom vertical scan — headline dominates, then details, then CTA"
+  section_gap_scale: "fibonacci-adjacent: 32→48→64"
+
+anti_generic:
+  - "Headline must fill nearly full width (90%+) with dramatic scale — at least 72px, ideally 96px+"
+  - "TikTok safe zones apply: 100px top, 200px bottom, 60px left, 100px right — keep CTA above bottom 200px"
+  - "Background must NOT be plain solid — use a diagonal gradient, radial glow, or textured fill"
+
+memorable_element: "Headline fills nearly full width at dramatic scale — the text IS the visual, not an accessory to it"

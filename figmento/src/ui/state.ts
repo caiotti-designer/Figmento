@@ -255,9 +255,9 @@ export const apiState = {
   validatedKeys: {} as Record<string, boolean>,
   currentProvider: 'gemini' as AIProvider,
   abortController: null as AbortController | null,
-  claudeModel: 'claude-sonnet-4-20250514' as string,
-  openaiModel: 'gpt-4o' as string,
-  geminiModel: 'gemini-3-pro-preview' as 'gemini-3-pro-preview' | 'gemini-3-flash-preview',
+  claudeModel: 'claude-sonnet-4-6' as string,
+  openaiModel: 'gpt-5.2' as string,
+  geminiModel: 'gemini-3.1-pro-preview' as 'gemini-3.1-pro-preview' | 'gemini-3.1-flash-image-preview',
 };
 
 export const progressState = {
@@ -267,8 +267,8 @@ export const progressState = {
 
 export const imageGenState = {
   enableImageGeneration: false,
-  imageGenModel: 'imagen-4' as 'imagen-4' | 'gemini-image',
-  geminiModel: 'gemini-3-pro-preview' as 'gemini-3-pro-preview' | 'gemini-3-flash-preview',
+  imageGenModel: 'gemini-3.1-flash-image-preview' as 'gemini-3.1-flash-image-preview' | 'gpt-image-1.5',
+  geminiModel: 'gemini-3.1-pro-preview' as 'gemini-3.1-pro-preview' | 'gemini-3.1-flash-image-preview',
 };
 
 export const modeState = {
@@ -324,7 +324,7 @@ export const textLayoutState = {
   currentLayoutPreset: 'auto' as string,
   carouselConfig: { enabled: false, slideCount: 'auto', slideFormat: 'square' } as CarouselConfig,
   imageGenEnabled: false,
-  imageGenModel: 'gemini-3-pro-image-preview' as string,
+  imageGenModel: 'gemini-3.1-flash-image-preview' as string,
   referenceImageRoles: {} as Record<number, string>,
   customStyleEnabled: false,
 };
@@ -340,6 +340,22 @@ export const heroState = {
   isProcessing: false,
   abortController: null as AbortController | null,
   lastGeneratedImage: null as string | null,
+};
+
+export const adAnalyzerState = {
+  imageBase64: null as string | null,
+  imageMimeType: null as string | null,
+  imageWidth: 0,
+  imageHeight: 0,
+  productName: '',
+  productCategory: '',
+  platform: 'instagram-4x5' as string,
+  notes: '',
+  isWatching: false,
+  lastActivityTime: 0,
+  report: null as string | null,
+  carouselNodeId: null as string | null,
+  variantNodeIds: null as string[] | null,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -429,6 +445,7 @@ export const dom = {
   // Navigation
   backToHomeBtn: null as HTMLButtonElement | null,
   breadcrumb: null as HTMLDivElement | null,
+  breadcrumbBack: null as HTMLButtonElement | null,
   breadcrumbCurrent: null as HTMLSpanElement | null,
   breadcrumbHome: null as HTMLSpanElement | null,
   logoBtn: null as HTMLDivElement | null,
@@ -515,6 +532,7 @@ export function initDomRefs(): void {
 
   dom.backToHomeBtn = document.getElementById('backToHomeBtn') as HTMLButtonElement;
   dom.breadcrumb = document.getElementById('breadcrumb') as HTMLDivElement;
+  dom.breadcrumbBack = document.getElementById('breadcrumbBack') as HTMLButtonElement;
   dom.breadcrumbCurrent = document.getElementById('breadcrumbCurrent') as HTMLSpanElement;
   dom.breadcrumbHome = document.getElementById('breadcrumbHome') as HTMLSpanElement;
   dom.logoBtn = document.getElementById('logoBtn') as HTMLDivElement;

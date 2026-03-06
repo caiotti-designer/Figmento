@@ -6,7 +6,7 @@ jest.mock('../ui/utils', () => ({
 // Mock the state module
 jest.mock('../ui/state', () => ({
   apiState: { abortController: null, currentProvider: 'claude' },
-  imageGenState: { geminiModel: 'gemini-3-pro-preview' },
+  imageGenState: { geminiModel: 'gemini-3.1-flash-image-preview' },
 }));
 
 // Mock the prompt module
