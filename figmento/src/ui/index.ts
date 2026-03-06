@@ -63,8 +63,8 @@ import { initHeroUI, setupHeroListeners } from './hero-generator';
 import { AIProvider } from '../types';
 import { apiState, imageGenState } from './state';
 import { addToQueue, startBatchProcessing, clearQueue, notifyDesignCreated } from './batch';
-import { initChat, resolveChatCommand, loadMemoryEntries } from './chat';
-import { initBridge, handleBridgeCommandResult } from './bridge';
+import { initChat, resolveChatCommand, loadMemoryEntries, getChatSettings } from './chat';
+import { initBridge, handleBridgeCommandResult, autoConnectBridge } from './bridge';
 import { initChatSettings, loadChatSettings } from './chat-settings';
 import { initAdAnalyzer, canLeaveAdAnalyzer } from './ad-analyzer';
 
@@ -317,6 +317,16 @@ function setupEventListeners(): void {
     },
     onSettingsLoaded: (settings: Record<string, string>) => {
       loadChatSettings(settings);
+
+      // Auto-connect bridge when relay mode is enabled (CR-3)
+      const cs = getChatSettings();
+      const relayBar = document.getElementById('relay-status-bar');
+      if (cs.chatRelayEnabled) {
+        if (relayBar) relayBar.style.display = 'flex';
+        autoConnectBridge(cs.chatRelayUrl);
+      } else {
+        if (relayBar) relayBar.style.display = 'none';
+      }
     },
     onMemoryLoaded: (entries) => {
       loadMemoryEntries(entries);

@@ -15,6 +15,7 @@ import { postMessage, showToast, debounce, escapeHtml, computeToolCallProgress, 
 import { fetchAllIcons } from './icons';
 import { openSettings } from './settings';
 import { buildSystemPrompt } from './system-prompt';
+import { detectBrief } from './brief-detector';
 import { FIGMENTO_TOOLS } from './tools-schema';
 import {
   runToolUseLoop,
@@ -661,6 +662,8 @@ export const handleGeneratePresentation = async (): Promise<void> => {
     return;
   }
 
+  const brief = detectBrief(content);
+
   const apiKey = apiState.savedApiKeys[apiState.currentProvider];
   if (!apiKey) {
     showToast('Please configure your API key in Settings', 'warning');
@@ -763,7 +766,7 @@ export const handleGeneratePresentation = async (): Promise<void> => {
         provider,
         apiKey,
         model,
-        systemPrompt: buildSystemPrompt(),
+        systemPrompt: buildSystemPrompt(brief),
         tools: FIGMENTO_TOOLS,
         messages,
         maxIterations: 30,

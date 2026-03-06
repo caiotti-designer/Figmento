@@ -1,9 +1,29 @@
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 const isWatch = process.argv.includes('--watch');
 const isProd = process.argv.includes('--prod') || process.env.NODE_ENV === 'production';
+
+// --- Pre-build: compile knowledge from MCP server YAML ---
+function compileKnowledge() {
+  const scriptPath = path.join(__dirname, 'scripts', 'compile-knowledge.ts');
+  if (!fs.existsSync(scriptPath)) {
+    console.warn('[build] WARNING: compile-knowledge.ts not found, skipping knowledge compilation');
+    return;
+  }
+  try {
+    console.log('[build] Compiling knowledge from MCP server YAML...');
+    execSync('npx tsx scripts/compile-knowledge.ts', {
+      cwd: __dirname,
+      stdio: 'inherit',
+    });
+  } catch (error) {
+    console.warn('[build] WARNING: Knowledge compilation failed. Build will continue without updated knowledge.');
+    console.warn(`[build] Error: ${error.message}`);
+  }
+}
 
 // Build code.ts (sandbox) - target ES6 for Figma compatibility
 const codeBuild = {
@@ -58,6 +78,9 @@ async function build() {
     if (isProd) {
       console.log('Building for production (minified, no source maps)...');
     }
+
+    // Step 0: Compile knowledge (pre-build step)
+    compileKnowledge();
 
     if (isWatch) {
       // Watch mode

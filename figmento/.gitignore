@@ -4,6 +4,9 @@ node_modules/
 # Build output
 dist/
 
+# Auto-generated compiled knowledge (from scripts/compile-knowledge.ts)
+src/knowledge/compiled-knowledge.ts
+
 # Environment
 .env
 .env.local

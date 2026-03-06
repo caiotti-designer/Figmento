@@ -4703,6 +4703,48 @@
     .tool-name { color: #60a5fa; font-weight: 600; }
     .tool-summary { color: var(--color-text-tertiary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+    /* Relay status bar in Chat tab */
+    .relay-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      background: var(--color-bg-surface);
+      border-bottom: 1px solid var(--color-border);
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+      flex-shrink: 0;
+    }
+    .relay-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .relay-dot.disconnected { background: #666; }
+    .relay-dot.connecting { background: #f59e0b; animation: relay-pulse 1s ease-in-out infinite; }
+    .relay-dot.connected { background: #4ade80; }
+    .relay-dot.fallback { background: #f59e0b; }
+    .relay-dot.error { background: #ef4444; }
+    @keyframes relay-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .relay-status-label { white-space: nowrap; }
+    .relay-channel-id { margin-left: auto; font-family: monospace; opacity: 0.7; }
+
+    /* Relay toggle in settings */
+    .relay-toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: var(--text-sm);
+      color: var(--color-text);
+    }
+    .relay-toggle-label input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--color-primary);
+    }
+
     .chat-loading {
       display: none;
       align-items: center;
@@ -4993,6 +5035,11 @@
 
   <!-- Chat Tab -->
   <div id="tab-chat" class="unified-tab-content active">
+    <div id="relay-status-bar" class="relay-status-bar" style="display:none;">
+      <span id="relay-status-dot" class="relay-dot disconnected"></span>
+      <span id="relay-status-label" class="relay-status-label">Relay: Off</span>
+      <span id="relay-channel-display" class="relay-channel-id"></span>
+    </div>
     <div id="chat-messages" class="chat-messages"></div>
     <div id="chat-loading" class="chat-loading">
       <div class="spinner"></div>
@@ -6506,6 +6553,27 @@ img: for image placeholders"></textarea>
           <label>OpenAI API Key</label>
           <input type="password" id="settings-openai-key" placeholder="sk-..." />
           <div class="hint">Get one at platform.openai.com</div>
+        </div>
+      </div>
+
+      <div class="chat-settings-group">
+        <h3>Relay Mode</h3>
+        <div class="chat-settings-field">
+          <label class="relay-toggle-label">
+            <input type="checkbox" id="settings-relay-toggle" />
+            <span>Route chat through server relay</span>
+          </label>
+          <div class="hint">Eliminates rate limits and moves API keys server-side. Requires the relay server to be running.</div>
+        </div>
+        <div id="relay-settings-fields" style="display:none;">
+          <div class="chat-settings-field">
+            <label>Relay Server URL</label>
+            <input type="text" id="settings-relay-url" value="https://figmento-production.up.railway.app" style="width:100%;padding:8px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);color:var(--color-text);font-size:var(--text-sm);" />
+            <div class="hint">The Railway-hosted relay endpoint.</div>
+          </div>
+        </div>
+        <div id="api-key-relay-hint" class="hint" style="display:none;margin-top:8px;color:var(--color-text-tertiary);">
+          API keys are still required — they are sent securely to the relay server with each request.
         </div>
       </div>
 

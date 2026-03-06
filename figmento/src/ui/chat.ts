@@ -9,8 +9,9 @@
  *  - Sandbox bridge (sendCommandToSandbox)
  */
 
-import { FIGMENTO_TOOLS } from './tools-schema';
+import { chatToolResolver } from './tools-schema';
 import { buildSystemPrompt } from './system-prompt';
+import { detectBrief, DesignBrief } from './brief-detector';
 import {
   runToolUseLoop,
   ToolCallResult,
@@ -20,6 +21,8 @@ import {
   stripBase64FromResult,
   summarizeScreenshotResult,
 } from './tool-use-loop';
+import { LOCAL_TOOL_HANDLERS } from './local-intelligence';
+import { getBridgeChannelId, getBridgeConnected } from './bridge';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -35,6 +38,8 @@ export interface ChatSettings {
   geminiApiKey: string;
   openaiApiKey: string;
   model: string;
+  chatRelayEnabled: boolean;
+  chatRelayUrl: string;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -48,6 +53,7 @@ let isProcessing = false;
 let chatCommandCounter = 0;
 const pendingChatCommands = new Map<string, PendingCommand>();
 let memoryEntries: string[] = [];
+let currentBrief: DesignBrief | undefined;
 
 // Settings reference — updated from outside via updateChatSettings()
 let chatSettings: ChatSettings = {
@@ -55,6 +61,8 @@ let chatSettings: ChatSettings = {
   geminiApiKey: '',
   openaiApiKey: '',
   model: 'gemini-3.1-flash-image-preview',
+  chatRelayEnabled: false,
+  chatRelayUrl: 'https://figmento-production.up.railway.app',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -190,6 +198,7 @@ async function sendMessage() {
   const useGemini = isGeminiModel(chatSettings.model);
   const useOpenAI = isOpenAIModel(chatSettings.model);
 
+  // API keys required for both relay mode (sent to server) and direct mode
   if (useGemini && !chatSettings.geminiApiKey) {
     appendChatBubble('assistant', '<span class="chat-error">Set your Gemini API key in Settings first.</span>');
     return;
@@ -206,23 +215,158 @@ async function sendMessage() {
   input.value = '';
   appendChatBubble('user', escapeHtml(text));
 
+  // Detect design brief from the user's message (KI-2)
+  currentBrief = detectBrief(text);
+
   setProcessing(true);
+
+  const relayEnabled = chatSettings.chatRelayEnabled;
+  const bridgeConnected = getBridgeConnected();
+  const channelId = getBridgeChannelId();
+  console.log(`[Figmento Chat] sendMessage path: relayEnabled=${relayEnabled} bridgeConnected=${bridgeConnected} channelId=${channelId} model=${chatSettings.model} relayUrl=${chatSettings.chatRelayUrl}`);
+
   try {
-    if (useGemini) {
-      geminiHistory.push({ role: 'user', parts: [{ text }] });
-      await runGeminiLoop();
-    } else if (useOpenAI) {
-      openaiHistory.push({ role: 'user', content: text });
-      await runOpenAILoop();
+    // Route through relay if enabled and bridge is connected
+    if (relayEnabled && bridgeConnected) {
+      console.log('[Figmento Chat] → RELAY path');
+      await runRelayTurn(text, useGemini, useOpenAI);
+    } else if (relayEnabled && !bridgeConnected) {
+      // Fallback to direct API — relay is enabled but bridge is unreachable
+      console.log('[Figmento Chat] → FALLBACK path (relay enabled but bridge not connected)');
+      updateRelayStatus('fallback');
+      await runDirectLoop(text, useGemini, useOpenAI);
     } else {
-      conversationHistory.push({ role: 'user', content: text });
-      await runAnthropicLoop();
+      console.log('[Figmento Chat] → DIRECT path (relay disabled)');
+      await runDirectLoop(text, useGemini, useOpenAI);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     appendChatBubble('assistant', `<span class="chat-error">Error: ${escapeHtml(msg)}</span>`);
   } finally {
     setProcessing(false);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CHAT — RELAY STATUS
+// ═══════════════════════════════════════════════════════════════
+
+export type RelayConnectionState = 'disconnected' | 'connecting' | 'connected' | 'fallback' | 'error';
+
+let relayConnectionState: RelayConnectionState = 'disconnected';
+
+export function getRelayConnectionState(): RelayConnectionState {
+  return relayConnectionState;
+}
+
+function updateRelayStatus(state: RelayConnectionState) {
+  relayConnectionState = state;
+  const dot = document.getElementById('relay-status-dot');
+  const label = document.getElementById('relay-status-label');
+  if (!dot || !label) return;
+
+  dot.className = 'relay-dot ' + state;
+  const labels: Record<RelayConnectionState, string> = {
+    disconnected: 'Relay: Off',
+    connecting: 'Relay: Connecting...',
+    connected: 'Relay: Connected',
+    fallback: 'Relay: Fallback (direct)',
+    error: 'Relay: Error',
+  };
+  label.textContent = labels[state];
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CHAT — RELAY TURN (POST /chat/turn)
+// ═══════════════════════════════════════════════════════════════
+
+async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean): Promise<void> {
+  const channelId = getBridgeChannelId();
+  if (!channelId) {
+    throw new Error('Bridge channel not available. Falling back to direct API.');
+  }
+
+  const provider = useGemini ? 'gemini' : useOpenAI ? 'openai' : 'claude';
+  const apiKey = useGemini ? chatSettings.geminiApiKey
+    : useOpenAI ? chatSettings.openaiApiKey
+    : chatSettings.anthropicApiKey;
+  const history = useGemini ? geminiHistory : useOpenAI ? openaiHistory : conversationHistory;
+
+  const url = chatSettings.chatRelayUrl.replace(/\/+$/, '') + '/api/chat/turn';
+
+  const body = {
+    message: text,
+    channel: channelId,
+    provider,
+    apiKey,
+    model: chatSettings.model,
+    history,
+    memory: memoryEntries,
+    geminiApiKey: chatSettings.geminiApiKey || undefined,
+  };
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    let errMsg: string;
+    try {
+      errMsg = JSON.parse(errText).error || errText;
+    } catch {
+      errMsg = errText;
+    }
+    throw new Error(`Relay error ${resp.status}: ${errMsg}`);
+  }
+
+  const result = await resp.json();
+
+  // Update conversation history from relay response
+  if (useGemini) {
+    geminiHistory.length = 0;
+    geminiHistory.push(...(result.history || []));
+  } else if (useOpenAI) {
+    openaiHistory.length = 0;
+    openaiHistory.push(...(result.history || []));
+  } else {
+    conversationHistory.length = 0;
+    conversationHistory.push(...(result.history || []));
+  }
+
+  // Display tool calls
+  if (result.toolCalls) {
+    for (const tc of result.toolCalls) {
+      appendToolAction(tc.name, tc.success ? 'Done' : 'Failed', !tc.success);
+    }
+  }
+
+  // Display assistant text
+  if (result.text) {
+    appendChatBubble('assistant', formatMarkdown(result.text));
+  }
+
+  // Update local memory with new entries from server
+  if (result.newMemoryEntries) {
+    for (const entry of result.newMemoryEntries) {
+      memoryEntries.push(entry);
+    }
+  }
+}
+
+/** Direct API path — used when relay is disabled or as fallback. */
+async function runDirectLoop(text: string, useGemini: boolean, useOpenAI: boolean): Promise<void> {
+  if (useGemini) {
+    geminiHistory.push({ role: 'user', parts: [{ text }] });
+    await runGeminiLoop();
+  } else if (useOpenAI) {
+    openaiHistory.push({ role: 'user', content: text });
+    await runOpenAILoop();
+  } else {
+    conversationHistory.push({ role: 'user', content: text });
+    await runAnthropicLoop();
   }
 }
 
@@ -235,8 +379,8 @@ async function runAnthropicLoop(): Promise<void> {
     provider: 'claude',
     apiKey: chatSettings.anthropicApiKey,
     model: chatSettings.model,
-    systemPrompt: buildSystemPrompt(memoryEntries),
-    tools: FIGMENTO_TOOLS,
+    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries),
+    tools: chatToolResolver(),
     messages: conversationHistory,
     onToolCall: buildToolCallHandler(),
     onProgress: () => { /* progress reserved for future mode UI */ },
@@ -249,8 +393,8 @@ async function runGeminiLoop(): Promise<void> {
     provider: 'gemini',
     apiKey: chatSettings.geminiApiKey,
     model: chatSettings.model,
-    systemPrompt: buildSystemPrompt(memoryEntries),
-    tools: FIGMENTO_TOOLS,
+    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries),
+    tools: chatToolResolver(),
     messages: geminiHistory,
     onToolCall: buildToolCallHandler(),
     onProgress: () => { /* progress reserved for future mode UI */ },
@@ -263,8 +407,8 @@ async function runOpenAILoop(): Promise<void> {
     provider: 'openai',
     apiKey: chatSettings.openaiApiKey,
     model: chatSettings.model,
-    systemPrompt: buildSystemPrompt(memoryEntries),
-    tools: FIGMENTO_TOOLS,
+    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries),
+    tools: chatToolResolver(),
     messages: openaiHistory,
     onToolCall: buildToolCallHandler(),
     onProgress: () => { /* progress reserved for future mode UI */ },
@@ -294,6 +438,14 @@ function buildToolCallHandler(): (name: string, args: Record<string, unknown>) =
 
     if (name === 'update_memory') {
       return executeUpdateMemory(args);
+    }
+
+    // Local intelligence tools — resolved from bundled knowledge, no network
+    if (name in LOCAL_TOOL_HANDLERS) {
+      const result = LOCAL_TOOL_HANDLERS[name](args);
+      const content = JSON.stringify(result);
+      appendToolAction(name, typeof result === 'object' && result !== null && 'error' in result ? (result as Record<string, string>).error : 'Done');
+      return { content, is_error: false };
     }
 
     try {
@@ -409,7 +561,15 @@ async function executeGenerateImage(input: Record<string, unknown>): Promise<Too
     const data = await sendCommandToSandbox('create_image', createParams);
     appendToolAction('generate_image', `Placed image: ${data.name} (${data.nodeId})`);
 
-    return { content: JSON.stringify(data), is_error: false };
+    // Return lightweight placeholder — the full base64 was already sent to
+    // the sandbox via create_image. Storing it in conversation history would
+    // bloat every subsequent API call and trigger rate limits.
+    const summary = JSON.stringify({
+      nodeId: data.nodeId,
+      name: data.name,
+      note: 'Image generated and placed on canvas successfully.',
+    });
+    return { content: summary, is_error: false };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     appendToolAction('generate_image', msg, true);

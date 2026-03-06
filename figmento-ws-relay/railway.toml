@@ -1,0 +1,12 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "node dist/index.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 10
+
+# IMPORTANT: Set the HTTP request timeout to 120s in Railway dashboard
+# (Settings → Networking → Request Timeout).
+# Chat turns with complex designs can take 50+ tool calls (up to 120s).
+# Railway default (100s on paid, 60s on hobby) may be insufficient.

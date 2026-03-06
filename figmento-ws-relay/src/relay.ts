@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createHttpServer, IncomingMessage, ServerResponse } from 'http';
-import { RelayMessage } from './types';
+import { RelayMessage, ResponseMessage } from './types';
+import { handleChatRequest, getActiveChatRequests } from './chat/chat-endpoint';
 
 export interface RelayConfig {
   port: number;
@@ -13,6 +14,18 @@ interface ClientInfo {
   ws: WebSocket;
   channels: Set<string>;
   isAlive: boolean;
+}
+
+/** Relay command ID prefix — distinguishes relay-originated commands from MCP/plugin commands. */
+export const RELAY_CMD_PREFIX = 'relay-';
+
+/** Default timeout for relay-originated commands (ms). */
+const RELAY_CMD_TIMEOUT = 30_000;
+
+interface PendingRelayCommand {
+  resolve: (data: Record<string, unknown>) => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
 }
 
 function getClientIp(request: IncomingMessage): string {
@@ -36,6 +49,10 @@ export class FigmentoRelay {
   private connectionsByIp: Map<string, number> = new Map();
   private keepaliveInterval: ReturnType<typeof setInterval> | null = null;
   private config: RelayConfig | null = null;
+
+  /** Pending relay-originated commands awaiting responses from channel clients. */
+  private pendingRelayCommands: Map<string, PendingRelayCommand> = new Map();
+  private relayCommandCounter = 0;
 
   start(config: RelayConfig): void {
     this.config = config;
@@ -97,7 +114,11 @@ export class FigmentoRelay {
     });
   }
 
-  private handleHttpRequest(req: IncomingMessage, res: ServerResponse): void {
+  private async handleHttpRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    // Chat turn endpoint (POST /chat/turn)
+    const handled = await handleChatRequest(this, req, res);
+    if (handled) return;
+
     if (req.method === 'GET' && req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
@@ -105,6 +126,7 @@ export class FigmentoRelay {
         uptime: Math.floor(process.uptime()),
         channels: this.channels.size,
         clients: this.clients.size,
+        chatEngine: { activeRequests: getActiveChatRequests() },
       }));
       return;
     }
@@ -182,8 +204,16 @@ export class FigmentoRelay {
         break;
 
       case 'command':
-      case 'response':
         this.forwardToChannel(sender, msg.channel, raw.toString());
+        break;
+
+      case 'response':
+        // Intercept responses for relay-originated commands before forwarding
+        if (msg.id.startsWith(RELAY_CMD_PREFIX)) {
+          this.resolveRelayCommand(msg as ResponseMessage);
+        } else {
+          this.forwardToChannel(sender, msg.channel, raw.toString());
+        }
         break;
 
       default:
@@ -287,6 +317,98 @@ export class FigmentoRelay {
     console.log(`[Figmento Relay] Client disconnected (${this.clients.size} remaining)`);
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // RELAY-AS-PARTICIPANT — send commands and receive responses on a channel
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Send a command to ALL clients in a channel (relay is the sender, no exclusion).
+   * Returns a promise that resolves when the matching response arrives.
+   * Uses `relay-` prefix on command IDs so the relay can intercept its own responses.
+   */
+  sendCommandToChannel(
+    channel: string,
+    action: string,
+    params: Record<string, unknown>,
+    timeoutMs: number = RELAY_CMD_TIMEOUT,
+  ): Promise<Record<string, unknown>> {
+    const channelClients = this.channels.get(channel);
+    if (!channelClients || channelClients.size === 0) {
+      return Promise.reject(new Error(`No clients in channel "${channel}"`));
+    }
+
+    const cmdId = `${RELAY_CMD_PREFIX}${++this.relayCommandCounter}-${Date.now()}`;
+
+    const commandMsg = JSON.stringify({
+      type: 'command',
+      id: cmdId,
+      channel,
+      action,
+      params,
+    });
+
+    return new Promise<Record<string, unknown>>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingRelayCommands.delete(cmdId);
+        reject(new Error(`Relay command timeout: ${action} (${cmdId})`));
+      }, timeoutMs);
+
+      this.pendingRelayCommands.set(cmdId, {
+        resolve: (data) => { clearTimeout(timer); resolve(data); },
+        reject: (err) => { clearTimeout(timer); reject(err); },
+        timer,
+      });
+
+      // Send to ALL clients in the channel (relay is not a WS client, no sender exclusion)
+      let sent = 0;
+      for (const client of channelClients) {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(commandMsg);
+          sent++;
+        }
+      }
+
+      console.log(`[Figmento Relay] RELAY-CMD ${cmdId} [${channel}] ${action} -> ${sent} client(s)`);
+
+      if (sent === 0) {
+        clearTimeout(timer);
+        this.pendingRelayCommands.delete(cmdId);
+        reject(new Error(`No connected clients in channel "${channel}" to receive command`));
+      }
+    });
+  }
+
+  /**
+   * Resolve a pending relay command when its response arrives from a channel client.
+   */
+  private resolveRelayCommand(msg: ResponseMessage): void {
+    const pending = this.pendingRelayCommands.get(msg.id);
+    if (!pending) {
+      console.warn(`[Figmento Relay] Received response for unknown relay command: ${msg.id}`);
+      return;
+    }
+
+    this.pendingRelayCommands.delete(msg.id);
+    console.log(`[Figmento Relay] RELAY-RSP ${msg.id} [${msg.channel}] ${msg.success ? 'OK' : 'ERR'}`);
+
+    if (msg.success) {
+      pending.resolve(msg.data || {});
+    } else {
+      pending.reject(new Error(msg.error || 'Command failed'));
+    }
+  }
+
+  /** Get the HTTP server instance (for external route registration). */
+  getHttpServer(): ReturnType<typeof createHttpServer> | null {
+    return this.httpServer;
+  }
+
+  /** Check if a channel has connected clients. */
+  hasClientsInChannel(channel: string): boolean {
+    const clients = this.channels.get(channel);
+    return !!clients && clients.size > 0;
+  }
+
   stop(): void {
     if (this.keepaliveInterval) {
       clearInterval(this.keepaliveInterval);
@@ -306,6 +428,13 @@ export class FigmentoRelay {
     this.clients.clear();
     this.channels.clear();
     this.connectionsByIp.clear();
+
+    // Reject all pending relay commands
+    for (const [id, pending] of this.pendingRelayCommands) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error('Server shutting down'));
+    }
+    this.pendingRelayCommands.clear();
 
     this.wss.close(() => {
       if (this.httpServer) {

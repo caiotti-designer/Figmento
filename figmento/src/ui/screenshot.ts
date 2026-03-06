@@ -12,6 +12,7 @@ import { postMessage, showToast, compressImage, computeToolCallProgress, toolNam
 import { classifyError, CancelledError } from './errors';
 import { openSettings, showValidationStatus, closeSettings } from './settings';
 import { buildSystemPrompt } from './system-prompt';
+import { detectBrief } from './brief-detector';
 import { FIGMENTO_TOOLS } from './tools-schema';
 import {
   runToolUseLoop,
@@ -627,7 +628,7 @@ export const startProcessing = async (): Promise<void> => {
       provider,
       apiKey,
       model,
-      systemPrompt: buildSystemPrompt(),
+      systemPrompt: buildSystemPrompt(undefined),
       tools: FIGMENTO_TOOLS,
       messages,
       onToolCall: async (name: string, args: Record<string, unknown>): Promise<ToolCallResult> => {

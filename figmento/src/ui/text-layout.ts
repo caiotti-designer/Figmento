@@ -18,6 +18,7 @@ import { modeState, apiState, imageGenState, STORAGE_KEY_MODE } from './state';
 import { inferCategory, getRelevantBlueprint, formatBlueprintZones } from './blueprint-loader';
 import { getRelevantReferences } from './reference-loader';
 import { buildSystemPrompt } from './system-prompt';
+import { detectBrief } from './brief-detector';
 import { FIGMENTO_TOOLS } from './tools-schema';
 import {
   runToolUseLoop,
@@ -751,6 +752,8 @@ export const handleGenerateTextDesign = async (): Promise<void> => {
     return;
   }
 
+  const brief = detectBrief(content);
+
   const apiKey = apiState.savedApiKeys[apiState.currentProvider];
   if (!apiKey) {
     showToast('Please configure your API key in Settings', 'warning');
@@ -847,7 +850,7 @@ export const handleGenerateTextDesign = async (): Promise<void> => {
           provider,
           apiKey,
           model,
-          systemPrompt: buildSystemPrompt(),
+          systemPrompt: buildSystemPrompt(brief),
           tools: FIGMENTO_TOOLS,
           messages,
           maxIterations: 30,
@@ -926,7 +929,7 @@ export const handleGenerateTextDesign = async (): Promise<void> => {
       provider,
       apiKey,
       model,
-      systemPrompt: buildSystemPrompt(),
+      systemPrompt: buildSystemPrompt(brief),
       tools: FIGMENTO_TOOLS,
       messages,
       onToolCall: async (name: string, args: Record<string, unknown>): Promise<ToolCallResult> => {

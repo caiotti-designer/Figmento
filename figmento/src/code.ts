@@ -243,6 +243,10 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
           // Migration: check for old figmento-plugin/ flat keys
           await migrateOldSettings(keys);
 
+          const chatRelayEnabled = (await figma.clientStorage.getAsync('figmento-chat-relay-enabled')) || '';
+          const chatRelayUrl = (await figma.clientStorage.getAsync('figmento-chat-relay-url')) || '';
+          console.log('[Figmento Sandbox] get-settings relay:', { enabled: chatRelayEnabled, url: chatRelayUrl });
+
           figma.ui.postMessage({
             type: 'settings-loaded',
             settings: {
@@ -250,6 +254,8 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
               geminiApiKey: keys['gemini'] || '',
               openaiApiKey: keys['openai'] || '',
               model: chatModel,
+              chatRelayEnabled: chatRelayEnabled,
+              chatRelayUrl: chatRelayUrl,
             },
           });
         } catch (error) {
@@ -265,6 +271,7 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
     case 'save-settings':
       (async () => {
         const s = (msg as any).settings as Record<string, unknown>;
+        console.log('[Figmento Sandbox] save-settings relay:', { chatRelayEnabled: s?.chatRelayEnabled, chatRelayUrl: s?.chatRelayUrl });
         if (s) {
           // Store API keys into the unified storage object (same as Settings tab)
           const keys = (await figma.clientStorage.getAsync(API_KEYS_STORAGE_KEY)) || {};
@@ -276,6 +283,14 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
           // Store chat model preference separately
           if (s.model) {
             await figma.clientStorage.setAsync('figmento-chat-model', s.model);
+          }
+
+          // Store relay settings
+          if (s.chatRelayEnabled !== undefined) {
+            await figma.clientStorage.setAsync('figmento-chat-relay-enabled', String(s.chatRelayEnabled));
+          }
+          if (s.chatRelayUrl) {
+            await figma.clientStorage.setAsync('figmento-chat-relay-url', s.chatRelayUrl);
           }
         }
       })();

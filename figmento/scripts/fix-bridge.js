@@ -1,4 +1,9 @@
-/**
+const fs = require('fs');
+const path = require('path');
+
+const filePath = path.join(__dirname, '..', 'src', 'ui', 'bridge.ts');
+
+const content = `/**
  * Figmento Bridge Module — WebSocket relay for MCP server.
  * Ported from figmento-plugin/src/ui-app.ts bridge sections.
  */
@@ -47,7 +52,7 @@ export function initBridge() {
  * with an auto-generated channel ID so the user doesn't need to click Connect.
  */
 export function autoConnectBridge(relayUrl: string) {
-  console.log(`[Figmento Bridge] autoConnectBridge called: connected=${isBridgeConnected} wsState=${ws?.readyState} url=${relayUrl}`);
+  console.log(\`[Figmento Bridge] autoConnectBridge called: connected=\${isBridgeConnected} wsState=\${ws?.readyState} url=\${relayUrl}\`);
   // Already connected — just re-notify status (fixes stale "Relay: Off" label)
   if (isBridgeConnected && ws && ws.readyState === WebSocket.OPEN) {
     console.log('[Figmento Bridge] already connected -> re-notifying relay status');
@@ -65,7 +70,7 @@ export function autoConnectBridge(relayUrl: string) {
   if (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) wsUrl = 'wss://' + wsUrl;
 
   bridgeChannelId = generateChannelId();
-  addBridgeLog(`[Auto] Connecting to ${wsUrl}...`, 'sys');
+  addBridgeLog(\`[Auto] Connecting to \${wsUrl}...\`, 'sys');
 
   // Update the URL input in the Bridge tab for visibility
   const urlInput = document.getElementById('bridge-url') as HTMLInputElement;
@@ -76,7 +81,7 @@ export function autoConnectBridge(relayUrl: string) {
   try {
     ws = new WebSocket(wsUrl);
   } catch (e) {
-    addBridgeLog(`[Auto] Failed: ${(e as Error).message}`, 'err');
+    addBridgeLog(\`[Auto] Failed: \${(e as Error).message}\`, 'err');
     notifyRelayStatus('error');
     return;
   }
@@ -92,7 +97,7 @@ export function autoConnectBridge(relayUrl: string) {
 
     if (msg.type === 'joined') {
       setBridgeConnected(true);
-      addBridgeLog(`[Auto] Joined channel: ${msg.channel} (${msg.clients} client(s))`, 'ok');
+      addBridgeLog(\`[Auto] Joined channel: \${msg.channel} (\${msg.clients} client(s))\`, 'ok');
       notifyRelayStatus('connected');
       return;
     }
@@ -100,13 +105,13 @@ export function autoConnectBridge(relayUrl: string) {
     if (msg.type === 'command') {
       bridgeCommandCount++;
       $('bridge-cmd-count').textContent = String(bridgeCommandCount);
-      addBridgeLog(`CMD ${msg.id}: ${msg.action}`, 'cmd');
+      addBridgeLog(\`CMD \${msg.id}: \${msg.action}\`, 'cmd');
       postToSandbox({ type: 'execute-command', command: msg });
       return;
     }
 
     if (msg.type === 'error') {
-      addBridgeLog(`Server error: ${msg.error}`, 'err');
+      addBridgeLog(\`Server error: \${msg.error}\`, 'err');
     }
   };
 
@@ -128,7 +133,7 @@ function notifyRelayStatus(state: string) {
   const dot = document.getElementById('relay-status-dot');
   const label = document.getElementById('relay-status-label');
   const channelDisplay = document.getElementById('relay-channel-display');
-  console.log(`[Figmento Bridge] notifyRelayStatus('${state}'): dot=${!!dot} label=${!!label} channelId=${bridgeChannelId}`);
+  console.log(\`[Figmento Bridge] notifyRelayStatus('\${state}'): dot=\${!!dot} label=\${!!label} channelId=\${bridgeChannelId}\`);
   if (!dot || !label) return;
 
   dot.className = 'relay-dot ' + state;
@@ -151,11 +156,11 @@ export function handleBridgeCommandResult(resp: Record<string, unknown>) {
   const cmdId = resp.id as string;
 
   if (resp.success) {
-    addBridgeLog(`RSP ${cmdId}: OK`, 'ok');
+    addBridgeLog(\`RSP \${cmdId}: OK\`, 'ok');
   } else {
     bridgeErrorCount++;
     $('bridge-err-count').textContent = String(bridgeErrorCount);
-    addBridgeLog(`RSP ${cmdId}: ERR ${resp.error}`, 'err');
+    addBridgeLog(\`RSP \${cmdId}: ERR \${resp.error}\`, 'err');
   }
 
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -228,7 +233,7 @@ function addBridgeLog(text: string, type: string = 'sys') {
   const entry = document.createElement('div');
   entry.className = 'log-entry ' + type;
   const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  entry.textContent = `${time}  ${text}`;
+  entry.textContent = \`\${time}  \${text}\`;
   area.appendChild(entry);
   area.scrollTop = area.scrollHeight;
   while (area.children.length > 100) area.removeChild(area.firstChild!);
@@ -250,12 +255,12 @@ function connectBridge() {
   if (!url) return;
 
   bridgeChannelId = generateChannelId();
-  addBridgeLog(`Connecting to ${url}...`, 'sys');
+  addBridgeLog(\`Connecting to \${url}...\`, 'sys');
 
   try {
     ws = new WebSocket(url);
   } catch (e) {
-    addBridgeLog(`Failed: ${(e as Error).message}`, 'err');
+    addBridgeLog(\`Failed: \${(e as Error).message}\`, 'err');
     return;
   }
 
@@ -270,7 +275,7 @@ function connectBridge() {
 
     if (msg.type === 'joined') {
       setBridgeConnected(true);
-      addBridgeLog(`Joined channel: ${msg.channel} (${msg.clients} client(s))`, 'ok');
+      addBridgeLog(\`Joined channel: \${msg.channel} (\${msg.clients} client(s))\`, 'ok');
       // Update Chat tab relay status on manual bridge connect too
       notifyRelayStatus('connected');
       return;
@@ -279,13 +284,13 @@ function connectBridge() {
     if (msg.type === 'command') {
       bridgeCommandCount++;
       $('bridge-cmd-count').textContent = String(bridgeCommandCount);
-      addBridgeLog(`CMD ${msg.id}: ${msg.action}`, 'cmd');
+      addBridgeLog(\`CMD \${msg.id}: \${msg.action}\`, 'cmd');
       postToSandbox({ type: 'execute-command', command: msg });
       return;
     }
 
     if (msg.type === 'error') {
-      addBridgeLog(`Server error: ${msg.error}`, 'err');
+      addBridgeLog(\`Server error: \${msg.error}\`, 'err');
     }
   };
 
@@ -298,3 +303,11 @@ function connectBridge() {
 
   ws.onerror = () => addBridgeLog('WebSocket error', 'err');
 }
+`;
+
+fs.writeFileSync(filePath, content, 'utf8');
+console.log('bridge.ts written successfully (' + content.length + ' chars)');
+`;
+
+fs.writeFileSync(filePath, content, 'utf8');
+console.log('bridge.ts written successfully (' + content.length + ' chars)');

@@ -1,9 +1,205 @@
 /**
  * Figmento System Prompt for LLM Chat (Anthropic & Gemini).
- * Comprehensive design intelligence from knowledge YAML files.
+ * Dynamic design intelligence from compiled knowledge (KI-2).
+ *
+ * Reference tables (palettes, fonts, sizes) removed in favor of
+ * local intelligence tools (lookup_palette, lookup_fonts, lookup_size).
+ * buildSystemPrompt() injects brief-specific knowledge when a DesignBrief
+ * is detected, and always-on refinement checks.
  */
 
-export function buildSystemPrompt(memory?: string[]): string {
+import type { DesignBrief } from './brief-detector';
+import type { Blueprint, Palette, FontPairing } from '../knowledge/types';
+import {
+  PALETTES,
+  FONT_PAIRINGS,
+  BLUEPRINTS,
+  COMPOSITION_RULES,
+  REFINEMENT_CHECKS,
+} from '../knowledge/compiled-knowledge';
+
+// ── Brief-specific injection ─────────────────────────────────────
+
+function findBestBlueprint(brief: DesignBrief): Blueprint | null {
+  if (BLUEPRINTS.length === 0) return null;
+
+  let best: Blueprint | null = null;
+  let bestScore = 0;
+
+  for (const bp of BLUEPRINTS) {
+    let score = 0;
+
+    // Category match (format → category mapping)
+    if (brief.format) {
+      const formatCategory = mapFormatToCategory(brief.format);
+      if (formatCategory && bp.category === formatCategory) score += 3;
+      if (bp.subcategory && brief.format.includes(bp.subcategory)) score += 1;
+    }
+
+    // Mood match
+    if (brief.mood) {
+      const moodWords = brief.mood.split('-');
+      for (const mw of moodWords) {
+        if (bp.mood.some(m => m.includes(mw))) score += 2;
+      }
+    }
+
+    // Keyword match against blueprint mood tags
+    for (const kw of brief.keywords) {
+      if (bp.mood.some(m => m.includes(kw))) score += 0.5;
+      if (bp.name.toLowerCase().includes(kw)) score += 1;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = bp;
+    }
+  }
+
+  return bestScore >= 2 ? best : null;
+}
+
+function mapFormatToCategory(format: string): string | null {
+  if (format.startsWith('ig-') || format.startsWith('fb-') || format.startsWith('x-') ||
+      format.startsWith('linkedin-') || format.startsWith('pinterest') ||
+      format.startsWith('tiktok') || format.startsWith('yt-') || format.startsWith('snapchat')) {
+    // Social formats often map to "ads" or "social" blueprints
+    return 'ads';
+  }
+  if (format === 'landing-page' || format === 'web-hero' || format === 'web-banner') return 'landing';
+  if (format.startsWith('slide') || format === 'presentation') return 'presentation';
+  if (['poster', 'flyer', 'brochure', 'a4', 'a3', 'us-letter', 'business-card'].includes(format)) return 'print';
+  return null;
+}
+
+function buildBriefInjection(brief: DesignBrief): string {
+  const sections: string[] = [];
+
+  sections.push(`\n═══════════════════════════════════════════════════════════
+DETECTED BRIEF — RECOMMENDED DESIGN CHOICES
+═══════════════════════════════════════════════════════════`);
+
+  // Recommended palette
+  if (brief.mood && PALETTES[brief.mood]) {
+    const p = PALETTES[brief.mood];
+    const c = p.colors;
+    sections.push(`
+RECOMMENDED PALETTE (${p.name}):
+  primary: ${c.primary} | secondary: ${c.secondary} | accent: ${c.accent}
+  background: ${c.background} | text: ${c.text} | muted: ${c.muted}
+  Use these colors for this design. Override only if the user specifies different colors.`);
+  }
+
+  // Recommended fonts
+  if (brief.mood) {
+    const fp = findBestFontPairing(brief.mood);
+    if (fp) {
+      sections.push(`
+RECOMMENDED FONTS (${fp.name}):
+  Heading: ${fp.heading_font} (weight ${fp.recommended_heading_weight})
+  Body: ${fp.body_font} (weight ${fp.recommended_body_weight})
+  Use this pairing unless the user specifies different fonts.`);
+    }
+  }
+
+  // Matching blueprint
+  const blueprint = findBestBlueprint(brief);
+  if (blueprint) {
+    const zoneLines = blueprint.zones.map(z => {
+      const elements = z.elements.map(e => e.role).join(', ');
+      return `  ${z.name} (${Math.round(z.y_start_pct * 100)}%–${Math.round(z.y_end_pct * 100)}%): ${elements}`;
+    });
+
+    sections.push(`
+LAYOUT BLUEPRINT — "${blueprint.name}":
+Zone breakdown (multiply percentages by canvas height for pixel positions):
+${zoneLines.join('\n')}
+
+Anti-generic rules (MUST follow):
+${blueprint.anti_generic.map(r => `  - ${r}`).join('\n')}
+
+Memorable element: ${blueprint.memorable_element || 'Create ONE standout visual element that makes this design unforgettable.'}
+Whitespace ratio: ${blueprint.whitespace_ratio || 0.45} (target content density)`);
+  }
+
+  // Composition rules for multi-section
+  if (brief.designType === 'multi-section' && COMPOSITION_RULES) {
+    const cr = COMPOSITION_RULES;
+    sections.push(`
+MULTI-SECTION COMPOSITION RULES:
+  Background rhythm: ${cr.section_transitions.page_rhythm || 'dark→light→light→dark→light→dark'}
+  ${cr.alternating_backgrounds.rule}
+  Exception: ${cr.alternating_backgrounds.exception}
+  Section gap: ${cr.vertical_rhythm.section_gap}px (${cr.vertical_rhythm.rule})
+  Color continuity:
+${cr.color_continuity.rules.map(r => `    - ${r}`).join('\n')}
+  Pattern fills: hero_block=primary, feature_grid=surface, testimonial=surface, cta_banner=primary, content_section=background
+  Never use the same background color on 3+ consecutive sections.`);
+  }
+
+  return sections.join('\n');
+}
+
+function findBestFontPairing(mood: string): FontPairing | null {
+  // Direct ID match
+  const moodBase = mood.split('-')[0];
+  for (const [id, fp] of Object.entries(FONT_PAIRINGS)) {
+    if (id === mood || id === moodBase) return fp;
+  }
+  // Tag match
+  for (const fp of Object.values(FONT_PAIRINGS)) {
+    if (fp.mood_tags.some(t => mood.includes(t))) return fp;
+  }
+  return null;
+}
+
+// ── Refinement block (always-on) ─────────────────────────────────
+
+function buildRefinementBlock(): string {
+  // Distill the 25 compiled refinement checks into 5 machine-checkable rules
+  // grouped by category, plus include select high-impact micro-checks.
+  const coreChecks = [
+    '1. Gradient direction: solid end of every overlay gradient MUST face the text zone. If text is at bottom, gradient is solid at bottom. If solid end faces away from text → FLIP direction immediately.',
+    '2. Spacing scale: all itemSpacing and padding values MUST be from [4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96, 128]. No arbitrary values (e.g. 37px, 55px). CTA buttons must have 2x the surrounding spacing for isolation.',
+    '3. Typography hierarchy: largest font MUST be >= 2x smallest font. At least 3 distinct size levels. Display text (>40px) needs letter-spacing -0.02em. Uppercase labels need +0.05em minimum.',
+    '4. Auto-layout coverage: every frame with 2+ children MUST use auto-layout (layoutMode VERTICAL or HORIZONTAL). No manually positioned children inside container frames.',
+    '5. Placeholder fills: no unfilled gray rectangles may remain. Every image area must have a generated image, fetched placeholder, or intentional solid fill.',
+  ];
+
+  // Add high-impact micro-checks from compiled knowledge
+  const microChecks: string[] = [];
+  for (const rc of REFINEMENT_CHECKS) {
+    if (rc.id === 'warm-cool-shadows') {
+      microChecks.push(`- Shadows: ${rc.rule}`);
+    } else if (rc.id === 'card-elevation') {
+      microChecks.push(`- Cards: ${rc.rule}`);
+    } else if (rc.id === 'mandatory-standout') {
+      microChecks.push(`- Memorable element: ${rc.rule}`);
+    } else if (rc.id === 'gradient-color-match') {
+      microChecks.push(`- Gradient color: ${rc.rule}`);
+    } else if (rc.id === 'cta-isolation') {
+      microChecks.push(`- CTA spacing: ${rc.rule}`);
+    }
+  }
+
+  return `
+═══════════════════════════════════════════════════════════
+AFTER CREATING ANY DESIGN — AUTO-REFINEMENT (mandatory)
+═══════════════════════════════════════════════════════════
+
+Before reporting a design as complete, verify these 5 checks and FIX any issues:
+
+${coreChecks.join('\n')}
+
+Additional micro-refinements (apply when relevant):
+${microChecks.join('\n')}
+
+If any check fails, fix it BEFORE confirming the design is done. Do not ask the user — just fix it.`;
+}
+
+// ── Main prompt builder ──────────────────────────────────────────
+
+export function buildSystemPrompt(brief?: DesignBrief, memory?: string[]): string {
   let prompt = `You are Figmento, an expert design agent inside a Figma plugin. You create professional, polished designs directly on the Figma canvas using your tools. Use expert-level reasoning for layout, hierarchy, spacing, and color theory. Always use the brand kit when available.
 
 ## Core Rules
@@ -42,9 +238,9 @@ After completing any design with 5+ elements, call run_refinement_check on the r
 ## Design Workflow (follow for EVERY design request)
 1. Parse the request: identify format (Instagram post? Poster? Presentation?), mood/style, content, brand constraints.
 1b. Call read_figma_context to discover existing variables and styles. Use them instead of hardcoding values (see Figma-Native Workflow above).
-2. Look up the exact pixel dimensions from the Size Presets below. Never guess dimensions.
-3. Choose a color palette by mood from the Color Palettes below. If a brand kit exists, use its colors instead.
-4. Choose a font pairing by mood from the Font Pairings below. Use the recommended heading/body weights.
+2. Call lookup_size(format) to get exact pixel dimensions. Never guess dimensions.
+3. Call lookup_palette(mood) to get the color palette. If a brand kit exists, use its colors instead.
+4. Call lookup_fonts(mood) to get the font pairing. Use the recommended heading/body weights.
 5. Choose the type scale ratio:
    - minor_third (1.2) — documents, long reads, subtle hierarchy
    - major_third (1.25) — general purpose, balanced (DEFAULT)
@@ -57,174 +253,16 @@ After completing any design with 5+ elements, call run_refinement_check on the r
 10. Verify against the self-evaluation checklist.
 
 ═══════════════════════════════════════════════════════════
-SIZE PRESETS (always use exact pixels)
+DESIGN KNOWLEDGE TOOLS (call these instead of guessing)
 ═══════════════════════════════════════════════════════════
 
-SOCIAL MEDIA:
-Instagram Post: 1080×1350 (4:5) — recommended feed post, max vertical real estate
-Instagram Square: 1080×1080 (1:1) — classic square, also carousel slides
-Instagram Story/Reel: 1080×1920 (9:16) — full-screen vertical
-Instagram Carousel: 1080×1080 (1:1) per slide
-Facebook Post: 1200×630 (1.91:1) — shared image / link preview
-Facebook Story: 1080×1920 (9:16)
-Facebook Cover: 820×312 (2.63:1)
-Facebook Ad: 1200×628 (1.91:1)
-X/Twitter Post: 1600×900 (16:9)
-X/Twitter Header: 1500×500 (3:1)
-LinkedIn Post: 1200×627 (1.91:1)
-LinkedIn Story: 1080×1920 (9:16)
-LinkedIn Banner: 1584×396 (4:1)
-Pinterest Pin: 1000×1500 (2:3) — optimal for feed visibility
-Pinterest Square: 1000×1000 (1:1)
-TikTok Video: 1080×1920 (9:16)
-YouTube Thumbnail: 1280×720 (16:9) — keep text large
-YouTube Banner: 2560×1440 (16:9) — safe area 1546×423 center
-Snapchat Story: 1080×1920 (9:16)
+Use these tools to get exact values — never hardcode or guess:
+- lookup_size(format) → exact pixel dimensions for any format (social, print, web, presentation)
+- lookup_palette(mood) → full color palette (primary, secondary, accent, background, text, muted)
+- lookup_fonts(mood) → font pairing with heading/body fonts and weights
+- lookup_blueprint(category, subcategory?, mood?) → layout blueprint with zones and anti-generic rules
 
-PRINT (300dpi):
-A4: 2480×3508 (210×297mm)
-A3: 3508×4961 (297×420mm)
-US Letter: 2550×3300 (8.5×11in)
-US Legal: 2550×4200 (8.5×14in)
-Business Card: 1050×600 (3.5×2in)
-Flyer: 1275×1875 (4.25×6.25in)
-Poster 11×17: 3300×5100
-Poster 18×24: 5400×7200
-Poster 24×36: 7200×10800
-
-PRESENTATION:
-16:9 Widescreen: 1920×1080
-4:3 Standard: 1024×768
-Widescreen 2K: 2560×1440
-
-WEB:
-Web Hero 16:9: 1920×1080 | Web Banner: 1440×600 | Landing Page: 1440×900
-Tablet Landscape: 1194×834 | Tablet Portrait: 834×1194
-Mobile Hero: 430×932 | Mobile Banner: 430×300
-
-═══════════════════════════════════════════════════════════
-COLOR PALETTES (select by mood)
-═══════════════════════════════════════════════════════════
-
-moody-dark (coffee, whiskey, cinematic, noir):
-  primary: #2C1810 | secondary: #4A3228 | accent: #D4A574
-  background: #1A0E0A | text: #F5E6D3 | muted: #8B6F5E
-  → Deep browns and warm amber. Coffee shops, moody photography.
-
-fresh-light (spring, health, wellness, clean):
-  primary: #4CAF50 | secondary: #81C784 | accent: #29B6F6
-  background: #FAFFFE | text: #1B2E1B | muted: #A5D6A7
-  → Whites with soft greens and sky blues. Health, wellness, organic.
-
-corporate-professional (business, finance, enterprise, trustworthy):
-  primary: #1E3A5F | secondary: #2C5282 | accent: #3182CE
-  background: #FFFFFF | text: #1A202C | muted: #A0AEC0
-  → Navy and slate with blue accents. Finance, consulting.
-
-luxury-premium (gold, elegant, fashion, jewelry, exclusive):
-  primary: #1A1A1A | secondary: #2D2D2D | accent: #C9A84C
-  background: #0D0D0D | text: #F5F0E8 | muted: #7A6F5D
-  → Black and gold with cream. High-end fashion, jewelry.
-
-playful-fun (colorful, vibrant, kids, games, party):
-  primary: #FF6B6B | secondary: #4ECDC4 | accent: #FFE66D
-  background: #FFFFFF | text: #2C3E50 | muted: #95A5A6
-  → Bright primaries with energy. Kids brands, gaming, events.
-
-nature-organic (earth, botanical, sustainable, eco, garden):
-  primary: #2D6A4F | secondary: #40916C | accent: #B7791F
-  background: #F0FFF4 | text: #1B4332 | muted: #95D5B2
-  → Earth tones with forest green. Sustainability, outdoors.
-
-tech-modern (digital, futuristic, startup, AI, cyber):
-  primary: #0D1117 | secondary: #161B22 | accent: #58A6FF
-  background: #0D1117 | text: #E6EDF3 | muted: #484F58
-  → Dark grays with electric blue. SaaS, AI, developer tools.
-
-warm-cozy (autumn, rustic, bakery, cafe, homey):
-  primary: #C2590A | secondary: #A0522D | accent: #E8A87C
-  background: #FFF8F0 | text: #3E2723 | muted: #D7CCC8
-  → Burnt orange and warm browns. Bakeries, cafes, autumn.
-
-minimal-clean (simple, monochrome, black-and-white, scandinavian):
-  primary: #000000 | secondary: #333333 | accent: #0066CC
-  background: #FFFFFF | text: #111111 | muted: #999999
-  → Black on white with one accent. Design studios, portfolios.
-
-retro-vintage (nostalgic, 70s, 80s, groovy, film):
-  primary: #D4A373 | secondary: #CCD5AE | accent: #E76F51
-  background: #FEFAE0 | text: #3D405B | muted: #A8A878
-  → Muted pastels with mustard and burnt sienna. Film, music.
-
-ocean-calm (serene, spa, meditation, water, blue):
-  primary: #0077B6 | secondary: #00B4D8 | accent: #90E0EF
-  background: #CAF0F8 | text: #03045E | muted: #ADE8F4
-  → Ocean blues and teals. Spa, wellness, travel.
-
-sunset-energy (passionate, bold, dynamic, sport, music):
-  primary: #E63946 | secondary: #F4A261 | accent: #E9C46A
-  background: #FFF8F0 | text: #2D3436 | muted: #DFE6E9
-  → Warm gradients from red to gold. Sports, music.
-
-═══════════════════════════════════════════════════════════
-FONT PAIRINGS (select by mood)
-═══════════════════════════════════════════════════════════
-
-modern (tech, clean, SaaS, neutral, versatile):
-  Heading: Inter (700) | Body: Inter (400)
-  → Swiss-style clarity. Works for SaaS, tech, portfolios.
-
-classic (elegant, editorial, literary, traditional):
-  Heading: Playfair Display (700) | Body: Source Serif Pro (400)
-  → Serif pairing with old-style charm. Editorial, publishing, luxury.
-
-bold (strong, confident, marketing, startup):
-  Heading: Montserrat (800) | Body: Hind (400)
-  → Geometric sans with strong presence. Marketing, agencies.
-
-luxury (premium, fashion, sophisticated, refined):
-  Heading: Cormorant Garamond (600) | Body: Proza Libre (400)
-  → High-contrast serif meets humanist sans. Fashion, luxury brands.
-
-playful (friendly, fun, approachable, youthful):
-  Heading: Poppins (700) | Body: Nunito (400)
-  → Rounded geometrics with warmth. Kids brands, casual apps, food.
-
-corporate (professional, trustworthy, stable, enterprise):
-  Heading: Roboto (700) | Body: Roboto Slab (400)
-  → Google's workhorse with slab variant. Enterprise, business, fintech.
-
-editorial (journalistic, readable, authoritative, content):
-  Heading: Libre Baskerville (700) | Body: Open Sans (400)
-  → Transitional serif headings with clean sans body. News, blogs.
-
-minimalist (simple, understated, quiet, focused):
-  Heading: DM Sans (700) | Body: DM Sans (400)
-  → Single-family simplicity. Design portfolios, minimal brands.
-
-creative (artistic, experimental, design, studio):
-  Heading: Space Grotesk (700) | Body: Work Sans (400)
-  → Quirky monospace-inspired grotesk. Creative agencies, studios.
-
-elegant (warm, literary, sophisticated, timeless):
-  Heading: Lora (700) | Body: Merriweather (400)
-  → Dual-serif pairing with calligraphic flair. Books, weddings.
-
-═══════════════════════════════════════════════════════════
-TYPE SCALES
-═══════════════════════════════════════════════════════════
-
-Minor Third (1.2) — subtle, for documents/long reads:
-  xs: 11 | sm: 13 | base: 16 | lg: 19 | xl: 23 | 2xl: 28 | 3xl: 33 | 4xl: 40 | display: 48
-
-Major Third (1.25) — balanced DEFAULT for most designs:
-  xs: 10 | sm: 13 | base: 16 | lg: 20 | xl: 25 | 2xl: 31 | 3xl: 39 | 4xl: 49 | display: 61
-
-Perfect Fourth (1.333) — strong contrast, marketing/posters:
-  xs: 9 | sm: 12 | base: 16 | lg: 21 | xl: 28 | 2xl: 38 | 3xl: 51 | 4xl: 67 | display: 90
-
-Golden Ratio (1.618) — dramatic, hero sections/display:
-  xs: 6 | sm: 10 | base: 16 | lg: 26 | xl: 42 | 2xl: 68 | 3xl: 110 | display: 177
+Type scale ratios (apply to base size 16): minor_third=1.2, major_third=1.25 (default), perfect_fourth=1.333, golden_ratio=1.618
 
 ═══════════════════════════════════════════════════════════
 MINIMUM FONT SIZES (mandatory — never go below these)
@@ -372,19 +410,6 @@ Layer Order (bottom to top):
   3. Text content frame (auto-layout with text nodes)
 
 ═══════════════════════════════════════════════════════════
-CAFÉ NOIR BRAND KIT (use when user mentions Café Noir)
-═══════════════════════════════════════════════════════════
-
-Brand: Café Noir — "Where every cup tells a story"
-Colors:
-  primary: #2C1810 | secondary: #4A3228 | accent: #D4A574
-  background: #1A0E0A | text: #F5E6D3 | muted: #8B6F5E | surface: #231510
-Fonts: Playfair Display (heading, 700) + Lora (body, 400), major_third scale
-Handle: @cafenoir
-Hashtags: #CaféNoir #CoffeeStories #ArtisanCoffee #SlowBrew
-Voice: warm, artisanal, storytelling, intimate. Use rich sensory language (aroma, velvety, complex). Reference craftsmanship and origin stories. Never use corporate jargon or generic descriptions.
-
-═══════════════════════════════════════════════════════════
 PRINT LAYOUT RULES (mandatory for A4, Poster, Brochure, Flyer formats)
 ═══════════════════════════════════════════════════════════
 
@@ -395,49 +420,16 @@ PRINT LAYOUT RULES (mandatory for A4, Poster, Brochure, Flyer formats)
 5. NEVER leave >100px of unstructured empty space. If a section looks empty, reduce gaps or add a content element.
 
 ═══════════════════════════════════════════════════════════
-FORMAT COMPLETION CHECKLISTS (design is NOT done until all items are present)
+FORMAT COMPLETION (design is NOT done until all items are present)
 ═══════════════════════════════════════════════════════════
 
-Instagram Post / Social Post:
-  ✓ Root frame at correct dimensions (e.g., 1080×1350)
-  ✓ Background — solid color fill OR full-bleed image
-  ✓ If image background → overlay rectangle (gradient or scrim) for text readability
-  ✓ Headline text — large, bold, the primary message
-  ✓ Supporting text — subheadline or body copy (at least 1 secondary text element)
-  ✓ Branding element — logo, handle (@username), watermark, or brand name (at least 1)
-  ✓ At least 3 distinct font sizes creating clear hierarchy
-  Missing any of these = incomplete. Add them before stopping.
+Every design MUST have: correct dimensions, background (solid or image), headline, supporting text, branding element, 3+ font sizes.
 
-Instagram Carousel:
-  ✓ All slides at the same dimensions (1080×1080 per slide)
-  ✓ Consistent design system: SAME fonts, SAME color palette, SAME margin/padding across ALL slides
-  ✓ Slide 1 = hook/title slide (bold headline, minimal text, grabs attention)
-  ✓ Middle slides = content (one key point per slide, not overloaded)
-  ✓ Last slide = CTA or summary (call-to-action, follow prompt, or key takeaway)
-  ✓ Visual continuity — recurring element (accent bar, page number, brand mark) on every slide
-  ✓ Each slide stands alone but the set tells a coherent story
-
-Presentation Slide:
-  ✓ One clear headline per slide — max 8 words
-  ✓ Generous breathing room — padding at least 64px on all sides
-  ✓ Max 3 content elements per slide (headline + subtext + visual OR headline + bullet list + image)
-  ✓ Text at presentation-scale sizes (headline ≥40px, body ≥20px at 1920px width)
-  ✓ Consistent template across all slides (same header position, same font, same accent color)
-
-Web Hero / Landing Section:
-  ✓ Full-width frame at correct dimensions
-  ✓ Headline — the primary value proposition
-  ✓ Subheadline or supporting copy
-  ✓ CTA button — auto-layout frame with padding, contrasting fill, and button text
-  ✓ If image background → overlay gradient (mandatory)
-  ✓ Navigation hint or branding in top area
-
-Print (Poster / Flyer / Brochure):
-  ✓ Correct dimensions for the print format (e.g., 2480×3508 for A4)
-  ✓ Margins at least 72px (print bleed safety)
-  ✓ All text above minimum print sizes (body ≥24px at 300dpi)
-  ✓ Clear headline visible from arm's length (≥56px)
-  ✓ Contact info or CTA in lower third
+Social Post: + overlay if image bg.
+Carousel: same dimensions per slide, consistent fonts/colors/padding, slide 1=hook, last=CTA, visual continuity element on every slide.
+Presentation: 1 headline per slide (≤8 words), padding ≥64px, max 3 content elements, consistent template.
+Web Hero: + CTA button (auto-layout frame), + overlay gradient if image bg, + nav/branding top area.
+Print: margins ≥72px, body ≥24px at 300dpi, headline ≥56px, contact/CTA in lower third.
 
 ═══════════════════════════════════════════════════════════
 DESIGN ANTI-PATTERNS (never do these — they signal generic AI output)
@@ -451,38 +443,6 @@ DESIGN ANTI-PATTERNS (never do these — they signal generic AI output)
 - Absolute positioning on print pages — every frame on print MUST use auto-layout
 - fontWeight 600 on Cormorant Garamond / Proza Libre — these fonts lack SemiBold; use 400 or 700
 - Fixed height on content frames with text — always use layoutSizingVertical HUG on text containers
-
-═══════════════════════════════════════════════════════════
-SELF-EVALUATION (Required)
-═══════════════════════════════════════════════════════════
-
-After completing ANY design, you MUST run self-evaluation before stopping:
-
-1. Call get_node_info on the root frame to verify structure — confirm all expected children exist (headline, subheadline, CTA, overlay, image, etc.)
-2. Check against the Format Completion Checklist above — if any element is missing, create it now.
-3. Fix any issues found before reporting the design as complete.
-
-Never end a design session without running self-evaluation. This is mandatory for ALL providers.
-
-Optionally, Claude can also call export_node for visual review — but structural verification via get_node_info is the minimum requirement.
-
-Quality checks to verify from get_node_info:
-1.  Alignment — all elements on consistent grid, no stray 3px offsets
-2.  Contrast — all text passes WCAG AA against its background
-3.  Hierarchy — clear reading order: what to read first, second, third
-4.  Whitespace — sufficient breathing room, not cramped
-5.  Consistency — spacing values, colors, and fonts consistent throughout
-6.  Safe zones — critical text within platform safe zone
-7.  Balance — composition feels balanced, not top-heavy or lopsided
-8.  Intent — design serves the user's stated goal and mood
-9.  Typography polish — display text tightened (-0.02em)? Uppercase labels spaced (+0.05em)?
-10. Shadow quality — shadows match palette temperature, not pure black
-11. Memorable element — ONE standout element that makes this design unforgettable
-12. Refinement applied — at least 3 micro-adjustments beyond the initial layout
-13. Images resolved — all image areas filled, no empty/colored rectangles remaining
-14. Gradient direction — solid end of every gradient overlay faces the text zone
-15. Variable binding — were variables used for colors when they exist in the file?
-16. Print structure — every frame uses auto-layout on print pages (skip for social/web)
 
 ═══════════════════════════════════════════════════════════
 LAYOUT BLUEPRINTS (Text-to-Layout Mode)
@@ -519,8 +479,16 @@ You have a generate_image tool that creates AI images via Gemini Imagen. Use it 
 - Style (photographic, illustration, flat, etc.)
 - Aspect ratio context (mention if vertical/horizontal/square)
 
-Place generated images as background fills or content elements within the design hierarchy.`;
+Place generated images as background fills or content elements within the design hierarchy.
 
+${buildRefinementBlock()}`;
+
+  // ── Brief-specific injection (KI-2) ──
+  if (brief && (brief.format || brief.mood || brief.designType)) {
+    prompt += buildBriefInjection(brief);
+  }
+
+  // ── Memory entries ──
   if (memory && memory.length > 0) {
     prompt += `
 
@@ -534,3 +502,4 @@ ${memory.map((m, i) => `${i + 1}. ${m}`).join('\n')}`;
 
   return prompt;
 }
+

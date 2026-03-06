@@ -11,7 +11,7 @@
  *  - No imports from state.ts or any DOM API — fully UI-agnostic.
  */
 
-import { ToolDefinition } from './tools-schema';
+import { ToolDefinition, ToolResolver, ToolResolverContext } from './tools-schema';
 
 // ═══════════════════════════════════════════════════════════════
 // PROVIDER-SPECIFIC TYPES (re-exported for callers)
@@ -69,8 +69,8 @@ export interface ToolUseLoopOptions {
   model: string;
   /** Full system prompt string. */
   systemPrompt: string;
-  /** Tool definitions (FIGMENTO_TOOLS). */
-  tools: ToolDefinition[];
+  /** Tool definitions — static array or phase-aware resolver function. */
+  tools: ToolDefinition[] | ToolResolver;
   /**
    * Provider-specific message history array. Mutated in place by the loop.
    * Caller must push the initial user turn before calling runToolUseLoop.
@@ -130,6 +130,49 @@ export function stripBase64FromResult(data: Record<string, unknown>): Record<str
     }
   }
   return cleaned;
+}
+
+/** Delay helper — spreads API calls to avoid TPM rate limits. */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Cap a tool-result string for conversation history. Keeps the AI informed
+ * (nodeId, name, key fields) while preventing unbounded history growth
+ * that triggers TPM limits after 10+ tool calls.
+ */
+const TOOL_RESULT_MAX_CHARS = 300;
+
+function truncateForHistory(content: string): string {
+  if (content.length <= TOOL_RESULT_MAX_CHARS) return content;
+
+  // Try to parse as JSON and keep only essential fields
+  try {
+    const parsed = JSON.parse(content);
+    if (typeof parsed === 'object' && parsed !== null) {
+      const slim: Record<string, unknown> = {};
+      // Keep essential identifiers
+      for (const key of ['nodeId', 'name', 'id', 'error', 'note', 'count', 'success', 'saved', 'width', 'height']) {
+        if (key in parsed) slim[key] = parsed[key];
+      }
+      // For arrays (e.g. batch_execute results, get_page_nodes), keep count + first item
+      if (Array.isArray(parsed)) {
+        const first = parsed[0];
+        const slimFirst = first && typeof first === 'object'
+          ? { nodeId: first.nodeId, name: first.name }
+          : first;
+        return JSON.stringify({ count: parsed.length, first: slimFirst, note: `${parsed.length} items (truncated)` });
+      }
+      // If we extracted anything useful, return the slim version
+      if (Object.keys(slim).length > 0) {
+        slim.note = 'Result truncated for history';
+        return JSON.stringify(slim);
+      }
+    }
+  } catch { /* not JSON, fall through to simple truncation */ }
+
+  return content.slice(0, TOOL_RESULT_MAX_CHARS - 3) + '...';
 }
 
 /** Replace a screenshot/export result with a compact, token-efficient summary. */
@@ -386,6 +429,15 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
   let iterationsUsed = 0;
   let toolCallCount = 0;
   let completedCleanly = false;
+  const toolsUsed = new Set<string>();
+
+  /** Resolve the tool set for the current iteration. */
+  const resolveTools = (): ToolDefinition[] => {
+    if (typeof tools === 'function') {
+      return tools({ toolsUsed, iteration: iterationsUsed } as ToolResolverContext);
+    }
+    return tools;
+  };
 
   onProgress('Starting design agent loop');
 
@@ -395,8 +447,9 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
     let remaining = maxIterations;
 
     while (remaining-- > 0) {
+      if (iterationsUsed > 0) await sleep(500);
       iterationsUsed++;
-      const response = await callGeminiAPI(history, model, apiKey, systemPrompt, tools);
+      const response = await callGeminiAPI(history, model, apiKey, systemPrompt, resolveTools());
 
       const candidates = response.candidates as Array<Record<string, unknown>> | undefined;
       const candidate = candidates?.[0];
@@ -429,17 +482,19 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
         const { name, args } = fc.functionCall!;
         onProgress(`Calling tool: ${name}`, name);
         toolCallCount++;
+        toolsUsed.add(name);
 
         const result = await onToolCall(name, args);
 
+        const trimmed = truncateForHistory(result.content);
         let cleanedResponse: Record<string, unknown>;
         if (result.is_error) {
-          cleanedResponse = { error: result.content };
+          cleanedResponse = { error: trimmed };
         } else {
           try {
-            cleanedResponse = { result: JSON.parse(result.content) };
+            cleanedResponse = { result: JSON.parse(trimmed) };
           } catch {
-            cleanedResponse = { result: result.content };
+            cleanedResponse = { result: trimmed };
           }
         }
 
@@ -457,8 +512,9 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
     let remaining = maxIterations;
 
     while (remaining-- > 0) {
+      if (iterationsUsed > 0) await sleep(500);
       iterationsUsed++;
-      const response = await callOpenAIAPI(history, model, apiKey, systemPrompt, tools);
+      const response = await callOpenAIAPI(history, model, apiKey, systemPrompt, resolveTools());
 
       const choices = response.choices as Array<Record<string, unknown>> | undefined;
       const choice = choices?.[0];
@@ -489,13 +545,15 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
 
         onProgress(`Calling tool: ${fnName}`, fnName);
         toolCallCount++;
+        toolsUsed.add(fnName);
 
         const result = await onToolCall(fnName, args);
+        const trimmed = truncateForHistory(result.content);
         history.push({
           role: 'tool',
           tool_call_id: tc.id as string,
           // OpenAI tool messages have no is_error flag — prefix error messages
-          content: result.is_error ? `Error: ${result.content}` : result.content,
+          content: result.is_error ? `Error: ${trimmed}` : trimmed,
         });
       }
     }
@@ -506,8 +564,9 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
     let remaining = maxIterations;
 
     while (remaining-- > 0) {
+      if (iterationsUsed > 0) await sleep(500);
       iterationsUsed++;
-      const response = await callAnthropicAPI(history, model, apiKey, systemPrompt, tools);
+      const response = await callAnthropicAPI(history, model, apiKey, systemPrompt, resolveTools());
 
       const textParts: string[] = [];
       const toolUses: ContentBlock[] = [];
@@ -531,12 +590,13 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
       for (const toolUse of toolUses) {
         onProgress(`Calling tool: ${toolUse.name}`, toolUse.name);
         toolCallCount++;
+        toolsUsed.add(toolUse.name!);
 
         const result = await onToolCall(toolUse.name!, toolUse.input || {});
         toolResults.push({
           type: 'tool_result',
           tool_use_id: toolUse.id,
-          content: result.content,
+          content: truncateForHistory(result.content),
           ...(result.is_error && { is_error: true }),
         });
       }

@@ -44,6 +44,96 @@ const cornerRadiusSchema = {
   ],
 };
 
+// ═══════════════════════════════════════════════════════════════
+// PHASE-BASED TOOL FILTERING (Chat mode)
+// ═══════════════════════════════════════════════════════════════
+
+/** Tools never sent in chat mode — MCP-only or irrelevant for iterative chat. */
+const CHAT_EXCLUDED = new Set([
+  'export_node',
+  'get_screenshot',
+  'run_refinement_check',
+  'create_design',
+  'read_figma_context',
+  'bind_variable',
+  'apply_paint_style',
+  'apply_text_style',
+  'apply_effect_style',
+  'create_figma_variables',
+]);
+
+/** Lookup tools — needed in plan phase, removed once design starts. */
+const LOOKUP_TOOLS = new Set([
+  'lookup_blueprint',
+  'lookup_palette',
+  'lookup_fonts',
+  'lookup_size',
+]);
+
+/** Tools that signal we've entered the build phase. */
+const BUILD_PHASE_TRIGGERS = new Set([
+  'create_frame',
+  'create_text',
+  'create_rectangle',
+  'create_ellipse',
+  'create_image',
+  'set_fill',
+  'set_auto_layout',
+]);
+
+/** Plan phase: lookups + basic creation + scene queries (~14 tools). */
+const PLAN_PHASE_TOOLS = new Set([
+  // Lookups
+  'lookup_blueprint', 'lookup_palette', 'lookup_fonts', 'lookup_size',
+  // Scene queries
+  'get_selection', 'get_page_nodes',
+  // Basic creation
+  'create_frame', 'create_text', 'create_rectangle', 'create_ellipse',
+  // Essential styling
+  'set_fill',
+  // Image + utility
+  'create_image', 'generate_image', 'update_memory',
+]);
+
+/** Build phase: creation + styling + scene management (~17 tools). */
+const BUILD_PHASE_TOOLS = new Set([
+  // Creation
+  'create_frame', 'create_text', 'create_rectangle', 'create_ellipse', 'create_image',
+  // Styling
+  'set_fill', 'set_stroke', 'set_effects', 'set_corner_radius', 'set_opacity', 'set_auto_layout',
+  // Scene management
+  'move_node', 'resize_node', 'append_child', 'clone_node', 'delete_node',
+  // Inspection
+  'get_node_info',
+  // Image + utility
+  'generate_image', 'update_memory',
+]);
+
+export interface ToolResolverContext {
+  toolsUsed: Set<string>;
+  iteration: number;
+}
+
+export type ToolResolver = (ctx: ToolResolverContext) => ToolDefinition[];
+
+/**
+ * Returns a phase-aware tool resolver for chat mode.
+ * - Plan phase (~14 tools): lookups + basic creation + scene queries
+ * - Build phase (~17 tools): full creation + styling + scene management, no lookups
+ * - Always excludes MCP-only tools (export, screenshot, refinement, variables, styles)
+ */
+export function chatToolResolver(): ToolResolver {
+  // Pre-filter: remove chat-excluded tools once
+  const chatTools = FIGMENTO_TOOLS.filter(t => !CHAT_EXCLUDED.has(t.name));
+  const planTools = chatTools.filter(t => PLAN_PHASE_TOOLS.has(t.name));
+  const buildTools = chatTools.filter(t => BUILD_PHASE_TOOLS.has(t.name));
+
+  return (ctx: ToolResolverContext): ToolDefinition[] => {
+    const inBuildPhase = [...ctx.toolsUsed].some(t => BUILD_PHASE_TRIGGERS.has(t));
+    return inBuildPhase ? buildTools : planTools;
+  };
+}
+
 export const FIGMENTO_TOOLS: ToolDefinition[] = [
   // ── Canvas Creation ──
   {
@@ -579,6 +669,80 @@ export const FIGMENTO_TOOLS: ToolDefinition[] = [
         },
       },
       required: ['collectionName', 'variables'],
+    },
+  },
+
+  // ── Local Intelligence (resolved from bundled knowledge, no network) ──
+
+  {
+    name: 'lookup_blueprint',
+    description:
+      'Look up a layout blueprint from the bundled knowledge base. Returns zone breakdown, anti-generic rules, and memorable element hint. Categories: ads, social, web, presentation, print. Optional mood filter (e.g. "luxury", "minimal", "bold"). Optional subcategory (e.g. "product", "hero", "instagram_post").',
+    input_schema: {
+      type: 'object',
+      properties: {
+        category: {
+          type: 'string',
+          description: 'Blueprint category: ads, social, web, presentation, print',
+        },
+        mood: {
+          type: 'string',
+          description: 'Optional mood to filter/rank blueprints (e.g. "luxury", "cinematic", "bold", "minimal")',
+        },
+        subcategory: {
+          type: 'string',
+          description: 'Optional subcategory (e.g. "product", "hero", "instagram_post", "pricing", "features")',
+        },
+      },
+      required: ['category'],
+    },
+  },
+
+  {
+    name: 'lookup_palette',
+    description:
+      'Look up a color palette by mood. Returns 6 colors: primary, secondary, accent, background, text, muted. Available moods: moody-dark, fresh-light, corporate-professional, luxury-premium, playful-fun, nature-organic, tech-modern, warm-cozy, minimal-clean, retro-vintage, ocean-calm, sunset-energy. Also matches by mood tag (e.g. "luxury", "corporate", "playful").',
+    input_schema: {
+      type: 'object',
+      properties: {
+        mood: {
+          type: 'string',
+          description: 'Mood key or tag (e.g. "luxury-premium", "luxury", "corporate", "moody")',
+        },
+      },
+      required: ['mood'],
+    },
+  },
+
+  {
+    name: 'lookup_fonts',
+    description:
+      'Look up a font pairing by mood. Returns heading font, body font, and recommended weights. Available pairings: modern, classic, bold, luxury, playful, corporate, editorial, minimalist, creative, elegant. Also matches by mood tag (e.g. "tech", "fashion", "friendly").',
+    input_schema: {
+      type: 'object',
+      properties: {
+        mood: {
+          type: 'string',
+          description: 'Mood key or tag (e.g. "luxury", "modern", "editorial", "creative")',
+        },
+      },
+      required: ['mood'],
+    },
+  },
+
+  {
+    name: 'lookup_size',
+    description:
+      'Look up a size preset by format name. Returns width, height, aspect ratio, and notes. Supports social (ig-post, ig-story, ig-reel, ig-carousel, fb-post, fb-story, fb-cover, x-post, li-post, tiktok-video, yt-thumbnail, yt-banner, pin-standard), print (print-a4, print-a3, print-letter, print-business-card, print-flyer, print-poster-*), presentation (pres-16-9, pres-4-3), web (web-hero-16-9, web-banner, web-landing, mobile-hero, tablet-*).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        format: {
+          type: 'string',
+          description: 'Format ID or partial name (e.g. "ig-post", "print-a4", "pres-16-9", "web-landing")',
+        },
+      },
+      required: ['format'],
     },
   },
 ];
