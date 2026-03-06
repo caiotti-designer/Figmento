@@ -97,6 +97,12 @@ export function autoConnectBridge(relayUrl: string) {
       return;
     }
 
+    if (msg.type === 'claude-code-turn-result') {
+      addBridgeLog(`[Auto] Claude Code result received`, 'ok');
+      if (claudeCodeResultHandler) claudeCodeResultHandler(msg);
+      return;
+    }
+
     if (msg.type === 'command') {
       bridgeCommandCount++;
       $('bridge-cmd-count').textContent = String(bridgeCommandCount);
@@ -144,6 +150,23 @@ function notifyRelayStatus(state: string) {
   if (channelDisplay) {
     channelDisplay.textContent = (state === 'connected' && bridgeChannelId) ? bridgeChannelId : '';
   }
+}
+
+/**
+ * Send a raw message through the bridge WebSocket.
+ * Used by the Claude Code provider to send claude-code-turn messages.
+ */
+export function sendBridgeMessage(msg: Record<string, unknown>): boolean {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+  ws.send(JSON.stringify(msg));
+  return true;
+}
+
+/** Callback for handling claude-code-turn-result messages from the relay. */
+let claudeCodeResultHandler: ((msg: Record<string, unknown>) => void) | null = null;
+
+export function setClaudeCodeResultHandler(handler: ((msg: Record<string, unknown>) => void) | null) {
+  claudeCodeResultHandler = handler;
 }
 
 /** Handle a bridge command-result (non-chat commands routed here). */
@@ -273,6 +296,12 @@ function connectBridge() {
       addBridgeLog(`Joined channel: ${msg.channel} (${msg.clients} client(s))`, 'ok');
       // Update Chat tab relay status on manual bridge connect too
       notifyRelayStatus('connected');
+      return;
+    }
+
+    if (msg.type === 'claude-code-turn-result') {
+      addBridgeLog(`Claude Code result received`, 'ok');
+      if (claudeCodeResultHandler) claudeCodeResultHandler(msg);
       return;
     }
 

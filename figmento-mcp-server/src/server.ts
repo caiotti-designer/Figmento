@@ -21,7 +21,12 @@ import { registerRefinementTools } from './tools/refinement';
 /**
  * Creates and configures the Figmento MCP server with all design tools.
  */
-export function createFigmentoServer(): McpServer {
+export interface FigmentoServerResult {
+  server: McpServer;
+  wsClient: FigmentoWSClient;
+}
+
+export function createFigmentoServer(): FigmentoServerResult {
   const server = new McpServer({
     name: 'figmento',
     version: '1.0.0',
@@ -70,5 +75,5 @@ export function createFigmentoServer(): McpServer {
   registerFigmaNativeTools(server, sendDesignCommand);
   registerRefinementTools(server, sendDesignCommand);
 
-  return server;
+  return { server, wsClient };
 }

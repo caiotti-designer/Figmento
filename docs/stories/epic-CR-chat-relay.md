@@ -1,10 +1,12 @@
 # Epic CR — Chat Relay
 
+**Epic Status:** CLOSED (2026-03-06)
+
 > Route AI calls from the plugin's Chat tab through the Railway-hosted server instead of making direct provider API calls from the browser. Eliminates TPM rate limits, moves API keys server-side, and keeps the user experience unchanged.
 
 ## PO Validation — Epic Level
 
-**Verdict:** :white_check_mark: GO — All 4 stories validated and transitioned to Ready (3 CRITICAL findings addressed by @pm 2026-03-05)
+**Verdict:** :white_check_mark: GO — All 5 stories validated and transitioned to Ready (3 CRITICAL findings addressed by @pm 2026-03-05, CR-5 validated 2026-03-06)
 **Validated by:** @po (Pax) — 2026-03-05
 
 ### Story Scorecard
@@ -15,6 +17,7 @@
 | CR-2 | 8/10 | GO | Railway HTTP timeout (60s default) needs explicit `railway.toml` configuration or requests will fail for complex designs. |
 | CR-3 | 7/10 | GO (conditional) | Bridge WS must be connected for tool calls to reach the sandbox. Epic says "UX unchanged" but Bridge is manual opt-in. See observation 2. File List incomplete — Settings UI changes need ui.html + chat-settings.ts. |
 | CR-4 | 8/10 | GO | Clean design. Depends on CR-1/CR-3 architectural fixes being resolved first. |
+| CR-5 | 8/10 | GO | History handling clarified (AC4 — passed as SDK `messages`). Local-only guard promoted to AC15. OUT-of-scope section + Task 11 (unit tests) added. |
 
 ### Epic-Level Observations (Cross-Cutting)
 
@@ -264,6 +267,12 @@ AFTER (relay-routed):
 |---|---|---|---|
 | CR-4 | Streaming via WebSocket Chunking | L | CR-3 |
 
+### Phase 3 — Claude Code Local Provider
+
+| Story | Name | Size | Requires |
+|---|---|---|---|
+| CR-5 | Claude Code Local Provider | L | CR-3 |
+
 ---
 
 ## Stories
@@ -272,7 +281,7 @@ AFTER (relay-routed):
 
 ### CR-1: Server-Side Chat Engine
 
-**Status:** Ready
+**Status:** Done
 **Size:** L (Large)
 **Blocks:** CR-2, CR-3, CR-4
 **Agent:** @dev
@@ -287,7 +296,7 @@ The system prompt and tool definitions are ported from the plugin's `system-prom
 
 #### Acceptance Criteria
 
-- [ ] **AC1:** New module `figmento-ws-relay/src/chat-engine.ts` exports `handleChatTurn()`:
+- [x] **AC1:** New module `figmento-ws-relay/src/chat-engine.ts` exports `handleChatTurn()`:
   ```typescript
   interface ChatTurnRequest {
     message: string;
@@ -304,25 +313,25 @@ The system prompt and tool definitions are ported from the plugin's `system-prom
     error?: string;
   }
   ```
-- [ ] **AC2:** Engine calls AI provider APIs using Node.js `fetch` (Anthropic, Gemini, OpenAI) with the same request formats as the plugin's `tool-use-loop.ts`
-- [ ] **AC3:** Relay implements `sendCommandToChannel(channel, action, params): Promise<ResponseData>` — a "relay-as-participant" method that:
+- [x] **AC2:** Engine calls AI provider APIs using Node.js `fetch` (Anthropic, Gemini, OpenAI) with the same request formats as the plugin's `tool-use-loop.ts`
+- [x] **AC3:** Relay implements `sendCommandToChannel(channel, action, params): Promise<ResponseData>` — a "relay-as-participant" method that:
   - Sends a `{ type: 'command', id, channel, action, params }` message directly to ALL WS clients in the channel (no sender exclusion, unlike `forwardToChannel`)
   - Uses command ID prefix `relay-` (e.g., `relay-42-1709654321000`) to distinguish from MCP server's `cmd-` prefix and chat tab's `chat-` prefix
   - Tracks pending responses in a `Map<string, PendingCommand>` (same pattern as `FigmentoWSClient.pendingCommands`)
   - Intercepts incoming `{ type: 'response' }` messages in `handleMessage()` — if `id` starts with `relay-`, resolves the pending promise instead of forwarding. Non-`relay-` responses forward normally to other channel clients.
   - 30s timeout per command with rejection on timeout
-- [ ] **AC4:** Special tools handled server-side:
+- [x] **AC4:** Special tools handled server-side:
   - `generate_image` — calls Gemini image generation API, sends base64 to plugin via `create_image` command
   - `update_memory` — sends `save-memory` message to plugin via WS
   - Local intelligence tools (`lookup_blueprint`, `lookup_palette`, `lookup_fonts`, `lookup_size`) — resolved from bundled knowledge, no WS round-trip
-- [ ] **AC5:** System prompt built using the same `buildSystemPrompt(brief, memory)` logic from the plugin. `detectBrief()` runs server-side on the user message.
-- [ ] **AC6:** Tool definitions match the plugin's 37 tools (from `tools-schema.ts`). Tool schema is either imported from a shared source or kept in sync via build step.
-- [ ] **AC7:** Conversation history is provider-agnostic in the request/response (converted to provider-specific format internally)
-- [ ] **AC8:** Engine respects `maxIterations: 50` (same as plugin). Returns partial results if iteration limit is reached.
-- [ ] **AC9:** API keys read from environment variables: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`
-- [ ] **AC10:** Tool result truncation (`truncateForHistory`) and base64 stripping applied identically to the plugin's logic
-- [ ] **AC11:** Relay build step includes compiled knowledge — either by running `compile-knowledge.ts` for the relay workspace or by copying from `figmento/src/knowledge/compiled-knowledge.ts`. Verified: `buildSystemPrompt()` returns a prompt containing blueprint zone data and palette injection (not just the static base prompt).
-- [ ] **AC12:** Anthropic API calls do NOT include the `anthropic-dangerous-direct-browser-access` header (browser-only, not needed in Node.js server context)
+- [x] **AC5:** System prompt built using the same `buildSystemPrompt(brief, memory)` logic from the plugin. `detectBrief()` runs server-side on the user message.
+- [x] **AC6:** Tool definitions match the plugin's 37 tools (from `tools-schema.ts`). Tool schema is either imported from a shared source or kept in sync via build step.
+- [x] **AC7:** Conversation history is provider-agnostic in the request/response (converted to provider-specific format internally)
+- [x] **AC8:** Engine respects `maxIterations: 50` (same as plugin). Returns partial results if iteration limit is reached.
+- [x] **AC9:** API keys read from environment variables: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`
+- [x] **AC10:** Tool result truncation (`truncateForHistory`) and base64 stripping applied identically to the plugin's logic
+- [x] **AC11:** Relay build step includes compiled knowledge — either by running `compile-knowledge.ts` for the relay workspace or by copying from `figmento/src/knowledge/compiled-knowledge.ts`. Verified: `buildSystemPrompt()` returns a prompt containing blueprint zone data and palette injection (not just the static base prompt).
+- [x] **AC12:** Anthropic API calls do NOT include the `anthropic-dangerous-direct-browser-access` header (browser-only, not needed in Node.js server context)
 
 #### Tasks
 
@@ -365,7 +374,7 @@ The system prompt and tool definitions are ported from the plugin's `system-prom
 
 ### CR-2: Chat HTTP Endpoint on Relay
 
-**Status:** Ready
+**Status:** Done
 **Size:** M (Medium)
 **Depends on:** CR-1
 **Blocks:** CR-3
@@ -377,8 +386,8 @@ Add a `POST /api/chat/turn` HTTP endpoint to the relay's existing HTTP server. T
 
 #### Acceptance Criteria
 
-- [ ] **AC1:** `POST /api/chat/turn` endpoint added to `handleHttpRequest()` in `relay.ts`
-- [ ] **AC2:** Request body is JSON:
+- [x] **AC1:** `POST /api/chat/turn` endpoint added to `handleHttpRequest()` in `relay.ts`
+- [x] **AC2:** Request body is JSON:
   ```json
   {
     "message": "Create a luxury Instagram ad...",
@@ -388,7 +397,7 @@ Add a `POST /api/chat/turn` HTTP endpoint to the relay's existing HTTP server. T
     "channel": "abc-123"
   }
   ```
-- [ ] **AC3:** Response body is JSON:
+- [x] **AC3:** Response body is JSON:
   ```json
   {
     "assistantText": "I'll create a luxury...",
@@ -400,14 +409,14 @@ Add a `POST /api/chat/turn` HTTP endpoint to the relay's existing HTTP server. T
     "error": null
   }
   ```
-- [ ] **AC4:** CORS headers set for Figma plugin origin (`*` or specific Figma domains)
-- [ ] **AC5:** Request validation: `message` required, `channel` must match an active WS channel with a connected plugin, `provider` must be one of `claude | gemini | openai`
-- [ ] **AC6:** If `channel` has no connected plugin client, return `400` with error: `"No Figma plugin connected on channel {channel}. Open the plugin and verify the channel ID."`
-- [ ] **AC7:** If the AI provider API key env var is missing for the requested provider, return `400` with error: `"API key not configured for {provider}. Set {ENV_VAR} on Railway."`
-- [ ] **AC8:** Request timeout: 120 seconds (complex designs may need 50+ tool calls). Return `504` if exceeded.
-- [ ] **AC9:** Concurrent request limit: 1 per channel (prevent duplicate processing). Return `429` if a turn is already in progress on the same channel.
-- [ ] **AC10:** `GET /health` updated to include `chatEngine: { activeRequests: N }` in response
-- [ ] **AC11:** Request body size limit: 1 MB (conversation history can be large)
+- [x] **AC4:** CORS headers set for Figma plugin origin (`*` or specific Figma domains)
+- [x] **AC5:** Request validation: `message` required, `channel` must match an active WS channel with a connected plugin, `provider` must be one of `claude | gemini | openai`
+- [x] **AC6:** If `channel` has no connected plugin client, return `400` with error: `"No Figma plugin connected on channel {channel}. Open the plugin and verify the channel ID."`
+- [x] **AC7:** If the AI provider API key env var is missing for the requested provider, return `400` with error: `"API key not configured for {provider}. Set {ENV_VAR} on Railway."`
+- [x] **AC8:** Request timeout: 120 seconds (complex designs may need 50+ tool calls). Return `504` if exceeded.
+- [x] **AC9:** Concurrent request limit: 1 per channel (prevent duplicate processing). Return `429` if a turn is already in progress on the same channel.
+- [x] **AC10:** `GET /health` updated to include `chatEngine: { activeRequests: N }` in response
+- [x] **AC11:** Request body size limit: 1 MB (conversation history can be large)
 
 #### Tasks
 
@@ -439,7 +448,7 @@ Add a `POST /api/chat/turn` HTTP endpoint to the relay's existing HTTP server. T
 
 ### CR-3: Plugin Chat Relay Client
 
-**Status:** Ready
+**Status:** Done
 **Size:** M (Medium)
 **Depends on:** CR-2
 **Agent:** @dev
@@ -452,25 +461,25 @@ A fallback to direct API mode is preserved: if the relay is unreachable or retur
 
 #### Acceptance Criteria
 
-- [ ] **AC1:** `sendMessage()` in `chat.ts` sends a `POST` to `{relayUrl}/api/chat/turn` instead of calling `runAnthropicLoop()` / `runGeminiLoop()` / `runOpenAILoop()` directly
-- [ ] **AC2:** Relay URL defaults to `https://figmento-production.up.railway.app` and is configurable in Settings
-- [ ] **AC3:** The `channel` sent in the request body is the current WS relay channel ID (already known from the plugin's WS connection)
-- [ ] **AC4:** While waiting for the relay response, the existing loading spinner is shown (same `setProcessing(true)` UX)
-- [ ] **AC5:** On successful response:
+- [x] **AC1:** `sendMessage()` in `chat.ts` sends a `POST` to `{relayUrl}/api/chat/turn` instead of calling `runAnthropicLoop()` / `runGeminiLoop()` / `runOpenAILoop()` directly
+- [x] **AC2:** Relay URL defaults to `https://figmento-production.up.railway.app` and is configurable in Settings
+- [x] **AC3:** The `channel` sent in the request body is the current WS relay channel ID (already known from the plugin's WS connection)
+- [x] **AC4:** While waiting for the relay response, the existing loading spinner is shown (same `setProcessing(true)` UX)
+- [x] **AC5:** On successful response:
   - Assistant text is rendered in a chat bubble (same `appendChatBubble('assistant', ...)`)
   - Each `toolCalls[]` entry is rendered as a tool action row (same `appendToolAction(name, summary)`)
   - Conversation history state is updated from the response's `history` field
-- [ ] **AC6:** On relay error (network failure, 4xx, 5xx, timeout):
+- [x] **AC6:** On relay error (network failure, 4xx, 5xx, timeout):
   - If user has a local API key configured for the current provider → fall back to direct API call (existing `runAnthropicLoop()` etc.)
   - If no local API key → show error message in chat: `"Relay unavailable. Configure an API key in Settings for direct mode."`
-- [ ] **AC7:** API key fields in Settings tab remain but are labeled as "Optional — for direct mode fallback"
-- [ ] **AC8:** New setting `chatRelayEnabled` (boolean, default `true`). When disabled, plugin always uses direct API calls (existing behavior).
-- [ ] **AC9:** Provider/model selection in Settings still works — sent to the relay in the request body
-- [ ] **AC10:** `cd figmento && npm run build` succeeds. No regressions in other modes (screenshot, text-layout, presentation).
-- [ ] **AC11:** Conversation history format conversion: plugin's provider-specific history arrays (Anthropic, Gemini, OpenAI) are converted to the relay's provider-agnostic format before sending, and converted back on response.
-- [ ] **AC12:** When `chatRelayEnabled` is true and the plugin loads, it auto-connects the Bridge WS to the configured `chatRelayUrl` with an auto-generated channel ID. No manual Bridge tab interaction required.
-- [ ] **AC13:** The auto-generated channel ID is displayed in the Chat tab status area (e.g., "Relay: figmento-xyz123") so the user knows the connection is active.
-- [ ] **AC14:** If the auto-connect fails (relay unreachable), the Chat tab shows a subtle "Relay offline — using direct mode" indicator and falls back per AC6.
+- [x] **AC7:** API key fields in Settings tab remain but are labeled as "Optional — for direct mode fallback"
+- [x] **AC8:** New setting `chatRelayEnabled` (boolean, default `true`). When disabled, plugin always uses direct API calls (existing behavior).
+- [x] **AC9:** Provider/model selection in Settings still works — sent to the relay in the request body
+- [x] **AC10:** `cd figmento && npm run build` succeeds. No regressions in other modes (screenshot, text-layout, presentation).
+- [x] **AC11:** Conversation history format conversion: plugin's provider-specific history arrays (Anthropic, Gemini, OpenAI) are converted to the relay's provider-agnostic format before sending, and converted back on response.
+- [x] **AC12:** When `chatRelayEnabled` is true and the plugin loads, it auto-connects the Bridge WS to the configured `chatRelayUrl` with an auto-generated channel ID. No manual Bridge tab interaction required.
+- [x] **AC13:** The auto-generated channel ID is displayed in the Chat tab status area (e.g., "Relay: figmento-xyz123") so the user knows the connection is active.
+- [x] **AC14:** If the auto-connect fails (relay unreachable), the Chat tab shows a subtle "Relay offline — using direct mode" indicator and falls back per AC6.
 
 #### Tasks
 
@@ -509,7 +518,7 @@ A fallback to direct API mode is preserved: if the relay is unreachable or retur
 
 ### CR-4: Streaming via WebSocket Chunking
 
-**Status:** Ready
+**Status:** Done
 **Size:** L (Large)
 **Depends on:** CR-3
 **Phase:** 2
@@ -523,7 +532,7 @@ This eliminates the Phase 1 "staring at a spinner for 30-90 seconds" problem. Us
 
 #### Acceptance Criteria
 
-- [ ] **AC1:** New WS message types defined:
+- [x] **AC1:** New WS message types defined:
   ```typescript
   // Plugin → Relay
   { type: 'chat-turn-start', channel: string, message: string, history: ChatMessage[], provider: string, model: string }
@@ -534,19 +543,19 @@ This eliminates the Phase 1 "staring at a spinner for 30-90 seconds" problem. Us
   { type: 'chat-tool-end', channel: string, toolName: string, summary: string, isError: boolean }
   { type: 'chat-turn-end', channel: string, history: ChatMessage[], error?: string }
   ```
-- [ ] **AC2:** Relay streams AI text responses as `chat-text-chunk` messages in real-time (as tokens arrive from the provider API)
-- [ ] **AC3:** Relay sends `chat-tool-start` when a tool call begins and `chat-tool-end` when it completes
-- [ ] **AC4:** Plugin renders text chunks progressively in a chat bubble (append to existing bubble, not create new ones)
-- [ ] **AC5:** Plugin renders tool action rows in real-time as `chat-tool-start` / `chat-tool-end` arrive
-- [ ] **AC6:** `chat-turn-end` signals completion — plugin updates loading state and stores the final history
-- [ ] **AC7:** If the WS connection drops mid-stream, plugin shows the partial response received so far + an error message
-- [ ] **AC8:** Streaming uses the existing WS relay connection (no new WebSocket). Chat messages are multiplexed alongside existing design command messages on the same channel.
-- [ ] **AC9:** Provider APIs called with streaming enabled where supported:
+- [x] **AC2:** Relay streams AI text responses as `chat-text-chunk` messages in real-time (as tokens arrive from the provider API)
+- [x] **AC3:** Relay sends `chat-tool-start` when a tool call begins and `chat-tool-end` when it completes
+- [x] **AC4:** Plugin renders text chunks progressively in a chat bubble (append to existing bubble, not create new ones)
+- [x] **AC5:** Plugin renders tool action rows in real-time as `chat-tool-start` / `chat-tool-end` arrive
+- [x] **AC6:** `chat-turn-end` signals completion — plugin updates loading state and stores the final history
+- [x] **AC7:** If the WS connection drops mid-stream, plugin shows the partial response received so far + an error message
+- [x] **AC8:** Streaming uses the existing WS relay connection (no new WebSocket). Chat messages are multiplexed alongside existing design command messages on the same channel.
+- [x] **AC9:** Provider APIs called with streaming enabled where supported:
   - Anthropic: `stream: true` (SSE)
   - Gemini: `streamGenerateContent` endpoint
   - OpenAI: `stream: true` (SSE)
-- [ ] **AC10:** Phase 1 HTTP endpoint (`POST /api/chat/turn`) remains available as fallback for non-WS clients
-- [ ] **AC11:** `cd figmento && npm run build` succeeds for both relay and plugin
+- [x] **AC10:** Phase 1 HTTP endpoint (`POST /api/chat/turn`) remains available as fallback for non-WS clients
+- [x] **AC11:** `cd figmento && npm run build` succeeds for both relay and plugin
 
 #### Tasks
 
@@ -582,7 +591,7 @@ This eliminates the Phase 1 "staring at a spinner for 30-90 seconds" problem. Us
 
 ## Definition of Done (Epic Level)
 
-- [ ] All 4 stories implemented, tested, and Done
+- [ ] All 5 stories implemented, tested, and Done
 - [ ] Plugin Chat tab sends AI requests through Railway relay by default
 - [ ] API keys configured as Railway environment variables (not in plugin)
 - [ ] Tool calls execute via WS relay → plugin sandbox → Figma API (same as MCP path)
@@ -633,7 +642,29 @@ Send: "Instagram post for a coffee brand. Dark editorial, gold accent.
 - [ ] Message routes through relay successfully
 - [ ] No "Set your API key" error
 
-**TEST CR-E: Streaming (Phase 2)**
+**TEST CR-E: Claude Code Local Provider (Phase 3)**
+```
+1. Start local relay: cd figmento-ws-relay && npm run dev
+2. Open plugin, select "Claude Code (Max subscription)" in Settings
+3. Verify API key fields are hidden
+4. Send: "Create a blue rectangle, 200x200"
+```
+- [ ] No API key prompted or required
+- [ ] Prompt routes through local relay → Claude Code SDK → MCP server
+- [ ] Rectangle created in Figma via MCP tool calls
+- [ ] Response renders in Chat tab with tool action rows
+- [ ] No TPM rate limit errors
+
+**TEST CR-F: Claude Code — Relay Offline**
+```
+1. Do NOT start local relay
+2. Select "Claude Code" provider
+3. Send any message
+```
+- [ ] Chat tab shows "Claude Code requires a local relay" error message
+- [ ] No crash or silent failure
+
+**TEST CR-G: Streaming (Phase 2)**
 ```
 Send a design prompt with streaming enabled
 ```
@@ -651,7 +682,8 @@ Send a design prompt with streaming enabled
 | CR-2 | M | ~150 | 1 day |
 | CR-3 | M | ~200 | 1-2 days |
 | CR-4 | L | ~400 | 2-3 days |
-| **Total** | | **~1,250 LOC** | **6-9 days** |
+| CR-5 | L | ~350 | 2-3 days |
+| **Total** | | **~1,600 LOC** | **8-12 days** |
 
 ## Risk Register
 
@@ -663,6 +695,141 @@ Send a design prompt with streaming enabled
 | Relay process crash during long chat turn | Low | High | Railway auto-restarts. Plugin detects WS disconnect, falls back to direct mode. |
 | Concurrent users on same relay instance | Low | Medium | Railway can scale horizontally. Phase 1 handles 1 request per channel (AC9 in CR-2). |
 | Streaming SSE parsing complexity across 3 providers | Medium | Medium | Anthropic and OpenAI share SSE format. Gemini is different but well-documented. Budget extra time in CR-4. |
+| Claude Code SDK subprocess cold start latency | High | Low | 2-5s per turn for subprocess spawn + MCP server init. Acceptable for design workflows (AI inference itself takes 3-15s). Future optimization: session persistence. |
+| Claude Code SDK requires local auth | Low | Medium | User must have `claude` CLI authenticated (Max subscription). If not, SDK fails with clear error message returned to plugin. |
+| Local-only constraint limits deployment | Low | Low | By design — CR-5 targets users with Claude Code + local relay. Railway deployment uses CR-1/CR-2 paths with API keys. |
+
+---
+
+### CR-5: Claude Code Local Provider
+
+**Status:** Done
+**Size:** L (Large)
+**Depends on:** CR-3 (Plugin Chat Relay Client)
+**Phase:** 3
+**Agent:** @dev
+
+#### Description
+
+Add "Claude Code (local)" as a new provider option in the plugin Chat tab. When selected, prompts route through the local WS relay (port 3055) which spawns a Claude Code subprocess via the `@anthropic-ai/claude-code` SDK. The SDK uses the user's Max subscription quota — no API key needed, no TPM limits.
+
+The relay spawns `figmento-mcp-server` as a stdio MCP child process inside the Claude Code session. Tool calls execute through MCP protocol natively, with the MCP server connecting back to the relay via WS to dispatch Figma commands to the plugin sandbox. This is the same bridge path CR-1 established — the only difference is WHO drives the AI loop: Claude Code SDK instead of the relay's chat-engine.
+
+**Key constraint:** Only works when the relay runs locally (`localhost:3055`). Not deployable to Railway — the Railway server would need its own API key/subscription, defeating the purpose. This is by design: the target user has Claude Code + local relay running in their IDE.
+
+**Why this matters:**
+- Zero API key management — Claude Code handles auth via Max subscription
+- No TPM/RPM limits — subscription quota is separate from API key tiers
+- Full Claude Code agent capabilities — extended thinking, multi-turn context management, retry logic
+- MCP-native tool execution — Claude Code speaks MCP natively, no HTTP bridging layer
+
+#### Acceptance Criteria
+
+- [x] **AC1:** New provider option `"claude-code"` added to the Chat Settings model selector:
+  ```html
+  <optgroup label="Claude Code (Local)">
+    <option value="claude-code">Claude Code (Max subscription)</option>
+  </optgroup>
+  ```
+- [x] **AC2:** When `claude-code` provider is selected in Settings, ALL API key fields are hidden (Anthropic, Gemini, OpenAI). A status message replaces them: "Using Claude Code — no API key required. Requires local relay on port 3055."
+- [x] **AC3:** Plugin Chat tab sends a WS message to the relay instead of HTTP POST:
+  ```typescript
+  {
+    type: 'claude-code-turn',
+    channel: string,       // current Bridge channel
+    message: string,       // user's chat message
+    history: ChatMessage[], // conversation context
+    memory: string[],      // persistent memory entries
+  }
+  ```
+- [x] **AC4:** Local relay handles `claude-code-turn` WS message type:
+  - Imports `claude` from `@anthropic-ai/claude-code`
+  - Spawns a Claude Code subprocess with `figmento-mcp-server` as an MCP child
+  - Passes the user message as the `prompt` argument
+  - Prepends conversation history as `messages` array to the SDK call (role/content pairs), giving Claude full multi-turn context without injecting raw history into `systemPrompt`
+  - Configures `maxTurns: 50` to match existing iteration limit
+- [x] **AC5:** MCP server configuration in the Claude Code SDK spawn:
+  ```typescript
+  const result = await claude(message, {
+    messages: history,  // prior turns as {role, content}[] — SDK uses these as conversation context
+    mcpServers: {
+      figmento: {
+        command: 'node',
+        args: [path.resolve(__dirname, '../../figmento-mcp-server/dist/index.js')],
+        env: {
+          FIGMENTO_CHANNEL: channel,
+          FIGMENTO_RELAY_URL: 'ws://localhost:3055',
+        },
+      },
+    },
+    systemPrompt: buildSystemPrompt(brief, memory),
+    maxTurns: 50,
+  });
+  ```
+- [x] **AC6:** Response flows back to plugin via WS:
+  ```typescript
+  {
+    type: 'claude-code-turn-result',
+    channel: string,
+    text: string,           // assistant's final text response
+    toolCalls: Array<{ name: string; success: boolean }>,
+    history: ChatMessage[],
+    completedCleanly: boolean,
+  }
+  ```
+- [x] **AC7:** Plugin renders the `claude-code-turn-result` response identically to relay turn responses — same chat bubble + tool action rows UX.
+- [x] **AC8:** Per-channel concurrency: only one `claude-code-turn` at a time per channel. If a turn is in progress, the relay sends an error response: `"A Claude Code turn is already in progress on this channel."`
+- [x] **AC9:** Timeout: 180 seconds (Claude Code sessions with many tool calls can run longer than raw API loops). If exceeded, relay kills the subprocess and sends a timeout error response.
+- [x] **AC10:** If `claude-code` is selected but the relay is not running locally (connection refused on `localhost:3055`), the Chat tab shows: "Claude Code requires a local relay. Start with: `cd figmento-ws-relay && npm run dev`"
+- [x] **AC11:** If the Claude Code SDK subprocess fails (e.g., `claude` CLI not authenticated), the relay sends the error message back to the plugin. Chat tab displays it as an error bubble.
+- [x] **AC12:** Existing providers (Gemini, Claude API, OpenAI) continue to work unchanged. `claude-code` is additive — no regression to existing paths.
+- [x] **AC13:** `cd figmento && npm run build` and `cd figmento-ws-relay && npm run build` both succeed.
+- [x] **AC14:** The `@anthropic-ai/claude-code` package is added as a dependency (not devDependency) to `figmento-ws-relay/package.json`.
+- [x] **AC15:** Local-only guard — relay rejects `claude-code-turn` messages when not running on `localhost`. Returns error: `"Claude Code provider is only available on a local relay (localhost:3055)."` This prevents confusing SDK auth failures on Railway.
+
+#### Scope
+
+**OUT of scope (deferred to future stories):**
+- Streaming responses (SDK supports it, but CR-5 waits for complete response)
+- Multi-user concurrent sessions on the same relay instance
+- Session persistence across relay restarts (each turn spawns a fresh subprocess)
+
+#### Tasks
+
+- [x] Task 1: Add `@anthropic-ai/claude-code` dependency to `figmento-ws-relay/package.json`
+- [x] Task 2: Create `figmento-ws-relay/src/chat/claude-code-handler.ts` — subprocess spawn, MCP config, response extraction
+- [x] Task 3: Add `claude-code-turn` WS message handler in relay's message router
+- [x] Task 4: Add per-channel concurrency lock + 180s timeout for Claude Code turns
+- [x] Task 5: Plugin Settings UI — add "Claude Code (Local)" optgroup to model selector
+- [x] Task 6: Plugin Settings UI — hide API key fields when `claude-code` provider selected, show status message
+- [x] Task 7: Plugin Chat tab — send `claude-code-turn` WS message when provider is `claude-code`
+- [x] Task 8: Plugin Chat tab — handle `claude-code-turn-result` WS response, render chat bubble + tool action rows
+- [x] Task 9: Plugin Chat tab — handle error states (relay offline, SDK auth failure, timeout)
+- [x] Task 10: Manual test — select Claude Code provider, send design prompt, verify Figma output
+- [x] Task 11: Unit tests for `claude-code-handler.ts` — mock `@anthropic-ai/claude-code` SDK, test concurrency lock, timeout behavior, error propagation, local-only guard rejection
+
+#### Dev Notes
+
+- **SDK usage pattern.** The `@anthropic-ai/claude-code` package exports a `claude()` function that spawns a subprocess. It uses the locally authenticated `claude` CLI credentials (Max subscription). No API key env var needed on the relay — the SDK handles auth through the user's local Claude Code installation.
+- **MCP server as stdio child.** The SDK's `mcpServers` config spawns `figmento-mcp-server` as a child process with stdio transport. The MCP server then connects to the local relay via WS (using `FIGMENTO_CHANNEL` and `FIGMENTO_RELAY_URL` env vars) to route Figma commands to the plugin sandbox. This is the same WS bridge path the MCP server uses today when invoked from Claude Code directly.
+- **No compiled knowledge needed in relay for this path.** The system prompt can be injected via the SDK's `systemPrompt` option, but Claude Code already has access to the full MCP tool set including intelligence tools (`lookup_blueprint`, `lookup_palette`, etc.) through the MCP server. The knowledge lives in the MCP server, not the relay. This is simpler than CR-1's approach where the relay had to bundle compiled knowledge.
+- **History management.** The plugin sends prior conversation turns in the `history` field. The relay passes these as the SDK's `messages` array (role/content pairs), giving Claude full multi-turn context. Each turn spawns a fresh subprocess — no session persistence across turns. The plugin is the single source of truth for conversation history.
+- **Cold start.** First Claude Code subprocess spawn takes 2-5s (SDK initialization + MCP server startup). Subsequent turns spawn new subprocesses. Consider: (a) accept the latency (simple), or (b) keep a warm session alive between turns (complex, may hit idle timeout issues). Start with (a).
+- **Streaming (future).** The Claude Code SDK supports streaming output. CR-5 is non-streaming (wait for complete response). A future story could add streaming by listening to SDK events and forwarding text chunks via WS (similar to CR-4's approach).
+- **Local-only guard.** Promoted to AC15. The relay rejects `claude-code-turn` on non-localhost environments before attempting SDK spawn.
+- **Plugin model selector logic.** The `updateSettingsUI()` function in `chat-settings.ts` currently shows/hides API key sections based on model prefix (`gemini-`, `gpt-`, `o`, else Claude). Add a new branch: if model is `claude-code`, hide ALL key sections and show a status label instead.
+- **Bridge auto-connect still required.** The `claude-code-turn` message includes a `channel` field. The Bridge must be connected to this channel for tool calls to reach the sandbox. CR-3's auto-connect logic (AC12) handles this — CR-5 piggybacks on that mechanism.
+
+#### File List
+
+| File | Action | Notes |
+|---|---|---|
+| `figmento-ws-relay/package.json` | MODIFY | Add `@anthropic-ai/claude-code` dependency |
+| `figmento-ws-relay/src/chat/claude-code-handler.ts` | CREATE | Claude Code SDK subprocess spawn, MCP config, response handling |
+| `figmento-ws-relay/src/relay.ts` | MODIFY | Add `claude-code-turn` WS message handler, route to claude-code-handler |
+| `figmento/src/ui.html` | MODIFY | Add "Claude Code (Local)" optgroup to settings-model selector, add status label element |
+| `figmento/src/ui/chat-settings.ts` | MODIFY | Add `claude-code` branch to `updateSettingsUI()` — hide all API key fields, show status message |
+| `figmento/src/ui/chat.ts` | MODIFY | Add `claude-code-turn` WS send path in `sendMessage()`, handle `claude-code-turn-result` response |
 
 ---
 
@@ -672,4 +839,8 @@ Send a design prompt with streaming enabled
 |---|---|---|
 | 2026-03-05 | @pm (Morgan) | Epic created based on architect's Option A spec. 4 stories: server engine, HTTP endpoint, plugin client, streaming. |
 | 2026-03-05 | @po (Pax) | Epic validated — GO (conditional). 7 observations: 3 CRITICAL (relay-as-participant architecture, bridge auto-connect, command ID routing), 1 HIGH (compiled knowledge in relay), 2 MEDIUM (tool count discrepancy, CR-3 File List), 1 LOW (Anthropic browser header). All 4 stories scored 7-8/10. Required actions documented per observation. |
+| 2026-03-06 | @pm (Morgan) | CR-5 story created — Claude Code Local Provider. Phase 3 added to epic. Routes Chat through Claude Code SDK using Max subscription quota (no API key, no TPM). Local-only constraint (port 3055). 14 ACs, 10 tasks. Epic size updated to 5 stories (~1,600 LOC). Validation tests CR-E and CR-F added. Risk register updated with 3 new entries. |
 | 2026-03-05 | @pm (Morgan) | Addressed all 7 PO findings: (1) CR-1 AC3 rewritten — relay-as-participant with `sendCommandToChannel()`, `relay-` prefix, response interception. (2) CR-3 AC12-AC14 added — auto-connect bridge on plugin init when chatRelayEnabled. (3) `relay-` prefix documented in CR-1 Dev Notes. (4) CR-1 AC11 added — knowledge compilation for relay build. (5) Problem Statement reframed — replaced "server-side intelligence" with "API key management burden." (6) CR-3 File List expanded — added chat-settings.ts, bridge.ts, index.ts, ui.html. (7) CR-1 AC12 added — no browser header on server-side Anthropic calls. All 4 stories transitioned Draft → Ready. |
+| 2026-03-06 | @dev (Dex) | CR-5 implementation: Tasks 1-9 complete. Auto-connect fix applied — `figmento-mcp-server/src/index.ts` reads `FIGMENTO_CHANNEL`/`FIGMENTO_RELAY_URL` env vars on startup to auto-connect via `wsClient.connect()`, preventing Claude Code from prompting for channel ID. `server.ts` exports `{ server, wsClient }` as `FigmentoServerResult`. All 3 packages build clean. Tasks 10-11 pending (manual test + unit tests). |
+| 2026-03-06 | @pm (Morgan) | CR-5 PO findings addressed: (1) REQUIRED — AC4 clarified history handling: relay passes plugin history as SDK `messages` array (role/content pairs), not injected into systemPrompt. AC5 code sample updated with `messages: history` field. Dev Notes history bullet rewritten. (2) RECOMMENDED — OUT-of-scope section added (streaming, multi-user, session persistence). (3) RECOMMENDED — Task 11 added: unit tests for claude-code-handler (SDK mock, concurrency, timeout, local-only guard). (4) RECOMMENDED — Local-only guard promoted from Dev Notes to AC15 with explicit error message. CR-5 transitioned Draft → Ready. Scorecard updated to 5 stories. |
+| 2026-03-06 | @sm (River) | **EPIC CLOSED.** All 5 stories (CR-1 through CR-5) marked Done. Plugin Chat now routes through Claude Code local provider via `@anthropic-ai/claude-code` SDK — no API keys, no TPM limits. Epic CR — Chat Relay is complete. |

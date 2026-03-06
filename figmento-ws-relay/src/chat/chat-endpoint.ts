@@ -47,19 +47,27 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-function sendJSON(res: ServerResponse, status: number, data: unknown): void {
+/** Build CORS headers — echo the request origin to handle `null` origin from Figma plugins. */
+function corsHeaders(req: IncomingMessage): Record<string, string> {
+  const origin = req.headers['origin'] || '*';
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+}
+
+function sendJSON(req: IncomingMessage, res: ServerResponse, status: number, data: unknown): void {
   const body = JSON.stringify(data);
   res.writeHead(status, {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    ...corsHeaders(req),
   });
   res.end(body);
 }
 
-function sendError(res: ServerResponse, status: number, message: string): void {
-  sendJSON(res, status, { error: message });
+function sendError(req: IncomingMessage, res: ServerResponse, status: number, message: string): void {
+  sendJSON(req, res, status, { error: message });
 }
 
 function validateRequest(body: unknown): body is ChatTurnRequest {
@@ -90,9 +98,7 @@ export async function handleChatRequest(
   // Handle CORS preflight
   if (req.method === 'OPTIONS' && (path === '/api/chat/turn' || path === '/chat/turn')) {
     res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      ...corsHeaders(req),
       'Access-Control-Max-Age': '86400',
     });
     res.end();
@@ -109,18 +115,18 @@ export async function handleChatRequest(
     try {
       body = JSON.parse(rawBody);
     } catch {
-      sendError(res, 400, 'Invalid JSON body');
+      sendError(req, res, 400, 'Invalid JSON body');
       return true;
     }
 
     if (!validateRequest(body)) {
-      sendError(res, 400, 'Invalid request. Required: message, channel, provider, apiKey, model, history[]');
+      sendError(req, res, 400, 'Invalid request. Required: message, channel, provider, apiKey, model, history[]');
       return true;
     }
 
     // Per-channel concurrency lock (AC9)
     if (activeChannels.has(body.channel)) {
-      sendError(res, 429, `A chat turn is already in progress on channel "${body.channel}". Wait for it to complete.`);
+      sendError(req, res, 429, `A chat turn is already in progress on channel "${body.channel}". Wait for it to complete.`);
       return true;
     }
 
@@ -141,7 +147,7 @@ export async function handleChatRequest(
       activeChannels.delete(body.channel);
       if (err instanceof Error && err.message === 'TIMEOUT') {
         console.error(`[Figmento Chat] Turn timeout after ${REQUEST_TIMEOUT_MS / 1000}s on channel=${body.channel}`);
-        sendError(res, 504, `Chat turn timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds.`);
+        sendError(req, res, 504, `Chat turn timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds.`);
         return true;
       }
       throw err;
@@ -151,11 +157,11 @@ export async function handleChatRequest(
 
     console.log(`[Figmento Chat] Turn complete: ${result.iterationsUsed} iterations, ${result.toolCalls.length} tool calls, clean=${result.completedCleanly}`);
 
-    sendJSON(res, 200, result);
+    sendJSON(req, res, 200, result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Internal server error';
     console.error(`[Figmento Chat] Turn error:`, message);
-    sendError(res, 500, message);
+    sendError(req, res, 500, message);
   }
 
   return true;

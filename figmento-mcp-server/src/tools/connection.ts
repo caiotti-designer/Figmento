@@ -11,6 +11,19 @@ export function registerConnectionTools(server: McpServer, wsClient: FigmentoWSC
       url: z.string().optional().describe('WebSocket relay URL (default: ws://localhost:3055)'),
     },
     async ({ channel, url }) => {
+      // CR-5: If auto-connected via FIGMENTO_CHANNEL env var, skip reconnection.
+      // The MCP server was spawned by Claude Code SDK with the correct channel already set.
+      // Calling connect_to_figma again would disconnect from the correct channel.
+      const autoChannel = process.env.FIGMENTO_CHANNEL;
+      if (autoChannel && wsClient.isConnected) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Already connected to Figma via channel "${autoChannel}" (auto-connected). Ready for design tools — no need to call connect_to_figma.`,
+          }],
+        };
+      }
+
       const wsUrl = url || 'ws://localhost:3055';
 
       if (wsClient.isConnected) {

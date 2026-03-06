@@ -6537,6 +6537,9 @@ img: for image placeholders"></textarea>
               <option value="gpt-5.2">GPT-5.2</option>
               <option value="gpt-5-mini">GPT-5 Mini</option>
             </optgroup>
+            <optgroup label="Claude Code (Local)">
+              <option value="claude-code">Claude Code (Max subscription)</option>
+            </optgroup>
           </select>
         </div>
         <div id="key-gemini-chat" class="chat-settings-field">
@@ -6553,6 +6556,11 @@ img: for image placeholders"></textarea>
           <label>OpenAI API Key</label>
           <input type="password" id="settings-openai-key" placeholder="sk-..." />
           <div class="hint">Get one at platform.openai.com</div>
+        </div>
+        <div id="claude-code-status" class="chat-settings-field" style="display:none;">
+          <div class="hint" style="color:var(--color-accent);font-weight:500;padding:12px;background:var(--color-surface);border-radius:8px;border:1px solid var(--color-border);">
+            Using Claude Code — no API key required. Requires local relay on port 3055.
+          </div>
         </div>
       </div>
 

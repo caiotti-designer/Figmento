@@ -89,14 +89,22 @@ function updateSettingsUI() {
   const model = ($('settings-model') as HTMLSelectElement).value;
   const useGemini = model.startsWith('gemini-');
   const useOpenAI = model.startsWith('gpt-') || model.startsWith('o');
+  const useClaudeCode = model === 'claude-code';
 
-  $('key-gemini-chat').style.display = useGemini ? 'block' : 'none';
-  $('key-anthropic-chat').style.display = (!useGemini && !useOpenAI) ? 'block' : 'none';
-  $('key-openai-chat').style.display = useOpenAI ? 'block' : 'none';
+  // AC2: Hide ALL API key fields when Claude Code is selected
+  $('key-gemini-chat').style.display = (!useClaudeCode && useGemini) ? 'block' : 'none';
+  $('key-anthropic-chat').style.display = (!useClaudeCode && !useGemini && !useOpenAI) ? 'block' : 'none';
+  $('key-openai-chat').style.display = (!useClaudeCode && useOpenAI) ? 'block' : 'none';
 
-  // Image gen: Gemini uses same key; Claude/OpenAI need a separate Gemini key
-  $('image-gen-separate').style.display = useGemini ? 'none' : 'block';
-  $('image-gen-shared').style.display = useGemini ? 'block' : 'none';
+  // Claude Code status message
+  const ccStatus = document.getElementById('claude-code-status');
+  if (ccStatus) ccStatus.style.display = useClaudeCode ? 'block' : 'none';
+
+  // Image gen: hidden for Claude Code (MCP server handles it), otherwise normal logic
+  const imageGenSection = document.getElementById('section-image-gen');
+  if (imageGenSection) imageGenSection.style.display = useClaudeCode ? 'none' : 'block';
+  $('image-gen-separate').style.display = (!useClaudeCode && !useGemini) ? 'block' : 'none';
+  $('image-gen-shared').style.display = (!useClaudeCode && useGemini) ? 'block' : 'none';
 }
 
 function saveChatSettings() {

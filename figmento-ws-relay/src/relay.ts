@@ -2,6 +2,11 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createHttpServer, IncomingMessage, ServerResponse } from 'http';
 import { RelayMessage, ResponseMessage } from './types';
 import { handleChatRequest, getActiveChatRequests } from './chat/chat-endpoint';
+import {
+  handleClaudeCodeTurn,
+  getActiveClaudeCodeTurns,
+  ClaudeCodeTurnRequest,
+} from './chat/claude-code-handler';
 
 export interface RelayConfig {
   port: number;
@@ -127,6 +132,7 @@ export class FigmentoRelay {
         channels: this.channels.size,
         clients: this.clients.size,
         chatEngine: { activeRequests: getActiveChatRequests() },
+        claudeCode: { activeTurns: getActiveClaudeCodeTurns() },
       }));
       return;
     }
@@ -214,6 +220,10 @@ export class FigmentoRelay {
         } else {
           this.forwardToChannel(sender, msg.channel, raw.toString());
         }
+        break;
+
+      case 'claude-code-turn':
+        this.handleClaudeCodeTurnMessage(sender, msg as unknown as ClaudeCodeTurnRequest);
         break;
 
       default:
@@ -315,6 +325,22 @@ export class FigmentoRelay {
     }
 
     console.log(`[Figmento Relay] Client disconnected (${this.clients.size} remaining)`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // CLAUDE CODE TURN — CR-5
+  // ═══════════════════════════════════════════════════════════════
+
+  private async handleClaudeCodeTurnMessage(sender: WebSocket, msg: ClaudeCodeTurnRequest): Promise<void> {
+    const channelClients = this.channels.get(msg.channel);
+    console.log(`[Figmento Relay] claude-code-turn on channel="${msg.channel}" (${channelClients?.size ?? 0} clients on channel)`);
+
+    const result = await handleClaudeCodeTurn(msg);
+
+    // Send result back to the requesting client
+    if (sender.readyState === WebSocket.OPEN) {
+      sender.send(JSON.stringify(result));
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════

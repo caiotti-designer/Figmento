@@ -22,7 +22,7 @@ import {
   summarizeScreenshotResult,
 } from './tool-use-loop';
 import { LOCAL_TOOL_HANDLERS } from './local-intelligence';
-import { getBridgeChannelId, getBridgeConnected } from './bridge';
+import { getBridgeChannelId, getBridgeConnected, sendBridgeMessage, setClaudeCodeResultHandler } from './bridge';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -49,6 +49,7 @@ export interface ChatSettings {
 let conversationHistory: AnthropicMessage[] = [];
 let geminiHistory: GeminiContent[] = [];
 let openaiHistory: Array<Record<string, unknown>> = [];
+let claudeCodeHistory: Array<{ role: string; content: string }> = [];
 let isProcessing = false;
 let chatCommandCounter = 0;
 const pendingChatCommands = new Map<string, PendingCommand>();
@@ -89,6 +90,10 @@ function isGeminiModel(model: string): boolean {
 
 function isOpenAIModel(model: string): boolean {
   return model.startsWith('gpt-') || model.startsWith('o');
+}
+
+function isClaudeCodeModel(model: string): boolean {
+  return model === 'claude-code';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -140,6 +145,7 @@ export function initChat() {
     conversationHistory = [];
     geminiHistory = [];
     openaiHistory = [];
+    claudeCodeHistory = [];
     $('chat-messages').innerHTML = '';
     addChatWelcome();
   });
@@ -197,19 +203,23 @@ async function sendMessage() {
 
   const useGemini = isGeminiModel(chatSettings.model);
   const useOpenAI = isOpenAIModel(chatSettings.model);
+  const useClaudeCode = isClaudeCodeModel(chatSettings.model);
 
   // API keys required for both relay mode (sent to server) and direct mode
-  if (useGemini && !chatSettings.geminiApiKey) {
-    appendChatBubble('assistant', '<span class="chat-error">Set your Gemini API key in Settings first.</span>');
-    return;
-  }
-  if (useOpenAI && !chatSettings.openaiApiKey) {
-    appendChatBubble('assistant', '<span class="chat-error">Set your OpenAI API key in Settings first.</span>');
-    return;
-  }
-  if (!useGemini && !useOpenAI && !chatSettings.anthropicApiKey) {
-    appendChatBubble('assistant', '<span class="chat-error">Set your Anthropic API key in Settings first.</span>');
-    return;
+  // Claude Code uses Max subscription — no API key needed
+  if (!useClaudeCode) {
+    if (useGemini && !chatSettings.geminiApiKey) {
+      appendChatBubble('assistant', '<span class="chat-error">Set your Gemini API key in Settings first.</span>');
+      return;
+    }
+    if (useOpenAI && !chatSettings.openaiApiKey) {
+      appendChatBubble('assistant', '<span class="chat-error">Set your OpenAI API key in Settings first.</span>');
+      return;
+    }
+    if (!useGemini && !useOpenAI && !chatSettings.anthropicApiKey) {
+      appendChatBubble('assistant', '<span class="chat-error">Set your Anthropic API key in Settings first.</span>');
+      return;
+    }
   }
 
   input.value = '';
@@ -226,8 +236,15 @@ async function sendMessage() {
   console.log(`[Figmento Chat] sendMessage path: relayEnabled=${relayEnabled} bridgeConnected=${bridgeConnected} channelId=${channelId} model=${chatSettings.model} relayUrl=${chatSettings.chatRelayUrl}`);
 
   try {
+    // Claude Code: always routes through local relay WS
+    if (useClaudeCode) {
+      if (!bridgeConnected) {
+        throw new Error('Claude Code requires a local relay. Start with: `cd figmento-ws-relay && npm run dev`');
+      }
+      console.log('[Figmento Chat] → CLAUDE CODE path (WS)');
+      await runClaudeCodeTurn(text);
     // Route through relay if enabled and bridge is connected
-    if (relayEnabled && bridgeConnected) {
+    } else if (relayEnabled && bridgeConnected) {
       console.log('[Figmento Chat] → RELAY path');
       await runRelayTurn(text, useGemini, useOpenAI);
     } else if (relayEnabled && !bridgeConnected) {
@@ -353,6 +370,67 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
     for (const entry of result.newMemoryEntries) {
       memoryEntries.push(entry);
     }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CHAT — CLAUDE CODE TURN (WS → local relay → SDK subprocess)
+// ═══════════════════════════════════════════════════════════════
+
+async function runClaudeCodeTurn(text: string): Promise<void> {
+  const channelId = getBridgeChannelId();
+  if (!channelId) {
+    throw new Error('Bridge channel not available. Connect to the local relay first.');
+  }
+
+  // Send claude-code-turn message through the bridge WS
+  const sent = sendBridgeMessage({
+    type: 'claude-code-turn',
+    channel: channelId,
+    message: text,
+    history: claudeCodeHistory,
+    memory: memoryEntries,
+  });
+
+  if (!sent) {
+    throw new Error('Claude Code requires a local relay. Start with: `cd figmento-ws-relay && npm run dev`');
+  }
+
+  // Wait for the result via the bridge's claude-code-turn-result handler
+  const result = await new Promise<Record<string, unknown>>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      setClaudeCodeResultHandler(null);
+      reject(new Error('Claude Code turn timed out (180s). The subprocess may still be running.'));
+    }, 185_000); // Slightly longer than server timeout to let server timeout arrive first
+
+    setClaudeCodeResultHandler((msg) => {
+      clearTimeout(timeout);
+      setClaudeCodeResultHandler(null);
+      resolve(msg);
+    });
+  });
+
+  // Handle error response
+  if (result.error) {
+    throw new Error(result.error as string);
+  }
+
+  // AC7: Render identically to relay turn responses
+  // Update conversation history
+  if (result.history) {
+    claudeCodeHistory = result.history as Array<{ role: string; content: string }>;
+  }
+
+  // Display tool calls
+  if (result.toolCalls) {
+    for (const tc of result.toolCalls as Array<{ name: string; success: boolean }>) {
+      appendToolAction(tc.name, tc.success ? 'Done' : 'Failed', !tc.success);
+    }
+  }
+
+  // Display assistant text
+  if (result.text) {
+    appendChatBubble('assistant', formatMarkdown(result.text as string));
   }
 }
 

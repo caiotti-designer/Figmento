@@ -31,4 +31,12 @@ export interface ResponseMessage {
   recoverable?: boolean;
 }
 
-export type RelayMessage = JoinMessage | LeaveMessage | CommandMessage | ResponseMessage;
+export interface ClaudeCodeTurnMessage {
+  type: 'claude-code-turn';
+  channel: string;
+  message: string;
+  history: Array<{ role: string; content: string }>;
+  memory?: string[];
+}
+
+export type RelayMessage = JoinMessage | LeaveMessage | CommandMessage | ResponseMessage | ClaudeCodeTurnMessage;
