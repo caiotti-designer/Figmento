@@ -3,7 +3,7 @@
  * Dynamic design intelligence from compiled knowledge (KI-2).
  *
  * Reference tables (palettes, fonts, sizes) removed in favor of
- * local intelligence tools (lookup_palette, lookup_fonts, lookup_size).
+ * local intelligence tools (get_color_palette, get_font_pairing, get_size_preset).
  * buildSystemPrompt() injects brief-specific knowledge when a DesignBrief
  * is detected, and always-on refinement checks.
  */
@@ -156,45 +156,34 @@ function findBestFontPairing(mood: string): FontPairing | null {
 // ── Refinement block (always-on) ─────────────────────────────────
 
 function buildRefinementBlock(): string {
-  // Distill the 25 compiled refinement checks into 5 machine-checkable rules
-  // grouped by category, plus include select high-impact micro-checks.
-  const coreChecks = [
-    '1. Gradient direction: solid end of every overlay gradient MUST face the text zone. If text is at bottom, gradient is solid at bottom. If solid end faces away from text → FLIP direction immediately.',
-    '2. Spacing scale: all itemSpacing and padding values MUST be from [4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96, 128]. No arbitrary values (e.g. 37px, 55px). CTA buttons must have 2x the surrounding spacing for isolation.',
-    '3. Typography hierarchy: largest font MUST be >= 2x smallest font. At least 3 distinct size levels. Display text (>40px) needs letter-spacing -0.02em. Uppercase labels need +0.05em minimum.',
-    '4. Auto-layout coverage: every frame with 2+ children MUST use auto-layout (layoutMode VERTICAL or HORIZONTAL). No manually positioned children inside container frames.',
-    '5. Placeholder fills: no unfilled gray rectangles may remain. Every image area must have a generated image, fetched placeholder, or intentional solid fill.',
-  ];
-
-  // Add high-impact micro-checks from compiled knowledge
-  const microChecks: string[] = [];
-  for (const rc of REFINEMENT_CHECKS) {
-    if (rc.id === 'warm-cool-shadows') {
-      microChecks.push(`- Shadows: ${rc.rule}`);
-    } else if (rc.id === 'card-elevation') {
-      microChecks.push(`- Cards: ${rc.rule}`);
-    } else if (rc.id === 'mandatory-standout') {
-      microChecks.push(`- Memorable element: ${rc.rule}`);
-    } else if (rc.id === 'gradient-color-match') {
-      microChecks.push(`- Gradient color: ${rc.rule}`);
-    } else if (rc.id === 'cta-isolation') {
-      microChecks.push(`- CTA spacing: ${rc.rule}`);
-    }
-  }
+  // Reference REFINEMENT_CHECKS to keep the import used (micro-check data remains available).
+  void REFINEMENT_CHECKS;
 
   return `
 ═══════════════════════════════════════════════════════════
-AFTER CREATING ANY DESIGN — AUTO-REFINEMENT (mandatory)
+AFTER CREATING ANY DESIGN — MANDATORY QUALITY GATE
 ═══════════════════════════════════════════════════════════
 
-Before reporting a design as complete, verify these 5 checks and FIX any issues:
+For every design with 5+ elements, run this two-step quality gate before reporting done.
 
-${coreChecks.join('\n')}
+STEP 1 — STRUCTURAL CHECK (always):
+1. Call run_refinement_check(rootFrameId).
+2. Read the returned issues array. Auto-fix ALL issues with severity: 'error' immediately:
+   - Gradient direction wrong → flip via set_fill with corrected direction and stops
+   - Frame missing auto-layout → call set_auto_layout
+   - Non-standard itemSpacing → round to nearest [4,8,12,16,20,24,32,40,48,64,80,96,128]
+   - Low-contrast text (wcag-contrast) → adjust fill color so the ratio meets WCAG AA
+   - Text outside safe zone → move node inside safe margins
+3. If score < 70, fix errors and call run_refinement_check again (max 2 passes).
+4. Do NOT report the design as complete until score >= 70.
 
-Additional micro-refinements (apply when relevant):
-${microChecks.join('\n')}
+STEP 2 — VISUAL CHECK (complex designs: 10+ elements, carousels, multi-section):
+1. Call evaluate_design(rootFrameId) after all structural errors are fixed.
+2. Read the exported PNG and structural summary. Verify: typography levels >= 3, images placed (not empty rects), visual balance, CTA prominence.
+3. Apply fixes with move_node / resize_node / set_fill / create_text. Max 1 visual pass.
 
-If any check fails, fix it BEFORE confirming the design is done. Do not ask the user — just fix it.`;
+ALWAYS end your response with the refinement score:
+"Design complete. Refinement score: [X]/100. [brief summary of any remaining warnings]."`;
 }
 
 // ── Main prompt builder ──────────────────────────────────────────
@@ -233,14 +222,12 @@ If the file has no variables and no styles:
   → For new projects: offer to call create_figma_variables to set up a design system.
   → For existing files with content: use set_fill/set_text normally (acceptable fallback).
 
-After completing any design with 5+ elements, call run_refinement_check on the root frame node to verify quality. Auto-fix any errors reported before confirming the design is done.
-
 ## Design Workflow (follow for EVERY design request)
 1. Parse the request: identify format (Instagram post? Poster? Presentation?), mood/style, content, brand constraints.
 1b. Call read_figma_context to discover existing variables and styles. Use them instead of hardcoding values (see Figma-Native Workflow above).
-2. Call lookup_size(format) to get exact pixel dimensions. Never guess dimensions.
-3. Call lookup_palette(mood) to get the color palette. If a brand kit exists, use its colors instead.
-4. Call lookup_fonts(mood) to get the font pairing. Use the recommended heading/body weights.
+2. Call get_size_preset(format) to get exact pixel dimensions. Never guess dimensions.
+3. Call get_color_palette(mood) to get the color palette. If a brand kit exists, use its colors instead.
+4. Call get_font_pairing(mood) to get the font pairing. Use the recommended heading/body weights.
 5. Choose the type scale ratio:
    - minor_third (1.2) — documents, long reads, subtle hierarchy
    - major_third (1.25) — general purpose, balanced (DEFAULT)
@@ -257,10 +244,10 @@ DESIGN KNOWLEDGE TOOLS (call these instead of guessing)
 ═══════════════════════════════════════════════════════════
 
 Use these tools to get exact values — never hardcode or guess:
-- lookup_size(format) → exact pixel dimensions for any format (social, print, web, presentation)
-- lookup_palette(mood) → full color palette (primary, secondary, accent, background, text, muted)
-- lookup_fonts(mood) → font pairing with heading/body fonts and weights
-- lookup_blueprint(category, subcategory?, mood?) → layout blueprint with zones and anti-generic rules
+- get_size_preset(format) → exact pixel dimensions for any format (social, print, web, presentation)
+- get_color_palette(mood) → full color palette (primary, secondary, accent, background, text, muted)
+- get_font_pairing(mood) → font pairing with heading/body fonts and weights
+- get_layout_blueprint(category, subcategory?, mood?) → layout blueprint with zones and anti-generic rules
 
 Type scale ratios (apply to base size 16): minor_third=1.2, major_third=1.25 (default), perfect_fourth=1.333, golden_ratio=1.618
 

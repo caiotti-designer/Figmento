@@ -25,6 +25,56 @@ type NodeData = Record<string, any>;
 const SPACING_SCALE = [4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96, 128];
 
 // ─────────────────────────────────────────────────────────────
+// Contrast + safe-zone helpers
+// ─────────────────────────────────────────────────────────────
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const toHex = (n: number) => Math.round(n * 255).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function relativeLuminance(hex: string): number {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
+function computeContrastRatio(hex1: string, hex2: string): number {
+  const l1 = relativeLuminance(hex1);
+  const l2 = relativeLuminance(hex2);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+interface SafeZonePreset {
+  width: number;
+  height: number;
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+const SAFE_ZONE_PRESETS: Record<string, SafeZonePreset> = {
+  'instagram-post':   { width: 1080, height: 1080, top: 150, bottom: 150, left: 60,  right: 60  },
+  'instagram-story':  { width: 1080, height: 1920, top: 250, bottom: 250, left: 60,  right: 60  },
+  'presentation':     { width: 1920, height: 1080, top: 60,  bottom: 60,  left: 80,  right: 80  },
+};
+
+function detectFormat(node: NodeData): string | null {
+  const w = Number(node.width) || 0;
+  const h = Number(node.height) || 0;
+  if (w === 1080 && h === 1080) return 'instagram-post';
+  if (w === 1080 && h === 1920) return 'instagram-story';
+  if (w === 1920 && h === 1080) return 'presentation';
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────
 // Check functions (exported for unit testing)
 // ─────────────────────────────────────────────────────────────
 
@@ -246,9 +296,94 @@ export function checkEmptyPlaceholders(node: NodeData, issues: Issue[]): void {
   }
 }
 
+export function checkContrastRatio(node: NodeData, issues: Issue[], ancestorBg?: string): void {
+  if (!node) return;
+
+  // Determine this node's background from its solid fill (if any)
+  let currentBg = ancestorBg;
+  const fills: NodeData[] = Array.isArray(node.fills) ? node.fills : [];
+  const solidFill = fills.find((f) => f.type === 'SOLID' && f.visible !== false);
+  if (solidFill?.color) {
+    const { r, g, b } = solidFill.color;
+    currentBg = rgbToHex(Number(r) || 0, Number(g) || 0, Number(b) || 0);
+  }
+
+  if (node.type === 'TEXT' && currentBg) {
+    const textFills: NodeData[] = Array.isArray(node.fills) ? node.fills : [];
+    const textSolid = textFills.find((f) => f.type === 'SOLID' && f.visible !== false);
+    if (textSolid?.color) {
+      const { r, g, b } = textSolid.color;
+      const textHex = rgbToHex(Number(r) || 0, Number(g) || 0, Number(b) || 0);
+      const ratio = computeContrastRatio(textHex, currentBg);
+      const fontSize = Number(node.fontSize) || 0;
+      // WCAG AA: 4.5:1 for normal text (<18px), 3:1 for large text (≥18px)
+      const required = fontSize >= 18 ? 3.0 : 4.5;
+      if (ratio < required) {
+        issues.push({
+          rule: 'wcag-contrast',
+          severity: 'error',
+          nodeId: String(node.id || ''),
+          message: `Text "${String(node.characters || '').slice(0, 30)}" contrast ${ratio.toFixed(2)}:1 against ${currentBg} — below WCAG AA minimum ${required}:1 (${fontSize}px).`,
+          suggestion: `Increase contrast between text ${textHex} and background ${currentBg}. Use a darker text color or lighter background.`,
+        });
+      }
+    }
+  }
+
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) {
+      checkContrastRatio(child, issues, currentBg);
+    }
+  }
+}
+
+export function checkSafeZones(node: NodeData, issues: Issue[]): void {
+  if (!node) return;
+
+  const format = detectFormat(node);
+  if (!format) return; // Only check known social/presentation formats
+
+  const preset = SAFE_ZONE_PRESETS[format];
+  const frameWidth = Number(node.width) || 0;
+  const frameHeight = Number(node.height) || 0;
+
+  function walkNode(n: NodeData): void {
+    if (!n) return;
+    if (n.type === 'TEXT') {
+      const x = Number(n.x) || 0;
+      const y = Number(n.y) || 0;
+      const w = Number(n.width) || 0;
+      const h = Number(n.height) || 0;
+      const violations: string[] = [];
+      if (y < preset.top) violations.push(`top (${y}px < safe zone ${preset.top}px)`);
+      if (y + h > frameHeight - preset.bottom) violations.push(`bottom (${y + h}px > safe zone ${frameHeight - preset.bottom}px)`);
+      if (x < preset.left) violations.push(`left (${x}px < safe zone ${preset.left}px)`);
+      if (x + w > frameWidth - preset.right) violations.push(`right (${x + w}px > safe zone ${frameWidth - preset.right}px)`);
+      if (violations.length > 0) {
+        issues.push({
+          rule: 'safe-zone',
+          severity: 'warning',
+          nodeId: String(n.id || ''),
+          message: `Text "${String(n.characters || '').slice(0, 30)}" is outside the ${format} safe zone: ${violations.join(', ')}.`,
+          suggestion: `Move text within safe margins: top ${preset.top}px, bottom ${preset.bottom}px, left ${preset.left}px, right ${preset.right}px.`,
+        });
+      }
+    }
+    if (Array.isArray(n.children)) {
+      for (const child of n.children) walkNode(child);
+    }
+  }
+
+  walkNode(node);
+}
+
 // ─────────────────────────────────────────────────────────────
 // Tool registration
 // ─────────────────────────────────────────────────────────────
+
+export const runRefinementCheckSchema = {
+  nodeId: z.string().describe('Root frame ID of the design to check'),
+};
 
 export function registerRefinementTools(
   server: McpServer,
@@ -258,9 +393,7 @@ export function registerRefinementTools(
   server.tool(
     'run_refinement_check',
     'Run automated quality checks on a design. Checks gradient direction vs text position, auto-layout coverage, spacing scale compliance, typography hierarchy, and unfilled image placeholders. Call after creating any design with 5+ elements.',
-    {
-      nodeId: z.string().describe('Root frame ID of the design to check'),
-    },
+    runRefinementCheckSchema,
     async (params) => {
       const tree = await sendDesignCommand('get_node_info', {
         nodeId: params.nodeId,
@@ -274,6 +407,8 @@ export function registerRefinementTools(
       checkSpacingScale(tree, issues);
       checkTypographyHierarchy(tree, issues);
       checkEmptyPlaceholders(tree, issues);
+      checkContrastRatio(tree, issues);
+      checkSafeZones(tree, issues);
 
       const errorCount = issues.filter((i) => i.severity === 'error').length;
       const warnCount = issues.filter((i) => i.severity === 'warning').length;

@@ -105,6 +105,16 @@ function resolveBlueprint(
 // Tool registration
 // ─────────────────────────────────────────────────────────────
 
+export const getLayoutBlueprintSchema = {
+  category: z.string().describe('Layout category: web, social, ads, print, presentation'),
+  subcategory: z.string().optional().describe('Blueprint subcategory or exact id (e.g. "hero-centered", "instagram-editorial-overlay")'),
+  mood: z.string().optional().describe('Mood keywords to match (e.g. "dark luxury bold")'),
+};
+
+export const listLayoutBlueprintsSchema = {
+  category: z.string().optional().describe('Filter by category: web, social, ads, print, presentation. Omit to list all.'),
+};
+
 export function registerLayoutTools(server: McpServer): void {
   const LAYOUTS_DIR = getLayoutsDir();
 
@@ -114,11 +124,7 @@ export function registerLayoutTools(server: McpServer): void {
   server.tool(
     'get_layout_blueprint',
     'Get a layout blueprint for a design. Blueprints define proportional zones (y_start_pct/y_end_pct), typography hierarchy, and memorable element guidance. Use before creating any design to get a structural skeleton.',
-    {
-      category: z.string().describe(`Layout category: ${VALID_CATEGORIES.join(', ')}`),
-      subcategory: z.string().optional().describe('Blueprint subcategory or exact id (e.g. "hero-centered", "instagram-editorial-overlay")'),
-      mood: z.string().optional().describe('Mood keywords to match (e.g. "dark luxury bold")'),
-    },
+    getLayoutBlueprintSchema,
     async (params) => {
       const result = resolveBlueprint(LAYOUTS_DIR, params.category, params.subcategory, params.mood);
       return {
@@ -130,9 +136,7 @@ export function registerLayoutTools(server: McpServer): void {
   server.tool(
     'list_layout_blueprints',
     'List all available layout blueprints, optionally filtered by category. Returns id, description, mood, and canvas info for each blueprint.',
-    {
-      category: z.string().optional().describe(`Filter by category: ${VALID_CATEGORIES.join(', ')}. Omit to list all.`),
-    },
+    listLayoutBlueprintsSchema,
     async (params) => {
       const categories = params.category ? [params.category] : VALID_CATEGORIES;
       const results: Blueprint[] = [];

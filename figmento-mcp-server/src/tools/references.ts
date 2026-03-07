@@ -330,6 +330,26 @@ function findImagesWithoutYaml(dir: string): string[] {
 // MCP Tool Registration
 // ═══════════════════════════════════════════════════════════
 
+export const findDesignReferencesSchema = {
+  category: z.string().optional().describe('Filter by category: web | social | ads | print | presentation'),
+  subcategory: z.string().optional().describe('Filter by subcategory (e.g., hero, feed-post, product, poster)'),
+  mood: z.string().optional().describe('Mood/style tags — space-separated for multiple (e.g., "dark bold editorial" or "minimal clean")'),
+  industry: z.string().optional().describe('Industry tag for domain matching (e.g., saas, food, health, luxury, finance, fashion, tech)'),
+  palette: z.string().optional().describe('Color palette filter: dark | light | colorful | monochrome'),
+  limit: z.number().optional().describe('Max results to return (default: 3)'),
+};
+
+export const analyzeReferenceSchema = {
+  imagePath: z.string().describe('Path to image file (PNG, WebP, JPEG, JPG). Relative paths resolve from knowledge/references/. Absolute paths also accepted.'),
+  force: z.boolean().optional().describe('Overwrite existing companion YAML if true. Default: false (returns existing without re-analyzing).'),
+};
+
+export const batchAnalyzeReferencesSchema = {
+  dryRun: z.boolean().optional().describe('If true, report which files need analysis without generating any YAMLs. Default: false.'),
+};
+
+export const listReferenceCategoriesSchema = {};
+
 export function registerReferenceTools(server: McpServer): void {
 
   // ───────────────────────────────────────────────────────────
@@ -340,14 +360,7 @@ export function registerReferenceTools(server: McpServer): void {
   server.tool(
     'find_design_references',
     'Search the curated reference library for design inspiration. Call BEFORE get_layout_blueprint. Returns references scored by tag/industry/palette match. Returns image_path for each match.',
-    {
-      category: z.string().optional().describe('Filter by category: web | social | ads | print | presentation'),
-      subcategory: z.string().optional().describe('Filter by subcategory (e.g., hero, feed-post, product, poster)'),
-      mood: z.string().optional().describe('Mood/style tags — space-separated for multiple (e.g., "dark bold editorial" or "minimal clean")'),
-      industry: z.string().optional().describe('Industry tag for domain matching (e.g., saas, food, health, luxury, finance, fashion, tech)'),
-      palette: z.string().optional().describe('Color palette filter: dark | light | colorful | monochrome'),
-      limit: z.number().optional().describe('Max results to return (default: 3)'),
-    },
+    findDesignReferencesSchema,
     async (params) => {
       const all = loadAllReferences(params.category, params.subcategory);
       const limit = params.limit ?? 3;
@@ -417,10 +430,7 @@ export function registerReferenceTools(server: McpServer): void {
   server.tool(
     'analyze_reference',
     'Analyze a reference screenshot and generate a companion YAML with compositional DNA. Uses Claude vision (ANTHROPIC_API_KEY required). Each call costs ~$0.01-0.02. Server-side only — no Figma connection needed.',
-    {
-      imagePath: z.string().describe('Path to image file (PNG, WebP, JPEG, JPG). Relative paths resolve from knowledge/references/. Absolute paths also accepted.'),
-      force: z.boolean().optional().describe('Overwrite existing companion YAML if true. Default: false (returns existing without re-analyzing).'),
-    },
+    analyzeReferenceSchema,
     async (params) => {
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) {
@@ -451,9 +461,7 @@ export function registerReferenceTools(server: McpServer): void {
   server.tool(
     'batch_analyze_references',
     'Scan all image files (PNG, WebP, JPEG, JPG) in the reference library and generate companion YAMLs for any that are missing one. Uses Claude vision (ANTHROPIC_API_KEY required). Batch of 50 references ≈ $0.50-1.00.',
-    {
-      dryRun: z.boolean().optional().describe('If true, report which files need analysis without generating any YAMLs. Default: false.'),
-    },
+    batchAnalyzeReferencesSchema,
     async (params) => {
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) {
@@ -505,7 +513,7 @@ export function registerReferenceTools(server: McpServer): void {
   server.tool(
     'list_reference_categories',
     'List all available reference categories, subcategories, and reference counts. Use to check what references exist before calling find_design_references.',
-    {},
+    listReferenceCategoriesSchema,
     async () => {
       const refsDir = getReferencesDir();
       let total = 0;

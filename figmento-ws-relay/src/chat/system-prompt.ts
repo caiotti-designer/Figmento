@@ -137,36 +137,34 @@ function findBestFontPairing(mood: string): FontPairing | null {
 }
 
 function buildRefinementBlock(): string {
-  const coreChecks = [
-    '1. Gradient direction: solid end of every overlay gradient MUST face the text zone.',
-    '2. Spacing scale: all itemSpacing and padding values MUST be from [4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96, 128].',
-    '3. Typography hierarchy: largest font MUST be >= 2x smallest font. At least 3 distinct size levels.',
-    '4. Auto-layout coverage: every frame with 2+ children MUST use auto-layout.',
-    '5. Placeholder fills: no unfilled gray rectangles may remain.',
-  ];
-
-  const microChecks: string[] = [];
-  for (const rc of REFINEMENT_CHECKS) {
-    if (rc.id === 'warm-cool-shadows') microChecks.push(`- Shadows: ${rc.rule}`);
-    else if (rc.id === 'card-elevation') microChecks.push(`- Cards: ${rc.rule}`);
-    else if (rc.id === 'mandatory-standout') microChecks.push(`- Memorable element: ${rc.rule}`);
-    else if (rc.id === 'gradient-color-match') microChecks.push(`- Gradient color: ${rc.rule}`);
-    else if (rc.id === 'cta-isolation') microChecks.push(`- CTA spacing: ${rc.rule}`);
-  }
+  // Reference REFINEMENT_CHECKS to keep the import used.
+  void REFINEMENT_CHECKS;
 
   return `
 ═══════════════════════════════════════════════════════════
-AFTER CREATING ANY DESIGN — AUTO-REFINEMENT (mandatory)
+AFTER CREATING ANY DESIGN — MANDATORY QUALITY GATE
 ═══════════════════════════════════════════════════════════
 
-Before reporting a design as complete, verify these 5 checks and FIX any issues:
+For every design with 5+ elements, run this two-step quality gate before reporting done.
 
-${coreChecks.join('\n')}
+STEP 1 — STRUCTURAL CHECK (always):
+1. Call run_refinement_check(rootFrameId).
+2. Read the returned issues array. Auto-fix ALL issues with severity: 'error' immediately:
+   - Gradient direction wrong → flip via set_fill with corrected direction and stops
+   - Frame missing auto-layout → call set_auto_layout
+   - Non-standard itemSpacing → round to nearest [4,8,12,16,20,24,32,40,48,64,80,96,128]
+   - Low-contrast text (wcag-contrast) → adjust fill color so the ratio meets WCAG AA
+   - Text outside safe zone → move node inside safe margins
+3. If score < 70, fix errors and call run_refinement_check again (max 2 passes).
+4. Do NOT report the design as complete until score >= 70.
 
-Additional micro-refinements (apply when relevant):
-${microChecks.join('\n')}
+STEP 2 — VISUAL CHECK (complex designs: 10+ elements, carousels, multi-section):
+1. Call evaluate_design(rootFrameId) after all structural errors are fixed.
+2. Read the exported PNG and structural summary. Verify: typography levels >= 3, images placed (not empty rects), visual balance, CTA prominence.
+3. Apply fixes with move_node / resize_node / set_fill / create_text. Max 1 visual pass.
 
-If any check fails, fix it BEFORE confirming the design is done.`;
+ALWAYS end your response with the refinement score:
+"Design complete. Refinement score: [X]/100. [brief summary of any remaining warnings]."`;
 }
 
 export function buildSystemPrompt(brief?: DesignBrief, memory?: string[]): string {
@@ -187,9 +185,9 @@ export function buildSystemPrompt(brief?: DesignBrief, memory?: string[]): strin
 
 ## Design Workflow
 1. Parse the request: identify format, mood/style, content, brand constraints.
-2. Call lookup_size(format) to get exact pixel dimensions.
-3. Call lookup_palette(mood) to get the color palette.
-4. Call lookup_fonts(mood) to get the font pairing.
+2. Call get_size_preset(format) to get exact pixel dimensions.
+3. Call get_color_palette(mood) to get the color palette.
+4. Call get_font_pairing(mood) to get the font pairing.
 5. Choose the type scale ratio (minor_third 1.2, major_third 1.25, perfect_fourth 1.333, golden_ratio 1.618).
 6. Plan the layout pattern.
 7. Create root frame with exact dimensions and background color.
@@ -202,10 +200,10 @@ DESIGN KNOWLEDGE TOOLS
 ═══════════════════════════════════════════════════════════
 
 Use these tools to get exact values — never hardcode or guess:
-- lookup_size(format) → exact pixel dimensions
-- lookup_palette(mood) → full color palette
-- lookup_fonts(mood) → font pairing with weights
-- lookup_blueprint(category, subcategory?, mood?) → layout blueprint
+- get_size_preset(format) → exact pixel dimensions
+- get_color_palette(mood) → full color palette
+- get_font_pairing(mood) → font pairing with weights
+- get_layout_blueprint(category, subcategory?, mood?) → layout blueprint
 
 ═══════════════════════════════════════════════════════════
 MINIMUM FONT SIZES (mandatory)

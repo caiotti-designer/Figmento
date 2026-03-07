@@ -1233,6 +1233,90 @@ function mergeExtractions(
 
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
+export const createDesignSystemSchema = {
+  name: z.string().describe('Design system name (lowercase, e.g. "payflow")'),
+  preset: z.string().optional().describe('Library preset: shadcn, material, minimal, luxury, or vibrant'),
+  primary_color: z.string().optional().describe('Primary brand color hex (e.g. "#2563EB")'),
+  secondary_color: z.string().optional().describe('Secondary color hex'),
+  accent_color: z.string().optional().describe('Accent color hex'),
+  heading_font: z.string().optional().describe('Heading font family (e.g. "Inter")'),
+  body_font: z.string().optional().describe('Body font family'),
+  mood: z.array(z.string()).optional().describe('Mood keywords like ["fintech", "modern", "trust"]'),
+  voice: z.string().optional().describe('Brand voice description'),
+};
+
+export const getDesignSystemSchema = {
+  name: z.string().describe('Design system name'),
+};
+
+export const listDesignSystemsSchema = {};
+
+export const updateDesignSystemSchema = {
+  name: z.string().describe('Design system name'),
+  changes: z.record(z.string(), z.unknown()).describe('Dot-path keys to update, e.g. { "colors.primary": "#FF0000", "typography.heading.family": "Merriweather" }'),
+};
+
+export const deleteDesignSystemSchema = {
+  name: z.string().describe('Design system name to delete'),
+};
+
+export const createComponentSchema = {
+  system: z.string().describe('Design system name (e.g. "payflow")'),
+  component: z.string().describe('Component name: button, badge, card, divider, avatar'),
+  variant: z.string().optional().describe('Component variant (e.g. "secondary", "ghost", "outlined")'),
+  size: z.string().optional().describe('Size variant: sm, md, lg, xl'),
+  props: z.record(z.unknown()).optional().describe('Component props, e.g. { label: "Get Started" }'),
+  parentId: z.string().optional().describe('Parent frame nodeId to place component inside'),
+  x: z.coerce.number().optional().describe('X position'),
+  y: z.coerce.number().optional().describe('Y position'),
+};
+
+export const listComponentsSchema = {
+  system: z.string().optional().describe('Design system name (currently unused, reserved for future brand-specific overrides)'),
+};
+
+export const getFormatRulesSchema = {
+  format: z.string().describe('Format name, e.g. "instagram_post", "business_card", "slide_16_9"'),
+  slide_type: z.string().optional().describe('Slide type for presentation formats, e.g. "title_slide", "content_slide"'),
+};
+
+export const listFormatsSchema = {
+  category: z.string().optional().describe('Filter by category: social, print, presentation, advertising, web, email. Omit to list all formats grouped by category.'),
+};
+
+export const scanFrameStructureSchema = {
+  nodeId: z.string().describe('The nodeId of the frame to scan'),
+  depth: z.coerce.number().optional().default(5).describe('Maximum depth to recurse (default: 5)'),
+  include_styles: z.boolean().optional().default(true).describe('Include fill, stroke, effect, and text style properties (default: true)'),
+};
+
+export const designSystemPreviewSchema = {
+  system: z.string().describe('Design system name (e.g. "testbrand")'),
+  x: z.coerce.number().optional().describe('X position on canvas (default: 0)'),
+  y: z.coerce.number().optional().describe('Y position on canvas (default: 0)'),
+};
+
+export const generateDesignSystemFromUrlSchema = {
+  url: z.string().describe('The website URL to extract design tokens from (e.g. "https://stripe.com")'),
+  name: z.string().optional().describe('Design system name (defaults to domain name, e.g. "stripe")'),
+  preset: z.string().optional().describe('Optional preset to blend with extracted values: shadcn, material, minimal, luxury, vibrant'),
+};
+
+export const refineDesignSystemSchema = {
+  name: z.string().describe('Design system name to refine'),
+  primary_color: z.string().optional().describe('Exact primary brand color as hex (e.g. "#5E6AD2")'),
+  fonts: z.string().optional().describe('Font specification, e.g. "Inter for headings, Georgia for body" or just "Inter for both"'),
+  border_radius: z.string().optional().describe('Corner rounding style: sharp (0–2px), slight (4px), medium (8px), rounded (16px), pill (999px)'),
+  dark_mode: z.boolean().optional().describe('true = dark background, false = light background'),
+  mood: z.array(z.string()).optional().describe('3 words describing brand personality, e.g. ["minimal", "sharp", "focused"]'),
+};
+
+export const brandConsistencyCheckSchema = {
+  nodeId: z.string().describe('First frame nodeId to check'),
+  nodeId2: z.string().optional().describe('Second frame nodeId to compare (optional — cross-frame consistency check)'),
+  system: z.string().describe('Design system name to compare against'),
+};
+
 export function registerDesignSystemTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
 
   // ═══════════════════════════════════════════════════════════
@@ -1242,17 +1326,7 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
   server.tool(
     'create_design_system',
     'Create a complete design system with auto-generated tokens from minimal input. Provide a name plus any combination of: preset, colors, fonts, or mood keywords. Missing values are auto-generated using color theory.',
-    {
-      name: z.string().describe('Design system name (lowercase, e.g. "payflow")'),
-      preset: z.string().optional().describe('Library preset: shadcn, material, minimal, luxury, or vibrant'),
-      primary_color: z.string().optional().describe('Primary brand color hex (e.g. "#2563EB")'),
-      secondary_color: z.string().optional().describe('Secondary color hex'),
-      accent_color: z.string().optional().describe('Accent color hex'),
-      heading_font: z.string().optional().describe('Heading font family (e.g. "Inter")'),
-      body_font: z.string().optional().describe('Body font family'),
-      mood: z.array(z.string()).optional().describe('Mood keywords like ["fintech", "modern", "trust"]'),
-      voice: z.string().optional().describe('Brand voice description'),
-    },
+    createDesignSystemSchema,
     async (params: { name: string; preset?: string; primary_color?: string; secondary_color?: string; accent_color?: string; heading_font?: string; body_font?: string; mood?: string[]; voice?: string }) => {
       const safeName = params.name.replace(/[^a-z0-9-]/gi, '').toLowerCase();
       if (!safeName) {
@@ -1310,9 +1384,7 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
   server.tool(
     'get_design_system',
     'Load an existing design system by name. Returns the complete token object (colors, fonts, spacing, radius, shadows).',
-    {
-      name: z.string().describe('Design system name'),
-    },
+    getDesignSystemSchema,
     async (params) => {
       const safeName = params.name.replace(/[^a-z0-9-]/gi, '').toLowerCase();
       const tokensPath = nodePath.join(getDesignSystemsDir(), safeName, 'tokens.yaml');
@@ -1338,7 +1410,7 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
   server.tool(
     'list_design_systems',
     'List all saved design systems with summary info (name, preset used, primary color).',
-    {},
+    listDesignSystemsSchema,
     async () => {
       const dir = getDesignSystemsDir();
       if (!fs.existsSync(dir)) {
@@ -1377,10 +1449,7 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
   server.tool(
     'update_design_system',
     'Update specific tokens in an existing design system using dot-path keys. Example: { "colors.primary": "#FF0000" }',
-    {
-      name: z.string().describe('Design system name'),
-      changes: z.record(z.string(), z.unknown()).describe('Dot-path keys to update, e.g. { "colors.primary": "#FF0000", "typography.heading.family": "Merriweather" }'),
-    },
+    updateDesignSystemSchema,
     async (params) => {
       const safeName = params.name.replace(/[^a-z0-9-]/gi, '').toLowerCase();
       const tokensPath = nodePath.join(getDesignSystemsDir(), safeName, 'tokens.yaml');
@@ -1416,9 +1485,7 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
   server.tool(
     'delete_design_system',
     'Delete a design system and all its files.',
-    {
-      name: z.string().describe('Design system name to delete'),
-    },
+    deleteDesignSystemSchema,
     async (params) => {
       const safeName = params.name.replace(/[^a-z0-9-]/gi, '').toLowerCase();
       const systemDir = nodePath.join(getDesignSystemsDir(), safeName);
@@ -1440,16 +1507,7 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
   server.tool(
     'create_component',
     'Instantiate a design system component on the Figma canvas. Loads tokens from the named design system, resolves the component recipe, and sends batch commands to create the element. Components: button, badge, card, divider, avatar.',
-    {
-      system: z.string().describe('Design system name (e.g. "payflow")'),
-      component: z.string().describe('Component name: button, badge, card, divider, avatar'),
-      variant: z.string().optional().describe('Component variant (e.g. "secondary", "ghost", "outlined")'),
-      size: z.string().optional().describe('Size variant: sm, md, lg, xl'),
-      props: z.record(z.unknown()).optional().describe('Component props, e.g. { label: "Get Started" }'),
-      parentId: z.string().optional().describe('Parent frame nodeId to place component inside'),
-      x: z.coerce.number().optional().describe('X position'),
-      y: z.coerce.number().optional().describe('Y position'),
-    },
+    createComponentSchema,
     async (params: {
       system: string; component: string; variant?: string; size?: string;
       props?: Record<string, unknown>; parentId?: string; x?: number; y?: number;
@@ -1557,9 +1615,7 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
   server.tool(
     'list_components',
     'List all available design system components with their variants, props, and descriptions.',
-    {
-      system: z.string().optional().describe('Design system name (currently unused, reserved for future brand-specific overrides)'),
-    },
+    listComponentsSchema,
     async () => {
       const components = loadComponents();
       const result = Object.entries(components).map(([name, def]) => ({
@@ -1587,10 +1643,7 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
   server.tool(
     'get_format_rules',
     'Get complete format adapter rules for a specific output format (dimensions, safe zones, typography scale, layout rules). For presentation formats, optionally specify a slide_type.',
-    {
-      format: z.string().describe('Format name, e.g. "instagram_post", "business_card", "slide_16_9"'),
-      slide_type: z.string().optional().describe('Slide type for presentation formats, e.g. "title_slide", "content_slide"'),
-    },
+    getFormatRulesSchema,
     async (params) => {
       const formatName = params.format.toLowerCase().trim();
       const formatsDir = getFormatsDir();
@@ -1642,9 +1695,7 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
   server.tool(
     'list_formats',
     'List all available format adapters (social, print, presentation, web, email, advertising). Each format includes its size_variants (e.g. instagram_post has square/portrait/landscape), default_size, and dimensions. Use size_variant in create_from_pattern to enforce the correct canvas size. Optionally filter by category.',
-    {
-      category: z.enum(['social', 'print', 'presentation', 'advertising', 'web', 'email']).optional().describe('Filter by category. Omit to list all formats grouped by category.'),
-    },
+    listFormatsSchema,
     async (params) => {
       const allFormats = listAvailableFormats();
 
@@ -1671,11 +1722,7 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
   server.tool(
     'scan_frame_structure',
     'Deep-scan a Figma frame and return its complete structure tree (types, positions, sizes, styles, text content, children). Enables clone+customize and template analysis workflows.',
-    {
-      nodeId: z.string().describe('The nodeId of the frame to scan'),
-      depth: z.coerce.number().optional().default(5).describe('Maximum depth to recurse (default: 5)'),
-      include_styles: z.boolean().optional().default(true).describe('Include fill, stroke, effect, and text style properties (default: true)'),
-    },
+    scanFrameStructureSchema,
     async (params) => {
       const data = await sendDesignCommand('scan_frame_structure', {
         nodeId: params.nodeId,
@@ -1694,11 +1741,7 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
   server.tool(
     'design_system_preview',
     'Generate a visual design system swatch sheet on the Figma canvas. Creates a single preview frame showing all color tokens, typography scale, component samples, and spacing scale for the named design system.',
-    {
-      system: z.string().describe('Design system name (e.g. "testbrand")'),
-      x: z.coerce.number().optional().describe('X position on canvas (default: 0)'),
-      y: z.coerce.number().optional().describe('Y position on canvas (default: 0)'),
-    },
+    designSystemPreviewSchema,
     async (params: { system: string; x?: number; y?: number }) => {
       const safeName = params.system.replace(/[^a-z0-9-]/gi, '').toLowerCase();
       const tokensPath = nodePath.join(getDesignSystemsDir(), safeName, 'tokens.yaml');
@@ -2234,11 +2277,7 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
   server.tool(
     'generate_design_system_from_url',
     'Generates a design system draft from a URL. Extracts what it can via CSS and vision, then guides you through refining the result. Best used as a starting point, not a final output.',
-    {
-      url: z.string().describe('The website URL to extract design tokens from (e.g. "https://stripe.com")'),
-      name: z.string().optional().describe('Design system name (defaults to domain name, e.g. "stripe")'),
-      preset: z.string().optional().describe('Optional preset to blend with extracted values: shadcn, material, minimal, luxury, vibrant'),
-    },
+    generateDesignSystemFromUrlSchema,
     async (params: { url: string; name?: string; preset?: string }) => {
       // ─── Step 1: CSS extraction (colors + fonts — accurate and cheap) ────
       let pageContent: string;
@@ -2403,15 +2442,7 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
   server.tool(
     'refine_design_system',
     'Refine a draft design system with user-provided corrections. Use after generate_design_system_from_url to fix colors, fonts, border radius, dark/light mode, and mood. Returns a diff of what changed.',
-    {
-      name: z.string().describe('Design system name to refine'),
-      primary_color: z.string().optional().describe('Exact primary brand color as hex (e.g. "#5E6AD2")'),
-      fonts: z.string().optional().describe('Font specification, e.g. "Inter for headings, Georgia for body" or just "Inter for both"'),
-      border_radius: z.enum(['sharp', 'slight', 'medium', 'rounded', 'pill']).optional()
-        .describe('Corner rounding style: sharp (0–2px), slight (4px), medium (8px), rounded (16px), pill (999px)'),
-      dark_mode: z.boolean().optional().describe('true = dark background, false = light background'),
-      mood: z.array(z.string()).optional().describe('3 words describing brand personality, e.g. ["minimal", "sharp", "focused"]'),
-    },
+    refineDesignSystemSchema,
     async (params: {
       name: string;
       primary_color?: string;
@@ -2558,11 +2589,7 @@ export function registerDesignSystemTools(server: McpServer, sendDesignCommand: 
   server.tool(
     'brand_consistency_check',
     'Check if one or two Figma frames are brand-consistent by comparing the colors and fonts used against a design system. Returns a score (0–100), list of issues, and a consistent boolean.',
-    {
-      nodeId: z.string().describe('First frame nodeId to check'),
-      nodeId2: z.string().optional().describe('Second frame nodeId to compare (optional — cross-frame consistency check)'),
-      system: z.string().describe('Design system name to compare against'),
-    },
+    brandConsistencyCheckSchema,
     async (params: { nodeId: string; nodeId2?: string; system: string }) => {
       // Load design system tokens
       const safeName = params.system.replace(/[^a-z0-9-]/gi, '').toLowerCase();

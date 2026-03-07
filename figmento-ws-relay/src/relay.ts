@@ -7,6 +7,7 @@ import {
   getActiveClaudeCodeTurns,
   ClaudeCodeTurnRequest,
 } from './chat/claude-code-handler';
+import { sessionManager } from './chat/claude-code-session-manager';
 
 export interface RelayConfig {
   port: number;
@@ -264,6 +265,8 @@ export class FigmentoRelay {
       if (channelClients.size === 0) {
         this.channels.delete(channel);
         console.log(`[Figmento Relay] Channel "${channel}" removed (empty)`);
+        // CR-5.1: destroy Claude Code session when channel is empty
+        sessionManager.destroy(channel);
       }
     }
 
@@ -308,6 +311,8 @@ export class FigmentoRelay {
           channelClients.delete(ws);
           if (channelClients.size === 0) {
             this.channels.delete(channel);
+            // CR-5.1: destroy Claude Code session when channel is empty
+            sessionManager.destroy(channel);
           }
         }
       }

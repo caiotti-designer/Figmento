@@ -566,65 +566,30 @@ After creating any design, run this refinement pass. These are beauty checks, no
 
 Call `get_refinement_rules()` for the full checklist with exact values for each category.
 
-### Automated Self-Evaluation Workflow
+### Mandatory Quality Gate (Two Steps — Always Run)
 
-After creating or significantly modifying a design (new frames, multi-element compositions, carousels, etc.), **automatically run one evaluation pass** without the user asking. This is optional but strongly encouraged for quality assurance.
+For **every design with 5+ elements**, run both steps before reporting done. This is not optional.
 
-**Workflow:**
-
-1. **Call `evaluate_design`** on the root frame node ID. This returns:
-   - A PNG file path (view it to inspect the design visually)
-   - A structural summary: all elements with their types, positions, sizes, fonts, colors
-   - Stats: total elements, text node count, unique font sizes, typography level count
-
-2. **Review the exported image** (read the file at `filePath`) and the structural data. Check against this **format-aware checklist**:
-
-   | Check | What to verify | Data source |
-   |-------|---------------|-------------|
-   | Typography hierarchy | At least 3 distinct font size levels (display, heading, body). `stats.typographyLevels >= 3` | `stats.uniqueFontSizes` |
-   | Safe zone compliance | Text elements are inside platform safe zones. Use `get_layout_guide` with the current format to get exact margins/safe zones, then verify all text `x`/`y` positions respect them. | `elements[].x/y` + `get_layout_guide` |
-   | Contrast ratios | For each text element, check its fill color against the parent/background fill using `get_contrast_check`. Must pass WCAG AA. | `elements[].fills` |
-   | Spacing consistency | Gaps between elements should use values from the 8px grid spacing scale (4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96, 128). Flag irregular gaps. | `elements[].x/y` positions |
-   | Visual balance | No large empty areas on one side while the other is crowded. Text and images distributed evenly. | Visual inspection of PNG |
-   | Image placement | Images are properly sized, not stretched, and placed within frame bounds. | `elements[].width/height` for IMAGE type |
-   | CTA visibility | If there's a button/CTA, it should be prominent — large enough, high contrast, in the lower third or center. | Visual + structural |
-
-3. **Apply fixes** using existing tools (`move_node`, `resize_node`, `set_fill`, `create_text`, etc.) for any issues found.
-
-4. **Maximum 2 evaluation passes.** After the second pass, stop iterating and report any remaining issues to the user. Never loop indefinitely.
-
-**When to trigger:**
-- After creating a new design frame with 5+ elements
-- After completing a multi-slide carousel (evaluate at least the first slide)
-- After major layout restructuring
-- NOT for single-element tweaks (moving one node, changing one color)
-
-**Example flow for a 3-slide carousel:**
-```
-1. Create all 3 slides
-2. Call evaluate_design on slide 1's root frame
-3. Read the PNG file, inspect structural data
-4. Find issue: body text at 18px is too small for Instagram (minimum 28px)
-5. Fix: resize body text to 30px via resize_node or update text properties
-6. Call evaluate_design again (pass 2) to confirm fix
-7. Report: "Evaluated slide 1 — fixed body text size from 18px to 30px. Passes all checks."
-```
-
-### Automated Refinement Pass (Mandatory)
-
-After creating any design with 5+ elements, run the structural refinement check:
+**STEP 1 — Structural Check (always, for any design with 5+ elements):**
 
 1. Call `run_refinement_check(rootFrameId)`
-2. Read the `issues` list from the returned report
-3. Auto-fix what you can (max 2 passes):
+2. Read the `issues` array. **Auto-fix ALL `severity: 'error'` issues immediately** — no exceptions, no asking the user:
    - Gradient direction wrong → flip via `set_fill` with corrected direction and stops
    - Frame missing auto-layout → call `set_auto_layout`
-   - Non-standard itemSpacing → update to nearest value in [4,8,12,16,20,24,32,40,48,64,80,96,128]
-   - Empty placeholder → attempt `fetch_placeholder_image` or flag to user
-4. Call `run_refinement_check` again (pass 2) to verify fixes applied
-5. After pass 2, stop — report any remaining issues to user
+   - Non-standard itemSpacing → round to nearest value in [4,8,12,16,20,24,32,40,48,64,80,96,128]
+   - Low-contrast text (`wcag-contrast`) → adjust fill color until ratio meets WCAG AA
+   - Text outside safe zone (`safe-zone`) → move node inside safe margins
+3. If score < 70, fix errors and call `run_refinement_check` again (max 2 passes)
+4. **Do NOT report the design as complete until score ≥ 70**
 
-This is separate from `evaluate_design` (screenshot-based visual check). The refinement check operates on structural data — faster and catches different issues (gradient orientation, spacing, layout coverage). Use both for high-fidelity designs.
+**STEP 2 — Visual Check (complex designs: 10+ elements, carousels, multi-section):**
+
+1. Call `evaluate_design(rootFrameId)` after all structural errors are fixed
+2. Read the exported PNG and structural summary. Verify: `stats.typographyLevels >= 3`, all image areas filled (no empty rects), visual balance, CTA prominence
+3. Apply fixes with `move_node` / `resize_node` / `set_fill` / `create_text`. Max 1 visual pass.
+
+**Always end your response with the refinement score:**
+> "Design complete. Refinement score: [X]/100. [brief summary of any remaining warnings]."
 
 ## HTML-to-Figma Pipeline
 

@@ -220,21 +220,31 @@ function findSimilarIcons(name: string, allNames: string[], limit = 10): string[
 
 // ─── Tool registration ──────────────────────────────────────────────────────
 
+export const createIconSchema = {
+  name: z.string().describe('Lucide icon name (e.g., "zap", "shield", "arrow-right", "heart", "check", "star")'),
+  size: z.number().optional().default(24).describe('Icon size in pixels (default: 24)'),
+  color: z.string().optional().default('#333333').describe('Icon color as hex (default: "#333333")'),
+  strokeWidth: z.number().optional().default(2).describe('Stroke width (default: 2, Lucide default)'),
+  parentId: z.string().optional().describe('Parent frame nodeId to append icon into'),
+  x: z.number().optional().describe('X position'),
+  y: z.number().optional().describe('Y position'),
+};
+
+export const listIconsSchema = {
+  search: z.string().optional().describe('Search term to filter icons (e.g., "arrow", "chart", "user")'),
+  category: z.enum([
+    'arrows', 'media', 'communication', 'data', 'ui',
+    'nature', 'commerce', 'social', 'dev', 'shapes',
+  ]).optional().describe('Browse icons by category'),
+};
+
 export function registerIconTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
 
   // ── create_icon ─────────────────────────────────────────────────────────
   server.tool(
     'create_icon',
     'Create a Lucide icon on the Figma canvas. Automatically loads SVG path data from the bundled Lucide icon set (1900+ icons). No need to provide svgPaths manually.',
-    {
-      name: z.string().describe('Lucide icon name (e.g., "zap", "shield", "arrow-right", "heart", "check", "star")'),
-      size: z.number().optional().default(24).describe('Icon size in pixels (default: 24)'),
-      color: z.string().optional().default('#333333').describe('Icon color as hex (default: "#333333")'),
-      strokeWidth: z.number().optional().default(2).describe('Stroke width (default: 2, Lucide default)'),
-      parentId: z.string().optional().describe('Parent frame nodeId to append icon into'),
-      x: z.number().optional().describe('X position'),
-      y: z.number().optional().describe('Y position'),
-    },
+    createIconSchema,
     async (params) => {
       const iconName = params.name;
       const iconsDir = getIconsDir();
@@ -289,13 +299,7 @@ export function registerIconTools(server: McpServer, sendDesignCommand: SendDesi
   server.tool(
     'list_icons',
     'List available Lucide icons. Search by name or browse by category. Returns icon names that can be used with create_icon.',
-    {
-      search: z.string().optional().describe('Search term to filter icons (e.g., "arrow", "chart", "user")'),
-      category: z.enum([
-        'arrows', 'media', 'communication', 'data', 'ui',
-        'nature', 'commerce', 'social', 'dev', 'shapes',
-      ]).optional().describe('Browse icons by category'),
-    },
+    listIconsSchema,
     async (params) => {
       const allNames = getAllIconNames();
 

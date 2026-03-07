@@ -194,7 +194,7 @@ export function summarizeScreenshotResult(toolName: string, data: Record<string,
 // GEMINI TOOL SCHEMA CONVERTER
 // ═══════════════════════════════════════════════════════════════
 
-function convertSchemaToGemini(schema: Record<string, unknown>): Record<string, unknown> {
+export function convertSchemaToGemini(schema: Record<string, unknown>): Record<string, unknown> {
   if (schema.oneOf) {
     const options = schema.oneOf as Record<string, unknown>[];
     if (options.length > 0) {
@@ -246,7 +246,7 @@ function convertToolsToGemini(tools: ToolDefinition[]): Record<string, unknown>[
 // OPENAI TOOL SCHEMA CONVERTER
 // ═══════════════════════════════════════════════════════════════
 
-function convertSchemaToOpenAI(schema: Record<string, unknown>): Record<string, unknown> {
+export function convertSchemaToOpenAI(schema: Record<string, unknown>): Record<string, unknown> {
   if (schema.oneOf) {
     const options = schema.oneOf as Record<string, unknown>[];
     if (options.length > 0) {

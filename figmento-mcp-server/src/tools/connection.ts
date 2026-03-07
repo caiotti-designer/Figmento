@@ -2,14 +2,18 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { FigmentoWSClient } from '../ws-client';
 
+export const connectToFigmaSchema = {
+  channel: z.string().describe('Channel ID shown in the Figma plugin (e.g. "figmento-abc123")'),
+  url: z.string().optional().describe('WebSocket relay URL (default: ws://localhost:3055)'),
+};
+
+export const disconnectFromFigmaSchema = {};
+
 export function registerConnectionTools(server: McpServer, wsClient: FigmentoWSClient): void {
   server.tool(
     'connect_to_figma',
     'Connect to a Figma file via the Figmento plugin. Open the Figmento MCP plugin in Figma, copy the channel ID, and pass it here. The relay server must be running on the specified URL.',
-    {
-      channel: z.string().describe('Channel ID shown in the Figma plugin (e.g. "figmento-abc123")'),
-      url: z.string().optional().describe('WebSocket relay URL (default: ws://localhost:3055)'),
-    },
+    connectToFigmaSchema,
     async ({ channel, url }) => {
       // CR-5: If auto-connected via FIGMENTO_CHANNEL env var, skip reconnection.
       // The MCP server was spawned by Claude Code SDK with the correct channel already set.
@@ -72,7 +76,7 @@ export function registerConnectionTools(server: McpServer, wsClient: FigmentoWSC
   server.tool(
     'disconnect_from_figma',
     'Disconnect from the current Figma session.',
-    {},
+    disconnectFromFigmaSchema,
     async () => {
       wsClient.disconnect();
       return {

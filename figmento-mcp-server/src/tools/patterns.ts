@@ -92,6 +92,20 @@ export function resolveFormatCategory(formatName: string): string | null {
 
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
+export const createFromPatternSchema = {
+  system: z.string().describe('Design system name (e.g. "payflow")'),
+  pattern: z.string().describe('Pattern name: hero_block, feature_grid, pricing_card, testimonial, contact_block, content_section, image_text_row, gallery, data_row, cta_banner'),
+  format: z.string().describe('Target format name (e.g. "instagram_post", "landing_page", "business_card"). Used to look up the format category and apply format_adaptations.'),
+  size_variant: z.string().optional().describe('Size variant key from the format\'s size_variants map (e.g. "portrait", "landscape", "square", "desktop", "mobile", "screen", "print_ready"). If omitted, uses the format\'s default_size.'),
+  props: z.record(z.unknown()).optional().describe('Pattern props, e.g. { headline: "Welcome", subheadline: "Get started today" }'),
+  variant: z.string().optional().describe('Pattern variant (e.g. "dark", "stacked", "highlighted")'),
+  parentId: z.string().optional().describe('Parent frame nodeId to place pattern inside'),
+  x: z.coerce.number().optional().describe('X position'),
+  y: z.coerce.number().optional().describe('Y position'),
+};
+
+export const listPatternsSchema = {};
+
 export function registerPatternTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
 
   // ═══════════════════════════════════════════════════════════
@@ -101,17 +115,7 @@ export function registerPatternTools(server: McpServer, sendDesignCommand: SendD
   server.tool(
     'create_from_pattern',
     'Instantiate a cross-format design pattern on the Figma canvas. Loads design system tokens, resolves the pattern recipe with format-specific adaptations, and enforces canvas dimensions from the format YAML — the format always wins. Use size_variant to select a specific size (e.g. "portrait" → instagram_post 1080×1350, "landscape" → 1080×566, "square" → 1080×1080, "desktop" → landing_page 1440×1024, "mobile" → 390×844). If omitted, the format\'s default_size is used automatically. Patterns: hero_block, feature_grid, pricing_card, testimonial, contact_block, content_section, image_text_row, gallery, data_row, cta_banner.',
-    {
-      system: z.string().describe('Design system name (e.g. "payflow")'),
-      pattern: z.string().describe('Pattern name: hero_block, feature_grid, pricing_card, testimonial, contact_block, content_section, image_text_row, gallery, data_row, cta_banner'),
-      format: z.string().describe('Target format name (e.g. "instagram_post", "landing_page", "business_card"). Used to look up the format category and apply format_adaptations.'),
-      size_variant: z.string().optional().describe('Size variant key from the format\'s size_variants map (e.g. "portrait", "landscape", "square", "desktop", "mobile", "screen", "print_ready"). If omitted, uses the format\'s default_size.'),
-      props: z.record(z.unknown()).optional().describe('Pattern props, e.g. { headline: "Welcome", subheadline: "Get started today" }'),
-      variant: z.string().optional().describe('Pattern variant (e.g. "dark", "stacked", "highlighted")'),
-      parentId: z.string().optional().describe('Parent frame nodeId to place pattern inside'),
-      x: z.coerce.number().optional().describe('X position'),
-      y: z.coerce.number().optional().describe('Y position'),
-    },
+    createFromPatternSchema,
     async (params) => {
       // Always reload patterns from disk — ensures YAML edits are hot without server restart
       clearPatternCache();
@@ -283,7 +287,7 @@ export function registerPatternTools(server: McpServer, sendDesignCommand: SendD
   server.tool(
     'list_patterns',
     'List all available cross-format design patterns with their names, descriptions, props, and variants.',
-    {},
+    listPatternsSchema,
     async () => {
       const patterns = loadPatterns();
       const result = Object.entries(patterns).map(([name, def]) => ({

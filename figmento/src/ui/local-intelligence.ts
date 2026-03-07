@@ -114,8 +114,8 @@ export function lookupSize(args: Record<string, unknown>): unknown {
 // ── Tool Router ──
 
 export const LOCAL_TOOL_HANDLERS: Record<string, (args: Record<string, unknown>) => unknown> = {
-  lookup_blueprint: lookupBlueprint,
-  lookup_palette: lookupPalette,
-  lookup_fonts: lookupFonts,
-  lookup_size: lookupSize,
+  get_layout_blueprint: lookupBlueprint,
+  get_color_palette: lookupPalette,
+  get_font_pairing: lookupFonts,
+  get_size_preset: lookupSize,
 };

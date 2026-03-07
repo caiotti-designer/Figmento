@@ -47,6 +47,22 @@ Never reuse the original ad image for any variant — the original has baked-in 
 // TOOL REGISTRATION
 // ═══════════════════════════════════════════════════════════════
 
+export const startAdAnalyzerSchema = {
+  imageBase64: z.string().describe('Base64-encoded ad image (PNG or JPG), without data URI prefix'),
+  imageMimeType: z.string().describe('image/png or image/jpeg'),
+  productName: z.string().describe('Product name from the brief'),
+  productCategory: z.string().describe('Product category (e.g. Furniture, Fashion, SaaS)'),
+  platform: z.string().describe('Target platform: instagram-4x5 | instagram-1x1 | instagram-story | facebook-feed'),
+  channelId: z.string().describe('Bridge channel ID for sending design commands to Figma'),
+  notes: z.string().optional().describe('Optional notes from the user'),
+};
+
+export const completeAdAnalyzerSchema = {
+  report: z.string().describe('Full design-report.md content as markdown'),
+  carouselNodeId: z.string().describe('Root carousel frame nodeId in Figma'),
+  variantNodeIds: z.array(z.string()).describe('Array of [A, B, C] variant slide nodeIds'),
+};
+
 export function registerAdAnalyzerTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
 
   // ─────────────────────────────────────────────────────────────
@@ -56,15 +72,7 @@ export function registerAdAnalyzerTools(server: McpServer, sendDesignCommand: Se
   server.tool(
     'start_ad_analyzer',
     'Initialize the Ad Analyzer workflow. Receives the ad brief and base64 image from the Figmento plugin. Saves the image to disk and returns the brief, critical rules, and instructions to proceed with the MISSION.md workflow (Phases 2-5).',
-    {
-      imageBase64: z.string().describe('Base64-encoded ad image (PNG or JPG), without data URI prefix'),
-      imageMimeType: z.string().describe('image/png or image/jpeg'),
-      productName: z.string().describe('Product name from the brief'),
-      productCategory: z.string().describe('Product category (e.g. Furniture, Fashion, SaaS)'),
-      platform: z.string().describe('Target platform: instagram-4x5 | instagram-1x1 | instagram-story | facebook-feed'),
-      channelId: z.string().describe('Bridge channel ID for sending design commands to Figma'),
-      notes: z.string().optional().describe('Optional notes from the user'),
-    },
+    startAdAnalyzerSchema,
     async ({ imageBase64, imageMimeType, productName, productCategory, platform, channelId, notes }) => {
       // 1. Ensure output/ directory exists
       const outputDir = path.resolve(process.cwd(), 'output');
@@ -124,11 +132,7 @@ export function registerAdAnalyzerTools(server: McpServer, sendDesignCommand: Se
   server.tool(
     'complete_ad_analyzer',
     'Signal that the Ad Analyzer workflow is complete. Sends the design report and carousel node IDs to the Figmento plugin via the Bridge command pipeline, which displays the report in the plugin UI.',
-    {
-      report: z.string().describe('Full design-report.md content as markdown'),
-      carouselNodeId: z.string().describe('Root carousel frame nodeId in Figma'),
-      variantNodeIds: z.array(z.string()).describe('Array of [A, B, C] variant slide nodeIds'),
-    },
+    completeAdAnalyzerSchema,
     async ({ report, carouselNodeId, variantNodeIds }) => {
       // Send completion to plugin via existing Bridge command pipeline
       await sendDesignCommand('ad-analyzer-complete', {

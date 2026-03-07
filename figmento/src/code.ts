@@ -2099,6 +2099,10 @@ function resolveTempIds(params: Record<string, unknown>, tempIdMap: Map<string, 
   return resolved;
 }
 
+function isCreationAction(action: string): boolean {
+  return action.startsWith('create_') || action === 'clone_node' || action === 'clone_with_overrides';
+}
+
 async function handleBatchExecute(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const commands = params.commands as BatchCommand[];
   if (!commands || !Array.isArray(commands)) {
@@ -2107,6 +2111,7 @@ async function handleBatchExecute(params: Record<string, unknown>): Promise<Reco
 
   const tempIdMap = new Map<string, string>();
   const results: BatchResult[] = [];
+  const createdNodeIds: string[] = [];
 
   for (const command of commands) {
     try {
@@ -2115,6 +2120,10 @@ async function handleBatchExecute(params: Record<string, unknown>): Promise<Reco
 
       if (command.tempId && response.nodeId) {
         tempIdMap.set(command.tempId, response.nodeId as string);
+      }
+
+      if (response.nodeId && isCreationAction(command.action)) {
+        createdNodeIds.push(response.nodeId as string);
       }
 
       results.push({
@@ -2135,7 +2144,7 @@ async function handleBatchExecute(params: Record<string, unknown>): Promise<Reco
   const succeeded = results.filter(r => r.success).length;
   const failed = results.filter(r => !r.success).length;
 
-  return { results, summary: { total: results.length, succeeded, failed } };
+  return { results, summary: { total: results.length, succeeded, failed }, tempIdResolutions: Object.fromEntries(tempIdMap), createdNodeIds };
 }
 
 async function executeSingleAction(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
