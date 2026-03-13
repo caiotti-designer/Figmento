@@ -13,8 +13,8 @@ import { IncomingMessage, ServerResponse } from 'http';
 import { FigmentoRelay } from '../relay';
 import { handleChatTurn, ChatTurnRequest, ChatTurnResponse } from './chat-engine';
 
-/** Maximum request body size (1 MB — conversation history can be large). */
-const MAX_BODY_SIZE = 1 * 1024 * 1024;
+/** Maximum request body size (8 MB — allows up to ~4 MB image attachments as base64). */
+const MAX_BODY_SIZE = 8 * 1024 * 1024;
 
 /** Request timeout (120s — complex designs may need 50+ tool calls). */
 const REQUEST_TIMEOUT_MS = 120_000;

@@ -2,7 +2,7 @@
  * AUTO-GENERATED — DO NOT EDIT
  * Compiled from figmento-mcp-server/knowledge/ YAML files.
  * Run: npx tsx scripts/compile-knowledge.ts
- * Generated: 2026-03-06T22:26:53.547Z
+ * Generated: 2026-03-13T20:35:28.074Z
  */
 
 import type {

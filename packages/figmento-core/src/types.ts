@@ -728,3 +728,94 @@ export interface SaveSettingsMessage {
   type: 'save-settings';
   settings: Record<string, unknown>;
 }
+
+// ═══════════════════════════════════════════════════════════════
+// LC — LEARNING & CORRECTIONS (Phase 4a)
+// ═══════════════════════════════════════════════════════════════
+
+export interface SerializedFill {
+  type: string;
+  color?: string;  // hex string e.g. "#3B82F6"
+  opacity?: number;
+}
+
+export interface SerializedEffect {
+  type: string;
+  color?: string;
+  offset?: { x: number; y: number };
+  radius?: number;
+}
+
+export interface NodeSnapshot {
+  id: string;
+  name: string;
+  type: 'FRAME' | 'TEXT' | 'RECTANGLE' | 'ELLIPSE' | 'GROUP' | 'COMPONENT' | 'INSTANCE';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fills: SerializedFill[];
+  opacity: number;
+  cornerRadius?: number;
+  // Text-specific
+  fontSize?: number;
+  fontFamily?: string;
+  fontWeight?: number;
+  lineHeight?: number;
+  letterSpacing?: number;
+  characters?: string;
+  // Layout-specific
+  layoutMode?: 'NONE' | 'HORIZONTAL' | 'VERTICAL';
+  itemSpacing?: number;
+  paddingTop?: number;
+  paddingRight?: number;
+  paddingBottom?: number;
+  paddingLeft?: number;
+  // Stroke
+  strokeWeight?: number;
+  strokeColor?: string;
+  // Effects
+  effects?: SerializedEffect[];
+}
+
+export interface CorrectionEntry {
+  id: string;
+  frameId: string;
+  nodeId: string;
+  nodeName: string;
+  nodeType: string;
+  property: string;
+  category: 'typography' | 'color' | 'spacing' | 'shape';
+  context: string;
+  beforeValue: unknown;
+  afterValue: unknown;
+  direction: 'increase' | 'decrease' | 'change';
+  magnitude: number;
+  timestamp: number;
+  confirmed: boolean;
+}
+
+export interface LearningConfig {
+  enabled: boolean;
+  autoDetect: boolean;
+  confidenceThreshold: number;
+}
+
+export type ConfidenceLevel = 'low' | 'medium' | 'high';
+
+export interface LearnedPreference {
+  id: string;
+  property: string;
+  category: 'typography' | 'color' | 'spacing' | 'shape';
+  context: string;
+  direction: 'increase' | 'decrease' | 'change';
+  learnedValue?: unknown;
+  learnedRange?: { min: unknown; max: unknown };
+  description: string;
+  confidence: ConfidenceLevel;
+  correctionCount: number;
+  correctionIds: string[];
+  enabled: boolean;
+  createdAt: number;
+  lastSeenAt: number;
+}
