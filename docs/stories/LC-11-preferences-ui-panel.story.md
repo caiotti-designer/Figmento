@@ -1,6 +1,6 @@
 # Story LC-11: Preferences UI Panel + Sandbox CRUD Handlers
 
-**Status:** Ready
+**Status:** Ready for Review
 **Priority:** Medium
 **Complexity:** M (Medium) — New Settings sub-panel UI (HTML + CSS + TS event handlers) + 3 new sandbox CRUD handlers. Most complex UI work in Phase 4c.
 **Epic:** LC — Learning & Corrections (Phase 4c)
@@ -126,19 +126,19 @@ The panel also exports `export function reloadPreferencesPanel(): void` for use 
 
 ## Acceptance Criteria
 
-- [ ] **AC1:** A "Preferences" section appears in the Settings tab, below the Learning toggle section added by LC-8
-- [ ] **AC2:** On Settings tab open, the plugin loads preferences from sandbox and renders the list
-- [ ] **AC3:** Empty state message shown when no preferences exist
-- [ ] **AC4:** Each preference card shows: property name, context, confidence badge (HIGH/MED/LOW), description, correctionCount, lastSeenAt (human-readable date), enabled toggle, delete button
-- [ ] **AC5:** Toggle (enabled/disabled) saves the updated preference array via `save-preferences` without page reload — card updates visually (opacity or muted style for disabled)
-- [ ] **AC6:** Delete button removes the preference, saves via `save-preferences`, and removes the card from DOM
-- [ ] **AC7:** "Clear All" button shows a confirm dialog (`window.confirm` or inline confirm UI). On confirm, sends `clear-preferences` to sandbox, clears the list in UI
-- [ ] **AC8:** "Export JSON" downloads a file named `figmento-preferences.json` containing the full preferences array as pretty-printed JSON
-- [ ] **AC9:** "Import JSON" opens a file picker, parses the selected `.json` file, validates it is an array, sends `save-preferences` to sandbox with the parsed array, and reloads the list
-- [ ] **AC10:** `update-preference` sandbox handler updates a single preference by `id` in clientStorage (full replace of that entry)
-- [ ] **AC11:** `delete-preference` sandbox handler removes a preference by `id` from clientStorage array
-- [ ] **AC12:** `clear-preferences` sandbox handler writes `[]` to `figmento-preferences` in clientStorage
-- [ ] **AC13:** `cd figmento && npm run build` passes clean. No TypeScript errors.
+- [x] **AC1:** A "Preferences" section appears in the Settings tab, below the Learning toggle section added by LC-8
+- [x] **AC2:** On Settings tab open, the plugin loads preferences from sandbox and renders the list
+- [x] **AC3:** Empty state message shown when no preferences exist
+- [x] **AC4:** Each preference card shows: property name, context, confidence badge (HIGH/MED/LOW), description, correctionCount, lastSeenAt (human-readable date), enabled toggle, delete button
+- [x] **AC5:** Toggle (enabled/disabled) saves the updated preference array via `save-preferences` without page reload — card updates visually (opacity or muted style for disabled)
+- [x] **AC6:** Delete button removes the preference, saves via `save-preferences`, and removes the card from DOM
+- [x] **AC7:** "Clear All" button shows a confirm dialog (`window.confirm` or inline confirm UI). On confirm, sends `clear-preferences` to sandbox, clears the list in UI
+- [x] **AC8:** "Export JSON" downloads a file named `figmento-preferences.json` containing the full preferences array as pretty-printed JSON
+- [x] **AC9:** "Import JSON" opens a file picker, parses the selected `.json` file, validates it is an array, sends `save-preferences` to sandbox with the parsed array, and reloads the list
+- [x] **AC10:** `update-preference` sandbox handler updates a single preference by `id` in clientStorage (full replace of that entry)
+- [x] **AC11:** `delete-preference` sandbox handler removes a preference by `id` from clientStorage array
+- [x] **AC12:** `clear-preferences` sandbox handler writes `[]` to `figmento-preferences` in clientStorage
+- [x] **AC13:** `cd figmento && npm run build` passes clean. No TypeScript errors.
 
 ---
 
@@ -146,7 +146,7 @@ The panel also exports `export function reloadPreferencesPanel(): void` for use 
 
 ### Phase 1 — Sandbox Handlers
 
-- [ ] **Task 1:** In `figmento/src/code.ts`, add three new message handlers after the existing `save-preferences` case:
+- [x] **Task 1:** In `figmento/src/code.ts`, add three new message handlers after the existing `save-preferences` case:
 
   ```typescript
   case 'update-preference': (async () => {
@@ -187,7 +187,7 @@ The panel also exports `export function reloadPreferencesPanel(): void` for use 
 
 ### Phase 2 — HTML Structure
 
-- [ ] **Task 2:** In `figmento/src/ui.html`, add after the Learning section (the `settings-auto-detect` checkbox group):
+- [x] **Task 2:** In `figmento/src/ui.html`, add after the Learning section (the `settings-auto-detect` checkbox group):
 
   ```html
   <!-- Preferences Panel (LC-11) -->
@@ -232,7 +232,7 @@ The panel also exports `export function reloadPreferencesPanel(): void` for use 
 
 ### Phase 3 — preferences-panel.ts
 
-- [ ] **Task 3:** Create `figmento/src/ui/preferences-panel.ts`:
+- [x] **Task 3:** Create `figmento/src/ui/preferences-panel.ts`:
 
   ```typescript
   import type { LearnedPreference } from '../types';
@@ -383,11 +383,11 @@ The panel also exports `export function reloadPreferencesPanel(): void` for use 
 
 ### Phase 4 — Wire into ui.ts and Settings Tab Trigger
 
-- [ ] **Task 4:** In `figmento/src/ui.ts` (or wherever `initChatSettings()` is called from):
+- [x] **Task 4:** In `figmento/src/ui.ts` (or wherever `initChatSettings()` is called from):
   - Add `import { initPreferencesPanel } from './ui/preferences-panel';`
   - Call `initPreferencesPanel();` after `initChatSettings();`
 
-- [ ] **Task 5:** Trigger preferences load on Settings tab activation. In `ui.html` or `ui.ts`, find where the settings tab show/hide toggle is handled and add a call to reload preferences when the settings panel becomes visible:
+- [x] **Task 5:** Trigger preferences load on Settings tab activation. In `ui.html` or `ui.ts`, find where the settings tab show/hide toggle is handled and add a call to reload preferences when the settings panel becomes visible:
   ```typescript
   // When settings tab is clicked/shown:
   import { reloadPreferencesPanel } from './ui/preferences-panel';
@@ -397,7 +397,7 @@ The panel also exports `export function reloadPreferencesPanel(): void` for use 
 
 ### Phase 5 — Build Verification
 
-- [ ] **Task 6:** `cd figmento && npm run build` — verify clean. No TypeScript errors. Plugin loads in Figma.
+- [x] **Task 6:** `cd figmento && npm run build` — verify clean. No TypeScript errors. Plugin loads in Figma.
 
 ---
 
@@ -438,15 +438,15 @@ The panel also exports `export function reloadPreferencesPanel(): void` for use 
 
 ## Definition of Done
 
-- [ ] Preferences section visible in Settings tab with list of learned preferences
-- [ ] Empty state shown when no preferences exist
-- [ ] Toggle per preference updates `enabled` flag and saves
-- [ ] Delete removes preference from storage and UI
-- [ ] Clear All (with confirm) empties the preference list
-- [ ] Export JSON downloads valid JSON file
-- [ ] Import JSON reads, validates, saves, and re-renders
-- [ ] Three new sandbox handlers (`update-preference`, `delete-preference`, `clear-preferences`) work correctly
-- [ ] `cd figmento && npm run build` passes clean
+- [x] Preferences section visible in Settings tab with list of learned preferences
+- [x] Empty state shown when no preferences exist
+- [x] Toggle per preference updates `enabled` flag and saves
+- [x] Delete removes preference from storage and UI
+- [x] Clear All (with confirm) empties the preference list
+- [x] Export JSON downloads valid JSON file
+- [x] Import JSON reads, validates, saves, and re-renders
+- [x] Three new sandbox handlers (`update-preference`, `delete-preference`, `clear-preferences`) work correctly
+- [x] `cd figmento && npm run build` passes clean
 
 ---
 
@@ -456,3 +456,4 @@ The panel also exports `export function reloadPreferencesPanel(): void` for use 
 |------|--------|--------|
 | 2026-03-13 | @sm (River) | Story drafted from PRD-004 Phase 4c §5 US-5. New preferences-panel.ts + 3 sandbox CRUD handlers + Settings tab HTML/CSS. |
 | 2026-03-13 | @po (Pax) | Validated 7/10. Added LC-8 dependency, explicit OUT OF SCOPE note for edit UI, XSS risk warning in Dev Notes (innerHTML with user-derived fields), PRD US-5 deviation note (delete vs reset deferred). Status Draft → Ready. GO verdict. |
+| 2026-03-13 | @dev (Dex) | Implemented. preferences-panel.ts created with XSS-safe DOM construction (textContent for all user-derived fields). 3 sandbox handlers added to code.ts. HTML+CSS added to ui.html. initPreferencesPanel + reloadPreferencesPanel wired into index.ts (initChatSettings call site + tab click handler). Build clean: 594.7KB code.js, 2179.9KB ui.html. |

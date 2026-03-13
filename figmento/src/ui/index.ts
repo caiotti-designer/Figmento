@@ -66,6 +66,7 @@ import { addToQueue, startBatchProcessing, clearQueue, notifyDesignCreated } fro
 import { initChat, resolveChatCommand, loadMemoryEntries, getChatSettings } from './chat';
 import { initBridge, handleBridgeCommandResult, autoConnectBridge } from './bridge';
 import { initChatSettings, loadChatSettings } from './chat-settings';
+import { initPreferencesPanel, reloadPreferencesPanel } from './preferences-panel';
 import { initAdAnalyzer, canLeaveAdAnalyzer } from './ad-analyzer';
 
 function setupEventListeners(): void {
@@ -389,6 +390,7 @@ function initializeApp(): void {
   initChat();
   initBridge();
   initChatSettings();
+  initPreferencesPanel();
 
   // 11. Restore saved mode or show mode selector
   const savedMode = getSavedMode();
@@ -415,6 +417,10 @@ function initUnifiedTabs() {
       btn.classList.add('active');
       const tabEl = document.getElementById(tab);
       if (tabEl) tabEl.classList.add('active');
+      // Reload preferences list whenever the Settings tab is opened
+      if (tab === 'tab-settings') {
+        reloadPreferencesPanel();
+      }
     });
   });
 }
