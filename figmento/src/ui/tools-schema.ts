@@ -91,7 +91,7 @@ const PLAN_PHASE_TOOLS = new Set([
   // Lookups
   'get_layout_blueprint', 'get_color_palette', 'get_font_pairing', 'get_size_preset',
   // Scene queries
-  'get_selection', 'get_page_nodes',
+  'get_selection', 'get_page_nodes', 'get_node_info', 'analyze_canvas_context',
   // Basic creation
   'create_frame', 'create_text', 'create_rectangle', 'create_ellipse',
   // Essential styling
@@ -141,6 +141,19 @@ export function chatToolResolver(): ToolResolver {
 
 /** Plugin-only tools (no MCP server equivalent). */
 const PLUGIN_ONLY_TOOLS: ToolDefinition[] = [
+  {
+    name: 'analyze_canvas_context',
+    description: 'Analyze existing frames on the Figma canvas to extract design context: dominant colors, typography, mood, and visual style. Call this when the user asks to "analyze the design", "use the project context", "match the existing style", or "generate an image that fits this design". Returns colors, text content, inferred mood, and a screenshot for visual reference.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: {
+          type: 'string',
+          description: 'Optional nodeId to analyze. If omitted, uses the current selection or first frame.',
+        },
+      },
+    },
+  },
   {
     name: 'update_memory',
     description: 'Save a design lesson, user preference, or rule to persistent memory. Use this when the user reports an issue, says "remember this", "always do X", "never do Y", or teaches you something about their preferences. Keep entries concise (one sentence).',

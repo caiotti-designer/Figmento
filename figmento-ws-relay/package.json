@@ -7,6 +7,7 @@
     "prebuild": "node scripts/copy-knowledge.js",
     "build": "tsc",
     "start": "node dist/index.js",
+    "predev": "node -e \"const {execSync}=require('child_process');try{const r=execSync('netstat -ano').toString();const m=r.match(/TCP.*:3055.*LISTENING\\s+(\\d+)/);if(m){execSync('taskkill /PID '+m[1]+' /F',{stdio:'ignore'});console.log('[predev] Freed port 3055');}}catch(e){}\"",
     "dev": "node scripts/copy-knowledge.js && tsc && node dist/index.js",
     "lint": "eslint src/",
     "format": "prettier --write src/"

@@ -87,7 +87,7 @@ const BUILD_PHASE_TRIGGERS = new Set([
 
 const PLAN_PHASE_TOOLS = new Set([
   'lookup_blueprint', 'lookup_palette', 'lookup_fonts', 'lookup_size',
-  'get_selection', 'get_page_nodes',
+  'get_selection', 'get_page_nodes', 'get_node_info', 'analyze_canvas_context',
   'create_frame', 'create_text', 'create_rectangle', 'create_ellipse',
   'set_fill',
   'create_image', 'generate_image', 'update_memory',
@@ -520,6 +520,21 @@ export const FIGMENTO_TOOLS: ToolDefinition[] = [
         parentId: { type: 'string' },
       },
       required: ['prompt'],
+    },
+  },
+
+  // ── Canvas Context Analysis (composite server-side tool) ──
+  {
+    name: 'analyze_canvas_context',
+    description: 'Analyze existing frames on the Figma canvas to extract design context: dominant colors, typography, mood, and visual style. Call this when the user asks to "analyze the design", "use the project context", "match the existing style", or "generate an image that fits this design". Returns colors, text content, inferred mood, and a screenshot for visual reference.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: {
+          type: 'string',
+          description: 'Optional nodeId to analyze. If omitted, uses the current selection or the first frame on the page.',
+        },
+      },
     },
   },
 

@@ -149,6 +149,7 @@ export class ClaudeCodeSessionManager {
     message: string,
     history: Array<{ role: string; content: string }>,
     memory: string[] | undefined,
+    model?: string,
   ): Promise<ClaudeCodeTurnResult | ClaudeCodeTurnError> {
     let session = this.sessions.get(channel);
 
@@ -169,8 +170,8 @@ export class ClaudeCodeSessionManager {
 
     // Boot a fresh session if none exists
     if (!session) {
-      console.log(`[Figmento Claude Code] Booting new session channel=${channel}`);
-      session = this.startSession(channel, history, memory);
+      console.log(`[Figmento Claude Code] Booting new session channel=${channel} model=${model ?? 'default'}`);
+      session = this.startSession(channel, history, memory, model);
     }
 
     // Stage turn context before pushing (drain loop reads these fields)
@@ -270,6 +271,7 @@ export class ClaudeCodeSessionManager {
     channel: string,
     history: Array<{ role: string; content: string }>,
     memory: string[] | undefined,
+    model?: string,
   ): ClaudeCodeSession {
     const queue = new AsyncQueue<SDKUserMessage>();
 
@@ -284,6 +286,7 @@ export class ClaudeCodeSessionManager {
       customSystemPrompt: systemPrompt,
       maxTurns: 50,
       permissionMode: 'bypassPermissions',
+      ...(model ? { model } : {}),
       mcpServers: {
         figmento: {
           command: 'node',

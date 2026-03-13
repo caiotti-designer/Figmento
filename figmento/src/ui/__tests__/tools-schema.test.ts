@@ -28,8 +28,8 @@ describe('FIGMENTO_TOOLS structural fingerprint', () => {
     expect(fingerprint(FIGMENTO_TOOLS)).toMatchSnapshot();
   });
 
-  it('has 37 tools total (35 generated + 2 plugin-only)', () => {
-    expect(FIGMENTO_TOOLS).toHaveLength(37);
+  it('has 38 tools total (35 generated + 3 plugin-only)', () => {
+    expect(FIGMENTO_TOOLS).toHaveLength(38);
   });
 });
 
