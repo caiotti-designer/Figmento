@@ -26,6 +26,17 @@ export function initChatSettings() {
   // Request saved settings from sandbox
   postToSandbox({ type: 'get-settings' });
 
+  // LC-8: Load learning config to populate auto-detect toggle
+  postToSandbox({ type: 'get-learning-config' });
+
+  // LC-8: Listen for learning-config-loaded to update checkbox
+  window.addEventListener('message', (event: MessageEvent) => {
+    const msg = event.data?.pluginMessage;
+    if (msg?.type === 'learning-config-loaded') {
+      loadLearningConfig(msg.config);
+    }
+  });
+
   $('settings-save').addEventListener('click', saveChatSettings);
 
   const modelSelect = $('settings-model') as HTMLSelectElement;
@@ -75,10 +86,22 @@ export function loadChatSettings(saved: Record<string, string>) {
     const urlInput = $('settings-relay-url') as HTMLInputElement;
     if (urlInput) urlInput.value = saved.chatRelayUrl;
   }
+  if (saved.claudeCodeModel) {
+    s.claudeCodeModel = saved.claudeCodeModel;
+    const ccModel = document.getElementById('settings-cc-model') as HTMLSelectElement;
+    if (ccModel) ccModel.value = saved.claudeCodeModel;
+  }
 
   updateChatSettings(s);
   updateSettingsUI();
   updateRelaySettingsUI();
+}
+
+export function loadLearningConfig(config: Record<string, unknown>): void {
+  const checkbox = document.getElementById('settings-auto-detect') as HTMLInputElement | null;
+  if (checkbox) {
+    checkbox.checked = config?.autoDetect === true;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -114,13 +137,15 @@ function saveChatSettings() {
   const relayToggle = $('settings-relay-toggle') as HTMLInputElement;
   const relayUrlInput = $('settings-relay-url') as HTMLInputElement;
 
+  const ccModelSelect = document.getElementById('settings-cc-model') as HTMLSelectElement;
   const s: ChatSettings = {
     model,
+    claudeCodeModel: ccModelSelect ? ccModelSelect.value : 'claude-opus-4-6',
     anthropicApiKey: ($('settings-api-key') as HTMLInputElement).value.trim(),
     openaiApiKey: ($('settings-openai-key') as HTMLInputElement).value.trim(),
     geminiApiKey: '',
     chatRelayEnabled: relayToggle ? relayToggle.checked : false,
-    chatRelayUrl: relayUrlInput ? relayUrlInput.value.trim() : 'https://figmento-production.up.railway.app',
+    chatRelayUrl: relayUrlInput ? relayUrlInput.value.trim() : 'http://localhost:3055',
   };
 
   if (useGemini) {
@@ -139,12 +164,17 @@ function saveChatSettings() {
     settings: {
       anthropicApiKey: s.anthropicApiKey,
       model: s.model,
+      claudeCodeModel: s.claudeCodeModel,
       geminiApiKey: s.geminiApiKey,
       openaiApiKey: s.openaiApiKey,
       chatRelayEnabled: String(s.chatRelayEnabled),
       chatRelayUrl: s.chatRelayUrl,
     },
   });
+
+  // LC-8: Save learning config
+  const autoDetect = (document.getElementById('settings-auto-detect') as HTMLInputElement)?.checked ?? false;
+  postToSandbox({ type: 'save-learning-config', config: { enabled: true, autoDetect, confidenceThreshold: 3 } });
 
   // Trigger auto-connect/disconnect based on relay setting
   const relayBar = document.getElementById('relay-status-bar');

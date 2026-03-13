@@ -4650,6 +4650,79 @@
     .chat-welcome-title { font-size: var(--text-lg); font-weight: var(--font-bold); color: var(--color-text-primary); }
     .chat-welcome-subtitle { font-size: var(--text-sm); color: var(--color-text-tertiary); text-align: center; max-width: 260px; }
 
+    .chat-templates {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-xs);
+      padding: var(--space-sm) var(--space-sm) var(--space-xs);
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .chat-template-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--color-border);
+      background: var(--color-bg-elevated);
+      color: var(--color-text-secondary);
+      font-size: var(--text-xs);
+      white-space: nowrap;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .chat-template-chip:hover {
+      background: var(--color-bg-deep);
+      border-color: var(--color-border-strong);
+      color: var(--color-text-primary);
+    }
+
+    .chat-attachment-preview {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: var(--space-xs) var(--space-sm);
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      margin-bottom: var(--space-xs);
+    }
+    .chat-attachment-thumb {
+      width: 48px;
+      height: 48px;
+      object-fit: cover;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .chat-attachment-remove {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: var(--color-text-tertiary);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .chat-attachment-remove:hover { color: var(--color-text-primary); background: var(--color-bg-deep); }
+    .chat-attachment-place {
+      background: none;
+      border: 1px solid var(--color-border);
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      font-size: var(--text-xs);
+      padding: 3px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .chat-attachment-place:hover:not(:disabled) { background: var(--color-bg-deep); border-color: var(--color-border-strong); color: var(--color-text-primary); }
+    .chat-attachment-place:disabled { opacity: 0.5; cursor: not-allowed; }
+    .chat-attachment-indicator { font-size: var(--text-xs); color: var(--color-text-tertiary); }
+
     .chat-bubble {
       max-width: 90%;
       padding: 10px 14px;
@@ -4831,6 +4904,74 @@
     }
 
     .chat-new-btn:hover { background: var(--color-bg-surface); color: var(--color-text-primary); }
+
+    .chat-learn-btn {
+      background: var(--color-bg-elevated);
+      color: var(--color-text-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all var(--transition-fast);
+    }
+
+    .chat-learn-btn:hover:not(:disabled) { background: var(--color-bg-surface); color: var(--color-text-primary); }
+    .chat-learn-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .chat-learn-btn.active { color: var(--color-accent, var(--color-primary)); border-color: var(--color-accent, var(--color-primary)); }
+
+    /* ── Diff panel ── */
+
+    .diff-panel {
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md, 8px);
+      padding: var(--space-md);
+      margin: var(--space-sm) 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .diff-panel-header {
+      font-size: var(--text-sm);
+      font-weight: var(--font-semibold);
+      color: var(--color-text-primary);
+    }
+
+    .diff-entry {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-sm);
+      padding: var(--space-xs, 4px) 0;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .diff-entry:last-of-type { border-bottom: none; }
+
+    .diff-entry-info { flex: 1; font-size: var(--text-xs, 11px); color: var(--color-text-secondary); }
+    .diff-entry-node { font-weight: var(--font-medium); color: var(--color-text-primary); font-size: var(--text-sm); }
+    .diff-entry-change { display: flex; align-items: center; gap: 4px; margin-top: 2px; }
+    .diff-swatch { width: 12px; height: 12px; border-radius: 2px; border: 1px solid var(--color-border); display: inline-block; flex-shrink: 0; }
+
+    .diff-panel-actions { display: flex; gap: var(--space-sm); margin-top: var(--space-sm); }
+    .diff-save-btn { flex: 1; background: var(--color-primary); color: var(--color-bg-deep); border: none; border-radius: var(--radius-sm); padding: 6px 12px; font-size: var(--text-sm); font-weight: var(--font-semibold); cursor: pointer; }
+    .diff-dismiss-btn { background: transparent; color: var(--color-text-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 6px 12px; font-size: var(--text-sm); cursor: pointer; }
+
+    /* ── Auto-Detect Notice (LC-8) ── */
+    .auto-detect-notice { background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-md); margin: var(--space-sm) 0; font-size: var(--text-sm); }
+    .auto-detect-notice-header { display: flex; justify-content: space-between; align-items: center; color: var(--color-text-secondary); }
+    .auto-detect-toggle-btn { background: transparent; border: none; color: var(--color-text-tertiary); font-size: var(--text-xs); cursor: pointer; padding: 2px 6px; }
+    .auto-detect-notice-body { margin-top: var(--space-sm); }
+    .auto-detect-correction-list { list-style: none; padding: 0; margin: 0 0 var(--space-sm); display: flex; flex-direction: column; gap: 4px; color: var(--color-text-secondary); font-size: var(--text-xs); }
+    .auto-detect-notice-actions { display: flex; gap: var(--space-sm); }
+    .auto-detect-save-btn { flex: 1; background: var(--color-primary); color: var(--color-bg-deep); border: none; border-radius: var(--radius-sm); padding: 5px 10px; font-size: var(--text-xs); font-weight: var(--font-semibold); cursor: pointer; }
+    .auto-detect-dismiss-btn { background: transparent; color: var(--color-text-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 5px 10px; font-size: var(--text-xs); cursor: pointer; }
+    .auto-detect-saved-msg { color: var(--color-primary); font-size: var(--text-xs); margin-top: var(--space-xs); }
 
     /* ── Bridge Tab ── */
 
@@ -5050,6 +5191,7 @@
       <div class="chat-actions">
         <button id="chat-send" class="chat-send-btn">Send</button>
         <button id="chat-new" class="chat-new-btn" title="New Chat">+</button>
+        <button id="chat-learn" class="chat-learn-btn" disabled title="Learn from my edits">📝</button>
       </div>
     </div>
   </div>
@@ -6490,7 +6632,7 @@ img: for image placeholders"></textarea>
       <div class="bridge-section">
         <label class="bridge-section-label">WebSocket Server</label>
         <div class="bridge-input-row">
-          <input type="text" id="bridge-url" value="wss://figmento-production.up.railway.app" />
+          <input type="text" id="bridge-url" value="ws://localhost:3055" />
           <button id="bridge-connect" class="bridge-btn">Connect</button>
         </div>
       </div>
@@ -6558,9 +6700,15 @@ img: for image placeholders"></textarea>
           <div class="hint">Get one at platform.openai.com</div>
         </div>
         <div id="claude-code-status" class="chat-settings-field" style="display:none;">
-          <div class="hint" style="color:var(--color-accent);font-weight:500;padding:12px;background:var(--color-surface);border-radius:8px;border:1px solid var(--color-border);">
+          <div class="hint" style="color:var(--color-accent);font-weight:500;padding:12px;background:var(--color-surface);border-radius:8px;border:1px solid var(--color-border);margin-bottom:8px;">
             Using Claude Code — no API key required. Requires local relay on port 3055.
           </div>
+          <label>Claude Model</label>
+          <select id="settings-cc-model" style="width:100%;padding:8px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);color:var(--color-text);font-size:var(--text-sm);">
+            <option value="claude-opus-4-6">Claude Opus 4.6 (best)</option>
+            <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (faster)</option>
+            <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fastest)</option>
+          </select>
         </div>
       </div>
 
@@ -6576,7 +6724,7 @@ img: for image placeholders"></textarea>
         <div id="relay-settings-fields" style="display:none;">
           <div class="chat-settings-field">
             <label>Relay Server URL</label>
-            <input type="text" id="settings-relay-url" value="https://figmento-production.up.railway.app" style="width:100%;padding:8px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);color:var(--color-text);font-size:var(--text-sm);" />
+            <input type="text" id="settings-relay-url" value="http://localhost:3055" style="width:100%;padding:8px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);color:var(--color-text);font-size:var(--text-sm);" />
             <div class="hint">The Railway-hosted relay endpoint.</div>
           </div>
         </div>
@@ -6594,6 +6742,17 @@ img: for image placeholders"></textarea>
         </div>
         <div id="image-gen-shared" class="chat-settings-field" style="display:none;">
           <div class="hint" style="color:var(--color-text-tertiary);">Using the same Gemini key for image generation.</div>
+        </div>
+      </div>
+
+      <div class="chat-settings-group">
+        <h3>Learning</h3>
+        <div class="chat-settings-field">
+          <label class="relay-toggle-label" for="settings-auto-detect">
+            <input type="checkbox" id="settings-auto-detect" />
+            <span>Auto-detect corrections</span>
+          </label>
+          <div class="hint">Automatically notice your edits before each AI turn. Nothing is saved until you confirm.</div>
         </div>
       </div>
 
