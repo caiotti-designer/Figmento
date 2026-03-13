@@ -727,6 +727,47 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
       })();
       break;
 
+    case 'update-preference':
+      (async () => {
+        try {
+          const pref = (msg as any).preference as LearnedPreference;
+          const stored = await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY) as LearnedPreference[] | undefined;
+          const prefs = stored || [];
+          const idx = prefs.findIndex(p => p.id === pref.id);
+          if (idx !== -1) { prefs[idx] = pref; } else { prefs.push(pref); }
+          await figma.clientStorage.setAsync(PREFERENCES_STORAGE_KEY, prefs);
+          figma.ui.postMessage({ type: 'update-preference-result', success: true });
+        } catch (err) {
+          figma.ui.postMessage({ type: 'update-preference-result', success: false, error: String(err) });
+        }
+      })();
+      break;
+
+    case 'delete-preference':
+      (async () => {
+        try {
+          const preferenceId = (msg as any).preferenceId as string;
+          const stored = await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY) as LearnedPreference[] | undefined;
+          const prefs = (stored || []).filter(p => p.id !== preferenceId);
+          await figma.clientStorage.setAsync(PREFERENCES_STORAGE_KEY, prefs);
+          figma.ui.postMessage({ type: 'delete-preference-result', success: true });
+        } catch (err) {
+          figma.ui.postMessage({ type: 'delete-preference-result', success: false, error: String(err) });
+        }
+      })();
+      break;
+
+    case 'clear-preferences':
+      (async () => {
+        try {
+          await figma.clientStorage.setAsync(PREFERENCES_STORAGE_KEY, []);
+          figma.ui.postMessage({ type: 'clear-preferences-result', success: true });
+        } catch (err) {
+          figma.ui.postMessage({ type: 'clear-preferences-result', success: false, error: String(err) });
+        }
+      })();
+      break;
+
     case 'get-learning-config':
       (async () => {
         try {
