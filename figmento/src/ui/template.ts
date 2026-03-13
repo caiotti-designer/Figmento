@@ -340,7 +340,7 @@ export async function callClaudeForTemplateText(prompt: string, apiKey: string):
  * Call Gemini API for template text distribution.
  */
 export async function callGeminiForTemplateText(prompt: string, apiKey: string): Promise<TemplateTextResponse> {
-  const model = imageGenState.geminiModel || 'gemini-3-pro-preview';
+  const model = imageGenState.geminiModel || 'gemini-3.1-pro-preview';
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent';
 
   const fetchOptions: RequestInit = {

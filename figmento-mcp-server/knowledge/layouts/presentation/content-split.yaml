@@ -1,0 +1,63 @@
+name: "Presentation — Content Split"
+id: content-split
+category: presentation
+subcategory: content
+description: "Text on the left half, visual/chart/image on the right half — the workhorse content slide layout"
+
+mood: [structured, clear, professional, informative]
+industry: [saas, consulting, enterprise, education]
+
+canvas:
+  aspect_ratio: "16:9"
+  reference_size:
+    width: 1920
+    height: 1080
+
+zones:
+  - name: header
+    y_start_pct: 0
+    y_end_pct: 12
+    elements:
+      - { role: slide-title, type: text }
+    typography_hierarchy:
+      slide-title: h2
+
+  - name: content-area
+    y_start_pct: 14
+    y_end_pct: 88
+    split:
+      type: equal
+      columns:
+        - name: text-zone
+          width_pct: 50
+        - name: visual-zone
+          width_pct: 50
+    elements:
+      - { role: content-heading, type: text }
+      - { role: bullet-points, type: frame }
+      - { role: body-text, type: text }
+      - { role: visual-placeholder, type: image }
+    typography_hierarchy:
+      content-heading: h3
+      body-text: body
+
+  - name: footer
+    y_start_pct: 90
+    y_end_pct: 98
+    elements:
+      - { role: page-number, type: text }
+      - { role: company-logo, type: frame }
+    typography_hierarchy:
+      page-number: caption
+
+rhythm:
+  whitespace_ratio: 0.50
+  dominant_gesture: "left-to-right — read text first, visual confirms and reinforces"
+  section_gap_scale: "even: 24→32→24"
+
+anti_generic:
+  - "Visual zone must breathe — generous padding (40px+) around the image/chart, never edge-to-edge within its half"
+  - "Text zone bullet points must use custom icons or accent-colored markers, never default black circles"
+  - "Clear vertical divider between halves — either whitespace gap (40px+) or thin accent line. Halves must not blend together."
+
+memorable_element: "Clear visual separation between text and visual halves — one side teaches, the other proves"

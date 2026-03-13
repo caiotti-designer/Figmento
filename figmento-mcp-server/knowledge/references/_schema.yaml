@@ -1,0 +1,80 @@
+schema_version: "1.0"
+description: "Reference image companion schema — metadata for curated design screenshots"
+
+fields:
+  id:
+    type: string
+    required: true
+    description: "Unique ID matching the PNG filename without extension (e.g., ref-web-hero-001)"
+
+  category:
+    type: enum
+    values: [web, social, ads, print, presentation]
+    required: true
+
+  subcategory:
+    type: string
+    required: true
+    description: "Compositional pattern matching the folder name (e.g., hero, feed-post, product)"
+
+  tags:
+    type: array[string]
+    required: true
+    min_items: 2
+    description: "Mood/style/technique tags for search matching — lowercase, hyphenated"
+    example: [bold, editorial, asymmetric, high-contrast, serif-dominant]
+
+  palette:
+    type: enum
+    values: [dark, light, colorful, monochrome]
+    required: true
+
+  layout:
+    type: string
+    required: true
+    description: "Layout pattern name — should match blueprint vocabulary (e.g., asymmetric-left, centered, split-image, editorial-overlay, grid)"
+
+  notable:
+    type: string
+    required: true
+    description: "The ONE design decision that makes this reference worth studying (1-2 sentences)"
+
+  source:
+    type: string
+    required: false
+    description: "Where this reference was found (e.g., awwwards, dribbble, behance, client-work)"
+
+  industry:
+    type: array[string]
+    required: false
+    description: "Industry tags for domain-specific matching (e.g., saas, food, health, luxury, finance, fashion, tech)"
+
+  composition_notes:
+    type: object
+    required: false
+    description: "Detailed compositional DNA — populated automatically by analyze_reference (DQ-10)"
+    fields:
+      zones:
+        description: "Proportional zone breakdown (e.g., '60% hero image, 25% text content, 15% CTA')"
+      typography_scale:
+        description: "Font size hierarchy observed (e.g., 'Display ~72px, heading ~36px, body ~16px')"
+      color_distribution:
+        description: "Dominant/accent/neutral percentages with hex estimates"
+      whitespace_strategy:
+        description: "Where and how negative space is used — what it serves"
+
+example:
+  id: ref-web-hero-001
+  category: web
+  subcategory: hero
+  tags: [editorial, asymmetric, dark, serif-display, generous-whitespace]
+  palette: dark
+  layout: asymmetric-left
+  notable: "Giant 120px serif headline bleeds off the right edge — the asymmetry creates visual tension that pulls the eye left-to-right."
+  source: awwwards
+  industry: [luxury, fashion]
+  composition_notes:
+    zones: "70% dark hero image left, 30% cream text column right"
+    typography_scale: "Display ~120px, subhead ~24px, body ~16px — 5:1 ratio"
+    color_distribution: "85% near-black (#0A0A0A), 10% cream (#F5F0E8), 5% gold accent (#C9A96E)"
+    whitespace_strategy: "60px margins throughout, 3x spacing above CTA to isolate the action"

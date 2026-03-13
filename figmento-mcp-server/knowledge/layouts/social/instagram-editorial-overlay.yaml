@@ -1,0 +1,67 @@
+name: "Instagram — Editorial Overlay"
+id: instagram-editorial-overlay
+category: social
+subcategory: instagram_post
+description: "Full-bleed hero image with 2-stop gradient overlay revealing text content in the lower 40%"
+
+mood: [moody, cinematic, editorial, dark]
+industry: [food-beverage, fashion, lifestyle, photography]
+
+canvas:
+  aspect_ratio: "4:5"
+  reference_size:
+    width: 1080
+    height: 1350
+
+zones:
+  - name: logo-zone
+    y_start_pct: 4
+    y_end_pct: 10
+    positioning: absolute
+    elements:
+      - { role: brand-name, type: text }
+      - { role: brand-sub, type: text }
+    typography_hierarchy:
+      brand-name: h3
+      brand-sub: caption
+
+  - name: hero-image
+    y_start_pct: 0
+    y_end_pct: 64
+    elements:
+      - { role: hero-image, type: image }
+
+  - name: gradient-overlay
+    y_start_pct: 24
+    y_end_pct: 100
+    elements:
+      - { role: overlay-gradient, type: rectangle }
+
+  - name: content-zone
+    y_start_pct: 65
+    y_end_pct: 96
+    elements:
+      - { role: headline, type: text }
+      - { role: subheadline, type: text }
+      - { role: price, type: text }
+      - { role: cta-button, type: frame }
+      - { role: note, type: text }
+    typography_hierarchy:
+      headline: display
+      subheadline: h3
+      price: h2
+      cta-button: body
+      note: caption
+
+rhythm:
+  whitespace_ratio: 0.45
+  dominant_gesture: "top-to-bottom — image draws eye, gradient guides down to content"
+  section_gap_scale: "fibonacci-adjacent: 24→40→64"
+
+anti_generic:
+  - "Gradient overlay MUST use exactly 2 stops: position 0 = bg color at 0% opacity, position 0.4 = bg color at 100% opacity. Never 3+ stops."
+  - "Gradient color MUST match the content zone background — dark bg → dark gradient, light bg → light gradient. Never hardcode one color."
+  - "Content frame must use layoutSizingVertical: HUG — never fixed height, which clips text"
+  - "Safe zones: keep all text within 150px of top/bottom and 60px of sides per Instagram spec"
+
+memorable_element: "Cinematic gradient that reveals content from darkness — the transition from image to text is the design's signature"

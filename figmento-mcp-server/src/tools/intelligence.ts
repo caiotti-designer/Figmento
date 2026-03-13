@@ -22,6 +22,60 @@ function loadKnowledge(filename: string): Record<string, unknown> {
   return data;
 }
 
+export const getSizePresetSchema = {
+  platform: z.string().optional().describe('Platform filter: instagram, facebook, tiktok, youtube, linkedin, twitter, pinterest, snapchat'),
+  category: z.string().optional().describe('Category filter: social, print, presentation, web'),
+  id: z.string().optional().describe('Specific preset ID (e.g., "ig-post", "print-a4", "pres-16-9")'),
+};
+
+export const getFontPairingSchema = {
+  mood: z.string().optional().describe('Mood keywords: modern, classic, bold, luxury, playful, corporate, editorial, minimalist, creative, elegant'),
+  id: z.string().optional().describe('Specific pairing ID (e.g., "modern", "luxury", "playful")'),
+};
+
+export const getTypeScaleSchema = {
+  baseSize: z.number().optional().describe('Base font size in pixels (default: 16)'),
+  ratio: z.string().optional().describe('Scale ratio: minor_third, major_third, perfect_fourth, golden_ratio (default: major_third)'),
+};
+
+export const getColorPaletteSchema = {
+  mood: z.string().optional().describe('Mood keywords: moody, fresh, corporate, luxury, playful, nature, tech, warm, minimal, retro, ocean, sunset'),
+  id: z.string().optional().describe('Specific palette ID (e.g., "moody-dark", "tech-modern", "luxury-premium")'),
+};
+
+export const getContrastCheckSchema = {
+  foreground: z.string().describe('Foreground hex color (e.g., "#FFFFFF")'),
+  background: z.string().describe('Background hex color (e.g., "#000000")'),
+};
+
+export const getSpacingScaleSchema = {};
+
+export const getLayoutGuideSchema = {
+  format: z.string().optional().describe('Design format type for margin/safe-zone filtering: social, print, presentation, web, poster'),
+};
+
+export const getBrandKitSchema = {
+  name: z.string().describe('Brand kit name (e.g., "cafe-noir"). Use lowercase with hyphens.'),
+};
+
+export const saveBrandKitSchema = {
+  name: z.string().describe('Brand kit identifier (lowercase with hyphens, e.g., "cafe-noir")'),
+  data: z.object({
+    brand_name: z.string().describe('Display name of the brand'),
+    colors: z.object({
+      primary: z.string(),
+      secondary: z.string(),
+      accent: z.string(),
+      background: z.string(),
+      text: z.string(),
+    }).passthrough().describe('Brand color palette (hex values)'),
+    fonts: z.object({
+      heading: z.string(),
+      body: z.string(),
+    }).passthrough().optional().describe('Brand fonts'),
+  }).passthrough().describe('Brand kit data'),
+};
+
 /** Flatten nested size-presets.yaml structure into a flat array of presets */
 function flattenPresets(data: Record<string, unknown>): Array<Record<string, unknown>> {
   const results: Array<Record<string, unknown>> = [];
@@ -66,11 +120,7 @@ export function registerIntelligenceTools(server: McpServer): void {
   server.tool(
     'get_size_preset',
     'Get exact pixel dimensions for common design formats (social media, print, presentations, web). Query by platform, category, or specific preset ID.',
-    {
-      platform: z.string().optional().describe('Platform filter: instagram, facebook, tiktok, youtube, linkedin, twitter, pinterest, snapchat'),
-      category: z.string().optional().describe('Category filter: social, print, presentation, web'),
-      id: z.string().optional().describe('Specific preset ID (e.g., "ig-post", "print-a4", "pres-16-9")'),
-    },
+    getSizePresetSchema,
     async (params) => {
       const data = loadKnowledge('size-presets.yaml');
       const allPresets = flattenPresets(data);
@@ -97,10 +147,7 @@ export function registerIntelligenceTools(server: McpServer): void {
   server.tool(
     'get_font_pairing',
     'Get font pairing recommendations by mood/style. Returns heading and body fonts with recommended weights.',
-    {
-      mood: z.string().optional().describe('Mood keywords: modern, classic, bold, luxury, playful, corporate, editorial, minimalist, creative, elegant'),
-      id: z.string().optional().describe('Specific pairing ID (e.g., "modern", "luxury", "playful")'),
-    },
+    getFontPairingSchema,
     async (params) => {
       const data = loadKnowledge('typography.yaml');
       const pairings = data.font_pairings as Array<Record<string, unknown>>;
@@ -128,10 +175,7 @@ export function registerIntelligenceTools(server: McpServer): void {
   server.tool(
     'get_type_scale',
     'Compute a typographic scale from a base size and ratio. Returns sizes for xs through display. Optionally provide a custom base size.',
-    {
-      baseSize: z.number().optional().describe('Base font size in pixels (default: 16)'),
-      ratio: z.enum(['minor_third', 'major_third', 'perfect_fourth', 'golden_ratio']).optional().describe('Scale ratio (default: major_third)'),
-    },
+    getTypeScaleSchema,
     async (params) => {
       const data = loadKnowledge('typography.yaml');
       const scales = data.type_scales as Record<string, Record<string, unknown>>;
@@ -174,10 +218,7 @@ export function registerIntelligenceTools(server: McpServer): void {
   server.tool(
     'get_color_palette',
     'Get a color palette by mood keywords or palette ID. Returns primary, secondary, accent, background, text, and muted colors.',
-    {
-      mood: z.string().optional().describe('Mood keywords: moody, fresh, corporate, luxury, playful, nature, tech, warm, minimal, retro, ocean, sunset'),
-      id: z.string().optional().describe('Specific palette ID (e.g., "moody-dark", "tech-modern", "luxury-premium")'),
-    },
+    getColorPaletteSchema,
     async (params) => {
       const data = loadKnowledge('color-system.yaml');
       const palettes = data.palettes as Array<Record<string, unknown>>;
@@ -205,10 +246,7 @@ export function registerIntelligenceTools(server: McpServer): void {
   server.tool(
     'get_contrast_check',
     'Check WCAG contrast ratio between two colors. Returns the ratio and pass/fail for AA and AAA levels.',
-    {
-      foreground: z.string().describe('Foreground hex color (e.g., "#FFFFFF")'),
-      background: z.string().describe('Background hex color (e.g., "#000000")'),
-    },
+    getContrastCheckSchema,
     async (params) => {
       const fgLum = relativeLuminance(params.foreground);
       const bgLum = relativeLuminance(params.background);
@@ -238,7 +276,7 @@ export function registerIntelligenceTools(server: McpServer): void {
   server.tool(
     'get_spacing_scale',
     'Get the 8px grid spacing scale values with usage guidance. Use these values for all spacing decisions — never use arbitrary pixel amounts.',
-    {},
+    getSpacingScaleSchema,
     async () => {
       const data = loadKnowledge('layout.yaml');
       const result = {
@@ -256,9 +294,7 @@ export function registerIntelligenceTools(server: McpServer): void {
   server.tool(
     'get_layout_guide',
     'Get layout recommendations for a specific format: margins, safe zones, hierarchy rules, and common layout patterns.',
-    {
-      format: z.enum(['social', 'print', 'presentation', 'web', 'poster']).optional().describe('Design format type for margin/safe-zone filtering'),
-    },
+    getLayoutGuideSchema,
     async (params) => {
       const data = loadKnowledge('layout.yaml');
       const result: Record<string, unknown> = {};
@@ -297,9 +333,7 @@ export function registerIntelligenceTools(server: McpServer): void {
   server.tool(
     'get_brand_kit',
     'Load a saved brand kit by name. Returns colors, fonts, logo paths, and brand guidelines.',
-    {
-      name: z.string().describe('Brand kit name (e.g., "cafe-noir"). Use lowercase with hyphens.'),
-    },
+    getBrandKitSchema,
     async (params) => {
       const safeName = params.name.replace(/[^a-z0-9-]/gi, '');
       const filePath = nodePath.join(BRAND_KITS_DIR, `${safeName}.yaml`);
@@ -326,23 +360,7 @@ export function registerIntelligenceTools(server: McpServer): void {
   server.tool(
     'save_brand_kit',
     'Save a brand kit to disk as a YAML file. Brand kits store colors, fonts, and brand identity for consistent design generation.',
-    {
-      name: z.string().describe('Brand kit identifier (lowercase with hyphens, e.g., "cafe-noir")'),
-      data: z.object({
-        brand_name: z.string().describe('Display name of the brand'),
-        colors: z.object({
-          primary: z.string(),
-          secondary: z.string(),
-          accent: z.string(),
-          background: z.string(),
-          text: z.string(),
-        }).passthrough().describe('Brand color palette (hex values)'),
-        fonts: z.object({
-          heading: z.string(),
-          body: z.string(),
-        }).passthrough().optional().describe('Brand fonts'),
-      }).passthrough().describe('Brand kit data'),
-    },
+    saveBrandKitSchema,
     async (params) => {
       if (!fs.existsSync(BRAND_KITS_DIR)) {
         fs.mkdirSync(BRAND_KITS_DIR, { recursive: true });

@@ -267,3 +267,152 @@ export function cleanupAllListeners(): void {
   }
   trackedListeners.length = 0;
 }
+
+// ═══════════════════════════════════════════════════════════════
+// TOOL-CALL PROGRESS UTILITIES  (FC-4)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Asymptotic progress formula: `95 * (1 - e^(-0.12 * callsCompleted))`
+ *
+ * Approximate milestones (k = 0.12):
+ *  1 call → 11%  |  5 calls → 45%  |  10 calls → 70%
+ * 15 calls → 83%  | 20 calls → 91%  | 30+ calls → capped at 95%
+ *
+ * This provides natural-feeling progress: fast initial movement,
+ * then gradually slowing — never stuck at 99%.
+ *
+ * @param callsCompleted Number of tool calls completed so far.
+ * @param complete When true, returns 100 regardless of callsCompleted.
+ */
+export function computeToolCallProgress(callsCompleted: number, complete?: boolean): number {
+  if (complete) return 100;
+  const raw = 95 * (1 - Math.exp(-0.12 * callsCompleted));
+  // Round to 2 decimal places, cap at 95
+  return Math.min(Math.round(raw * 100) / 100, 95);
+}
+
+export type ProgressModeContext = 'screenshot' | 'text-layout' | 'multi-frame' | 'generic';
+
+const TOOL_MESSAGES_GENERIC: Record<string, string> = {
+  create_frame:         'Creating frame...',
+  create_text:          'Adding text...',
+  create_rectangle:     'Drawing shape...',
+  create_ellipse:       'Drawing shape...',
+  set_fill:             'Applying colors...',
+  set_stroke:           'Styling borders...',
+  set_auto_layout:      'Organizing layout...',
+  set_effects:          'Adding effects...',
+  set_corner_radius:    'Rounding corners...',
+  create_image:         'Placing image...',
+  create_icon:          'Adding icon...',
+  set_text:             'Updating text...',
+  move_node:            'Positioning element...',
+  resize_node:          'Adjusting size...',
+  run_refinement_check: 'Checking quality...',
+  read_figma_context:   'Reading design context...',
+};
+
+const TOOL_MESSAGES_SCREENSHOT: Record<string, string> = {
+  create_frame:         'Recreating frame...',
+  create_text:          'Recreating text...',
+  create_rectangle:     'Recreating shape...',
+  create_ellipse:       'Recreating shape...',
+  set_fill:             'Matching colors...',
+  set_stroke:           'Matching borders...',
+  set_auto_layout:      'Recreating layout...',
+  set_effects:          'Adding effects...',
+  set_corner_radius:    'Rounding corners...',
+  create_image:         'Placing image...',
+  create_icon:          'Identifying icon...',
+  set_text:             'Recreating text...',
+  move_node:            'Positioning element...',
+  resize_node:          'Matching size...',
+  run_refinement_check: 'Checking fidelity...',
+  read_figma_context:   'Identifying frame...',
+};
+
+const TOOL_MESSAGES_TEXT_LAYOUT: Record<string, string> = {
+  create_frame:         'Setting up canvas...',
+  create_text:          'Adding content...',
+  create_rectangle:     'Building structure...',
+  create_ellipse:       'Building structure...',
+  set_fill:             'Applying colors...',
+  set_stroke:           'Styling borders...',
+  set_auto_layout:      'Organizing sections...',
+  set_effects:          'Applying polish...',
+  set_corner_radius:    'Rounding corners...',
+  create_image:         'Placing image...',
+  create_icon:          'Adding icon...',
+  set_text:             'Inserting content...',
+  move_node:            'Arranging layout...',
+  resize_node:          'Adjusting proportions...',
+  run_refinement_check: 'Reviewing layout...',
+  read_figma_context:   'Reading design context...',
+};
+
+const TOOL_MESSAGES_MULTI_FRAME: Record<string, string> = {
+  create_frame:         'Creating slide frame...',
+  create_text:          'Adding slide content...',
+  create_rectangle:     'Drawing element...',
+  create_ellipse:       'Drawing element...',
+  set_fill:             'Applying slide colors...',
+  set_stroke:           'Styling borders...',
+  set_auto_layout:      'Organizing slide layout...',
+  set_effects:          'Adding visual effects...',
+  set_corner_radius:    'Rounding corners...',
+  create_image:         'Placing image...',
+  create_icon:          'Adding icon...',
+  set_text:             'Updating slide text...',
+  move_node:            'Positioning element...',
+  resize_node:          'Adjusting size...',
+  run_refinement_check: 'Reviewing slide quality...',
+  read_figma_context:   'Reading slide context...',
+};
+
+/**
+ * Returns a human-readable status message for a given AI tool call.
+ * Covers the 15 most common Figmento tools; unknown tools return a
+ * generic fallback so the UI never shows a raw tool name.
+ *
+ * @param toolName Tool name from the AI response (e.g. "create_frame").
+ * @param modeContext Which mode is calling — controls vocabulary.
+ */
+export function toolNameToProgressMessage(toolName: string, modeContext: ProgressModeContext = 'generic'): string {
+  let table: Record<string, string>;
+  switch (modeContext) {
+    case 'screenshot':   table = TOOL_MESSAGES_SCREENSHOT;  break;
+    case 'text-layout':  table = TOOL_MESSAGES_TEXT_LAYOUT; break;
+    case 'multi-frame':  table = TOOL_MESSAGES_MULTI_FRAME; break;
+    default:             table = TOOL_MESSAGES_GENERIC;
+  }
+  return table[toolName] ?? 'Building design...';
+}
+
+/**
+ * Formats a combined slide-level + tool-level progress message for
+ * multi-frame modes (Presentation, Carousel).
+ *
+ * Examples:
+ *  formatMultiFrameProgressMessage(2, 5, 'create_text')
+ *  → "Slide 2 of 5 — Adding slide content..."
+ *
+ *  formatMultiFrameProgressMessage(1, 3)
+ *  → "Slide 1 of 3 — Building..."
+ *
+ * @param slideIndex  1-based current slide number.
+ * @param totalSlides Total number of slides.
+ * @param toolName    Tool name (optional). Shows generic label when omitted.
+ */
+export function formatMultiFrameProgressMessage(
+  slideIndex: number,
+  totalSlides: number,
+  toolName?: string,
+): string {
+  const slideLabel = `Slide ${slideIndex} of ${totalSlides}`;
+  if (!toolName) return `${slideLabel} — Building...`;
+  const toolMsg = toolNameToProgressMessage(toolName, 'multi-frame');
+  // Strip trailing ellipsis from the tool message before combining
+  const toolPart = toolMsg.endsWith('...') ? toolMsg.slice(0, -3) : toolMsg;
+  return `${slideLabel} — ${toolPart}...`;
+}

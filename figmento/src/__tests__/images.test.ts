@@ -7,10 +7,11 @@ jest.mock('../ui/state', () => ({
   apiState: {
     currentProvider: 'gemini',
     abortController: null,
+    savedApiKeys: { gemini: 'test-gemini-key' },
   },
   imageGenState: {
     enableImageGeneration: true,
-    imageGenModel: 'imagen-4',
+    imageGenModel: 'gemini-3.1-flash-image-preview',
   },
   screenshotState: {
     isProcessing: true,
@@ -19,7 +20,6 @@ jest.mock('../ui/state', () => ({
 
 import {
   collectImageElements,
-  generateWithImagen4,
   generateWithGeminiImage,
   generateImagesForPlaceholders,
 } from '../ui/images';
@@ -33,8 +33,9 @@ beforeEach(() => {
   mockFetch.mockClear();
   (apiState as any).currentProvider = 'gemini';
   (apiState as any).abortController = null;
+  (apiState as any).savedApiKeys = { gemini: 'test-gemini-key' };
   (imageGenState as any).enableImageGeneration = true;
-  (imageGenState as any).imageGenModel = 'imagen-4';
+  (imageGenState as any).imageGenModel = 'gemini-3.1-flash-image-preview';
   (screenshotState as any).isProcessing = true;
 });
 
@@ -88,69 +89,6 @@ describe('collectImageElements', () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════
-// generateWithImagen4
-// ═══════════════════════════════════════════════════════════════
-
-describe('generateWithImagen4', () => {
-  test('returns base64 image data on success', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          predictions: [{ bytesBase64Encoded: 'abc123' }],
-        }),
-    });
-
-    const result = await generateWithImagen4('test prompt', 'test-key');
-    expect(result).toBe('data:image/png;base64,abc123');
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('imagen-4.0-fast-generate-001'),
-      expect.objectContaining({ method: 'POST' })
-    );
-  });
-
-  test('returns null on API error', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false });
-
-    const result = await generateWithImagen4('test prompt', 'test-key');
-    expect(result).toBeNull();
-  });
-
-  test('returns null when response has no predictions', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({}),
-    });
-
-    const result = await generateWithImagen4('test prompt', 'test-key');
-    expect(result).toBeNull();
-  });
-
-  test('returns null on network error', async () => {
-    mockFetch.mockRejectedValueOnce(new Error('Network error'));
-
-    const result = await generateWithImagen4('test prompt', 'test-key');
-    expect(result).toBeNull();
-  });
-
-  test('uses abort signal when available', async () => {
-    const abortController = new AbortController();
-    (apiState as any).abortController = abortController;
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({ predictions: [{ bytesBase64Encoded: 'data' }] }),
-    });
-
-    await generateWithImagen4('test', 'key');
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ signal: abortController.signal })
-    );
-  });
-});
 
 // ═══════════════════════════════════════════════════════════════
 // generateWithGeminiImage
@@ -237,8 +175,8 @@ describe('generateImagesForPlaceholders', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  test('returns analysis unchanged when provider is not gemini', async () => {
-    (apiState as any).currentProvider = 'claude';
+  test('returns analysis unchanged when no gemini API key is saved', async () => {
+    (apiState as any).savedApiKeys = {};
 
     const analysis = {
       width: 100,
@@ -271,7 +209,7 @@ describe('generateImagesForPlaceholders', () => {
       ok: true,
       json: () =>
         Promise.resolve({
-          predictions: [{ bytesBase64Encoded: 'generated-image' }],
+          candidates: [{ content: { parts: [{ inlineData: { data: 'generated-image', mimeType: 'image/png' } }] } }],
         }),
     });
 
@@ -291,12 +229,12 @@ describe('generateImagesForPlaceholders', () => {
     expect(progressCallback).toHaveBeenCalled();
   });
 
-  test('limits image generation to 3 images', async () => {
+  test('limits image generation to 4 images', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       json: () =>
         Promise.resolve({
-          predictions: [{ bytesBase64Encoded: 'img' }],
+          candidates: [{ content: { parts: [{ inlineData: { data: 'img', mimeType: 'image/png' } }] } }],
         }),
     });
 
@@ -316,8 +254,8 @@ describe('generateImagesForPlaceholders', () => {
 
     await generateImagesForPlaceholders(analysis, 'key', progressCallback);
 
-    // Should only generate 3 images (the limit)
-    expect(mockFetch).toHaveBeenCalledTimes(3);
+    // Should only generate 4 images (the limit)
+    expect(mockFetch).toHaveBeenCalledTimes(4);
   });
 
   test('stops generation when processing is cancelled', async () => {
@@ -330,7 +268,7 @@ describe('generateImagesForPlaceholders', () => {
       }
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ predictions: [{ bytesBase64Encoded: 'img' }] }),
+        json: () => Promise.resolve({ candidates: [{ content: { parts: [{ inlineData: { data: 'img', mimeType: 'image/png' } }] } }] }),
       });
     });
 

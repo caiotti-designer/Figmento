@@ -178,6 +178,17 @@ function resolveTemplateProps(
 
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
+export const createFromTemplateSchema = {
+  template: z.string().describe('Template name (e.g. "pitch_deck", "social_media_kit", "brand_stationery", "landing_page_full", "restaurant_menu")'),
+  system: z.string().describe('Design system name to use for tokens (e.g. "testbrand", "payflow")'),
+  props: z.record(z.unknown()).optional().describe('Props to inject across all template frames'),
+  startX: z.coerce.number().optional().describe('Starting X position for the first frame (default: 0)'),
+  startY: z.coerce.number().optional().describe('Starting Y position for all frames (default: 0)'),
+  composition_mode: z.enum(['connected', 'isolated']).optional().describe('"connected" (default for templates that declare it) — sections stack vertically with gap=0 and composition background rules applied. "isolated" — current behavior, each frame placed horizontally with a gap, no background overrides.'),
+};
+
+export const listTemplatesSchema = {};
+
 export function registerDsTemplateTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
 
   // ═══════════════════════════════════════════════════════════
@@ -187,14 +198,7 @@ export function registerDsTemplateTools(server: McpServer, sendDesignCommand: Se
   server.tool(
     'create_from_template',
     'Instantiate a multi-frame project template on the Figma canvas. Loads the template YAML, resolves all frame patterns with design system tokens, and creates every frame in one pass. Templates: social_media_kit (9 frames), pitch_deck (8 slides), brand_stationery (4 frames), landing_page_full (6 sections), restaurant_menu (5 frames). Use composition_mode="connected" (default for landing pages) to stack sections vertically with alternating backgrounds for a cohesive page feel.',
-    {
-      template: z.string().describe('Template name (e.g. "pitch_deck", "social_media_kit", "brand_stationery", "landing_page_full", "restaurant_menu")'),
-      system: z.string().describe('Design system name to use for tokens (e.g. "testbrand", "payflow")'),
-      props: z.record(z.unknown()).optional().describe('Props to inject across all template frames'),
-      startX: z.coerce.number().optional().describe('Starting X position for the first frame (default: 0)'),
-      startY: z.coerce.number().optional().describe('Starting Y position for all frames (default: 0)'),
-      composition_mode: z.enum(['connected', 'isolated']).optional().describe('"connected" (default for templates that declare it) — sections stack vertically with gap=0 and composition background rules applied. "isolated" — current behavior, each frame placed horizontally with a gap, no background overrides.'),
-    },
+    createFromTemplateSchema,
     async (params) => {
       // 1. Load template definition
       const template = loadTemplate(params.template);
@@ -390,7 +394,7 @@ export function registerDsTemplateTools(server: McpServer, sendDesignCommand: Se
   server.tool(
     'list_templates',
     'List all available project templates with their names, descriptions, frame counts, formats used, and estimated creation time.',
-    {},
+    listTemplatesSchema,
     async () => {
       const names = listTemplateNames();
       const templates = names.map(name => {

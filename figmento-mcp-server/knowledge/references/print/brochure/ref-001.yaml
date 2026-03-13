@@ -1,0 +1,29 @@
+id: ref-001
+category: print
+subcategory: brochure
+tags:
+  - corporate
+  - gradient-cover
+  - bold-sans
+  - editorial-grid
+  - newsletter
+  - construction
+  - multi-page-spread
+palette: dark
+layout: hero-cover-with-grid-interior
+notable: "Warm orange-to-deep-indigo gradient on the cover creates bold brand energy that
+  contrasts deliberately with the disciplined cream interior spreads — one document reads
+  as two visual worlds stitched together."
+source: behance
+industry:
+  - construction
+  - corporate
+composition_notes:
+  zones: "Cover: 100% gradient field, headline occupies lower-left 30%. Interior spreads:
+    50/50 text/image columns across numbered sections 01–05."
+  typography_scale: "Cover display ~72px white bold sans, stat callout ~48px, interior
+    section label ~11px caps, body ~9px — roughly 8:1 display-to-body ratio."
+  color_distribution: "Cover: orange (#E8582A) → deep indigo (#1A1040) gradient, white
+    text. Interior: ~90% cream (#F5F0E8), ~10% near-black text."
+  whitespace_strategy: "Cover stacks text tightly at bottom-left; interior spreads use
+    generous 24px gutters and wide outer margins to prioritise readability over density."

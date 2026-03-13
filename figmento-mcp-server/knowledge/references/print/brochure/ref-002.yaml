@@ -1,0 +1,30 @@
+id: ref-002
+category: print
+subcategory: brochure
+tags:
+  - institutional
+  - alternating-spreads
+  - editorial-serif
+  - teal-cream
+  - minimal
+  - university
+  - structured-grid
+palette: light
+layout: alternating-dark-light-spreads
+notable: "The hyphenated editorial headline 'Intro—duction' spanning a full cream column
+  — a single typographic break — lifts the entire document from institutional to editorial
+  quality without a single extra graphic element."
+source: behance
+industry:
+  - education
+  - institutional
+composition_notes:
+  zones: "Each spread splits 50/50: one cream column, one dark teal column — sides
+    alternate between sections to create a visual heartbeat across the document."
+  typography_scale: "Section title ~80px light serif, subsection ~20px medium, body
+    ~10px regular — 8:1 ratio; pill-shaped value labels at ~10px caps."
+  color_distribution: "~45% cream/white (#F5F2EC), ~45% deep teal (#1B3D30),
+    ~10% sage-green accent (#7DB89A) in geometric motifs and tag fills."
+  whitespace_strategy: "Cream pages use 60px+ outer margins with deliberate inter-paragraph
+    space that lets body text breathe; teal pages use whitespace as a visual
+    separator between labelled value pairs."

@@ -273,6 +273,50 @@ Follow this workflow for every design request:
 9. **Apply styling** — Colors, effects (shadows, gradients), corner radii, opacity.
 10. **Refine** — Check alignment, spacing consistency, contrast, whitespace balance.
 
+### Blueprint-First Workflow (Preferred)
+
+For ANY design request, use this workflow instead of the standard one when a layout blueprint exists:
+
+1. **Parse the request** — same as Standard step 1
+2. **Select blueprint:** Call `get_layout_blueprint(category, subcategory?, mood?)` to find a matching layout blueprint
+   - If match found: use its proportional zones as the layout skeleton
+   - If no match: fall back to Standard Design Workflow steps 6-10
+3. **Pick size, palette, fonts** — same as Standard steps 2-4
+4. **Resolve blueprint zones to pixels:** multiply zone `y_start_pct`/`y_end_pct` by canvas height. The tool returns a `resolved_example` with pre-calculated pixel values.
+5. **Create root frame** with exact dimensions and background color
+6. **Fill blueprint zones:** create elements in each zone per the blueprint's `elements` list and `typography_hierarchy`
+7. **Apply styling** — colors, effects, radius. Follow `anti_generic` rules from the blueprint.
+8. **Add the memorable element** — check the blueprint's `memorable_element` hint and ensure it's present
+9. **Refinement pass:** run through `refinement-rules.yaml` checklist (call `get_refinement_rules()` for exact values)
+10. **Self-evaluate** — existing 12-point checklist + refinement checks
+
+### Figma-Native Workflow (Variables + Styles)
+
+For EVERY design session, integrate native Figma tokens:
+
+1. **Read context:** Call `read_figma_context()` immediately after connecting
+2. **Assess the file:**
+   - Variables found? → Use `bind_variable` for ALL colors, spacing, radius instead of hardcoding
+   - Styles found? → Use `apply_paint_style`, `apply_text_style` instead of manual set_fill/set_text
+   - Empty file + design system loaded? → Call `create_variables_from_design_system` first
+   - Empty file, no design system? → Create design system, then call `create_variables_from_design_system`
+3. **During design creation:**
+   - NEVER hardcode a color hex if a matching variable exists — use `bind_variable`
+   - NEVER manually set font/size if a matching text style exists — use `apply_text_style`
+   - If you create a color that doesn't match any variable, use `set_fill` (okay for one-off colors)
+4. **Result:** Designs where changing a variable updates everything. Professional file structure.
+
+### Reference-First Design (When Library Has References)
+
+Before creating any design, consult the reference library:
+
+1. **Find references:** Call `find_design_references(category, mood?, industry?)` matching the brief
+2. **Study the match:** Read the `notable` element and `composition_notes` — this is what makes the reference worth imitating
+3. **Select blueprint:** Call `get_layout_blueprint` — prefer a blueprint whose `layout` field matches the reference
+4. **Adapt, don't copy:** Use the reference's proportional principles (zone breakdown, whitespace, hierarchy) — apply them with the brief's own content and colors
+
+If `list_reference_categories` shows 0 references for the target category, skip to `get_layout_blueprint` as usual.
+
 ### Typography Selection Guide
 
 **By mood → font pairing:**
@@ -340,6 +384,66 @@ Follow this workflow for every design request:
 - At least 2 weight steps between hierarchy levels
 - Primary text at full color, secondary at muted, tertiary at light muted
 - Section gaps ≥ 2x item gaps
+
+### Print Layout Rules (Mandatory for A4+ Formats)
+
+ALL print designs (brochure, poster, flyer, A4 document) MUST use auto-layout exclusively. Never use absolute x/y positioning on print pages.
+
+**Why:** Absolute positioning on a large canvas (A4 = 2480×3508px) creates unpredictable gaps. Auto-layout with defined spacing ensures content flows naturally and fills the page.
+
+**Print spacing scale (A4 at 300dpi):**
+| Token | Size | Usage |
+|-------|------|-------|
+| page-margin | 72px | Root frame padding on all sides |
+| section-gap | 48–64px | Between major page sections (e.g., header ↔ content ↔ footer) |
+| content-gap | 24–32px | Between heading and body text, or between content blocks |
+| element-gap | 12–16px | Between list items, paragraphs, small elements |
+| tight-gap | 4–8px | Between icon and label, or label and value |
+
+**Mandatory page structure (nest auto-layout frames):**
+```
+Page Frame (VERTICAL auto-layout, padding: 72 all sides, itemSpacing: 48-64)
+├── Header (HORIZONTAL auto-layout, gap: 16)
+│   ├── Logo
+│   └── Page title
+├── Main Content (VERTICAL auto-layout, gap: 32)
+│   ├── Section 1 (VERTICAL auto-layout, gap: 16)
+│   │   ├── Section heading
+│   │   ├── Body text
+│   │   └── Supporting image
+│   ├── Section 2 (VERTICAL auto-layout, gap: 16)
+│   │   ├── Section heading
+│   │   └── Card grid (HORIZONTAL auto-layout, gap: 16)
+│   └── ...
+└── Footer (HORIZONTAL auto-layout, gap: 16)
+    ├── Company name
+    └── Page number
+```
+
+**Rules:**
+1. Call `set_auto_layout` on EVERY frame — root, sections, subsections, card groups. No exceptions.
+2. Use `itemSpacing` from the spacing scale above. Never use arbitrary values.
+3. Use `paddingTop/Right/Bottom/Left` on the root frame for page margins.
+4. For multi-column layouts: use a HORIZONTAL auto-layout parent with VERTICAL auto-layout children.
+5. Set `primaryAxisSizingMode: "FIXED"` and `counterAxisSizingMode: "FILL"` on child frames to ensure full-width fill.
+6. If the page looks "empty" after placing content, reduce section-gap or add more content sections. NEVER leave >100px of unstructured empty space.
+
+**Print typography hierarchy (A4 at 300dpi — MANDATORY sizes):**
+| Level | Size | Weight | Usage |
+|-------|------|--------|-------|
+| Display | 96–120px | 700–800 | Cover title only |
+| H1 — Page Title | 64–80px | 700 | Page/section main title |
+| H2 — Section Title | 40–48px | 600–700 | Section headings within a page |
+| H3 — Subsection | 28–32px | 600 | Sub-headings, card titles |
+| Body | 24–28px | 400 | Main body text (NEVER below 24px on A4) |
+| Caption | 18–22px | 400 | Photo captions, footnotes |
+| Label | 16–18px | 500–600, UPPERCASE + tracking 0.1em | Tags, categories, metadata |
+
+**Size ratios (enforced):**
+- H1 ≥ 2.5× Body
+- H2 ≥ 1.5× Body
+- H3 ≥ 1.1× Body
+- Body NEVER below 24px on A4 print
 
 ### Color Selection Guide
 
@@ -410,12 +514,24 @@ Use `clone_with_overrides` for repeated patterns like menu rows, card grids, fea
 **AI-generated image placement:**
 When placing AI-generated images, ALWAYS use `place_generated_image` with the file path from mcp-image output. NEVER read image files into base64 manually or pass base64 through bash — the strings are too large for the parameter system. The `place_generated_image` tool reads files server-side and handles all encoding internally. Use the `scaleMode` parameter to control fit: `FILL` (default, crops to fill), `FIT` (contains within bounds), `CROP`, or `TILE`.
 
+### Image Generation Rules (Mandatory)
+
+Every design should include real images, not colored rectangles:
+
+1. **Primary:** Use `mcp-image` to generate contextual images matching the brief
+   - Be specific: "Professional headshot of woman in navy blazer, studio lighting, neutral background" — NOT "placeholder image"
+   - Match requested dimensions to the target frame size
+   - After generation, place with `place_generated_image` using the returned file path
+2. **Fallback:** If mcp-image is unavailable or fails, use `fetch_placeholder_image` with relevant keywords
+3. **Never:** Leave a colored or gray rectangle as a final image — always resolve to a generated or placeholder image
+4. **Budget:** Limit to 3-4 generated images per design session to keep execution time reasonable
+
 **Multi-section background composition rule:**
 When creating multiple patterns for the same page, always think about the background color sequence first. The page should read: **bold open → breathe → breathe → bold break → breathe → bold close** (primary → surface → background → primary → surface → primary). Never have the same background color on 3+ consecutive sections. Use `create_from_template` with `composition_mode: "connected"` for landing pages — it enforces this rhythm automatically via `knowledge/patterns/composition-rules.yaml`. In connected mode, sections stack vertically (gap=0) and each section's background is overridden to match the composition plan. Treat the sequence of backgrounds as a deliberate design decision, not an afterthought.
 
 ### Self-Evaluation Checklist
 
-After creating any design, mentally verify these 8 points:
+After creating any design, mentally verify these 16 points:
 
 1. **Alignment** — Are all elements aligned to a consistent grid? No stray 3px offsets?
 2. **Contrast** — Is all text readable against its background? Does it pass WCAG AA?
@@ -425,52 +541,55 @@ After creating any design, mentally verify these 8 points:
 6. **Safe zones** — Is critical text within the platform's safe zone?
 7. **Balance** — Does the composition feel balanced, not top-heavy or lopsided?
 8. **Intent** — Does the design serve the user's stated goal and mood?
+9. **Typography polish** — Display text tightened (-0.02em)? Uppercase spaced (+0.05em)? Line lengths under 75 chars?
+10. **Shadow quality** — Shadows match palette temperature? Not pure black?
+11. **Memorable element** — Can you identify the ONE standout element that makes this design unforgettable?
+12. **Refinement applied** — Did you run the refinement pass? At least 3 micro-adjustments made?
+13. **Reference consulted** — Was `find_design_references` called before designing? Does the composition pattern align with a proven reference?
+14. **Images resolved** — Are all image areas filled with a generated or fetched image? Zero empty/colored rectangles remaining?
+15. **Gradient direction** — Is the solid end of every gradient overlay behind the text? Not behind empty space or the image?
+16. **Print structure** — Does every frame on this page use auto-layout? Are there any manually positioned elements that should be in the flow? (Print designs only — skip for social/web.)
 
-If using `export_node` for self-evaluation, check the screenshot against these 8 points and iterate (max 2–3 passes).
+If using `export_node` for self-evaluation, check the screenshot against these 12 points and iterate (max 2–3 passes).
 
-### Automated Self-Evaluation Workflow
+### Design Refinement Pass (Mandatory)
 
-After creating or significantly modifying a design (new frames, multi-element compositions, carousels, etc.), **automatically run one evaluation pass** without the user asking. This is optional but strongly encouraged for quality assurance.
+After creating any design, run this refinement pass. These are beauty checks, not correctness checks — they make the difference between "good AI output" and "professional designer output."
 
-**Workflow:**
+1. **Typography tightening** — Is display text letter-spacing set to -0.02em? Are uppercase labels spaced at +0.05em or more?
+2. **Shadow warmth** — Do shadows match the palette temperature? Warm palette → warm shadow (tint with 10% brown). Cool palette → cool shadow (tint with 10% blue). Never pure black.
+3. **Card elevation** — Are cards 3-5% lighter than their section background? Identical fills = flat hierarchy.
+4. **CTA isolation** — Does the primary CTA have 2x the surrounding element spacing? If itemSpacing is 24px, gap before CTA must be 48px+.
+5. **Memorable element** — Is there ONE disproportionate element? If not, add one now. Check the blueprint's `memorable_element` hint.
+6. **Whitespace ratio** — Is content density under 60%? Does vertical rhythm follow Fibonacci-adjacent gaps (1:1.6:2.6)?
+7. **Accent text contrast** — If accent color is used as text on dark bg, is it lightened 15-20% vs the fill version? (e.g., button fill #C45A3C → text color #E8956A)
 
-1. **Call `evaluate_design`** on the root frame node ID. This returns:
-   - A PNG file path (view it to inspect the design visually)
-   - A structural summary: all elements with their types, positions, sizes, fonts, colors
-   - Stats: total elements, text node count, unique font sizes, typography level count
+Call `get_refinement_rules()` for the full checklist with exact values for each category.
 
-2. **Review the exported image** (read the file at `filePath`) and the structural data. Check against this **format-aware checklist**:
+### Mandatory Quality Gate (Two Steps — Always Run)
 
-   | Check | What to verify | Data source |
-   |-------|---------------|-------------|
-   | Typography hierarchy | At least 3 distinct font size levels (display, heading, body). `stats.typographyLevels >= 3` | `stats.uniqueFontSizes` |
-   | Safe zone compliance | Text elements are inside platform safe zones. Use `get_layout_guide` with the current format to get exact margins/safe zones, then verify all text `x`/`y` positions respect them. | `elements[].x/y` + `get_layout_guide` |
-   | Contrast ratios | For each text element, check its fill color against the parent/background fill using `get_contrast_check`. Must pass WCAG AA. | `elements[].fills` |
-   | Spacing consistency | Gaps between elements should use values from the 8px grid spacing scale (4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96, 128). Flag irregular gaps. | `elements[].x/y` positions |
-   | Visual balance | No large empty areas on one side while the other is crowded. Text and images distributed evenly. | Visual inspection of PNG |
-   | Image placement | Images are properly sized, not stretched, and placed within frame bounds. | `elements[].width/height` for IMAGE type |
-   | CTA visibility | If there's a button/CTA, it should be prominent — large enough, high contrast, in the lower third or center. | Visual + structural |
+For **every design with 5+ elements**, run both steps before reporting done. This is not optional.
 
-3. **Apply fixes** using existing tools (`move_node`, `resize_node`, `set_fill`, `create_text`, etc.) for any issues found.
+**STEP 1 — Structural Check (always, for any design with 5+ elements):**
 
-4. **Maximum 2 evaluation passes.** After the second pass, stop iterating and report any remaining issues to the user. Never loop indefinitely.
+1. Call `run_refinement_check(rootFrameId)`
+2. Read the `issues` array. **Auto-fix ALL `severity: 'error'` issues immediately** — no exceptions, no asking the user:
+   - Gradient direction wrong → flip via `set_fill` with corrected direction and stops
+   - Frame missing auto-layout → call `set_auto_layout`
+   - Non-standard itemSpacing → round to nearest value in [4,8,12,16,20,24,32,40,48,64,80,96,128]
+   - Low-contrast text (`wcag-contrast`) → adjust fill color until ratio meets WCAG AA
+   - Text outside safe zone (`safe-zone`) → move node inside safe margins
+3. If score < 70, fix errors and call `run_refinement_check` again (max 2 passes)
+4. **Do NOT report the design as complete until score ≥ 70**
 
-**When to trigger:**
-- After creating a new design frame with 5+ elements
-- After completing a multi-slide carousel (evaluate at least the first slide)
-- After major layout restructuring
-- NOT for single-element tweaks (moving one node, changing one color)
+**STEP 2 — Visual Check (complex designs: 10+ elements, carousels, multi-section):**
 
-**Example flow for a 3-slide carousel:**
-```
-1. Create all 3 slides
-2. Call evaluate_design on slide 1's root frame
-3. Read the PNG file, inspect structural data
-4. Find issue: body text at 18px is too small for Instagram (minimum 28px)
-5. Fix: resize body text to 30px via resize_node or update text properties
-6. Call evaluate_design again (pass 2) to confirm fix
-7. Report: "Evaluated slide 1 — fixed body text size from 18px to 30px. Passes all checks."
-```
+1. Call `evaluate_design(rootFrameId)` after all structural errors are fixed
+2. Read the exported PNG and structural summary. Verify: `stats.typographyLevels >= 3`, all image areas filled (no empty rects), visual balance, CTA prominence
+3. Apply fixes with `move_node` / `resize_node` / `set_fill` / `create_text`. Max 1 visual pass.
+
+**Always end your response with the refinement score:**
+> "Design complete. Refinement score: [X]/100. [brief summary of any remaining warnings]."
 
 ## HTML-to-Figma Pipeline
 
@@ -573,19 +692,37 @@ Never use flat solid fills on hero sections or full-page frames. Always apply at
 - Subtle radial glow at center (primary color at 8-12% opacity over near-black)
 - Full-bleed gradient from primary_dark to primary
 
-### Rule 4b — Hero Overlay Gradient (Full-Bleed Image + Text)
-When placing text over a hero image, use a gradient overlay rectangle — NOT a flat semi-transparent overlay.
+### Rule 4b — Content-Aware Gradient Overlays
 
-**The correct gradient (Figma `set_fill`):**
-- Direction: `bottom-top`
-- Stop 1: position `0`, background color, opacity `0` (transparent at top of overlay)
-- Stop 2: position `0.4`, background color, opacity `1` (solid at 40% mark)
+When placing text over an image, use a gradient overlay. But the direction depends on WHERE THE TEXT SITS, not a fixed recipe.
+
+**Step 1: Find the text anchor.**
+Where does the text block sit in the frame? Bottom third? Top third? Left half? Full overlay?
+
+**Step 2: Place solid opacity at the text, transparency at the image.**
+
+| Text position | Gradient direction | Stop 1 (position 0) | Stop 2 (position 0.4-0.5) | Why |
+|---|---|---|---|---|
+| Bottom | `bottom-top` | opacity: 0 (top = transparent, image shows) | opacity: 1 (bottom = solid, text readable) | Most common: headline + CTA sit at bottom |
+| Top | `top-bottom` | opacity: 0 (bottom = transparent, image shows) | opacity: 1 (top = solid, text readable) | Header/title at top of hero |
+| Left | `left-right` | opacity: 0 (right = transparent, image shows) | opacity: 1 (left = solid, text readable) | Split layout: text left, image right |
+| Right | `right-left` | opacity: 0 (left = transparent, image shows) | opacity: 1 (right = solid, text readable) | Split layout: text right, image left |
+| Full overlay | N/A | Use flat semi-transparent fill (opacity 0.5-0.7) | — | Text covers entire image area |
+
+**Step 3: Match gradient color to section background.**
+- Dark theme → dark gradient color (e.g., #0A0A0F)
+- Light theme → light gradient color (e.g., #FFFFFF)
+- Brand theme → brand background color
+- NEVER use black gradient on a light section or white gradient on a dark section
+
+**Step 4: Verify.**
+After placing the gradient, mentally check: "If I removed the image, would the text zone still look correct? Is the image zone actually showing the image?" If both answers are yes, the gradient is correct.
 
 **Critical rules:**
-1. **Only 2 stops.** Never 3+. Two stops = smooth professional fade. Three stops = harsh banding.
-2. **Gradient color = section background color.** Dark theme → dark gradient. Light theme → light gradient. Navy theme → navy gradient. NEVER hardcode a dark color on a light-themed section.
-3. **40% breakpoint.** The solid portion starts at 40% of overlay height, leaving 60% solid for text readability.
-4. **This pattern applies to web CSS too:** `background: linear-gradient(to top, rgba(bg,1) 0%, rgba(bg,0) 40%)` over `background-image`.
+1. Only 2 stops. Never 3+.
+2. The 0.4-0.5 breakpoint means 40-50% of the overlay is fully solid — enough for text readability.
+3. Gradient color ALWAYS matches section/page background color.
+4. This pattern applies to web CSS too: `background: linear-gradient(to <direction>, rgba(bg,1) 0%, rgba(bg,0) 40%)` over `background-image`.
 
 ### Rule 5 — Spatial Generosity
 Increase all padding by 1.5× what feels "enough". Designs need room to breathe.
@@ -633,6 +770,11 @@ These are signals of generic AI output. If you catch yourself doing any of these
 - **Shadow on everything** or **shadow on nothing** — use shadow to direct attention
 - **A design with no negative space** — some elements should breathe alone
 - **Typography without contrast** — if all text is the same weight and size, hierarchy is broken
+- **Gradient overlay with wrong color** — gradient end color doesn't match the section background = ugly visible edge. Always match the gradient's opaque end to the exact section background hex.
+- **fontWeight 600 on non-Inter fonts** — silently falls back to Inter in Figma. Only use 400 or 700 unless you've verified the specific font supports that weight variant.
+- **Content frames with fixed height** — clips text on overflow. Always use `layoutSizingVertical: 'HUG'` on frames containing text.
+- **Gradient solid end facing away from text** — the most common AI gradient mistake. If text is at the bottom, the gradient must be solid at the bottom. If text is at the top, solid at the top. The gradient exists to make text readable, not to "look cool."
+- **Absolute positioning on print pages** — creates random gaps and makes content impossible to reflow. EVERY frame on a print page must use auto-layout with spacing from the print spacing scale.
 
 ---
 
@@ -643,11 +785,14 @@ Before calling any design tool for a creative request, answer these five questio
 ```
 DESIGN BRIEF ANALYSIS
 ─────────────────────
-Aesthetic direction : [editorial / brutalist / organic / luxury / geometric / playful]
-Font pairing        : [heading font] + [body font] — reason: [why this fits the brief]
-Color story         : [dark / light / colorful / monochrome] — dominant color: [hex or name]
-Memorable element   : [the ONE thing that will make this design unforgettable]
-Generic trap avoided: [what would the bot version look like — and what you're doing instead]
+Figma context        : [X variables, Y paint styles, Z text styles] or [empty — will create variables]
+Reference match      : [ref-id — "notable element"] or [no references for this category]
+Layout blueprint     : [blueprint name from get_layout_blueprint() or "custom — no match"]
+Aesthetic direction  : [editorial / brutalist / organic / luxury / geometric / playful]
+Font pairing         : [heading font] + [body font] — reason: [why this fits the brief]
+Color story          : [dark / light / colorful / monochrome] — dominant color: [hex or name]
+Memorable element    : [the ONE thing that will make this design unforgettable]
+Generic trap avoided : [what would the bot version look like — and what you're doing instead]
 ```
 
 Only after completing this analysis, proceed with tool calls.

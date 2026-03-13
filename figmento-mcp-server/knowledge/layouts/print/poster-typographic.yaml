@@ -1,0 +1,60 @@
+name: "Poster — Typographic"
+id: poster-typographic
+category: print
+subcategory: poster
+description: "Type-dominant poster where the headline IS the design — minimal imagery, maximum typographic impact"
+
+mood: [bold, dramatic, typographic, artistic]
+industry: [events, music, theater, gallery]
+
+canvas:
+  aspect_ratio: "2:3"
+  reference_size:
+    width: 2480
+    height: 3508
+
+zones:
+  - name: top-margin
+    y_start_pct: 0
+    y_end_pct: 8
+    elements:
+      - { role: organizer-logo, type: frame }
+
+  - name: primary-headline
+    y_start_pct: 25
+    y_end_pct: 65
+    elements:
+      - { role: headline, type: text }
+    typography_hierarchy:
+      headline: display
+
+  - name: supporting-text
+    y_start_pct: 67
+    y_end_pct: 80
+    elements:
+      - { role: subheadline, type: text }
+      - { role: date-location, type: text }
+    typography_hierarchy:
+      subheadline: h2
+      date-location: h3
+
+  - name: details-footer
+    y_start_pct: 82
+    y_end_pct: 95
+    elements:
+      - { role: details, type: text }
+      - { role: sponsor-logos, type: frame }
+    typography_hierarchy:
+      details: body
+
+rhythm:
+  whitespace_ratio: 0.55
+  dominant_gesture: "center-dominant — massive headline draws from across the room, then details below"
+  section_gap_scale: "dramatic: 48→64→96"
+
+anti_generic:
+  - "Headline must occupy 40%+ of the poster's visual area — if it doesn't dominate, it's not typographic enough"
+  - "Margins must be ≥96px (poster standard). Content within bleed-safe area only."
+  - "Maximum 2 fonts — the type contrast between headline and body IS the visual system"
+
+memorable_element: "Headline is THE design — occupying 40%+ of visual area with dramatic scale that reads from across a room"

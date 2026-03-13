@@ -1,6 +1,6 @@
 # Figma Plugin Constraints & Gotchas
 
-> Platform-level constraints that apply to both `figmento/` and `figmento-plugin/`. Must-read for anyone modifying plugin code.
+> Platform-level constraints that apply to both `figmento/` and `figmento/`. Must-read for anyone modifying plugin code.
 
 ## 1. Sandbox Isolation
 
@@ -96,7 +96,7 @@ frame.fills = [{
 { "id": "figmento-mcp-plugin" }
 ```
 
-This ID determines `clientStorage` namespace. Different IDs = separate storage. The two plugins (`figmento-plugin` and `figmento-mcp-plugin`) have separate storage.
+This ID determines `clientStorage` namespace. Different IDs = separate storage. The two plugins (`figmento` and `figmento-mcp-plugin`) have separate storage.
 
 ### Permissions
 
@@ -117,7 +117,7 @@ await figma.clientStorage.setAsync(key, value);
 - **No size limit documented** — but large values (>1MB) may fail silently
 - **Async only** — no synchronous access
 - **JSON-serializable values only** — no functions, no class instances
-- **Not shared between plugins** — `figmento-plugin` and `figmento-mcp-plugin` have separate namespaces
+- **Not shared between plugins** — `figmento` and `figmento-mcp-plugin` have separate namespaces
 
 ## 6. Auto-Layout
 

@@ -1,0 +1,84 @@
+name: "Product Ad — Hero Gradient"
+id: product-hero-gradient
+category: ads
+subcategory: product
+description: "Product image hero with 2-stop gradient fade to content zone — the Ad Analyzer v3 proven pattern"
+
+mood: [premium, moody, conversion, cinematic]
+industry: [ecommerce, fashion, electronics, furniture]
+
+canvas:
+  aspect_ratio: "4:5"
+  reference_size:
+    width: 1080
+    height: 1350
+
+zones:
+  - name: background
+    y_start_pct: 0
+    y_end_pct: 100
+    elements:
+      - { role: background-fill, type: rectangle }
+
+  - name: hero-image
+    y_start_pct: 0
+    y_end_pct: 64
+    elements:
+      - { role: product-image, type: image }
+
+  - name: gradient-overlay
+    y_start_pct: 24
+    y_end_pct: 100
+    elements:
+      - { role: overlay-gradient, type: rectangle }
+
+  - name: logo-zone
+    y_start_pct: 4
+    y_end_pct: 10
+    positioning: absolute
+    elements:
+      - { role: brand-name, type: text }
+      - { role: brand-tagline, type: text }
+    typography_hierarchy:
+      brand-name: h3
+      brand-tagline: caption
+
+  - name: badge-zone
+    y_start_pct: 4
+    y_end_pct: 15
+    positioning: absolute
+    elements:
+      - { role: discount-badge, type: frame }
+    typography_hierarchy:
+      discount-percent: h2
+      discount-label: caption
+
+  - name: content-zone
+    y_start_pct: 64
+    y_end_pct: 96
+    elements:
+      - { role: headline, type: text }
+      - { role: subheadline, type: text }
+      - { role: price-group, type: frame }
+      - { role: cta-button, type: frame }
+      - { role: installment-note, type: text }
+    typography_hierarchy:
+      headline: display
+      subheadline: h3
+      price-sale: h1
+      price-original: body
+      cta-button: body
+      installment-note: caption
+
+rhythm:
+  whitespace_ratio: 0.42
+  dominant_gesture: "top-to-bottom — product captures, gradient guides, content converts"
+  section_gap_scale: "fibonacci-adjacent: 24→40→64"
+
+anti_generic:
+  - "Gradient overlay: EXACTLY 2 stops. Stop 1: position 0, bg color, opacity 0. Stop 2: position 0.4, bg color, opacity 1. NEVER 3+ stops."
+  - "Gradient color MUST match section background color. Dark theme → dark gradient. Light theme → light gradient. NEVER hardcode."
+  - "Content frame uses VERTICAL auto-layout with layoutSizingVertical: HUG. Never fixed height."
+  - "CTA button must be the highest-contrast element — pill shape (cornerRadius: 999), generous padding (20px/96px)"
+
+memorable_element: "Cinematic 2-stop gradient that seamlessly transitions from product photography to content — the gradient IS the design's elegance"

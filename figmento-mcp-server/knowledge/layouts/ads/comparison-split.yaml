@@ -1,0 +1,69 @@
+name: "Ad — Comparison Split"
+id: comparison-split
+category: ads
+subcategory: comparison
+description: "Side-by-side or top-bottom split for before/after, feature comparison, or A vs B layouts"
+
+mood: [clear, comparative, educational, conversion]
+industry: [saas, fitness, beauty, cleaning]
+
+canvas:
+  aspect_ratio: "4:5"
+  reference_size:
+    width: 1080
+    height: 1350
+
+zones:
+  - name: header
+    y_start_pct: 0
+    y_end_pct: 12
+    elements:
+      - { role: comparison-title, type: text }
+    typography_hierarchy:
+      comparison-title: h2
+
+  - name: split-area
+    y_start_pct: 12
+    y_end_pct: 78
+    split:
+      type: equal
+      columns:
+        - name: side-a
+          width_pct: 50
+        - name: side-b
+          width_pct: 50
+    elements:
+      - { role: side-a-label, type: text }
+      - { role: side-a-visual, type: image }
+      - { role: side-a-description, type: text }
+      - { role: divider, type: rectangle }
+      - { role: side-b-label, type: text }
+      - { role: side-b-visual, type: image }
+      - { role: side-b-description, type: text }
+    typography_hierarchy:
+      side-a-label: h3
+      side-b-label: h3
+      side-a-description: body
+      side-b-description: body
+
+  - name: verdict
+    y_start_pct: 80
+    y_end_pct: 96
+    elements:
+      - { role: verdict-text, type: text }
+      - { role: cta-button, type: frame }
+    typography_hierarchy:
+      verdict-text: h3
+      cta-button: body
+
+rhythm:
+  whitespace_ratio: 0.45
+  dominant_gesture: "left-to-right comparison, then down to verdict"
+  section_gap_scale: "even: 24→32→24"
+
+anti_generic:
+  - "Center divider must be a visual element — thin vertical line, VS badge, or arrow icon. Empty space between halves looks unfinished."
+  - "The 'winning' side (side-b typically) must have a subtle visual advantage — accent border, slightly brighter background, or checkmark icons"
+  - "Side labels must use contrasting colors (e.g., muted red for 'Before' vs vibrant green for 'After') to create instant visual narrative"
+
+memorable_element: "Visual arrow or VS element at the split point that transforms a simple comparison into a dramatic reveal"

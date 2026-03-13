@@ -1,0 +1,14 @@
+id: hero-dark-saas3
+category: web
+subcategory: hero
+tags: [dark, editorial, product-photography, centered, portfolio, agency, high-contrast, serif-display, studio-lighting]
+palette: dark
+layout: centered-product-grid
+notable: "Three cut-out product photos (iced coffee, puffer jacket, headphones) sit below the headline like physical objects dropped onto the dark canvas — their studio lighting and soft drop shadows make them feel tangible against the near-black background."
+source: awwwards
+industry: [design, agency, portfolio]
+composition_notes:
+  zones: "15% nav; 25% headline zone (centered, large serif); 50% three-column product photo grid; 10% bio/footer strip"
+  typography_scale: "Display ~52px light-weight serif ('Design that speaks in light and shadow'), body ~14px — single hierarchy level with weight doing the work"
+  color_distribution: "88% near-black (#111111), 8% white text, 4% product photo colors (blue, orange, pink accents)"
+  whitespace_strategy: "Ample padding between nav and headline (~80px); product cards have generous internal breathing room; grid columns evenly spaced (~24px gutter)"

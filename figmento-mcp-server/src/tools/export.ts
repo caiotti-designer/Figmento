@@ -5,14 +5,39 @@ import * as nodePath from 'path';
 
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
+export const getScreenshotSchema = {
+  nodeId: z.string().describe('Node ID to screenshot'),
+  scale: z.number().min(0.1).max(3).optional().describe('Export scale 0.1–3 (default: 1)'),
+};
+
+export const exportNodeSchema = {
+  nodeId: z.string().describe('Node ID to export'),
+  format: z.string().optional().describe('Export format: PNG, SVG, or JPG (default: PNG)'),
+  scale: z.number().optional().describe('Export scale (default: 1)'),
+};
+
+export const evaluateDesignSchema = {
+  nodeId: z.string().describe('Root frame node ID to evaluate'),
+  format: z.string().optional().describe('Export format: PNG or JPG (default: PNG)'),
+  scale: z.number().optional().describe('Export scale (default: 2 for high-res evaluation)'),
+  depth: z.number().optional().describe('How many levels deep to traverse the node tree (default: 3). Use higher values for complex designs.'),
+  outputDir: z.string().optional().describe('Custom output directory (default: temp/exports in project root). Must be within project directory.'),
+  fileName: z.string().optional().describe('Custom file name without extension (e.g. "eval-variant-A"). Allows saving multiple evaluations without overwriting. Only alphanumeric, hyphens, and underscores allowed. Defaults to "eval-latest".'),
+};
+
+export const exportNodeToFileSchema = {
+  nodeId: z.string().describe('Node ID to export'),
+  format: z.string().optional().describe('Export format: PNG or JPG (default: PNG)'),
+  scale: z.number().optional().describe('Export scale (default: 2 for high-res evaluation)'),
+  outputDir: z.string().optional().describe('Custom output directory (default: temp/exports in project root). Must be within project directory.'),
+  fileName: z.string().optional().describe('Custom file name (without extension). If provided, saves as temp/exports/{fileName}.{ext}. Only alphanumeric, hyphens, and underscores allowed.'),
+};
+
 export function registerGetScreenshotTool(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'get_screenshot',
     'Capture a PNG screenshot of a Figma node and render it inline. Use this to visually verify your design output immediately after creating or modifying frames.',
-    {
-      nodeId: z.string().describe('Node ID to screenshot'),
-      scale: z.number().min(0.1).max(3).optional().describe('Export scale 0.1–3 (default: 1)'),
-    },
+    getScreenshotSchema,
     async (params) => {
       const scale = params.scale != null ? Math.min(Math.max(Number(params.scale), 0.1), 3) : 1;
       const data = await sendDesignCommand('get_screenshot', { nodeId: params.nodeId, scale });
@@ -47,11 +72,7 @@ export function registerExportNodeTool(server: McpServer, sendDesignCommand: Sen
   server.tool(
     'export_node',
     'Export a node as a PNG/SVG/JPG image (base64). Use this to screenshot your work for self-evaluation.',
-    {
-      nodeId: z.string().describe('Node ID to export'),
-      format: z.string().optional().describe('Export format: PNG, SVG, or JPG (default: PNG)'),
-      scale: z.number().optional().describe('Export scale (default: 1)'),
-    },
+    exportNodeSchema,
     async (params) => {
       const scale = params.scale != null ? Number(params.scale) : undefined;
       const data = await sendDesignCommand('export_node', { ...params, scale });
@@ -64,14 +85,7 @@ export function registerEvaluateDesignTool(server: McpServer, sendDesignCommand:
   server.tool(
     'evaluate_design',
     'Evaluate a design by exporting it to a PNG file and returning structural data (children tree with sizes, positions, fonts, colors). Use this after creating or significantly modifying a design to self-review. Returns both the file path (for visual inspection) and the node tree (for structural analysis). Maximum 2 evaluation passes per design.',
-    {
-      nodeId: z.string().describe('Root frame node ID to evaluate'),
-      format: z.string().optional().describe('Export format: PNG or JPG (default: PNG)'),
-      scale: z.number().optional().describe('Export scale (default: 2 for high-res evaluation)'),
-      depth: z.number().optional().describe('How many levels deep to traverse the node tree (default: 3). Use higher values for complex designs.'),
-      outputDir: z.string().optional().describe('Custom output directory (default: temp/exports in project root). Must be within project directory.'),
-      fileName: z.string().optional().describe('Custom file name without extension (e.g. "eval-variant-A"). Allows saving multiple evaluations without overwriting. Only alphanumeric, hyphens, and underscores allowed. Defaults to "eval-latest".'),
-    },
+    evaluateDesignSchema,
     async (params) => {
       // 1. Export the node to a file on disk
       const scale = params.scale != null ? Number(params.scale) : 2;
@@ -217,13 +231,7 @@ export function registerExportToFileTool(server: McpServer, sendDesignCommand: S
   server.tool(
     'export_node_to_file',
     'Export a Figma node to a PNG/JPG file on disk and return the file path. Use this for self-evaluation: export your design, then view the file to analyze it visually. Default behavior overwrites a single eval-latest file to prevent disk accumulation.',
-    {
-      nodeId: z.string().describe('Node ID to export'),
-      format: z.string().optional().describe('Export format: PNG or JPG (default: PNG)'),
-      scale: z.number().optional().describe('Export scale (default: 2 for high-res evaluation)'),
-      outputDir: z.string().optional().describe('Custom output directory (default: temp/exports in project root). Must be within project directory.'),
-      fileName: z.string().optional().describe('Custom file name (without extension). If provided, saves as temp/exports/{fileName}.{ext}. Only alphanumeric, hyphens, and underscores allowed.'),
-    },
+    exportNodeToFileSchema,
     async (params) => {
       // 1. Call existing export_node to get base64 from plugin
       const scale = params.scale != null ? Number(params.scale) : 2;

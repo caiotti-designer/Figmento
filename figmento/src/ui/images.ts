@@ -25,68 +25,12 @@ export function collectImageElements(elements: UIElement[]): UIElement[] {
 }
 
 export function generateImageWithGemini(prompt: string, apiKey: string): Promise<string | null> {
-  if (imageGenState.imageGenModel === 'gemini-image') {
-    return generateWithGeminiImage(prompt, apiKey);
-  } else {
-    return generateWithImagen4(prompt, apiKey);
-  }
-}
-
-export async function generateWithImagen4(prompt: string, apiKey: string): Promise<string | null> {
-  // Use Imagen 4 Fast model for image generation
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-fast-generate-001:predict';
-
-  const fetchOptions: RequestInit = {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey,
-    },
-    body: JSON.stringify({
-      instances: [
-        {
-          prompt: prompt,
-        },
-      ],
-      parameters: {
-        sampleCount: 1,
-        aspectRatio: '1:1',
-        personGeneration: 'allow_adult',
-      },
-    }),
-  };
-
-  if (apiState.abortController) {
-    fetchOptions.signal = apiState.abortController.signal;
-  }
-
-  try {
-    const response = await fetch(url, fetchOptions);
-
-    if (!response.ok) {
-      console.warn('Imagen 4 API error, falling back to placeholder');
-      return null;
-    }
-
-    const data = await response.json();
-    if (!data) return null;
-
-    const predictions = data.predictions;
-    if (predictions && predictions[0] && predictions[0].bytesBase64Encoded) {
-      return 'data:image/png;base64,' + predictions[0].bytesBase64Encoded;
-    }
-    return null;
-  } catch (error: any) {
-    if (error.name !== 'AbortError') {
-      console.warn('Image generation failed:', error);
-    }
-    return null;
-  }
+  return generateWithGeminiImage(prompt, apiKey);
 }
 
 export async function generateWithGeminiImage(prompt: string, apiKey: string): Promise<string | null> {
-  // Use Gemini 3 Pro Image Preview for image generation
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent';
+  // Use Gemini 3.1 Flash Image Preview for image generation
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent';
 
   const fetchOptions: RequestInit = {
     method: 'POST',
@@ -222,7 +166,7 @@ export async function generateHeroImage(
   apiKey: string,
   abortSignal?: AbortSignal
 ): Promise<string | null> {
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent';
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent';
 
   // Build parts array with role-labeled images and prompt
   const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];

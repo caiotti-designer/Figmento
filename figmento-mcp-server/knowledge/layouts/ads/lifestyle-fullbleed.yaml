@@ -1,0 +1,51 @@
+name: "Ad — Lifestyle Full-Bleed"
+id: lifestyle-fullbleed
+category: ads
+subcategory: lifestyle
+description: "Cinematic full-bleed lifestyle photo with minimal whisper text overlay — the image does 90% of the work"
+
+mood: [cinematic, aspirational, luxury, minimal]
+industry: [fashion, travel, automotive, lifestyle]
+
+canvas:
+  aspect_ratio: "4:5"
+  reference_size:
+    width: 1080
+    height: 1350
+
+zones:
+  - name: hero-image
+    y_start_pct: 0
+    y_end_pct: 100
+    elements:
+      - { role: lifestyle-image, type: image }
+
+  - name: subtle-overlay
+    y_start_pct: 70
+    y_end_pct: 100
+    elements:
+      - { role: soft-gradient, type: rectangle }
+
+  - name: whisper-text
+    y_start_pct: 78
+    y_end_pct: 96
+    elements:
+      - { role: tagline, type: text }
+      - { role: brand-name, type: text }
+      - { role: cta-text, type: text }
+    typography_hierarchy:
+      tagline: h3
+      brand-name: caption
+      cta-text: caption
+
+rhythm:
+  whitespace_ratio: 0.30
+  dominant_gesture: "image-dominant — eye roams the photo, text is discovered last at bottom"
+  section_gap_scale: "minimal: 12→16→24"
+
+anti_generic:
+  - "Gradient overlay must be extremely subtle: 2 stops, opacity 0 → 0.6 max. The image must remain dominant — heavy gradients kill the cinematic feel."
+  - "Text must be small and elegant — no headline larger than h3 scale. If text competes with the image, the layout has failed."
+  - "Brand name should be understated (caption scale, 60-70% opacity) — luxury whispers, it doesn't shout"
+
+memorable_element: "The image itself IS the memorable element — text is so minimal it barely exists, creating aspirational tension"

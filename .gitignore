@@ -52,5 +52,7 @@ temp/
 # Generated output
 output/
 generated-images/
+figmento/src/ui/tools-schema.generated.ts
 **/output/*.png
 **/output/*.jpg
+.claude/worktrees/

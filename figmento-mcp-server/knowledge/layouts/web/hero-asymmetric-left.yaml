@@ -1,0 +1,70 @@
+name: "Hero — Asymmetric Left"
+id: hero-asymmetric-left
+category: web
+subcategory: hero
+description: "Text-dominant left side (55%) with visual overflowing right (45%), creating dynamic tension"
+
+mood: [modern, tech, confident, bold]
+industry: [saas, fintech, devtools, ai]
+
+canvas:
+  aspect_ratio: "16:10"
+  reference_size:
+    width: 1440
+    height: 900
+
+zones:
+  - name: nav
+    y_start_pct: 0
+    y_end_pct: 8
+    elements:
+      - { role: logo, type: frame }
+      - { role: nav-links, type: frame }
+      - { role: nav-cta, type: frame }
+    typography_hierarchy:
+      nav-links: caption
+      nav-cta: caption
+
+  - name: hero-main
+    y_start_pct: 18
+    y_end_pct: 72
+    split:
+      type: weighted
+      columns:
+        - name: text-zone
+          width_pct: 55
+        - name: visual-zone
+          width_pct: 45
+    elements:
+      - { role: eyebrow, type: text }
+      - { role: headline, type: text }
+      - { role: subheadline, type: text }
+      - { role: cta-primary, type: frame }
+      - { role: cta-secondary, type: text }
+      - { role: hero-visual, type: image }
+    typography_hierarchy:
+      eyebrow: caption
+      headline: display
+      subheadline: h3
+      cta-primary: body
+
+  - name: social-proof
+    y_start_pct: 80
+    y_end_pct: 90
+    elements:
+      - { role: metric-cards, type: frame }
+    typography_hierarchy:
+      metric-value: h2
+      metric-label: caption
+
+rhythm:
+  whitespace_ratio: 0.50
+  dominant_gesture: "left-to-right, text anchors eye then visual pulls right"
+  section_gap_scale: "fibonacci-adjacent: 24→40→64"
+
+anti_generic:
+  - "Hero visual MUST bleed past the right edge of the frame or overflow its container — never neatly contained"
+  - "Text zone left margin must be generous (≥80px) to create editorial breathing room"
+  - "CTA group must be left-aligned, never centered — centering kills the asymmetric tension"
+
+memorable_element: "Product visual or 3D render that bleeds past the right frame edge, creating depth and forward motion"

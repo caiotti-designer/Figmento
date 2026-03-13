@@ -7,9 +7,8 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "outDir": "./dist",
-    "rootDir": "./src",
     "typeRoots": ["./node_modules/@figma/plugin-typings"]
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "../packages/figmento-core/src/**/*"],
   "exclude": ["src/__tests__/**"]
 }
