@@ -4,6 +4,50 @@
  */
 
 import type { DesignBrief } from './brief-detector';
+
+interface LearnedPreference {
+  id: string;
+  property: string;
+  category: string;
+  context: string;
+  direction: string;
+  description: string;
+  confidence: 'low' | 'medium' | 'high';
+  correctionCount: number;
+  enabled: boolean;
+  lastSeenAt: number;
+}
+
+const CONFIDENCE_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
+function buildPreferencesBlock(preferences: LearnedPreference[]): string {
+  const enabled = preferences.filter(p => p.enabled !== false);
+  if (enabled.length === 0) return '';
+
+  const sorted = enabled.slice().sort((a, b) => {
+    const confDiff = (CONFIDENCE_ORDER[a.confidence] ?? 2) - (CONFIDENCE_ORDER[b.confidence] ?? 2);
+    if (confDiff !== 0) return confDiff;
+    return b.correctionCount - a.correctionCount;
+  });
+
+  const top20 = sorted.slice(0, 20);
+
+  const lines = top20.map(p =>
+    `- [${p.confidence} confidence] ${p.context} ${p.property}: ${p.description} (based on ${p.correctionCount} corrections)`
+  );
+
+  return `
+
+═══════════════════════════════════════════════════════════
+LEARNED USER PREFERENCES (from observed corrections)
+═══════════════════════════════════════════════════════════
+
+These preferences were learned from the user's repeated design corrections. Follow them as default behavior:
+${lines.join('\n')}
+
+High confidence = strong requirement. Medium = lean toward. Low = consider this tendency.
+AI may override a preference if the user's brief explicitly requests something different.`;
+}
 import type { Blueprint, FontPairing } from '../knowledge/types';
 import {
   PALETTES,
@@ -139,35 +183,11 @@ function findBestFontPairing(mood: string): FontPairing | null {
 function buildRefinementBlock(): string {
   // Reference REFINEMENT_CHECKS to keep the import used.
   void REFINEMENT_CHECKS;
-
-  return `
-═══════════════════════════════════════════════════════════
-AFTER CREATING ANY DESIGN — MANDATORY QUALITY GATE
-═══════════════════════════════════════════════════════════
-
-For every design with 5+ elements, run this two-step quality gate before reporting done.
-
-STEP 1 — STRUCTURAL CHECK (always):
-1. Call run_refinement_check(rootFrameId).
-2. Read the returned issues array. Auto-fix ALL issues with severity: 'error' immediately:
-   - Gradient direction wrong → flip via set_fill with corrected direction and stops
-   - Frame missing auto-layout → call set_auto_layout
-   - Non-standard itemSpacing → round to nearest [4,8,12,16,20,24,32,40,48,64,80,96,128]
-   - Low-contrast text (wcag-contrast) → adjust fill color so the ratio meets WCAG AA
-   - Text outside safe zone → move node inside safe margins
-3. If score < 70, fix errors and call run_refinement_check again (max 2 passes).
-4. Do NOT report the design as complete until score >= 70.
-
-STEP 2 — VISUAL CHECK (complex designs: 10+ elements, carousels, multi-section):
-1. Call evaluate_design(rootFrameId) after all structural errors are fixed.
-2. Read the exported PNG and structural summary. Verify: typography levels >= 3, images placed (not empty rects), visual balance, CTA prominence.
-3. Apply fixes with move_node / resize_node / set_fill / create_text. Max 1 visual pass.
-
-ALWAYS end your response with the refinement score:
-"Design complete. Refinement score: [X]/100. [brief summary of any remaining warnings]."`;
+  // Quality gate (run_refinement_check / evaluate_design) is excluded from chat tools.
+  return '';
 }
 
-export function buildSystemPrompt(brief?: DesignBrief, memory?: string[]): string {
+export function buildSystemPrompt(brief?: DesignBrief, memory?: string[], preferences?: LearnedPreference[]): string {
   let prompt = `You are Figmento, an expert design agent inside a Figma plugin. You create professional, polished designs directly on the Figma canvas using your tools. Use expert-level reasoning for layout, hierarchy, spacing, and color theory. Always use the brand kit when available.
 
 ## Core Rules
@@ -185,9 +205,9 @@ export function buildSystemPrompt(brief?: DesignBrief, memory?: string[]): strin
 
 ## Design Workflow
 1. Parse the request: identify format, mood/style, content, brand constraints.
-2. Call get_size_preset(format) to get exact pixel dimensions.
-3. Call get_color_palette(mood) to get the color palette.
-4. Call get_font_pairing(mood) to get the font pairing.
+2. Call lookup_size(format) to get exact pixel dimensions.
+3. Call lookup_palette(mood) to get the color palette.
+4. Call lookup_fonts(mood) to get the font pairing.
 5. Choose the type scale ratio (minor_third 1.2, major_third 1.25, perfect_fourth 1.333, golden_ratio 1.618).
 6. Plan the layout pattern.
 7. Create root frame with exact dimensions and background color.
@@ -200,10 +220,10 @@ DESIGN KNOWLEDGE TOOLS
 ═══════════════════════════════════════════════════════════
 
 Use these tools to get exact values — never hardcode or guess:
-- get_size_preset(format) → exact pixel dimensions
-- get_color_palette(mood) → full color palette
-- get_font_pairing(mood) → font pairing with weights
-- get_layout_blueprint(category, subcategory?, mood?) → layout blueprint
+- lookup_size(format) → exact pixel dimensions
+- lookup_palette(mood) → full color palette
+- lookup_fonts(mood) → font pairing with weights
+- lookup_blueprint(category, subcategory?, mood?) → layout blueprint
 
 ═══════════════════════════════════════════════════════════
 MINIMUM FONT SIZES (mandatory)
@@ -241,16 +261,44 @@ Text at LEFT → "right-left" | Text at RIGHT → "left-right"
 EXACTLY 2 stops. Gradient color MUST match section background.
 
 ═══════════════════════════════════════════════════════════
+CANVAS CONTEXT ANALYSIS — HOW TO UNDERSTAND EXISTING DESIGNS
+═══════════════════════════════════════════════════════════
+
+When the user asks to: "analyze the design", "get context from the project", "match the existing style", "analyze the website/page", or "generate an image that fits this frame" — ALWAYS call analyze_canvas_context FIRST.
+
+This tool inspects the currently selected frame (or the first frame on the page) and returns:
+- dominantColors: hex colors extracted from fills
+- textContent: text found inside the frame (headlines, body, labels)
+- dimensions: frame size
+- A screenshot of the frame attached as a visual reference
+
+After receiving the context:
+1. Study the colors to determine the palette (dark vs. light, warm vs. cool, brand color)
+2. Read the text content to understand the brand, language, and tone
+3. Look at the screenshot to understand composition, image style, and overall mood
+4. Use this to write a highly specific generate_image prompt that matches the visual identity
+
+Example workflow:
+  user: "change the background image to match the project style"
+  → analyze_canvas_context() — see the frame: orange brand, agroindustrial, people at work
+  → generate_image(prompt: "Brazilian agricultural workers in a field at golden hour, warm orange tones, professional photography, depth of field, matching a brand identity with #E85B0C primary color")
+  → set_fill(nodeId, imageData)
+
+NEVER say "I cannot analyze the canvas" or "I don't have access to the design context". You have analyze_canvas_context — use it.
+
+═══════════════════════════════════════════════════════════
+USER-ATTACHED IMAGES
+═══════════════════════════════════════════════════════════
+
+When the user attaches an image, analyze it visually to understand the reference design, brand style, or content before responding.
+
+═══════════════════════════════════════════════════════════
 IMAGE GENERATION
 ═══════════════════════════════════════════════════════════
 
 Use generate_image to create AI images via Gemini Imagen. Write detailed prompts.
 
 ${buildRefinementBlock()}`;
-
-  if (brief && (brief.format || brief.mood || brief.designType)) {
-    prompt += buildBriefInjection(brief);
-  }
 
   if (memory && memory.length > 0) {
     prompt += `
@@ -261,6 +309,14 @@ LEARNED FROM EXPERIENCE (persistent memory)
 
 These rules were learned from previous sessions. Follow them as hard requirements:
 ${memory.map((m, i) => `${i + 1}. ${m}`).join('\n')}`;
+  }
+
+  if (preferences && preferences.length > 0) {
+    prompt += buildPreferencesBlock(preferences);
+  }
+
+  if (brief && (brief.format || brief.mood || brief.designType)) {
+    prompt += buildBriefInjection(brief);
   }
 
   return prompt;

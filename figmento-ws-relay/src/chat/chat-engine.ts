@@ -29,6 +29,23 @@ import { LOCAL_TOOL_HANDLERS } from './local-intelligence';
 // TYPES
 // ═══════════════════════════════════════════════════════════════
 
+interface LearnedPreference {
+  id: string;
+  property: string;
+  category: string;
+  context: string;
+  direction: string;
+  learnedValue?: unknown;
+  learnedRange?: { min: unknown; max: unknown };
+  description: string;
+  confidence: 'low' | 'medium' | 'high';
+  correctionCount: number;
+  correctionIds: string[];
+  enabled: boolean;
+  createdAt: number;
+  lastSeenAt: number;
+}
+
 export interface ChatTurnRequest {
   /** User message text. */
   message: string;
@@ -46,6 +63,10 @@ export interface ChatTurnRequest {
   memory?: string[];
   /** Gemini API key for generate_image tool (optional, only needed if using image gen). */
   geminiApiKey?: string;
+  /** Optional base64 image attachment (data URI) from user paste. Injected as visual context for the first message only. */
+  attachmentBase64?: string;
+  /** Learned user preferences to inject into system prompt. */
+  preferences?: LearnedPreference[];
 }
 
 export interface ChatTurnResponse {
@@ -66,6 +87,8 @@ export interface ChatTurnResponse {
 interface ToolCallResult {
   content: string;
   is_error: boolean;
+  /** Optional: base64 image data to inject as vision context (Gemini inlineData / Claude image block). */
+  visionImage?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -399,6 +422,82 @@ async function executeGenerateImage(
 }
 
 // ═══════════════════════════════════════════════════════════════
+// CANVAS CONTEXT ANALYSIS (composite server-side tool)
+// ═══════════════════════════════════════════════════════════════
+
+async function executeAnalyzeCanvasContext(
+  args: Record<string, unknown>,
+  sendToPlugin: (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>,
+): Promise<ToolCallResult> {
+  try {
+    // Step 1: Resolve target nodeId (arg → selection → first page node)
+    let nodeId = args.nodeId as string | undefined;
+
+    if (!nodeId) {
+      const selection = await sendToPlugin('get_selection', {});
+      const selNodes = (selection.nodes as Array<Record<string, unknown>>) || [];
+      if (selNodes.length > 0) nodeId = selNodes[0].nodeId as string;
+    }
+
+    if (!nodeId) {
+      const pageResult = await sendToPlugin('get_page_nodes', {});
+      const pageNodes = (pageResult.nodes as Array<Record<string, unknown>>) || [];
+      const firstFrame = pageNodes.find(n => n.type === 'FRAME') || pageNodes[0];
+      if (firstFrame) nodeId = firstFrame.nodeId as string;
+    }
+
+    if (!nodeId) {
+      return { content: 'No frames found on the canvas to analyze.', is_error: true };
+    }
+
+    // Step 2: Get node properties
+    const nodeInfo = await sendToPlugin('get_node_info', { nodeId });
+
+    // Step 3: Get screenshot (optional — fails gracefully)
+    let visionImage: string | undefined;
+    try {
+      const screenshot = await sendToPlugin('get_screenshot', { nodeId });
+      const imgData = screenshot.imageData as string | undefined;
+      if (imgData && imgData.startsWith('data:image/')) visionImage = imgData;
+    } catch { /* screenshot is optional */ }
+
+    // Step 4: Extract context from node properties
+    const fills = (nodeInfo.fills as Array<Record<string, unknown>>) || [];
+    const dominantColors = fills
+      .filter(f => f.type === 'SOLID' && f.color)
+      .map(f => f.color as string)
+      .slice(0, 4);
+
+    const children = (nodeInfo.children as Array<Record<string, unknown>>) || [];
+    const textContent = children
+      .filter(c => c.type === 'TEXT' && c.characters)
+      .map(c => c.characters as string)
+      .slice(0, 6);
+
+    const context = {
+      nodeId,
+      name: nodeInfo.name || 'frame',
+      dimensions: `${nodeInfo.width ?? '?'}x${nodeInfo.height ?? '?'}`,
+      dominantColors,
+      textContent,
+      childCount: children.length,
+      note: visionImage
+        ? 'A screenshot of this frame has been attached for visual reference. Use the colors, composition, and visual style you can see to inform any image generation or design decisions.'
+        : 'Use the color and text data above to infer the design mood and style.',
+    };
+
+    return {
+      content: JSON.stringify(context),
+      is_error: false,
+      visionImage,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return { content: `analyze_canvas_context failed: ${msg}`, is_error: true };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // MAIN CHAT TURN HANDLER
 // ═══════════════════════════════════════════════════════════════
 
@@ -421,7 +520,7 @@ export async function handleChatTurn(
 
   // Detect design brief from user message
   const brief: DesignBrief = detectBrief(message);
-  const systemPrompt = buildSystemPrompt(brief, memory || []);
+  const systemPrompt = buildSystemPrompt(brief, memory || [], request.preferences || []);
 
   // Build tool resolver
   const tools: ToolResolver = chatToolResolver();
@@ -441,6 +540,11 @@ export async function handleChatTurn(
     // generate_image — server-side Gemini call + place via plugin
     if (name === 'generate_image') {
       return executeGenerateImage(args, geminiApiKey, sendToPlugin);
+    }
+
+    // analyze_canvas_context — composite: get_selection + get_node_info + get_screenshot
+    if (name === 'analyze_canvas_context') {
+      return executeAnalyzeCanvasContext(args, sendToPlugin);
     }
 
     // update_memory — persist in response, no sandbox call
@@ -490,7 +594,20 @@ export async function handleChatTurn(
 
   if (provider === 'gemini') {
     const geminiHistory = history as GeminiContent[];
-    geminiHistory.push({ role: 'user', parts: [{ text: message }] });
+    if (request.attachmentBase64) {
+      const base64 = request.attachmentBase64.replace(/^data:image\/\w+;base64,/, '');
+      const mimeMatch = request.attachmentBase64.match(/^data:(image\/\w+);base64,/);
+      const mimeType = mimeMatch?.[1] || 'image/png';
+      geminiHistory.push({
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType, data: base64 } } as unknown as GeminiPart,
+          { text: message },
+        ],
+      });
+    } else {
+      geminiHistory.push({ role: 'user', parts: [{ text: message }] });
+    }
 
     let remaining = MAX_ITERATIONS;
     while (remaining-- > 0) {
@@ -517,11 +634,15 @@ export async function handleChatTurn(
       if (functionCalls.length === 0) { completedCleanly = true; break; }
 
       const responseParts: GeminiPart[] = [];
+      const pendingVisionImages: string[] = [];
+
       for (const fc of functionCalls) {
         const { name, args } = fc.functionCall!;
         toolsUsed.add(name);
         const result = await handleToolCall(name, args);
         toolCallLog.push({ name, success: !result.is_error });
+
+        if (result.visionImage) pendingVisionImages.push(result.visionImage);
 
         const trimmed = truncateForHistory(result.content);
         let cleanedResponse: Record<string, unknown>;
@@ -534,6 +655,18 @@ export async function handleChatTurn(
         responseParts.push({ functionResponse: { name, response: cleanedResponse } });
       }
       geminiHistory.push({ role: 'user', parts: responseParts });
+
+      // Inject vision screenshots as a follow-up user message (Gemini supports inlineData)
+      for (const imgData of pendingVisionImages) {
+        const base64 = imgData.replace(/^data:image\/\w+;base64,/, '');
+        geminiHistory.push({
+          role: 'user',
+          parts: [
+            { inlineData: { mimeType: 'image/png', data: base64 } } as unknown as GeminiPart,
+            { text: 'This is a screenshot of the frame analyzed above. Use the visual style, colors, composition, and imagery you can see to inform your design decisions and image generation prompts.' },
+          ],
+        });
+      }
     }
 
     return {
@@ -548,7 +681,17 @@ export async function handleChatTurn(
 
   if (provider === 'openai') {
     const openaiHistory = history as Array<Record<string, unknown>>;
-    openaiHistory.push({ role: 'user', content: message });
+    if (request.attachmentBase64 && (model.startsWith('gpt-4') || model.includes('gpt-4o'))) {
+      openaiHistory.push({
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: request.attachmentBase64 } },
+          { type: 'text', text: message },
+        ],
+      });
+    } else {
+      openaiHistory.push({ role: 'user', content: message });
+    }
 
     let remaining = MAX_ITERATIONS;
     while (remaining-- > 0) {
@@ -598,7 +741,20 @@ export async function handleChatTurn(
 
   // ── Anthropic / Claude (default) ──
   const claudeHistory = history as AnthropicMessage[];
-  claudeHistory.push({ role: 'user', content: message });
+  if (request.attachmentBase64) {
+    const base64 = request.attachmentBase64.replace(/^data:image\/\w+;base64,/, '');
+    const mimeMatch = request.attachmentBase64.match(/^data:(image\/\w+);base64,/);
+    const mediaType = (mimeMatch?.[1] || 'image/png') as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
+    claudeHistory.push({
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } } as unknown as ContentBlock,
+        { type: 'text', text: message } as ContentBlock,
+      ] as unknown as string,
+    });
+  } else {
+    claudeHistory.push({ role: 'user', content: message });
+  }
 
   let remaining = MAX_ITERATIONS;
   while (remaining-- > 0) {
@@ -629,12 +785,25 @@ export async function handleChatTurn(
       const result = await handleToolCall(toolUse.name!, toolUse.input || {});
       toolCallLog.push({ name: toolUse.name!, success: !result.is_error });
 
-      toolResults.push({
-        type: 'tool_result',
-        tool_use_id: toolUse.id,
-        content: truncateForHistory(result.content),
-        ...(result.is_error && { is_error: true }),
-      });
+      if (result.visionImage && !result.is_error) {
+        // Include screenshot inline in the tool_result for Claude vision
+        const base64 = result.visionImage.replace(/^data:image\/\w+;base64,/, '');
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: toolUse.id,
+          content: [
+            { type: 'text', text: truncateForHistory(result.content) } as unknown as ContentBlock,
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: base64 } } as unknown as ContentBlock,
+          ] as unknown as string,
+        });
+      } else {
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: toolUse.id,
+          content: truncateForHistory(result.content),
+          ...(result.is_error && { is_error: true }),
+        });
+      }
     }
     claudeHistory.push({ role: 'user', content: toolResults });
   }

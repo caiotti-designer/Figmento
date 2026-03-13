@@ -23,6 +23,8 @@ import {
 } from './tool-use-loop';
 import { LOCAL_TOOL_HANDLERS } from './local-intelligence';
 import { getBridgeChannelId, getBridgeConnected, sendBridgeMessage, setClaudeCodeResultHandler } from './bridge';
+import { renderDiffPanel } from './diff-panel';
+import type { CorrectionEntry, LearnedPreference } from '../types';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -38,6 +40,7 @@ export interface ChatSettings {
   geminiApiKey: string;
   openaiApiKey: string;
   model: string;
+  claudeCodeModel: string;
   chatRelayEnabled: boolean;
   chatRelayUrl: string;
 }
@@ -55,6 +58,25 @@ let chatCommandCounter = 0;
 const pendingChatCommands = new Map<string, PendingCommand>();
 let memoryEntries: string[] = [];
 let currentBrief: DesignBrief | undefined;
+let pendingAttachment: string | null = null;
+let autoDetectEnabled = false; // LC-8: updated when learning-config-loaded arrives
+let learnedPreferences: LearnedPreference[] = []; // LC-9: updated each relay turn
+
+function loadPreferencesFromSandbox(): Promise<LearnedPreference[]> {
+  return new Promise(resolve => {
+    const timeout = setTimeout(() => resolve([]), 2000);
+    const handler = (event: MessageEvent) => {
+      const msg = event.data?.pluginMessage;
+      if (msg?.type === 'preferences-loaded') {
+        clearTimeout(timeout);
+        window.removeEventListener('message', handler);
+        resolve((msg.preferences as LearnedPreference[]) || []);
+      }
+    };
+    window.addEventListener('message', handler);
+    postToSandbox({ type: 'get-preferences' });
+  });
+}
 
 // Settings reference — updated from outside via updateChatSettings()
 let chatSettings: ChatSettings = {
@@ -62,8 +84,9 @@ let chatSettings: ChatSettings = {
   geminiApiKey: '',
   openaiApiKey: '',
   model: 'gemini-3.1-flash-image-preview',
+  claudeCodeModel: 'claude-opus-4-6',
   chatRelayEnabled: false,
-  chatRelayUrl: 'https://figmento-production.up.railway.app',
+  chatRelayUrl: 'http://localhost:3055',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -126,6 +149,299 @@ export function resolveChatCommand(cmdId: string, success: boolean, data: Record
 }
 
 // ═══════════════════════════════════════════════════════════════
+// CHAT TEMPLATES
+// ═══════════════════════════════════════════════════════════════
+
+interface ChatTemplate {
+  icon: string;
+  label: string;
+  prompt: string;
+}
+
+const CHAT_TEMPLATES: ChatTemplate[] = [
+  { icon: '📸', label: 'Instagram Ad',  prompt: 'Create an Instagram post (1080×1350) for a hippie coffee shop — warm earthy tones, vintage feel, include a CTA' },
+  { icon: '💼', label: 'LinkedIn Post', prompt: 'Create a LinkedIn post banner (1200×627) for a SaaS productivity tool — modern, clean, corporate blue' },
+  { icon: '🎬', label: 'YouTube Thumb', prompt: 'Create a YouTube thumbnail (1280×720) for a coding tutorial — dark background, bold text, tech feel' },
+  { icon: '🌐', label: 'Web Hero',      prompt: 'Create a web hero section (1440×800) for a wellness app — soft greens, organic shapes, minimal' },
+  { icon: '📊', label: 'Slide Deck',    prompt: 'Create a presentation title slide (1920×1080) for a startup pitch — bold, modern, dark theme' },
+  { icon: '📄', label: 'A4 Flyer',      prompt: 'Create an A4 flyer (2480×3508) for a summer music festival — vibrant, energetic, neon accents' },
+];
+
+function renderChatTemplates(): void {
+  const chatInput = $('chat-input') as HTMLTextAreaElement;
+  const container = document.createElement('div');
+  container.className = 'chat-templates';
+
+  for (const tpl of CHAT_TEMPLATES) {
+    const chip = document.createElement('button');
+    chip.className = 'chat-template-chip';
+    chip.innerHTML = `<span>${tpl.icon}</span><span>${tpl.label}</span>`;
+    chip.addEventListener('click', () => {
+      chatInput.value = tpl.prompt;
+      chatInput.focus();
+    });
+    container.appendChild(chip);
+  }
+
+  $('chat-messages').appendChild(container);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CHAT — ATTACHMENT PREVIEW
+// ═══════════════════════════════════════════════════════════════
+
+function clearAttachmentUI(): void {
+  const existing = document.getElementById('chat-attachment-preview');
+  if (existing) existing.remove();
+}
+
+function renderAttachmentPreview(dataUri: string): void {
+  clearAttachmentUI();
+  const chatInput = $('chat-input');
+  const preview = document.createElement('div');
+  preview.id = 'chat-attachment-preview';
+  preview.className = 'chat-attachment-preview';
+
+  const img = document.createElement('img');
+  img.className = 'chat-attachment-thumb';
+  img.src = dataUri;
+  img.alt = 'Attached image';
+
+  const placeBtn = document.createElement('button');
+  placeBtn.className = 'chat-attachment-place';
+  placeBtn.title = 'Place image on Figma canvas';
+  placeBtn.textContent = '→ Figma';
+  placeBtn.addEventListener('click', () => {
+    if (pendingAttachment) placePastedImage(placeBtn, pendingAttachment);
+  });
+
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'chat-attachment-remove';
+  removeBtn.title = 'Remove image';
+  removeBtn.textContent = '✕';
+  removeBtn.addEventListener('click', () => {
+    pendingAttachment = null;
+    clearAttachmentUI();
+  });
+
+  preview.appendChild(img);
+  preview.appendChild(placeBtn);
+  preview.appendChild(removeBtn);
+  chatInput.parentElement!.insertBefore(preview, chatInput);
+}
+
+async function placePastedImage(placeBtn: HTMLButtonElement, attachment: string): Promise<void> {
+  placeBtn.disabled = true;
+  placeBtn.textContent = '...';
+
+  try {
+    // Measure natural dimensions
+    const dims = await new Promise<{ w: number; h: number }>((resolve) => {
+      const tempImg = new Image();
+      tempImg.onload = () => resolve({ w: tempImg.naturalWidth, h: tempImg.naturalHeight });
+      tempImg.onerror = () => resolve({ w: 400, h: 300 });
+      tempImg.src = attachment;
+    });
+
+    // Cap longest side at 800px
+    const maxDim = 800;
+    const scale = Math.min(1, maxDim / Math.max(dims.w, dims.h, 1));
+    const width = Math.round(dims.w * scale);
+    const height = Math.round(dims.h * scale);
+
+    await sendCommandToSandbox('create_image', {
+      imageData: attachment,
+      name: 'Pasted Reference',
+      width,
+      height,
+    });
+
+    placeBtn.textContent = '✓ Placed!';
+    setTimeout(() => {
+      if (!placeBtn.isConnected) return;
+      placeBtn.disabled = false;
+      placeBtn.textContent = '→ Figma';
+    }, 1500);
+  } catch (_err) {
+    placeBtn.textContent = 'Failed — connected?';
+    setTimeout(() => {
+      if (!placeBtn.isConnected) return;
+      placeBtn.disabled = false;
+      placeBtn.textContent = '→ Figma';
+    }, 2000);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LEARN FROM MY EDITS — LC Phase 4a
+// ═══════════════════════════════════════════════════════════════
+
+function setLearnButtonEnabled(enabled: boolean): void {
+  const btn = document.getElementById('chat-learn') as HTMLButtonElement | null;
+  if (!btn) return;
+  btn.disabled = !enabled;
+  btn.classList.toggle('active', enabled);
+}
+
+function updateLearnButtonState(): void {
+  postToSandbox({ type: 'get-snapshot-status' });
+}
+
+function handleLearnFromEdits(): void {
+  const btn = document.getElementById('chat-learn') as HTMLButtonElement | null;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳';
+  }
+  postToSandbox({ type: 'compare-snapshot' });
+}
+
+function handleSnapshotCompared(msg: Record<string, unknown>): void {
+  // Restore button icon
+  const btn = document.getElementById('chat-learn') as HTMLButtonElement | null;
+  if (btn) btn.textContent = '📝';
+
+  const corrections = (msg.corrections as CorrectionEntry[]) || [];
+
+  if (corrections.length === 0) {
+    appendChatBubble('assistant', 'No changes detected since the last AI design.');
+    updateLearnButtonState();
+    return;
+  }
+
+  // Remove any existing panel before showing a new one
+  const existing = document.getElementById('learn-diff-panel');
+  if (existing) existing.remove();
+
+  const panel = renderDiffPanel(
+    corrections,
+    (confirmed) => {
+      postToSandbox({ type: 'save-corrections', corrections: confirmed });
+    },
+    () => {
+      const p = document.getElementById('learn-diff-panel');
+      if (p) p.remove();
+      updateLearnButtonState();
+    },
+  );
+
+  $('chat-messages').appendChild(panel);
+  $('chat-messages').scrollTop = $('chat-messages').scrollHeight;
+}
+
+function handleCorrectionsSaved(msg: Record<string, unknown>): void {
+  const count = (msg.savedCount as number) || 0;
+
+  // Remove the diff panel
+  const panel = document.getElementById('learn-diff-panel');
+  if (panel) panel.remove();
+
+  // Success toast in chat
+  appendChatBubble('assistant', `✅ Learned ${count} correction${count === 1 ? '' : 's'}. Your preferences have been saved.`);
+
+  // Snapshots consumed — disable button
+  setLearnButtonEnabled(false);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AUTO-DETECT — LC Phase 4b
+// ═══════════════════════════════════════════════════════════════
+
+function handleAutoDetectCompared(msg: Record<string, unknown>): void {
+  const corrections = (msg.corrections as CorrectionEntry[]) || [];
+  if (corrections.length === 0) return; // silent pass
+
+  const count = corrections.length;
+  const notice = document.createElement('div');
+  notice.className = 'auto-detect-notice';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'auto-detect-notice-header';
+
+  const summary = document.createElement('span');
+  summary.textContent = `Noticed ${count} edit${count === 1 ? '' : 's'} since last design`;
+
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className = 'auto-detect-toggle-btn';
+  toggleBtn.textContent = '▾ Details';
+
+  header.appendChild(summary);
+  header.appendChild(toggleBtn);
+
+  // Body (hidden initially)
+  const body = document.createElement('div');
+  body.className = 'auto-detect-notice-body';
+  body.style.display = 'none';
+
+  const list = document.createElement('ul');
+  list.className = 'auto-detect-correction-list';
+  for (const c of corrections) {
+    const li = document.createElement('li');
+    const icons: Record<string, string> = { typography: '🔤', color: '🎨', spacing: '↔', shape: '⬜' };
+    const icon = icons[c.category] || '•';
+    li.textContent = `${icon} ${c.nodeName} — ${c.property}: ${String(c.beforeValue)} → ${String(c.afterValue)}`;
+    list.appendChild(li);
+  }
+  body.appendChild(list);
+
+  // Actions
+  const actions = document.createElement('div');
+  actions.className = 'auto-detect-notice-actions';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'auto-detect-save-btn';
+  saveBtn.textContent = 'Save as corrections';
+
+  const dismissBtn = document.createElement('button');
+  dismissBtn.className = 'auto-detect-dismiss-btn';
+  dismissBtn.textContent = 'Dismiss';
+
+  actions.appendChild(saveBtn);
+  actions.appendChild(dismissBtn);
+  body.appendChild(actions);
+
+  notice.appendChild(header);
+  notice.appendChild(body);
+
+  // Toggle expand/collapse
+  toggleBtn.addEventListener('click', () => {
+    const expanded = body.style.display !== 'none';
+    body.style.display = expanded ? 'none' : 'block';
+    toggleBtn.textContent = expanded ? '▾ Details' : '▴ Hide';
+  });
+
+  // Save handler
+  saveBtn.addEventListener('click', () => {
+    saveBtn.disabled = true;
+    dismissBtn.disabled = true;
+    postToSandbox({ type: 'save-corrections', corrections });
+    postToSandbox({ type: 'aggregate-preferences' });
+
+    // Replace action row with saved message
+    const savedMsg = document.createElement('div');
+    savedMsg.className = 'auto-detect-saved-msg';
+    savedMsg.textContent = `Saved ${count} correction${count === 1 ? '' : 's'} ✓`;
+    actions.replaceWith(savedMsg);
+
+    // Auto-remove after 3s
+    setTimeout(() => { notice.remove(); }, 3000);
+  });
+
+  // Dismiss handler
+  dismissBtn.addEventListener('click', () => { notice.remove(); });
+
+  // Insert before the last child (user bubble) in chat messages
+  const messagesEl = $('chat-messages');
+  const lastChild = messagesEl.lastElementChild;
+  if (lastChild) {
+    messagesEl.insertBefore(notice, lastChild);
+  } else {
+    messagesEl.appendChild(notice);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // CHAT — UI
 // ═══════════════════════════════════════════════════════════════
 
@@ -141,13 +457,92 @@ export function initChat() {
     }
   });
 
+  // Paste handler — capture image from clipboard
+  input.addEventListener('paste', (e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        if (!blob) return;
+        if (blob.size > 4 * 1024 * 1024) {
+          appendChatBubble('assistant', '<span class="chat-error">Image too large — please paste a screenshot under 4MB</span>');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          pendingAttachment = reader.result as string;
+          renderAttachmentPreview(pendingAttachment);
+        };
+        reader.readAsDataURL(blob);
+        return; // Image handled — don't allow text paste fallthrough
+      }
+    }
+    // No image item found — let normal text paste proceed
+  });
+
   $('chat-new').addEventListener('click', () => {
     conversationHistory = [];
     geminiHistory = [];
     openaiHistory = [];
     claudeCodeHistory = [];
+    pendingAttachment = null;
+    clearAttachmentUI();
     $('chat-messages').innerHTML = '';
     addChatWelcome();
+  });
+
+  // ── "Learn from my edits" button (LC Phase 4a) ──────────────────────────────
+  const learnBtn = document.getElementById('chat-learn') as HTMLButtonElement | null;
+  if (learnBtn) {
+    learnBtn.addEventListener('click', () => handleLearnFromEdits());
+  }
+
+  // Initialize snapshot status (enable/disable button)
+  updateLearnButtonState();
+
+  // LC-8: Load learning config to initialize autoDetectEnabled
+  postToSandbox({ type: 'get-learning-config' });
+
+  // Re-check snapshot status every 30s
+  setInterval(() => updateLearnButtonState(), 30_000);
+
+  // Handle LC sandbox messages
+  window.addEventListener('message', (event: MessageEvent) => {
+    const msg = event.data?.pluginMessage;
+    if (!msg) return;
+
+    switch (msg.type) {
+      case 'snapshot-taken':
+        // A new snapshot was stored — re-check button state
+        updateLearnButtonState();
+        break;
+
+      case 'snapshot-status':
+        setLearnButtonEnabled(Array.isArray(msg.frames) && msg.frames.length > 0);
+        break;
+
+      case 'snapshot-compared':
+        if (msg.source === 'auto') {
+          handleAutoDetectCompared(msg);
+        } else {
+          handleSnapshotCompared(msg);
+        }
+        break;
+
+      case 'learning-config-loaded':
+        autoDetectEnabled = (msg.config as Record<string, unknown>)?.autoDetect === true;
+        break;
+
+      case 'corrections-saved':
+        handleCorrectionsSaved(msg);
+        break;
+
+      case 'snapshots-cleared':
+        setLearnButtonEnabled(false);
+        break;
+    }
   });
 
   addChatWelcome();
@@ -160,12 +555,15 @@ function addChatWelcome() {
     <div class="chat-welcome-title">Figmento AI</div>
     <div class="chat-welcome-subtitle">AI design agent. Describe what you want to create.</div>
   </div>`;
+  renderChatTemplates();
 }
 
 function appendChatBubble(role: 'user' | 'assistant', html: string) {
   const messagesEl = $('chat-messages');
   const welcome = messagesEl.querySelector('.chat-welcome');
   if (welcome) welcome.remove();
+  const templates = messagesEl.querySelector('.chat-templates');
+  if (templates) templates.remove();
 
   const bubble = document.createElement('div');
   bubble.className = `chat-bubble ${role}`;
@@ -222,13 +620,28 @@ async function sendMessage() {
     }
   }
 
+  // Capture and clear attachment before the API call
+  const capturedAttachment = pendingAttachment;
+  pendingAttachment = null;
+  clearAttachmentUI();
+
   input.value = '';
-  appendChatBubble('user', escapeHtml(text));
+
+  // Show user bubble with optional attachment indicator
+  const userHtml = capturedAttachment
+    ? `${escapeHtml(text)}<br><span class="chat-attachment-indicator">📎 image attached</span>`
+    : escapeHtml(text);
+  appendChatBubble('user', userHtml);
 
   // Detect design brief from the user's message (KI-2)
   currentBrief = detectBrief(text);
 
   setProcessing(true);
+
+  // LC-8: Auto-detect corrections before each AI turn (fire-and-forget)
+  if (autoDetectEnabled) {
+    postToSandbox({ type: 'compare-snapshot', source: 'auto' });
+  }
 
   const relayEnabled = chatSettings.chatRelayEnabled;
   const bridgeConnected = getBridgeConnected();
@@ -246,15 +659,15 @@ async function sendMessage() {
     // Route through relay if enabled and bridge is connected
     } else if (relayEnabled && bridgeConnected) {
       console.log('[Figmento Chat] → RELAY path');
-      await runRelayTurn(text, useGemini, useOpenAI);
+      await runRelayTurn(text, useGemini, useOpenAI, capturedAttachment);
     } else if (relayEnabled && !bridgeConnected) {
       // Fallback to direct API — relay is enabled but bridge is unreachable
       console.log('[Figmento Chat] → FALLBACK path (relay enabled but bridge not connected)');
       updateRelayStatus('fallback');
-      await runDirectLoop(text, useGemini, useOpenAI);
+      await runDirectLoop(text, useGemini, useOpenAI, capturedAttachment);
     } else {
       console.log('[Figmento Chat] → DIRECT path (relay disabled)');
-      await runDirectLoop(text, useGemini, useOpenAI);
+      await runDirectLoop(text, useGemini, useOpenAI, capturedAttachment);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -297,11 +710,14 @@ function updateRelayStatus(state: RelayConnectionState) {
 // CHAT — RELAY TURN (POST /chat/turn)
 // ═══════════════════════════════════════════════════════════════
 
-async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean): Promise<void> {
+async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean, attachment: string | null): Promise<void> {
   const channelId = getBridgeChannelId();
   if (!channelId) {
     throw new Error('Bridge channel not available. Falling back to direct API.');
   }
+
+  // LC-9: Load latest preferences before each relay turn (max 2s wait)
+  learnedPreferences = await loadPreferencesFromSandbox();
 
   const provider = useGemini ? 'gemini' : useOpenAI ? 'openai' : 'claude';
   const apiKey = useGemini ? chatSettings.geminiApiKey
@@ -311,7 +727,7 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
 
   const url = chatSettings.chatRelayUrl.replace(/\/+$/, '') + '/api/chat/turn';
 
-  const body = {
+  const body: Record<string, unknown> = {
     message: text,
     channel: channelId,
     provider,
@@ -319,7 +735,9 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
     model: chatSettings.model,
     history,
     memory: memoryEntries,
+    preferences: learnedPreferences,
     geminiApiKey: chatSettings.geminiApiKey || undefined,
+    ...(attachment && { attachmentBase64: attachment }),
   };
 
   const resp = await fetch(url, {
@@ -390,6 +808,7 @@ async function runClaudeCodeTurn(text: string): Promise<void> {
     message: text,
     history: claudeCodeHistory,
     memory: memoryEntries,
+    model: chatSettings.claudeCodeModel || undefined,
   });
 
   if (!sent) {
@@ -435,15 +854,51 @@ async function runClaudeCodeTurn(text: string): Promise<void> {
 }
 
 /** Direct API path — used when relay is disabled or as fallback. */
-async function runDirectLoop(text: string, useGemini: boolean, useOpenAI: boolean): Promise<void> {
+async function runDirectLoop(text: string, useGemini: boolean, useOpenAI: boolean, attachment: string | null): Promise<void> {
   if (useGemini) {
-    geminiHistory.push({ role: 'user', parts: [{ text }] });
+    if (attachment) {
+      const base64 = attachment.replace(/^data:image\/\w+;base64,/, '');
+      const mimeMatch = attachment.match(/^data:(image\/\w+);base64,/);
+      const mimeType = mimeMatch?.[1] || 'image/png';
+      geminiHistory.push({
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType, data: base64 } } as unknown as { text: string },
+          { text },
+        ],
+      });
+    } else {
+      geminiHistory.push({ role: 'user', parts: [{ text }] });
+    }
     await runGeminiLoop();
   } else if (useOpenAI) {
-    openaiHistory.push({ role: 'user', content: text });
+    if (attachment && (chatSettings.model.startsWith('gpt-4') || chatSettings.model.includes('gpt-4o'))) {
+      openaiHistory.push({
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: attachment } },
+          { type: 'text', text },
+        ],
+      });
+    } else {
+      openaiHistory.push({ role: 'user', content: text });
+    }
     await runOpenAILoop();
   } else {
-    conversationHistory.push({ role: 'user', content: text });
+    if (attachment) {
+      const base64 = attachment.replace(/^data:image\/\w+;base64,/, '');
+      const mimeMatch = attachment.match(/^data:(image\/\w+);base64,/);
+      const mediaType = (mimeMatch?.[1] || 'image/png') as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
+      conversationHistory.push({
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+          { type: 'text', text },
+        ] as unknown as string,
+      });
+    } else {
+      conversationHistory.push({ role: 'user', content: text });
+    }
     await runAnthropicLoop();
   }
 }
@@ -457,7 +912,7 @@ async function runAnthropicLoop(): Promise<void> {
     provider: 'claude',
     apiKey: chatSettings.anthropicApiKey,
     model: chatSettings.model,
-    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries),
+    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences),
     tools: chatToolResolver(),
     messages: conversationHistory,
     onToolCall: buildToolCallHandler(),
@@ -471,7 +926,7 @@ async function runGeminiLoop(): Promise<void> {
     provider: 'gemini',
     apiKey: chatSettings.geminiApiKey,
     model: chatSettings.model,
-    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries),
+    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences),
     tools: chatToolResolver(),
     messages: geminiHistory,
     onToolCall: buildToolCallHandler(),
@@ -485,7 +940,7 @@ async function runOpenAILoop(): Promise<void> {
     provider: 'openai',
     apiKey: chatSettings.openaiApiKey,
     model: chatSettings.model,
-    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries),
+    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences),
     tools: chatToolResolver(),
     messages: openaiHistory,
     onToolCall: buildToolCallHandler(),
@@ -516,6 +971,10 @@ function buildToolCallHandler(): (name: string, args: Record<string, unknown>) =
 
     if (name === 'update_memory') {
       return executeUpdateMemory(args);
+    }
+
+    if (name === 'analyze_canvas_context') {
+      return executeAnalyzeCanvasContext(args);
     }
 
     // Local intelligence tools — resolved from bundled knowledge, no network
@@ -586,6 +1045,62 @@ function formatToolSummary(name: string, data: Record<string, unknown>): string 
 // ═══════════════════════════════════════════════════════════════
 // SPECIAL TOOL HANDLERS
 // ═══════════════════════════════════════════════════════════════
+
+async function executeAnalyzeCanvasContext(args: Record<string, unknown>): Promise<ToolCallResult> {
+  appendToolAction('analyze_canvas_context', 'Analyzing canvas...');
+  try {
+    let nodeId = args.nodeId as string | undefined;
+
+    if (!nodeId) {
+      const selection = await sendCommandToSandbox('get_selection', {});
+      const selNodes = (selection.nodes as Array<Record<string, unknown>>) || [];
+      if (selNodes.length > 0) nodeId = selNodes[0].nodeId as string;
+    }
+
+    if (!nodeId) {
+      const pageResult = await sendCommandToSandbox('get_page_nodes', {});
+      const pageNodes = (pageResult.nodes as Array<Record<string, unknown>>) || [];
+      const firstFrame = pageNodes.find((n: Record<string, unknown>) => n.type === 'FRAME') || pageNodes[0];
+      if (firstFrame) nodeId = firstFrame.nodeId as string;
+    }
+
+    if (!nodeId) {
+      appendToolAction('analyze_canvas_context', 'No frames found on canvas', true);
+      return { content: 'No frames found on the canvas to analyze.', is_error: true };
+    }
+
+    const nodeInfo = await sendCommandToSandbox('get_node_info', { nodeId });
+
+    const fills = (nodeInfo.fills as Array<Record<string, unknown>>) || [];
+    const dominantColors = fills
+      .filter(f => f.type === 'SOLID' && f.color)
+      .map(f => f.color as string)
+      .slice(0, 4);
+
+    const children = (nodeInfo.children as Array<Record<string, unknown>>) || [];
+    const textContent = children
+      .filter(c => c.type === 'TEXT' && c.characters)
+      .map(c => c.characters as string)
+      .slice(0, 6);
+
+    const context = {
+      nodeId,
+      name: nodeInfo.name || 'frame',
+      dimensions: `${nodeInfo.width ?? '?'}x${nodeInfo.height ?? '?'}`,
+      dominantColors,
+      textContent,
+      childCount: children.length,
+      note: 'Use the colors and text above to infer the design mood and style for image generation.',
+    };
+
+    appendToolAction('analyze_canvas_context', `Analyzed "${context.name}" — ${dominantColors.length} colors, ${textContent.length} text elements`);
+    return { content: JSON.stringify(context), is_error: false };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    appendToolAction('analyze_canvas_context', msg, true);
+    return { content: `analyze_canvas_context failed: ${msg}`, is_error: true };
+  }
+}
 
 async function executeGenerateImage(input: Record<string, unknown>): Promise<ToolCallResult> {
   const prompt = input.prompt as string;

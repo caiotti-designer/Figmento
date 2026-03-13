@@ -9,6 +9,38 @@
  */
 
 import type { DesignBrief } from './brief-detector';
+import type { LearnedPreference } from '../types';
+
+const CONFIDENCE_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
+function buildPreferencesBlock(preferences: LearnedPreference[]): string {
+  const enabled = preferences.filter(p => p.enabled !== false);
+  if (enabled.length === 0) return '';
+
+  const sorted = enabled.slice().sort((a, b) => {
+    const confDiff = (CONFIDENCE_ORDER[a.confidence] ?? 2) - (CONFIDENCE_ORDER[b.confidence] ?? 2);
+    if (confDiff !== 0) return confDiff;
+    return b.correctionCount - a.correctionCount;
+  });
+
+  const top20 = sorted.slice(0, 20);
+
+  const lines = top20.map(p =>
+    `- [${p.confidence} confidence] ${p.context} ${p.property}: ${p.description} (based on ${p.correctionCount} corrections)`
+  );
+
+  return `
+
+═══════════════════════════════════════════════════════════
+LEARNED USER PREFERENCES (from observed corrections)
+═══════════════════════════════════════════════════════════
+
+These preferences were learned from the user's repeated design corrections. Follow them as default behavior:
+${lines.join('\n')}
+
+High confidence = strong requirement. Medium = lean toward. Low = consider this tendency.
+AI may override a preference if the user's brief explicitly requests something different.`;
+}
 import type { Blueprint, Palette, FontPairing } from '../knowledge/types';
 import {
   PALETTES,
@@ -158,37 +190,13 @@ function findBestFontPairing(mood: string): FontPairing | null {
 function buildRefinementBlock(): string {
   // Reference REFINEMENT_CHECKS to keep the import used (micro-check data remains available).
   void REFINEMENT_CHECKS;
-
-  return `
-═══════════════════════════════════════════════════════════
-AFTER CREATING ANY DESIGN — MANDATORY QUALITY GATE
-═══════════════════════════════════════════════════════════
-
-For every design with 5+ elements, run this two-step quality gate before reporting done.
-
-STEP 1 — STRUCTURAL CHECK (always):
-1. Call run_refinement_check(rootFrameId).
-2. Read the returned issues array. Auto-fix ALL issues with severity: 'error' immediately:
-   - Gradient direction wrong → flip via set_fill with corrected direction and stops
-   - Frame missing auto-layout → call set_auto_layout
-   - Non-standard itemSpacing → round to nearest [4,8,12,16,20,24,32,40,48,64,80,96,128]
-   - Low-contrast text (wcag-contrast) → adjust fill color so the ratio meets WCAG AA
-   - Text outside safe zone → move node inside safe margins
-3. If score < 70, fix errors and call run_refinement_check again (max 2 passes).
-4. Do NOT report the design as complete until score >= 70.
-
-STEP 2 — VISUAL CHECK (complex designs: 10+ elements, carousels, multi-section):
-1. Call evaluate_design(rootFrameId) after all structural errors are fixed.
-2. Read the exported PNG and structural summary. Verify: typography levels >= 3, images placed (not empty rects), visual balance, CTA prominence.
-3. Apply fixes with move_node / resize_node / set_fill / create_text. Max 1 visual pass.
-
-ALWAYS end your response with the refinement score:
-"Design complete. Refinement score: [X]/100. [brief summary of any remaining warnings]."`;
+  // Quality gate (run_refinement_check / evaluate_design) is excluded from chat tools.
+  return '';
 }
 
 // ── Main prompt builder ──────────────────────────────────────────
 
-export function buildSystemPrompt(brief?: DesignBrief, memory?: string[]): string {
+export function buildSystemPrompt(brief?: DesignBrief, memory?: string[], preferences?: LearnedPreference[]): string {
   let prompt = `You are Figmento, an expert design agent inside a Figma plugin. You create professional, polished designs directly on the Figma canvas using your tools. Use expert-level reasoning for layout, hierarchy, spacing, and color theory. Always use the brand kit when available.
 
 ## Core Rules
@@ -225,9 +233,9 @@ If the file has no variables and no styles:
 ## Design Workflow (follow for EVERY design request)
 1. Parse the request: identify format (Instagram post? Poster? Presentation?), mood/style, content, brand constraints.
 1b. Call read_figma_context to discover existing variables and styles. Use them instead of hardcoding values (see Figma-Native Workflow above).
-2. Call get_size_preset(format) to get exact pixel dimensions. Never guess dimensions.
-3. Call get_color_palette(mood) to get the color palette. If a brand kit exists, use its colors instead.
-4. Call get_font_pairing(mood) to get the font pairing. Use the recommended heading/body weights.
+2. Call lookup_size(format) to get exact pixel dimensions. Never guess dimensions.
+3. Call lookup_palette(mood) to get the color palette. If a brand kit exists, use its colors instead.
+4. Call lookup_fonts(mood) to get the font pairing. Use the recommended heading/body weights.
 5. Choose the type scale ratio:
    - minor_third (1.2) — documents, long reads, subtle hierarchy
    - major_third (1.25) — general purpose, balanced (DEFAULT)
@@ -244,10 +252,10 @@ DESIGN KNOWLEDGE TOOLS (call these instead of guessing)
 ═══════════════════════════════════════════════════════════
 
 Use these tools to get exact values — never hardcode or guess:
-- get_size_preset(format) → exact pixel dimensions for any format (social, print, web, presentation)
-- get_color_palette(mood) → full color palette (primary, secondary, accent, background, text, muted)
-- get_font_pairing(mood) → font pairing with heading/body fonts and weights
-- get_layout_blueprint(category, subcategory?, mood?) → layout blueprint with zones and anti-generic rules
+- lookup_size(format) → exact pixel dimensions for any format (social, print, web, presentation)
+- lookup_palette(mood) → full color palette (primary, secondary, accent, background, text, muted)
+- lookup_fonts(mood) → font pairing with heading/body fonts and weights
+- lookup_blueprint(category, subcategory?, mood?) → layout blueprint with zones and anti-generic rules
 
 Type scale ratios (apply to base size 16): minor_third=1.2, major_third=1.25 (default), perfect_fourth=1.333, golden_ratio=1.618
 
@@ -396,15 +404,7 @@ Layer Order (bottom to top):
   2. Overlay rectangle (gradient or solid scrim)
   3. Text content frame (auto-layout with text nodes)
 
-═══════════════════════════════════════════════════════════
-PRINT LAYOUT RULES (mandatory for A4, Poster, Brochure, Flyer formats)
-═══════════════════════════════════════════════════════════
-
-1. EVERY frame on a print page MUST use auto-layout (layoutMode VERTICAL or HORIZONTAL). No absolute positioning for in-flow content.
-2. ROOT FRAME padding: 72px all sides (page margin). itemSpacing: 48–64px between major sections.
-3. SECTION GAPS: 48–64px between sections, 24–32px within sections, 12–16px between small elements.
-4. PRINT TYPOGRAPHY minimum sizes on A4 (2480×3508px): Body ≥ 24px | H3 ≥ 28px | H2 ≥ 40px | H1 ≥ 64px. Body NEVER below 24px.
-5. NEVER leave >100px of unstructured empty space. If a section looks empty, reduce gaps or add a content element.
+For print formats, use auto-layout on all container frames with generous padding (72px+).
 
 ═══════════════════════════════════════════════════════════
 FORMAT COMPLETION (design is NOT done until all items are present)
@@ -456,6 +456,27 @@ When a REFERENCE INSPIRATION section appears in the prompt, it provides composit
 - ADAPT: take the proportional thinking, the spacing rhythm, and the hierarchy structure — apply with the brief's own brand
 
 ═══════════════════════════════════════════════════════════
+CANVAS CONTEXT ANALYSIS — HOW TO UNDERSTAND EXISTING DESIGNS
+═══════════════════════════════════════════════════════════
+
+When the user asks to: "analyze the design", "get context from the project", "match the existing style", "analyze the website/page", or "generate an image that fits this frame" — ALWAYS call analyze_canvas_context FIRST.
+
+This tool inspects the selected frame (or first frame) and returns:
+- dominantColors: hex colors extracted from fills
+- textContent: text found inside the frame
+- dimensions: frame size
+
+After receiving the context, use the colors and text to infer mood and style, then write a highly specific generate_image prompt that matches the visual identity.
+
+NEVER say "I cannot analyze the canvas" — you have analyze_canvas_context, use it.
+
+═══════════════════════════════════════════════════════════
+USER-ATTACHED IMAGES
+═══════════════════════════════════════════════════════════
+
+When the user attaches an image, analyze it visually to understand the reference design, brand style, or content before responding.
+
+═══════════════════════════════════════════════════════════
 IMAGE GENERATION
 ═══════════════════════════════════════════════════════════
 
@@ -470,11 +491,6 @@ Place generated images as background fills or content elements within the design
 
 ${buildRefinementBlock()}`;
 
-  // ── Brief-specific injection (KI-2) ──
-  if (brief && (brief.format || brief.mood || brief.designType)) {
-    prompt += buildBriefInjection(brief);
-  }
-
   // ── Memory entries ──
   if (memory && memory.length > 0) {
     prompt += `
@@ -485,6 +501,16 @@ LEARNED FROM EXPERIENCE (persistent memory)
 
 These rules were learned from previous sessions. Follow them as hard requirements:
 ${memory.map((m, i) => `${i + 1}. ${m}`).join('\n')}`;
+  }
+
+  // ── Learned user preferences (after memory, before brief) ──
+  if (preferences && preferences.length > 0) {
+    prompt += buildPreferencesBlock(preferences);
+  }
+
+  // ── Brief-specific injection (KI-2) ──
+  if (brief && (brief.format || brief.mood || brief.designType)) {
+    prompt += buildBriefInjection(brief);
   }
 
   return prompt;
