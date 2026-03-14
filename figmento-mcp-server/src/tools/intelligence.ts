@@ -76,6 +76,25 @@ export const saveBrandKitSchema = {
   }).passthrough().describe('Brand kit data'),
 };
 
+// ═══════════════════════════════════════════════════════════
+// Consolidated get_design_guidance schema
+// ═══════════════════════════════════════════════════════════
+
+export const getDesignGuidanceSchema = {
+  aspect: z.string().describe('Which design guidance to retrieve: "size" | "fonts" | "typeScale" | "color" | "spacing" | "layout"'),
+  // size params
+  platform: z.string().optional().describe('Platform filter (for aspect="size"): instagram, facebook, tiktok, etc.'),
+  category: z.string().optional().describe('Category filter (for aspect="size"): social, print, presentation, web'),
+  id: z.string().optional().describe('Specific preset/pairing/palette ID'),
+  // fonts + color params
+  mood: z.string().optional().describe('Mood keywords (for aspect="fonts" or "color")'),
+  // typeScale params
+  baseSize: z.number().optional().describe('Base font size in pixels (for aspect="typeScale", default: 16)'),
+  ratio: z.string().optional().describe('Scale ratio (for aspect="typeScale"): minor_third, major_third, perfect_fourth, golden_ratio'),
+  // layout params
+  format: z.string().optional().describe('Design format (for aspect="layout"): social, print, presentation, web, poster'),
+};
+
 /** Flatten nested size-presets.yaml structure into a flat array of presets */
 function flattenPresets(data: Record<string, unknown>): Array<Record<string, unknown>> {
   const results: Array<Record<string, unknown>> = [];
@@ -111,136 +130,218 @@ function relativeLuminance(hex: string): number {
   return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
 }
 
+// ═══════════════════════════════════════════════════════════
+// Shared handler implementations for each aspect
+// ═══════════════════════════════════════════════════════════
+
+function handleSizePreset(params: Record<string, unknown>) {
+  const data = loadKnowledge('size-presets.yaml');
+  const allPresets = flattenPresets(data);
+
+  let results = allPresets;
+  if (params.id) {
+    results = results.filter(p => p.id === params.id);
+  }
+  if (params.platform) {
+    results = results.filter(p => p.platform === params.platform);
+  }
+  if (params.category) {
+    results = results.filter(p => p.category === params.category);
+  }
+
+  return { content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }] };
+}
+
+function handleFontPairing(params: Record<string, unknown>) {
+  const data = loadKnowledge('typography.yaml');
+  const pairings = data.font_pairings as Array<Record<string, unknown>>;
+
+  let results = pairings;
+  if (params.id) {
+    results = results.filter(p => p.id === params.id);
+  }
+  if (params.mood) {
+    const keywords = (params.mood as string).toLowerCase().split(/[\s,]+/);
+    results = results.filter(p => {
+      const tags = (p.mood_tags as string[]) || [];
+      return keywords.some(kw => tags.some(tag => tag.toLowerCase().includes(kw)));
+    });
+  }
+
+  return { content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }] };
+}
+
+function handleTypeScale(params: Record<string, unknown>) {
+  const data = loadKnowledge('typography.yaml');
+  const scales = data.type_scales as Record<string, Record<string, unknown>>;
+  const scaleId = (params.ratio as string) || 'major_third';
+  const scale = scales[scaleId];
+
+  if (!scale) {
+    throw new Error(`Unknown scale: ${scaleId}. Available: ${Object.keys(scales).join(', ')}`);
+  }
+
+  const base = (params.baseSize as number) || 16;
+  const r = scale.ratio as number;
+
+  const computed = {
+    xs: Math.round(base / (r * r)),
+    sm: Math.round(base / r),
+    base,
+    lg: Math.round(base * r),
+    xl: Math.round(base * r * r),
+    '2xl': Math.round(base * Math.pow(r, 3)),
+    '3xl': Math.round(base * Math.pow(r, 4)),
+    '4xl': Math.round(base * Math.pow(r, 5)),
+    display: Math.round(base * Math.pow(r, 6)),
+  };
+
+  const result = {
+    ...scale,
+    computedSizes: computed,
+    baseSize: base,
+  };
+
+  return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+}
+
+function handleColorPalette(params: Record<string, unknown>) {
+  const data = loadKnowledge('color-system.yaml');
+  const palettes = data.palettes as Array<Record<string, unknown>>;
+
+  let results = palettes;
+  if (params.id) {
+    results = results.filter(p => p.id === params.id);
+  }
+  if (params.mood) {
+    const keywords = (params.mood as string).toLowerCase().split(/[\s,]+/);
+    results = results.filter(p => {
+      const tags = (p.mood_tags as string[]) || [];
+      return keywords.some(kw => tags.some(tag => tag.toLowerCase().includes(kw)));
+    });
+  }
+
+  return { content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }] };
+}
+
+function handleSpacingScale() {
+  const data = loadKnowledge('layout.yaml');
+  const result = {
+    grid: data.grid,
+    spacing_scale: data.spacing_scale,
+  };
+  return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+}
+
+function handleLayoutGuide(params: Record<string, unknown>) {
+  const data = loadKnowledge('layout.yaml');
+  const result: Record<string, unknown> = {};
+
+  const margins = data.margins as Record<string, unknown> | undefined;
+  const safeZones = data.safe_zones as Record<string, unknown> | undefined;
+
+  if (params.format && margins) {
+    // Map 'poster' to the closest key in margins
+    const formatKey = params.format === 'poster' ? 'poster' :
+                      params.format === 'web' ? 'web_hero' : params.format as string;
+    result.margins = margins[formatKey] || margins;
+  } else {
+    result.margins = margins;
+  }
+
+  if (params.format === 'social' && safeZones) {
+    result.safe_zones = safeZones;
+  } else if (!params.format) {
+    result.safe_zones = safeZones;
+  }
+
+  result.hierarchy = data.hierarchy;
+  result.patterns = data.patterns;
+
+  return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+}
+
+function handleDesignGuidance(params: Record<string, unknown>) {
+  const aspect = params.aspect as string;
+  switch (aspect) {
+    case 'size':
+      return handleSizePreset(params);
+    case 'fonts':
+      return handleFontPairing(params);
+    case 'typeScale':
+      return handleTypeScale(params);
+    case 'color':
+      return handleColorPalette(params);
+    case 'spacing':
+      return handleSpacingScale();
+    case 'layout':
+      return handleLayoutGuide(params);
+    default:
+      throw new Error(`Unknown get_design_guidance aspect: "${aspect}". Must be one of: size, fonts, typeScale, color, spacing, layout`);
+  }
+}
+
 export function registerIntelligenceTools(server: McpServer): void {
 
   // ═══════════════════════════════════════════════════════════
-  // S-08: get_size_preset
+  // Consolidated tool: get_design_guidance
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'get_design_guidance',
+    'Get design guidance from the knowledge base. Use "aspect" to choose: "size" (format dimensions), "fonts" (font pairings by mood), "typeScale" (computed type scale), "color" (palettes by mood), "spacing" (8px grid scale), "layout" (margins, safe zones, patterns).',
+    getDesignGuidanceSchema,
+    async (params) => handleDesignGuidance(params as Record<string, unknown>)
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // Deprecated aliases — delegate to get_design_guidance
   // ═══════════════════════════════════════════════════════════
 
   server.tool(
     'get_size_preset',
-    'Get exact pixel dimensions for common design formats (social media, print, presentations, web). Query by platform, category, or specific preset ID.',
+    '[DEPRECATED — use get_design_guidance instead] Get exact pixel dimensions for common design formats (social media, print, presentations, web). Query by platform, category, or specific preset ID.',
     getSizePresetSchema,
-    async (params) => {
-      const data = loadKnowledge('size-presets.yaml');
-      const allPresets = flattenPresets(data);
-
-      let results = allPresets;
-      if (params.id) {
-        results = results.filter(p => p.id === params.id);
-      }
-      if (params.platform) {
-        results = results.filter(p => p.platform === params.platform);
-      }
-      if (params.category) {
-        results = results.filter(p => p.category === params.category);
-      }
-
-      return { content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }] };
-    }
+    async (params) => handleDesignGuidance({ ...params, aspect: 'size' })
   );
-
-  // ═══════════════════════════════════════════════════════════
-  // S-09: get_font_pairing
-  // ═══════════════════════════════════════════════════════════
 
   server.tool(
     'get_font_pairing',
-    'Get font pairing recommendations by mood/style. Returns heading and body fonts with recommended weights.',
+    '[DEPRECATED — use get_design_guidance instead] Get font pairing recommendations by mood/style. Returns heading and body fonts with recommended weights.',
     getFontPairingSchema,
-    async (params) => {
-      const data = loadKnowledge('typography.yaml');
-      const pairings = data.font_pairings as Array<Record<string, unknown>>;
-
-      let results = pairings;
-      if (params.id) {
-        results = results.filter(p => p.id === params.id);
-      }
-      if (params.mood) {
-        const keywords = params.mood.toLowerCase().split(/[\s,]+/);
-        results = results.filter(p => {
-          const tags = (p.mood_tags as string[]) || [];
-          return keywords.some(kw => tags.some(tag => tag.toLowerCase().includes(kw)));
-        });
-      }
-
-      return { content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }] };
-    }
+    async (params) => handleDesignGuidance({ ...params, aspect: 'fonts' })
   );
-
-  // ═══════════════════════════════════════════════════════════
-  // S-10: get_type_scale
-  // ═══════════════════════════════════════════════════════════
 
   server.tool(
     'get_type_scale',
-    'Compute a typographic scale from a base size and ratio. Returns sizes for xs through display. Optionally provide a custom base size.',
+    '[DEPRECATED — use get_design_guidance instead] Compute a typographic scale from a base size and ratio. Returns sizes for xs through display. Optionally provide a custom base size.',
     getTypeScaleSchema,
-    async (params) => {
-      const data = loadKnowledge('typography.yaml');
-      const scales = data.type_scales as Record<string, Record<string, unknown>>;
-      const scaleId = params.ratio || 'major_third';
-      const scale = scales[scaleId];
-
-      if (!scale) {
-        throw new Error(`Unknown scale: ${scaleId}. Available: ${Object.keys(scales).join(', ')}`);
-      }
-
-      const base = params.baseSize || 16;
-      const r = scale.ratio as number;
-
-      const computed = {
-        xs: Math.round(base / (r * r)),
-        sm: Math.round(base / r),
-        base,
-        lg: Math.round(base * r),
-        xl: Math.round(base * r * r),
-        '2xl': Math.round(base * Math.pow(r, 3)),
-        '3xl': Math.round(base * Math.pow(r, 4)),
-        '4xl': Math.round(base * Math.pow(r, 5)),
-        display: Math.round(base * Math.pow(r, 6)),
-      };
-
-      const result = {
-        ...scale,
-        computedSizes: computed,
-        baseSize: base,
-      };
-
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    }
+    async (params) => handleDesignGuidance({ ...params, aspect: 'typeScale' })
   );
-
-  // ═══════════════════════════════════════════════════════════
-  // S-11: get_color_palette
-  // ═══════════════════════════════════════════════════════════
 
   server.tool(
     'get_color_palette',
-    'Get a color palette by mood keywords or palette ID. Returns primary, secondary, accent, background, text, and muted colors.',
+    '[DEPRECATED — use get_design_guidance instead] Get a color palette by mood keywords or palette ID. Returns primary, secondary, accent, background, text, and muted colors.',
     getColorPaletteSchema,
-    async (params) => {
-      const data = loadKnowledge('color-system.yaml');
-      const palettes = data.palettes as Array<Record<string, unknown>>;
+    async (params) => handleDesignGuidance({ ...params, aspect: 'color' })
+  );
 
-      let results = palettes;
-      if (params.id) {
-        results = results.filter(p => p.id === params.id);
-      }
-      if (params.mood) {
-        const keywords = params.mood.toLowerCase().split(/[\s,]+/);
-        results = results.filter(p => {
-          const tags = (p.mood_tags as string[]) || [];
-          return keywords.some(kw => tags.some(tag => tag.toLowerCase().includes(kw)));
-        });
-      }
+  server.tool(
+    'get_spacing_scale',
+    '[DEPRECATED — use get_design_guidance instead] Get the 8px grid spacing scale values with usage guidance. Use these values for all spacing decisions — never use arbitrary pixel amounts.',
+    getSpacingScaleSchema,
+    async () => handleDesignGuidance({ aspect: 'spacing' })
+  );
 
-      return { content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }] };
-    }
+  server.tool(
+    'get_layout_guide',
+    '[DEPRECATED — use get_design_guidance instead] Get layout recommendations for a specific format: margins, safe zones, hierarchy rules, and common layout patterns.',
+    getLayoutGuideSchema,
+    async (params) => handleDesignGuidance({ ...params, aspect: 'layout' })
   );
 
   // ═══════════════════════════════════════════════════════════
-  // S-12: get_contrast_check
+  // Out-of-scope tools (remain separate, not consolidated)
   // ═══════════════════════════════════════════════════════════
 
   server.tool(
@@ -268,65 +369,6 @@ export function registerIntelligenceTools(server: McpServer): void {
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
-
-  // ═══════════════════════════════════════════════════════════
-  // S-13: get_spacing_scale
-  // ═══════════════════════════════════════════════════════════
-
-  server.tool(
-    'get_spacing_scale',
-    'Get the 8px grid spacing scale values with usage guidance. Use these values for all spacing decisions — never use arbitrary pixel amounts.',
-    getSpacingScaleSchema,
-    async () => {
-      const data = loadKnowledge('layout.yaml');
-      const result = {
-        grid: data.grid,
-        spacing_scale: data.spacing_scale,
-      };
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    }
-  );
-
-  // ═══════════════════════════════════════════════════════════
-  // S-14: get_layout_guide
-  // ═══════════════════════════════════════════════════════════
-
-  server.tool(
-    'get_layout_guide',
-    'Get layout recommendations for a specific format: margins, safe zones, hierarchy rules, and common layout patterns.',
-    getLayoutGuideSchema,
-    async (params) => {
-      const data = loadKnowledge('layout.yaml');
-      const result: Record<string, unknown> = {};
-
-      const margins = data.margins as Record<string, unknown> | undefined;
-      const safeZones = data.safe_zones as Record<string, unknown> | undefined;
-
-      if (params.format && margins) {
-        // Map 'poster' to the closest key in margins
-        const formatKey = params.format === 'poster' ? 'poster' :
-                          params.format === 'web' ? 'web_hero' : params.format;
-        result.margins = margins[formatKey] || margins;
-      } else {
-        result.margins = margins;
-      }
-
-      if (params.format === 'social' && safeZones) {
-        result.safe_zones = safeZones;
-      } else if (!params.format) {
-        result.safe_zones = safeZones;
-      }
-
-      result.hierarchy = data.hierarchy;
-      result.patterns = data.patterns;
-
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    }
-  );
-
-  // ═══════════════════════════════════════════════════════════
-  // S-15: get_brand_kit + save_brand_kit
-  // ═══════════════════════════════════════════════════════════
 
   const BRAND_KITS_DIR = nodePath.join(getKnowledgeDir(), 'brand-kits');
 

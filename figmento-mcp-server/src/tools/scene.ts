@@ -46,6 +46,47 @@ export const cloneNodeSchema = {
   parentId: z.string().optional().describe('Parent frame to place clone into (default: same parent as original)'),
 };
 
+// ═══════════════════════════════════════════════════════════
+// Consolidated transform_node schema
+// ═══════════════════════════════════════════════════════════
+
+export const transformNodeSchema = {
+  nodeId: z.string().describe('Node ID to transform'),
+  x: z.number().optional().describe('New X position'),
+  y: z.number().optional().describe('New Y position'),
+  width: z.number().optional().describe('New width'),
+  height: z.number().optional().describe('New height'),
+};
+
+function wrap(data: Record<string, unknown>) {
+  return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+}
+
+function wrapPretty(data: Record<string, unknown>) {
+  return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+}
+
+async function handleTransformNode(params: { nodeId: string; x?: number; y?: number; width?: number; height?: number }, sendDesignCommand: SendDesignCommand) {
+  const hasPosition = params.x !== undefined || params.y !== undefined;
+  const hasSize = params.width !== undefined || params.height !== undefined;
+
+  let moveResult: Record<string, unknown> | undefined;
+  let resizeResult: Record<string, unknown> | undefined;
+
+  // Move first, then resize (per spec)
+  if (hasPosition) {
+    moveResult = await sendDesignCommand('move_node', { nodeId: params.nodeId, x: params.x, y: params.y });
+  }
+  if (hasSize) {
+    resizeResult = await sendDesignCommand('resize_node', { nodeId: params.nodeId, width: params.width, height: params.height });
+  }
+
+  if (moveResult && resizeResult) {
+    return wrap({ move: moveResult, resize: resizeResult });
+  }
+  return wrap(moveResult || resizeResult || { nodeId: params.nodeId, status: 'no changes' });
+}
+
 export function registerSceneTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'get_selection',
@@ -88,24 +129,33 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
     }
   );
 
+  // ═══════════════════════════════════════════════════════════
+  // Consolidated tool: transform_node
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'transform_node',
+    'Move and/or resize a node in a single call. Provide x/y for position, width/height for size, or all four. When both are provided, move executes first, then resize.',
+    transformNodeSchema,
+    async (params) => handleTransformNode(params, sendDesignCommand)
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // Deprecated aliases — delegate to transform_node handler
+  // ═══════════════════════════════════════════════════════════
+
   server.tool(
     'move_node',
-    'Move a node to a new position.',
+    '[DEPRECATED — use transform_node instead] Move a node to a new position.',
     moveNodeSchema,
-    async (params) => {
-      const data = await sendDesignCommand('move_node', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
-    }
+    async (params) => handleTransformNode(params, sendDesignCommand)
   );
 
   server.tool(
     'resize_node',
-    'Resize a node.',
+    '[DEPRECATED — use transform_node instead] Resize a node.',
     resizeNodeSchema,
-    async (params) => {
-      const data = await sendDesignCommand('resize_node', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
-    }
+    async (params) => handleTransformNode(params, sendDesignCommand)
   );
 
   server.tool(
