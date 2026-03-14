@@ -87,6 +87,28 @@ export function resolveFormatCategory(formatName: string): string | null {
 }
 
 // ═══════════════════════════════════════════════════════════
+// Exported list handler (used by resources.ts dispatcher)
+// ═══════════════════════════════════════════════════════════
+
+export async function listPatternsHandler(_filter?: string) {
+  const patterns = loadPatterns();
+  const result = Object.entries(patterns).map(([name, def]) => ({
+    name,
+    description: def.description,
+    variants: def.variants ? Object.keys(def.variants) : ['default'],
+    format_adaptations: def.format_adaptations ? Object.keys(def.format_adaptations) : [],
+    props: Object.entries(def.props).map(([propName, propDef]) => ({
+      name: propName,
+      type: propDef.type,
+      required: propDef.required || false,
+      default: propDef.default,
+    })),
+  }));
+
+  return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+}
+
+// ═══════════════════════════════════════════════════════════
 // Tool Registration
 // ═══════════════════════════════════════════════════════════
 
@@ -286,24 +308,8 @@ export function registerPatternTools(server: McpServer, sendDesignCommand: SendD
 
   server.tool(
     'list_patterns',
-    'List all available cross-format design patterns with their names, descriptions, props, and variants.',
+    '[DEPRECATED — use list_resources(type="patterns") instead] List all available cross-format design patterns with their names, descriptions, props, and variants.',
     listPatternsSchema,
-    async () => {
-      const patterns = loadPatterns();
-      const result = Object.entries(patterns).map(([name, def]) => ({
-        name,
-        description: def.description,
-        variants: def.variants ? Object.keys(def.variants) : ['default'],
-        format_adaptations: def.format_adaptations ? Object.keys(def.format_adaptations) : [],
-        props: Object.entries(def.props).map(([propName, propDef]) => ({
-          name: propName,
-          type: propDef.type,
-          required: propDef.required || false,
-          default: propDef.default,
-        })),
-      }));
-
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    }
+    async () => listPatternsHandler(),
   );
 }

@@ -173,6 +173,41 @@ function resolveTemplateProps(
 }
 
 // ═══════════════════════════════════════════════════════════
+// Exported list handler (used by resources.ts dispatcher)
+// ═══════════════════════════════════════════════════════════
+
+export async function listTemplatesHandler(_filter?: string) {
+  const names = listTemplateNames();
+  const templates = names.map(name => {
+    try {
+      const t = loadTemplate(name);
+      return {
+        name: t.name,
+        description: t.description,
+        frame_count: t.frame_count || t.frames?.length || 0,
+        formats_used: t.formats_used || [],
+        estimated_time: t.estimated_time || null,
+        props: Object.entries(t.props || {}).map(([k, v]) => ({
+          name: k,
+          type: v.type,
+          required: v.required || false,
+          description: v.description || null,
+        })),
+      };
+    } catch {
+      return { name, error: 'Failed to load template' };
+    }
+  });
+
+  return {
+    content: [{
+      type: 'text' as const,
+      text: JSON.stringify(templates, null, 2),
+    }],
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
 // Tool Registration
 // ═══════════════════════════════════════════════════════════
 
@@ -393,37 +428,8 @@ export function registerDsTemplateTools(server: McpServer, sendDesignCommand: Se
 
   server.tool(
     'list_templates',
-    'List all available project templates with their names, descriptions, frame counts, formats used, and estimated creation time.',
+    '[DEPRECATED — use list_resources(type="templates") instead] List all available project templates with their names, descriptions, frame counts, formats used, and estimated creation time.',
     listTemplatesSchema,
-    async () => {
-      const names = listTemplateNames();
-      const templates = names.map(name => {
-        try {
-          const t = loadTemplate(name);
-          return {
-            name: t.name,
-            description: t.description,
-            frame_count: t.frame_count || t.frames?.length || 0,
-            formats_used: t.formats_used || [],
-            estimated_time: t.estimated_time || null,
-            props: Object.entries(t.props || {}).map(([k, v]) => ({
-              name: k,
-              type: v.type,
-              required: v.required || false,
-              description: v.description || null,
-            })),
-          };
-        } catch {
-          return { name, error: 'Failed to load template' };
-        }
-      });
-
-      return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify(templates, null, 2),
-        }],
-      };
-    }
+    async () => listTemplatesHandler(),
   );
 }

@@ -218,6 +218,61 @@ function findSimilarIcons(name: string, allNames: string[], limit = 10): string[
     .map(s => s.name);
 }
 
+// ─── Exported list handler (used by resources.ts dispatcher) ────────────────
+
+export async function listIconsHandler(filter?: string) {
+  const allNames = getAllIconNames();
+
+  // Try filter as category first
+  if (filter && filter in ICON_CATEGORIES) {
+    const categoryIcons = ICON_CATEGORIES[filter] || [];
+    const available = categoryIcons.filter(n => allNames.includes(n));
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          category: filter,
+          count: available.length,
+          icons: available,
+        }, null, 2),
+      }],
+    };
+  }
+
+  // Try filter as search term
+  if (filter) {
+    const matching = findSimilarIcons(filter, allNames, 30);
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          search: filter,
+          count: matching.length,
+          icons: matching,
+        }, null, 2),
+      }],
+    };
+  }
+
+  // No filter — return categories overview + total count
+  const categories = Object.entries(ICON_CATEGORIES).map(([name, icons]) => ({
+    name,
+    sampleIcons: icons.slice(0, 5),
+    count: icons.filter(n => allNames.includes(n)).length,
+  }));
+
+  return {
+    content: [{
+      type: 'text' as const,
+      text: JSON.stringify({
+        totalIcons: allNames.length,
+        categories,
+        tip: 'Use search or category parameter to filter. All icon names work with create_icon.',
+      }, null, 2),
+    }],
+  };
+}
+
 // ─── Tool registration ──────────────────────────────────────────────────────
 
 export const createIconSchema = {
@@ -298,58 +353,8 @@ export function registerIconTools(server: McpServer, sendDesignCommand: SendDesi
   // ── list_icons ──────────────────────────────────────────────────────────
   server.tool(
     'list_icons',
-    'List available Lucide icons. Search by name or browse by category. Returns icon names that can be used with create_icon.',
+    '[DEPRECATED — use list_resources(type="icons") instead] List available Lucide icons. Search by name or browse by category.',
     listIconsSchema,
-    async (params) => {
-      const allNames = getAllIconNames();
-
-      if (params.category) {
-        const categoryIcons = ICON_CATEGORIES[params.category] || [];
-        // Filter to only icons that actually exist
-        const available = categoryIcons.filter(n => allNames.includes(n));
-        return {
-          content: [{
-            type: 'text' as const,
-            text: JSON.stringify({
-              category: params.category,
-              count: available.length,
-              icons: available,
-            }, null, 2),
-          }],
-        };
-      }
-
-      if (params.search) {
-        const matching = findSimilarIcons(params.search, allNames, 30);
-        return {
-          content: [{
-            type: 'text' as const,
-            text: JSON.stringify({
-              search: params.search,
-              count: matching.length,
-              icons: matching,
-            }, null, 2),
-          }],
-        };
-      }
-
-      // No filter — return categories overview + total count
-      const categories = Object.entries(ICON_CATEGORIES).map(([name, icons]) => ({
-        name,
-        sampleIcons: icons.slice(0, 5),
-        count: icons.filter(n => allNames.includes(n)).length,
-      }));
-
-      return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            totalIcons: allNames.length,
-            categories,
-            tip: 'Use search or category parameter to filter. All icon names work with create_icon.',
-          }, null, 2),
-        }],
-      };
-    }
+    async (params) => listIconsHandler(params.category || params.search),
   );
 }

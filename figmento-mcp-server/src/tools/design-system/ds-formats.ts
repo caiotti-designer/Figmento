@@ -60,6 +60,25 @@ function listAvailableFormats(): FormatListEntry[] {
   return results;
 }
 
+// Exported list handler (used by resources.ts dispatcher)
+export async function listFormatsHandler(filter?: string) {
+  const allFormats = listAvailableFormats();
+
+  if (filter) {
+    const filtered = allFormats.filter(f => f.category === filter);
+    return { content: [{ type: 'text' as const, text: JSON.stringify(filtered, null, 2) }] };
+  }
+
+  // Group by category
+  const grouped: Record<string, typeof allFormats> = {};
+  for (const format of allFormats) {
+    if (!grouped[format.category]) grouped[format.category] = [];
+    grouped[format.category].push(format);
+  }
+
+  return { content: [{ type: 'text' as const, text: JSON.stringify(grouped, null, 2) }] };
+}
+
 export function registerFormatTools(server: McpServer, _sendDesignCommand: SendDesignCommand): void {
 
   server.tool(
@@ -112,24 +131,8 @@ export function registerFormatTools(server: McpServer, _sendDesignCommand: SendD
 
   server.tool(
     'list_formats',
-    'List all available format adapters (social, print, presentation, web, email, advertising). Each format includes its size_variants (e.g. instagram_post has square/portrait/landscape), default_size, and dimensions. Use size_variant in create_from_pattern to enforce the correct canvas size. Optionally filter by category.',
+    '[DEPRECATED — use list_resources(type="formats") instead] List all available format adapters. Optionally filter by category.',
     listFormatsSchema,
-    async (params) => {
-      const allFormats = listAvailableFormats();
-
-      if (params.category) {
-        const filtered = allFormats.filter(f => f.category === params.category);
-        return { content: [{ type: 'text' as const, text: JSON.stringify(filtered, null, 2) }] };
-      }
-
-      // Group by category
-      const grouped: Record<string, typeof allFormats> = {};
-      for (const format of allFormats) {
-        if (!grouped[format.category]) grouped[format.category] = [];
-        grouped[format.category].push(format);
-      }
-
-      return { content: [{ type: 'text' as const, text: JSON.stringify(grouped, null, 2) }] };
-    }
+    async (params) => listFormatsHandler(params.category),
   );
 }
