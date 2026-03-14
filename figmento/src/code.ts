@@ -11,7 +11,6 @@ import {
   TemplateTextResponse,
   WSCommand,
   WSResponse,
-  CommandErrorCode,
   TextProperties,
 } from './types';
 import { hexToRgb, rgbToHex, getFontStyle, isContrastingColor } from './color-utils';
@@ -22,6 +21,10 @@ import { serializeFrame } from './snapshot-serializer';
 import { calculateDiff } from './diff-calculator';
 import { aggregateCorrections } from './correction-aggregator';
 import type { LearnedPreference, LearningConfig } from './types';
+import { classifyError } from './utils/error-classifier';
+import { countElements, sendProgress as _sendProgress, delay } from './utils/progress';
+import { serializeNode, findChildByName, findRootFrame } from './utils/node-utils';
+import { resolveTempIds, isCreationAction } from './utils/temp-id-resolver';
 
 // Storage keys for persistent data
 const API_KEYS_STORAGE_KEY = 'figmento-api-keys';
@@ -803,24 +806,6 @@ figma.on('currentpagechange', () => {
 // LC — Auto-Snapshot Helpers (Phase 4a)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Walk up the parent chain to find the top-level frame on the page.
- * Returns the frame, or null if the node doesn't exist or isn't in a frame.
- */
-function findRootFrame(nodeId: string): FrameNode | null {
-  const node = figma.getNodeById(nodeId);
-  if (!node) return null;
-
-  let current: BaseNode = node;
-  while (current.parent && current.parent.type !== 'PAGE') {
-    current = current.parent;
-  }
-
-  if (current.type === 'FRAME' && current.parent?.type === 'PAGE') {
-    return current as FrameNode;
-  }
-  return null;
-}
 
 /**
  * Fire-and-forget snapshot after a canvas command succeeds.
@@ -1182,39 +1167,10 @@ let totalElements = 0;
 let createdElements = 0;
 
 /**
- * Counts total elements recursively for progress tracking
- */
-function countElements(elements: UIElement[]): number {
-  let count = 0;
-  for (let i = 0; i < elements.length; i++) {
-    count++;
-    const children = elements[i].children;
-    if (children && children.length > 0) {
-      count += countElements(children);
-    }
-  }
-  return count;
-}
-
-/**
- * Sends progress update to UI
+ * Sends progress update to UI (thin wrapper passing module-level counters)
  */
 function sendProgress(message: string) {
-  figma.ui.postMessage({
-    type: 'progress',
-    message: message,
-    current: createdElements,
-    total: totalElements,
-  });
-}
-
-/**
- * Small delay for visual feedback
- */
-function delay(ms: number): Promise<void> {
-  return new Promise(function (resolve) {
-    setTimeout(resolve, ms);
-  });
+  _sendProgress(message, createdElements, totalElements);
 }
 
 /**
@@ -1493,32 +1449,6 @@ async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
   }
 }
 
-/** Classify an error message into a structured CommandErrorCode */
-function classifyError(message: string): { code: CommandErrorCode; recoverable: boolean } {
-  const lower = message.toLowerCase();
-  if (lower.includes('node not found') || lower.includes('not found:')) {
-    return { code: 'NODE_NOT_FOUND', recoverable: false };
-  }
-  if (lower.includes('font') && (lower.includes('load') || lower.includes('fail') || lower.includes('timeout'))) {
-    return { code: 'FONT_LOAD_FAILED', recoverable: true };
-  }
-  if (lower.includes('export') && lower.includes('fail')) {
-    return { code: 'EXPORT_FAILED', recoverable: true };
-  }
-  if (lower.includes('cannot have children') || lower.includes('not a frame') || lower.includes('parent')) {
-    return { code: 'PARENT_MISMATCH', recoverable: false };
-  }
-  if (lower.includes('decode') || lower.includes('image data') || lower.includes('createimage')) {
-    return { code: 'IMAGE_DECODE_FAILED', recoverable: false };
-  }
-  if (lower.includes('timeout')) {
-    return { code: 'TIMEOUT', recoverable: true };
-  }
-  if (lower.includes('required') || lower.includes('invalid') || lower.includes('cannot be empty')) {
-    return { code: 'INVALID_PARAMS', recoverable: false };
-  }
-  return { code: 'UNKNOWN', recoverable: false };
-}
 
 // ═══════════════════════════════════════════════════════════════
 // COMMAND HANDLERS
@@ -2187,71 +2117,6 @@ async function handleGroupNodes(params: Record<string, unknown>): Promise<Record
   return { nodeId: group.id, name: group.name, childCount: group.children.length };
 }
 
-function serializeNode(node: BaseNode, currentDepth: number, maxDepth: number): Record<string, unknown> {
-  const info: Record<string, unknown> = {
-    id: node.id,
-    name: node.name,
-    type: node.type,
-  };
-
-  if ('x' in node) info.x = (node as SceneNode).x;
-  if ('y' in node) info.y = (node as SceneNode).y;
-  if ('width' in node) info.width = (node as SceneNode).width;
-  if ('height' in node) info.height = (node as SceneNode).height;
-  if ('opacity' in node) info.opacity = (node as BlendMixin).opacity;
-
-  if ('fills' in node && Array.isArray((node as GeometryMixin).fills)) {
-    const fills = (node as GeometryMixin).fills as Paint[];
-    info.fills = fills.map(f => {
-      if (f.type === 'SOLID') {
-        return { type: 'SOLID', color: rgbToHex(f.color), opacity: f.opacity };
-      }
-      return { type: f.type };
-    });
-  }
-
-  if ('cornerRadius' in node) info.cornerRadius = (node as RectangleNode).cornerRadius;
-
-  if (node.type === 'TEXT') {
-    const textNode = node as TextNode;
-    info.characters = textNode.characters;
-    info.fontSize = textNode.fontSize;
-    const fontName = textNode.fontName;
-    if (fontName && typeof fontName === 'object' && 'family' in fontName) {
-      info.fontFamily = fontName.family;
-      info.fontWeight = fontName.style;
-    }
-  }
-
-  if ('layoutMode' in node) {
-    const frame = node as FrameNode;
-    info.layoutMode = frame.layoutMode;
-    if (frame.layoutMode !== 'NONE') {
-      info.itemSpacing = frame.itemSpacing;
-      info.paddingLeft = frame.paddingLeft;
-      info.paddingRight = frame.paddingRight;
-      info.paddingTop = frame.paddingTop;
-      info.paddingBottom = frame.paddingBottom;
-    }
-  }
-
-  if ('children' in node) {
-    const children = (node as FrameNode).children;
-    info.childCount = children.length;
-    if (currentDepth < maxDepth) {
-      info.children = children.map(c => serializeNode(c, currentDepth + 1, maxDepth));
-    } else {
-      info.children = children.map(c => ({
-        id: c.id,
-        name: c.name,
-        type: c.type,
-      }));
-    }
-  }
-
-  return info;
-}
-
 async function handleGetNodeInfo(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const nodeId = params.nodeId as string;
   if (!nodeId) throw new Error('nodeId is required');
@@ -2510,43 +2375,6 @@ interface BatchResult {
   error?: string;
 }
 
-function resolveTempIds(params: Record<string, unknown>, tempIdMap: Map<string, string>): Record<string, unknown> {
-  const resolved: Record<string, unknown> = {};
-
-  for (const [key, value] of Object.entries(params)) {
-    if (typeof value === 'string' && value.startsWith('$')) {
-      const refId = value.substring(1);
-      const actualId = tempIdMap.get(refId);
-      if (actualId) {
-        resolved[key] = actualId;
-      } else {
-        resolved[key] = value;
-      }
-    } else if (Array.isArray(value)) {
-      resolved[key] = value.map(item => {
-        if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
-          return resolveTempIds(item as Record<string, unknown>, tempIdMap);
-        }
-        if (typeof item === 'string' && item.startsWith('$')) {
-          const refId = item.substring(1);
-          return tempIdMap.get(refId) || item;
-        }
-        return item;
-      });
-    } else if (typeof value === 'object' && value !== null) {
-      resolved[key] = resolveTempIds(value as Record<string, unknown>, tempIdMap);
-    } else {
-      resolved[key] = value;
-    }
-  }
-
-  return resolved;
-}
-
-function isCreationAction(action: string): boolean {
-  return action.startsWith('create_') || action === 'clone_node' || action === 'clone_with_overrides';
-}
-
 async function handleBatchExecute(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const commands = params.commands as BatchCommand[];
   if (!commands || !Array.isArray(commands)) {
@@ -2656,16 +2484,6 @@ interface CloneCopySpec {
   }>;
 }
 
-function findChildByName(node: BaseNode, name: string): SceneNode | null {
-  if ('children' in node) {
-    for (const child of (node as FrameNode).children) {
-      if (child.name === name) return child;
-      const found = findChildByName(child, name);
-      if (found) return found;
-    }
-  }
-  return null;
-}
 
 async function handleCloneWithOverrides(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const nodeId = params.nodeId as string;
