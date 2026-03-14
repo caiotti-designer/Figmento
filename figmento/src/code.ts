@@ -4,7 +4,6 @@ import {
   UIAnalysis,
   UIElement,
   PluginMessage,
-  AIProvider,
   TemplatePlaceholder,
   TemplateSlide,
   TemplateScanResult,
@@ -17,42 +16,12 @@ import { hexToRgb, rgbToHex, getFontStyle, isContrastingColor } from './color-ut
 import { createElement } from './element-creators';
 import { getGradientTransform } from './gradient-utils';
 import { postCreationRefinement, countNodes } from './refinement';
-import { serializeFrame } from './snapshot-serializer';
-import { calculateDiff } from './diff-calculator';
-import { aggregateCorrections } from './correction-aggregator';
-import type { LearnedPreference, LearningConfig } from './types';
 import { classifyError } from './utils/error-classifier';
 import { countElements, sendProgress as _sendProgress, delay } from './utils/progress';
-import { serializeNode, findChildByName, findRootFrame } from './utils/node-utils';
+import { serializeNode, findChildByName } from './utils/node-utils';
 import { resolveTempIds, isCreationAction } from './utils/temp-id-resolver';
-
-// Storage keys for persistent data
-const API_KEYS_STORAGE_KEY = 'figmento-api-keys';
-const VALIDATION_STORAGE_KEY = 'figmento-validated';
-const SNAPSHOTS_STORAGE_KEY = 'figmento-snapshots';
-const SNAPSHOT_TTL_MS = 10 * 60 * 1000; // 10 minutes
-const MAX_SNAPSHOTS = 10;
-const SNAPSHOT_DEBOUNCE_MS = 5000; // 5-second debounce per frame
-const CORRECTIONS_STORAGE_KEY = 'figmento-corrections';
-const PREFERENCES_STORAGE_KEY = 'figmento-preferences';
-const MAX_PREFERENCES = 50;
-const LEARNING_CONFIG_STORAGE_KEY = 'figmento-learning-config';
-const DEFAULT_LEARNING_CONFIG: LearningConfig = {
-  enabled: true,
-  autoDetect: false,
-  confidenceThreshold: 3,
-};
-
-// Commands that modify the canvas and should trigger an auto-snapshot
-const SNAPSHOT_WORTHY_COMMANDS = new Set([
-  'create_frame', 'create_text', 'create_rectangle', 'create_ellipse',
-  'create_image', 'create_icon', 'set_fill', 'set_text', 'set_auto_layout',
-  'resize_node', 'set_effects', 'set_stroke', 'set_corner_radius', 'move_node',
-  'batch_execute',
-]);
-
-// Debounce tracker: frameId → last snapshot timestamp
-const snapshotDebounce = new Map<string, number>();
+import { handleStorageMessage, autoSnapshotAfterCommand, SNAPSHOT_WORTHY_COMMANDS, SNAPSHOTS_STORAGE_KEY, PREFERENCES_STORAGE_KEY } from './handlers/storage';
+import { handleSettingsMessage, loadSavedApiKeys } from './handlers/settings';
 
 // Show plugin UI
 figma.showUI(__html__, { width: 450, height: 820 });
@@ -62,6 +31,11 @@ loadSavedApiKeys();
 
 // Handle messages from UI
 figma.ui.onmessage = async function (msg: PluginMessage) {
+  // Delegate to storage handlers (snapshots, corrections, preferences, learning config)
+  if (await handleStorageMessage(msg)) return;
+  // Delegate to settings handlers (API keys, validation, settings, memory, feedback)
+  if (await handleSettingsMessage(msg)) return;
+
   switch (msg.type) {
     case 'create-design':
       try {
@@ -227,18 +201,6 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
       await handleGetSelectedImage();
       break;
 
-    case 'save-api-key':
-      await saveApiKey(msg.provider, msg.apiKey);
-      break;
-
-    case 'load-api-keys':
-      await loadSavedApiKeys();
-      break;
-
-    case 'save-validation':
-      await saveValidationStatus(msg.provider, msg.isValid);
-      break;
-
     case 'execute-command':
       try {
         const cmd = (msg as any).command;
@@ -271,110 +233,6 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
           },
         });
       }
-      break;
-
-    case 'get-settings':
-      (async () => {
-        try {
-          // Load from unified storage and map to chat-settings flat format
-          const keys = (await figma.clientStorage.getAsync(API_KEYS_STORAGE_KEY)) || {};
-          const chatModel = (await figma.clientStorage.getAsync('figmento-chat-model')) || '';
-
-          // Migration: check for old figmento-plugin/ flat keys
-          await migrateOldSettings(keys);
-
-          const chatRelayEnabled = (await figma.clientStorage.getAsync('figmento-chat-relay-enabled')) || '';
-          const chatRelayUrl = (await figma.clientStorage.getAsync('figmento-chat-relay-url')) || '';
-          console.log('[Figmento Sandbox] get-settings relay:', { enabled: chatRelayEnabled, url: chatRelayUrl });
-
-          figma.ui.postMessage({
-            type: 'settings-loaded',
-            settings: {
-              anthropicApiKey: keys['claude'] || '',
-              geminiApiKey: keys['gemini'] || '',
-              openaiApiKey: keys['openai'] || '',
-              model: chatModel,
-              chatRelayEnabled: chatRelayEnabled,
-              chatRelayUrl: chatRelayUrl,
-            },
-          });
-        } catch (error) {
-          console.error('Failed to load settings:', error);
-          figma.ui.postMessage({
-            type: 'settings-loaded',
-            settings: {},
-          });
-        }
-      })();
-      break;
-
-    case 'save-settings':
-      (async () => {
-        const s = (msg as any).settings as Record<string, unknown>;
-        console.log('[Figmento Sandbox] save-settings relay:', { chatRelayEnabled: s?.chatRelayEnabled, chatRelayUrl: s?.chatRelayUrl });
-        if (s) {
-          // Store API keys into the unified storage object (same as Settings tab)
-          const keys = (await figma.clientStorage.getAsync(API_KEYS_STORAGE_KEY)) || {};
-          if (s.geminiApiKey) keys['gemini'] = s.geminiApiKey;
-          if (s.anthropicApiKey) keys['claude'] = s.anthropicApiKey;
-          if (s.openaiApiKey) keys['openai'] = s.openaiApiKey;
-          await figma.clientStorage.setAsync(API_KEYS_STORAGE_KEY, keys);
-
-          // Store chat model preference separately
-          if (s.model) {
-            await figma.clientStorage.setAsync('figmento-chat-model', s.model);
-          }
-
-          // Store relay settings
-          if (s.chatRelayEnabled !== undefined) {
-            await figma.clientStorage.setAsync('figmento-chat-relay-enabled', String(s.chatRelayEnabled));
-          }
-          if (s.chatRelayUrl) {
-            await figma.clientStorage.setAsync('figmento-chat-relay-url', s.chatRelayUrl);
-          }
-        }
-      })();
-      break;
-
-    case 'save-feedback':
-      try {
-        const existing = (await figma.clientStorage.getAsync('design-feedback')) || [];
-        existing.push(msg.data);
-        // Keep only the last 100 feedback entries
-        if (existing.length > 100) existing.splice(0, existing.length - 100);
-        await figma.clientStorage.setAsync('design-feedback', existing);
-      } catch (_e) {
-        // Feedback storage is best-effort
-      }
-      break;
-
-    case 'load-memory':
-      (async () => {
-        try {
-          const memory = (await figma.clientStorage.getAsync('figmento-memory')) || [];
-          figma.ui.postMessage({ type: 'memory-loaded', entries: memory });
-        } catch (_e) {
-          figma.ui.postMessage({ type: 'memory-loaded', entries: [] });
-        }
-      })();
-      break;
-
-    case 'save-memory':
-      (async () => {
-        try {
-          const entries = (await figma.clientStorage.getAsync('figmento-memory')) || [];
-          entries.push({
-            entry: (msg as any).entry as string,
-            timestamp: new Date().toISOString(),
-          });
-          // Keep only the last 50 entries
-          if (entries.length > 50) entries.splice(0, entries.length - 50);
-          await figma.clientStorage.setAsync('figmento-memory', entries);
-          figma.ui.postMessage({ type: 'memory-saved', success: true });
-        } catch (_e) {
-          figma.ui.postMessage({ type: 'memory-saved', success: false });
-        }
-      })();
       break;
 
     case 'status':
@@ -489,310 +347,6 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
       }
       break;
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // LC — LEARNING & CORRECTIONS (Phase 4a)
-    // ─────────────────────────────────────────────────────────────────────────
-
-    case 'take-snapshot':
-      (async () => {
-        try {
-          const frameId = (msg as any).frameId as string;
-          const frame = figma.getNodeById(frameId);
-
-          if (!frame || (frame.type !== 'FRAME' && frame.type !== 'COMPONENT')) {
-            figma.ui.postMessage({ type: 'snapshot-taken', frameId, nodeCount: 0, success: false, error: 'Frame not found' });
-            return;
-          }
-
-          const snapshot = serializeFrame(frame as FrameNode);
-          const now = Date.now();
-
-          // Load existing snapshots
-          const store: Record<string, { snapshot: unknown[]; timestamp: number }> =
-            (await figma.clientStorage.getAsync(SNAPSHOTS_STORAGE_KEY)) || {};
-
-          // Prune expired entries
-          for (const key of Object.keys(store)) {
-            if (now - store[key].timestamp > SNAPSHOT_TTL_MS) delete store[key];
-          }
-
-          // FIFO eviction if at capacity
-          const keys = Object.keys(store);
-          if (keys.length >= MAX_SNAPSHOTS) {
-            // Remove oldest by timestamp
-            const oldest = keys.reduce((a, b) => store[a].timestamp < store[b].timestamp ? a : b);
-            delete store[oldest];
-          }
-
-          // Store new snapshot
-          store[frameId] = { snapshot, timestamp: now };
-          await figma.clientStorage.setAsync(SNAPSHOTS_STORAGE_KEY, store);
-
-          figma.ui.postMessage({ type: 'snapshot-taken', frameId, nodeCount: snapshot.length, success: true });
-        } catch (e) {
-          figma.ui.postMessage({ type: 'snapshot-taken', frameId: (msg as any).frameId, nodeCount: 0, success: false, error: String(e) });
-        }
-      })();
-      break;
-
-    case 'get-snapshot-status':
-      (async () => {
-        try {
-          const store: Record<string, { snapshot: Array<{ id: string; name: string }>; timestamp: number }> =
-            (await figma.clientStorage.getAsync(SNAPSHOTS_STORAGE_KEY)) || {};
-          const now = Date.now();
-
-          // Prune expired
-          let pruned = false;
-          for (const key of Object.keys(store)) {
-            if (now - store[key].timestamp > SNAPSHOT_TTL_MS) {
-              delete store[key];
-              pruned = true;
-            }
-          }
-          if (pruned) await figma.clientStorage.setAsync(SNAPSHOTS_STORAGE_KEY, store);
-
-          const frames = Object.entries(store).map(([frameId, entry]) => ({
-            frameId,
-            frameName: entry.snapshot[0]?.name ?? frameId,
-            nodeCount: entry.snapshot.length,
-            age: now - entry.timestamp,
-          }));
-
-          figma.ui.postMessage({ type: 'snapshot-status', frames });
-        } catch (e) {
-          figma.ui.postMessage({ type: 'snapshot-status', frames: [] });
-        }
-      })();
-      break;
-
-    case 'compare-snapshot':
-      (async () => {
-        try {
-          const targetFrameId = (msg as any).frameId as string | undefined;
-          const store: Record<string, { snapshot: unknown[]; timestamp: number }> =
-            (await figma.clientStorage.getAsync(SNAPSHOTS_STORAGE_KEY)) || {};
-          const now = Date.now();
-
-          // Prune expired
-          for (const key of Object.keys(store)) {
-            if (now - store[key].timestamp > SNAPSHOT_TTL_MS) delete store[key];
-          }
-
-          // Determine which frames to compare
-          const frameIds = targetFrameId
-            ? [targetFrameId]
-            : Object.keys(store);
-
-          if (frameIds.length === 0 || (targetFrameId && !store[targetFrameId])) {
-            figma.ui.postMessage({
-              type: 'snapshot-compared',
-              corrections: [],
-              noSnapshot: true,
-              frameId: targetFrameId,
-              source: (msg as any).source || 'explicit',
-            });
-            return;
-          }
-
-          let allCorrections: unknown[] = [];
-          let comparedFrameId = targetFrameId;
-          let comparedFrameName = '';
-          let snapshotAge = 0;
-          let nodeCount = 0;
-
-          for (const fid of frameIds) {
-            const entry = store[fid];
-            if (!entry) continue;
-
-            const frame = figma.getNodeById(fid);
-            if (!frame || frame.type !== 'FRAME') {
-              if (targetFrameId === fid) {
-                figma.ui.postMessage({
-                  type: 'snapshot-compared',
-                  corrections: [],
-                  error: 'Frame not found',
-                  frameId: fid,
-                });
-                return;
-              }
-              continue;
-            }
-
-            const currentSnapshot = serializeFrame(frame as FrameNode);
-            const corrections = calculateDiff(
-              entry.snapshot as Parameters<typeof calculateDiff>[0],
-              currentSnapshot
-            );
-
-            allCorrections = allCorrections.concat(corrections);
-            comparedFrameId = fid;
-            comparedFrameName = (frame as FrameNode).name;
-            snapshotAge = now - entry.timestamp;
-            nodeCount = currentSnapshot.length;
-          }
-
-          figma.ui.postMessage({
-            type: 'snapshot-compared',
-            corrections: allCorrections,
-            frameId: comparedFrameId,
-            frameName: comparedFrameName,
-            snapshotAge,
-            nodeCount,
-            source: (msg as any).source || 'explicit',
-          });
-        } catch (e) {
-          figma.ui.postMessage({
-            type: 'snapshot-compared',
-            corrections: [],
-            error: String(e),
-            frameId: (msg as any).frameId,
-            source: (msg as any).source || 'explicit',
-          });
-        }
-      })();
-      break;
-
-    case 'save-corrections':
-      (async () => {
-        try {
-          const incoming = (msg as any).corrections as Array<Record<string, unknown>>;
-          const newEntries = incoming.map(c => ({ ...c, confirmed: true }));
-
-          // Append to corrections store
-          const existing: unknown[] = (await figma.clientStorage.getAsync(CORRECTIONS_STORAGE_KEY)) || [];
-          const combined = [...existing, ...newEntries];
-          // FIFO eviction if >200
-          if (combined.length > 200) combined.splice(0, combined.length - 200);
-          await figma.clientStorage.setAsync(CORRECTIONS_STORAGE_KEY, combined);
-
-          // Delete consumed snapshots
-          const store: Record<string, unknown> =
-            (await figma.clientStorage.getAsync(SNAPSHOTS_STORAGE_KEY)) || {};
-          for (const entry of newEntries) {
-            if (entry.frameId) delete store[entry.frameId as string];
-          }
-          await figma.clientStorage.setAsync(SNAPSHOTS_STORAGE_KEY, store);
-
-          figma.ui.postMessage({
-            type: 'corrections-saved',
-            count: newEntries.length,
-            totalStored: combined.length,
-          });
-        } catch (e) {
-          figma.ui.postMessage({ type: 'corrections-saved', count: 0, error: String(e) });
-        }
-      })();
-      break;
-
-    // ── LC Phase 4b — Preference & Learning Config Handlers ────────────────
-
-    case 'aggregate-preferences':
-      (async () => {
-        try {
-          const rawCorrections = await figma.clientStorage.getAsync(CORRECTIONS_STORAGE_KEY) || [];
-          const existing: LearnedPreference[] = await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY) || [];
-          const updated = aggregateCorrections(rawCorrections as Parameters<typeof aggregateCorrections>[0], existing);
-          const trimmed = updated.length > MAX_PREFERENCES
-            ? updated.sort((a, b) => b.createdAt - a.createdAt).slice(0, MAX_PREFERENCES)
-            : updated;
-          await figma.clientStorage.setAsync(PREFERENCES_STORAGE_KEY, trimmed);
-          figma.ui.postMessage({ type: 'preferences-aggregated', preferences: trimmed, count: trimmed.length });
-        } catch (err) {
-          figma.ui.postMessage({ type: 'aggregate-preferences-error', error: String(err) });
-        }
-      })();
-      break;
-
-    case 'get-preferences':
-      (async () => {
-        try {
-          const prefs = await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY) || [];
-          figma.ui.postMessage({ type: 'preferences-loaded', preferences: prefs });
-        } catch (err) {
-          figma.ui.postMessage({ type: 'get-preferences-error', error: String(err) });
-        }
-      })();
-      break;
-
-    case 'save-preferences':
-      (async () => {
-        try {
-          const prefs = ((msg as any).preferences as LearnedPreference[]) || [];
-          const trimmed = prefs.length > MAX_PREFERENCES
-            ? prefs.sort((a, b) => a.createdAt - b.createdAt).slice(prefs.length - MAX_PREFERENCES)
-            : prefs;
-          await figma.clientStorage.setAsync(PREFERENCES_STORAGE_KEY, trimmed);
-          figma.ui.postMessage({ type: 'preferences-saved', success: true, count: trimmed.length });
-        } catch (err) {
-          figma.ui.postMessage({ type: 'save-preferences-error', error: String(err) });
-        }
-      })();
-      break;
-
-    case 'update-preference':
-      (async () => {
-        try {
-          const pref = (msg as any).preference as LearnedPreference;
-          const stored = await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY) as LearnedPreference[] | undefined;
-          const prefs = stored || [];
-          const idx = prefs.findIndex(p => p.id === pref.id);
-          if (idx !== -1) { prefs[idx] = pref; } else { prefs.push(pref); }
-          await figma.clientStorage.setAsync(PREFERENCES_STORAGE_KEY, prefs);
-          figma.ui.postMessage({ type: 'update-preference-result', success: true });
-        } catch (err) {
-          figma.ui.postMessage({ type: 'update-preference-result', success: false, error: String(err) });
-        }
-      })();
-      break;
-
-    case 'delete-preference':
-      (async () => {
-        try {
-          const preferenceId = (msg as any).preferenceId as string;
-          const stored = await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY) as LearnedPreference[] | undefined;
-          const prefs = (stored || []).filter(p => p.id !== preferenceId);
-          await figma.clientStorage.setAsync(PREFERENCES_STORAGE_KEY, prefs);
-          figma.ui.postMessage({ type: 'delete-preference-result', success: true });
-        } catch (err) {
-          figma.ui.postMessage({ type: 'delete-preference-result', success: false, error: String(err) });
-        }
-      })();
-      break;
-
-    case 'clear-preferences':
-      (async () => {
-        try {
-          await figma.clientStorage.setAsync(PREFERENCES_STORAGE_KEY, []);
-          figma.ui.postMessage({ type: 'clear-preferences-result', success: true });
-        } catch (err) {
-          figma.ui.postMessage({ type: 'clear-preferences-result', success: false, error: String(err) });
-        }
-      })();
-      break;
-
-    case 'get-learning-config':
-      (async () => {
-        try {
-          const config = await figma.clientStorage.getAsync(LEARNING_CONFIG_STORAGE_KEY) || DEFAULT_LEARNING_CONFIG;
-          figma.ui.postMessage({ type: 'learning-config-loaded', config });
-        } catch (err) {
-          figma.ui.postMessage({ type: 'get-learning-config-error', error: String(err) });
-        }
-      })();
-      break;
-
-    case 'save-learning-config':
-      (async () => {
-        try {
-          const config = (msg as any).config as LearningConfig;
-          await figma.clientStorage.setAsync(LEARNING_CONFIG_STORAGE_KEY, config);
-          figma.ui.postMessage({ type: 'learning-config-saved', success: true });
-        } catch (err) {
-          figma.ui.postMessage({ type: 'save-learning-config-error', error: String(err) });
-        }
-      })();
-      break;
   }
 };
 
@@ -802,123 +356,6 @@ figma.on('currentpagechange', () => {
   figma.ui.postMessage({ type: 'snapshots-cleared' });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LC — Auto-Snapshot Helpers (Phase 4a)
-// ─────────────────────────────────────────────────────────────────────────────
-
-
-/**
- * Fire-and-forget snapshot after a canvas command succeeds.
- * Does NOT await this — caller uses .catch(() => {}) to suppress rejections.
- */
-async function autoSnapshotAfterCommand(
-  action: string,
-  params: Record<string, unknown>,
-  resultData: Record<string, unknown>
-): Promise<void> {
-  const now = Date.now();
-  const frameIds = new Set<string>();
-
-  if (action === 'batch_execute') {
-    // Extract nodeIds from batch results
-    const results = (resultData.results as Array<Record<string, unknown>>) || [];
-    for (const r of results) {
-      const nid = (r.nodeId ?? r.id) as string | undefined;
-      if (nid) {
-        const frame = findRootFrame(nid);
-        if (frame) frameIds.add(frame.id);
-      }
-    }
-  } else {
-    // Extract nodeId from resultData or params
-    const nid = (resultData.nodeId ?? resultData.id ?? params.nodeId ?? params.parentId) as string | undefined;
-    if (nid) {
-      const frame = findRootFrame(nid);
-      if (frame) frameIds.add(frame.id);
-    }
-  }
-
-  for (const frameId of frameIds) {
-    // Debounce: skip if snapshotted within the last 5s
-    const lastSnapshot = snapshotDebounce.get(frameId) ?? 0;
-    if (now - lastSnapshot < SNAPSHOT_DEBOUNCE_MS) continue;
-    snapshotDebounce.set(frameId, now);
-
-    const frame = figma.getNodeById(frameId) as FrameNode | null;
-    if (!frame || frame.type !== 'FRAME') continue;
-
-    const snapshot = serializeFrame(frame);
-    const store: Record<string, { snapshot: unknown[]; timestamp: number }> =
-      (await figma.clientStorage.getAsync(SNAPSHOTS_STORAGE_KEY)) || {};
-
-    // Prune expired
-    for (const key of Object.keys(store)) {
-      if (now - store[key].timestamp > SNAPSHOT_TTL_MS) delete store[key];
-    }
-
-    // FIFO eviction
-    const keys = Object.keys(store);
-    if (keys.length >= MAX_SNAPSHOTS) {
-      const oldest = keys.reduce((a, b) => store[a].timestamp < store[b].timestamp ? a : b);
-      delete store[oldest];
-    }
-
-    store[frameId] = { snapshot, timestamp: now };
-    await figma.clientStorage.setAsync(SNAPSHOTS_STORAGE_KEY, store);
-  }
-}
-
-/**
- * Saves an API key to Figma's client storage
- */
-async function saveApiKey(provider: AIProvider, apiKey: string) {
-  try {
-    const keys = (await figma.clientStorage.getAsync(API_KEYS_STORAGE_KEY)) || {};
-    if (apiKey) {
-      keys[provider] = apiKey;
-    } else {
-      delete keys[provider];
-    }
-    await figma.clientStorage.setAsync(API_KEYS_STORAGE_KEY, keys);
-  } catch (error) {
-    console.error('Failed to save API key:', error);
-  }
-}
-
-/**
- * Saves validation status to Figma's client storage
- */
-async function saveValidationStatus(provider: AIProvider, isValid: boolean) {
-  try {
-    const validated = (await figma.clientStorage.getAsync(VALIDATION_STORAGE_KEY)) || {};
-    validated[provider] = isValid;
-    await figma.clientStorage.setAsync(VALIDATION_STORAGE_KEY, validated);
-  } catch (error) {
-    console.error('Failed to save validation status:', error);
-  }
-}
-
-/**
- * Loads saved API keys and validation status from Figma's client storage and sends to UI
- */
-async function loadSavedApiKeys() {
-  try {
-    const keys = (await figma.clientStorage.getAsync(API_KEYS_STORAGE_KEY)) || {};
-    const validated = (await figma.clientStorage.getAsync(VALIDATION_STORAGE_KEY)) || {};
-    figma.ui.postMessage({
-      type: 'api-keys-loaded',
-      keys: keys,
-      validated: validated,
-    });
-  } catch (error) {
-    console.error('Failed to load API keys:', error);
-    figma.ui.postMessage({
-      type: 'api-keys-loaded',
-      keys: {},
-      validated: {},
-    });
-  }
-}
 
 /**
  * Gets the selected image from Figma and sends it to the UI
@@ -1310,28 +747,6 @@ async function createReferenceImage(imageData: string, width: number, height: nu
  * Migrates old figmento-plugin/ flat storage keys to the unified schema.
  * Read-only migration: copies values to new schema, never deletes old keys.
  */
-async function migrateOldSettings(keys: Record<string, string>) {
-  let migrated = false;
-
-  // Check for old flat key format from figmento-plugin/
-  const oldAnthropicKey = await figma.clientStorage.getAsync('anthropicApiKey');
-  if (oldAnthropicKey && !keys['claude']) {
-    keys['claude'] = oldAnthropicKey;
-    migrated = true;
-  }
-
-  const oldGeminiKey = await figma.clientStorage.getAsync('geminiApiKey');
-  if (oldGeminiKey && !keys['gemini']) {
-    keys['gemini'] = oldGeminiKey;
-    migrated = true;
-  }
-
-  if (migrated) {
-    await figma.clientStorage.setAsync(API_KEYS_STORAGE_KEY, keys);
-    console.log('Settings migration: copied old flat keys to unified schema');
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════
 // COMMAND ROUTER (from figmento-plugin/)
 // ═══════════════════════════════════════════════════════════════
