@@ -389,13 +389,6 @@ export function registerCrudTools(server: McpServer, _sendDesignCommand: SendDes
   );
 
   server.tool(
-    'list_design_systems',
-    '[DEPRECATED — use list_resources(type="designSystems") instead] List all saved design systems with summary info.',
-    listDesignSystemsSchema,
-    async () => listDesignSystemsHandler(),
-  );
-
-  server.tool(
     'update_design_system',
     'Update specific tokens in an existing design system using dot-path keys. Example: { "colors.primary": "#FF0000" }',
     updateDesignSystemSchema,

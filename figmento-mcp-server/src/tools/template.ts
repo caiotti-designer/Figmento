@@ -48,7 +48,7 @@ export function registerTemplateTools(server: McpServer, sendDesignCommand: Send
 
   server.tool(
     'scan_template',
-    'Scan a frame for template placeholders. Placeholders are layers whose names start with "#". Returns a list of placeholder nodes with their types (text or image). Use before apply_template_text/apply_template_image.',
+    '[DEPRECATED — use scan_frame_structure instead] Scan a frame for template placeholders. Placeholders are layers whose names start with "#". Returns a list of placeholder nodes with their types (text or image). Use before apply_template_text/apply_template_image.',
     scanTemplateSchema,
     async (params) => {
       const data = await sendDesignCommand('scan_template', params);

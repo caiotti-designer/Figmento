@@ -159,10 +159,4 @@ export function registerLayoutTools(server: McpServer): void {
     }
   );
 
-  server.tool(
-    'list_layout_blueprints',
-    '[DEPRECATED — use list_resources(type="blueprints") instead] List all available layout blueprints, optionally filtered by category. Returns id, description, mood, and canvas info for each blueprint.',
-    listLayoutBlueprintsSchema,
-    async (params) => listBlueprintsHandler(params.category),
-  );
 }

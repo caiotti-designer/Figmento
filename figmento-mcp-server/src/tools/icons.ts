@@ -350,11 +350,4 @@ export function registerIconTools(server: McpServer, sendDesignCommand: SendDesi
     }
   );
 
-  // ── list_icons ──────────────────────────────────────────────────────────
-  server.tool(
-    'list_icons',
-    '[DEPRECATED — use list_resources(type="icons") instead] List available Lucide icons. Search by name or browse by category.',
-    listIconsSchema,
-    async (params) => listIconsHandler(params.category || params.search),
-  );
 }

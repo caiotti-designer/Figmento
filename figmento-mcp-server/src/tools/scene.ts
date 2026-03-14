@@ -140,24 +140,6 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
     async (params) => handleTransformNode(params, sendDesignCommand)
   );
 
-  // ═══════════════════════════════════════════════════════════
-  // Deprecated aliases — delegate to transform_node handler
-  // ═══════════════════════════════════════════════════════════
-
-  server.tool(
-    'move_node',
-    '[DEPRECATED — use transform_node instead] Move a node to a new position.',
-    moveNodeSchema,
-    async (params) => handleTransformNode(params, sendDesignCommand)
-  );
-
-  server.tool(
-    'resize_node',
-    '[DEPRECATED — use transform_node instead] Resize a node.',
-    resizeNodeSchema,
-    async (params) => handleTransformNode(params, sendDesignCommand)
-  );
-
   server.tool(
     'rename_node',
     'Rename a node.',
@@ -201,7 +183,7 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
 
   server.tool(
     'clone_node',
-    'Clone (duplicate) an existing node. Returns the new node\'s ID. Great for repeating patterns like menu items, speaker cards, tags, etc.',
+    '[DEPRECATED — use clone_with_overrides(copies=[{...}]) instead] Clone (duplicate) an existing node. Returns the new node\'s ID. Great for repeating patterns like menu items, speaker cards, tags, etc.',
     cloneNodeSchema,
     async (params) => {
       const data = await sendDesignCommand('clone_node', params);

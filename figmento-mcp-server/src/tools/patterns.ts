@@ -306,10 +306,4 @@ export function registerPatternTools(server: McpServer, sendDesignCommand: SendD
   // DS-14: list_patterns
   // ═══════════════════════════════════════════════════════════
 
-  server.tool(
-    'list_patterns',
-    '[DEPRECATED — use list_resources(type="patterns") instead] List all available cross-format design patterns with their names, descriptions, props, and variants.',
-    listPatternsSchema,
-    async () => listPatternsHandler(),
-  );
 }

@@ -129,10 +129,4 @@ export function registerFormatTools(server: McpServer, _sendDesignCommand: SendD
     }
   );
 
-  server.tool(
-    'list_formats',
-    '[DEPRECATED — use list_resources(type="formats") instead] List all available format adapters. Optionally filter by category.',
-    listFormatsSchema,
-    async (params) => listFormatsHandler(params.category),
-  );
 }

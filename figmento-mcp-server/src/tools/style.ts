@@ -139,45 +139,6 @@ export function registerStyleTools(server: McpServer, sendDesignCommand: SendDes
   );
 
   // ═══════════════════════════════════════════════════════════
-  // Deprecated aliases — delegate to set_style handler
-  // ═══════════════════════════════════════════════════════════
-
-  server.tool(
-    'set_fill',
-    '[DEPRECATED — use set_style instead] Set the fill color of an existing node. Supports solid colors and gradients.',
-    setFillSchema,
-    async (params) => handleSetStyle({ ...params, property: 'fill' } as Record<string, unknown>, sendDesignCommand)
-  );
-
-  server.tool(
-    'set_stroke',
-    '[DEPRECATED — use set_style instead] Set or remove the stroke (border) on a node.',
-    setStrokeSchema,
-    async (params) => handleSetStyle({ ...params, property: 'stroke' } as Record<string, unknown>, sendDesignCommand)
-  );
-
-  server.tool(
-    'set_effects',
-    '[DEPRECATED — use set_style instead] Add drop shadow or inner shadow effects to a node.',
-    setEffectsSchema,
-    async (params) => handleSetStyle({ ...params, property: 'effects' } as Record<string, unknown>, sendDesignCommand)
-  );
-
-  server.tool(
-    'set_corner_radius',
-    '[DEPRECATED — use set_style instead] Set corner radius on a frame or rectangle.',
-    setCornerRadiusSchema,
-    async (params) => handleSetStyle({ ...params, property: 'cornerRadius' } as Record<string, unknown>, sendDesignCommand)
-  );
-
-  server.tool(
-    'set_opacity',
-    '[DEPRECATED — use set_style instead] Set the opacity of a node.',
-    setOpacitySchema,
-    async (params) => handleSetStyle({ ...params, property: 'opacity' } as Record<string, unknown>, sendDesignCommand)
-  );
-
-  // ═══════════════════════════════════════════════════════════
   // set_auto_layout stays separate (not merged into set_style)
   // ═══════════════════════════════════════════════════════════
 

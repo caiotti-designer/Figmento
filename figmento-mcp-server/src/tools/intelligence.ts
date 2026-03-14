@@ -295,52 +295,6 @@ export function registerIntelligenceTools(server: McpServer): void {
   );
 
   // ═══════════════════════════════════════════════════════════
-  // Deprecated aliases — delegate to get_design_guidance
-  // ═══════════════════════════════════════════════════════════
-
-  server.tool(
-    'get_size_preset',
-    '[DEPRECATED — use get_design_guidance instead] Get exact pixel dimensions for common design formats (social media, print, presentations, web). Query by platform, category, or specific preset ID.',
-    getSizePresetSchema,
-    async (params) => handleDesignGuidance({ ...params, aspect: 'size' })
-  );
-
-  server.tool(
-    'get_font_pairing',
-    '[DEPRECATED — use get_design_guidance instead] Get font pairing recommendations by mood/style. Returns heading and body fonts with recommended weights.',
-    getFontPairingSchema,
-    async (params) => handleDesignGuidance({ ...params, aspect: 'fonts' })
-  );
-
-  server.tool(
-    'get_type_scale',
-    '[DEPRECATED — use get_design_guidance instead] Compute a typographic scale from a base size and ratio. Returns sizes for xs through display. Optionally provide a custom base size.',
-    getTypeScaleSchema,
-    async (params) => handleDesignGuidance({ ...params, aspect: 'typeScale' })
-  );
-
-  server.tool(
-    'get_color_palette',
-    '[DEPRECATED — use get_design_guidance instead] Get a color palette by mood keywords or palette ID. Returns primary, secondary, accent, background, text, and muted colors.',
-    getColorPaletteSchema,
-    async (params) => handleDesignGuidance({ ...params, aspect: 'color' })
-  );
-
-  server.tool(
-    'get_spacing_scale',
-    '[DEPRECATED — use get_design_guidance instead] Get the 8px grid spacing scale values with usage guidance. Use these values for all spacing decisions — never use arbitrary pixel amounts.',
-    getSpacingScaleSchema,
-    async () => handleDesignGuidance({ aspect: 'spacing' })
-  );
-
-  server.tool(
-    'get_layout_guide',
-    '[DEPRECATED — use get_design_guidance instead] Get layout recommendations for a specific format: margins, safe zones, hierarchy rules, and common layout patterns.',
-    getLayoutGuideSchema,
-    async (params) => handleDesignGuidance({ ...params, aspect: 'layout' })
-  );
-
-  // ═══════════════════════════════════════════════════════════
   // Out-of-scope tools (remain separate, not consolidated)
   // ═══════════════════════════════════════════════════════════
 

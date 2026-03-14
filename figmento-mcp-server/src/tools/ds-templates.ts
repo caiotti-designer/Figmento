@@ -426,10 +426,4 @@ export function registerDsTemplateTools(server: McpServer, sendDesignCommand: Se
   // DS-19: list_templates
   // ═══════════════════════════════════════════════════════════
 
-  server.tool(
-    'list_templates',
-    '[DEPRECATED — use list_resources(type="templates") instead] List all available project templates with their names, descriptions, frame counts, formats used, and estimated creation time.',
-    listTemplatesSchema,
-    async () => listTemplatesHandler(),
-  );
 }

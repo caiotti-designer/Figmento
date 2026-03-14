@@ -179,10 +179,4 @@ export function registerComponentTools(server: McpServer, sendDesignCommand: Sen
     }
   );
 
-  server.tool(
-    'list_components',
-    '[DEPRECATED — use list_resources(type="components") instead] List all available design system components with their variants, props, and descriptions.',
-    listComponentsSchema,
-    async () => listComponentsHandler(),
-  );
 }

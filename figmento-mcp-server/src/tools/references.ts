@@ -548,10 +548,4 @@ export function registerReferenceTools(server: McpServer): void {
   // list_reference_categories
   // ───────────────────────────────────────────────────────────
 
-  server.tool(
-    'list_reference_categories',
-    '[DEPRECATED — use list_resources(type="references") instead] List all available reference categories, subcategories, and reference counts.',
-    listReferenceCategoriesSchema,
-    async () => listReferenceCategoriesHandler(),
-  );
 }

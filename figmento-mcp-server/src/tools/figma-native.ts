@@ -103,31 +103,6 @@ export function registerFigmaNativeTools(server: McpServer, sendDesignCommand: S
     async (params) => handleApplyStyle(params as { styleType: string; nodeId: string; styleId: string }, sendDesignCommand)
   );
 
-  // ═══════════════════════════════════════════════════════════
-  // Deprecated aliases — delegate to apply_style handler
-  // ═══════════════════════════════════════════════════════════
-
-  server.tool(
-    'apply_paint_style',
-    '[DEPRECATED — use apply_style instead] Apply a Figma Paint Style to a node\'s fills. The node will reference the style — updating the style updates all nodes using it. Use read_figma_context to discover available style IDs.',
-    applyPaintStyleSchema,
-    async (params) => handleApplyStyle({ styleType: 'paint', nodeId: params.nodeId, styleId: params.styleId }, sendDesignCommand)
-  );
-
-  server.tool(
-    'apply_text_style',
-    '[DEPRECATED — use apply_style instead] Apply a Figma Text Style to a text node. Sets font family, size, weight, spacing, and line height from the style. Only works on TEXT nodes.',
-    applyTextStyleSchema,
-    async (params) => handleApplyStyle({ styleType: 'text', nodeId: params.nodeId, styleId: params.styleId }, sendDesignCommand)
-  );
-
-  server.tool(
-    'apply_effect_style',
-    '[DEPRECATED — use apply_style instead] Apply a Figma Effect Style to a node. Sets shadows and blurs from the style definition.',
-    applyEffectStyleSchema,
-    async (params) => handleApplyStyle({ styleType: 'effect', nodeId: params.nodeId, styleId: params.styleId }, sendDesignCommand)
-  );
-
   server.tool(
     'create_figma_variables',
     'Create a Figma Variable Collection with variables. Converts hex colors to native COLOR variables, numbers to FLOAT variables. Use "/" in names for folder grouping (e.g., "color/primary"). If a collection with the same name exists, returns its info instead of duplicating.',
