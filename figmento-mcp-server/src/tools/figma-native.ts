@@ -44,10 +44,37 @@ export const createVariablesFromDesignSystemSchema = {
   designSystemName: z.string().describe('Name of the Figmento design system (e.g., "payflow", "stripe", "noir")'),
 };
 
+// ═══════════════════════════════════════════════════════════
+// Consolidated apply_style schema
+// ═══════════════════════════════════════════════════════════
+
+export const applyStyleSchema = {
+  styleType: z.string().describe('Type of style to apply: "paint" | "text" | "effect"'),
+  nodeId: z.string().describe('Target node ID'),
+  styleId: z.string().describe('Style ID from read_figma_context response'),
+};
+
+function wrapPretty(data: Record<string, unknown>) {
+  return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+}
+
+async function handleApplyStyle(params: { styleType: string; nodeId: string; styleId: string }, sendDesignCommand: SendDesignCommand) {
+  switch (params.styleType) {
+    case 'paint':
+      return wrapPretty(await sendDesignCommand('apply_paint_style', { nodeId: params.nodeId, styleId: params.styleId }));
+    case 'text':
+      return wrapPretty(await sendDesignCommand('apply_text_style', { nodeId: params.nodeId, styleId: params.styleId }));
+    case 'effect':
+      return wrapPretty(await sendDesignCommand('apply_effect_style', { nodeId: params.nodeId, styleId: params.styleId }));
+    default:
+      throw new Error(`Unknown apply_style styleType: "${params.styleType}". Must be one of: paint, text, effect`);
+  }
+}
+
 export function registerFigmaNativeTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'read_figma_context',
-    'Read the current Figma file\'s design context: all local Variables (with collections and modes), Paint Styles, Text Styles, Effect Styles, and available fonts. Call this FIRST when working with a file that has an existing design system — use the returned variable IDs and style IDs with bind_variable and apply_*_style tools instead of hardcoding values.',
+    'Read the current Figma file\'s design context: all local Variables (with collections and modes), Paint Styles, Text Styles, Effect Styles, and available fonts. Call this FIRST when working with a file that has an existing design system — use the returned variable IDs and style IDs with bind_variable and apply_style tools instead of hardcoding values.',
     readFigmaContextSchema,
     async () => {
       const data = await sendDesignCommand('read_figma_context', {});
@@ -65,34 +92,40 @@ export function registerFigmaNativeTools(server: McpServer, sendDesignCommand: S
     }
   );
 
+  // ═══════════════════════════════════════════════════════════
+  // Consolidated tool: apply_style
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'apply_style',
+    'Apply a Figma Style to a node. Use "styleType" to specify: "paint" (fill colors), "text" (font family, size, weight, spacing, line height — TEXT nodes only), or "effect" (shadows, blurs). Use read_figma_context to discover available style IDs.',
+    applyStyleSchema,
+    async (params) => handleApplyStyle(params as { styleType: string; nodeId: string; styleId: string }, sendDesignCommand)
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // Deprecated aliases — delegate to apply_style handler
+  // ═══════════════════════════════════════════════════════════
+
   server.tool(
     'apply_paint_style',
-    'Apply a Figma Paint Style to a node\'s fills. The node will reference the style — updating the style updates all nodes using it. Use read_figma_context to discover available style IDs.',
+    '[DEPRECATED — use apply_style instead] Apply a Figma Paint Style to a node\'s fills. The node will reference the style — updating the style updates all nodes using it. Use read_figma_context to discover available style IDs.',
     applyPaintStyleSchema,
-    async (params) => {
-      const data = await sendDesignCommand('apply_paint_style', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
-    }
+    async (params) => handleApplyStyle({ styleType: 'paint', nodeId: params.nodeId, styleId: params.styleId }, sendDesignCommand)
   );
 
   server.tool(
     'apply_text_style',
-    'Apply a Figma Text Style to a text node. Sets font family, size, weight, spacing, and line height from the style. Only works on TEXT nodes.',
+    '[DEPRECATED — use apply_style instead] Apply a Figma Text Style to a text node. Sets font family, size, weight, spacing, and line height from the style. Only works on TEXT nodes.',
     applyTextStyleSchema,
-    async (params) => {
-      const data = await sendDesignCommand('apply_text_style', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
-    }
+    async (params) => handleApplyStyle({ styleType: 'text', nodeId: params.nodeId, styleId: params.styleId }, sendDesignCommand)
   );
 
   server.tool(
     'apply_effect_style',
-    'Apply a Figma Effect Style to a node. Sets shadows and blurs from the style definition.',
+    '[DEPRECATED — use apply_style instead] Apply a Figma Effect Style to a node. Sets shadows and blurs from the style definition.',
     applyEffectStyleSchema,
-    async (params) => {
-      const data = await sendDesignCommand('apply_effect_style', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
-    }
+    async (params) => handleApplyStyle({ styleType: 'effect', nodeId: params.nodeId, styleId: params.styleId }, sendDesignCommand)
   );
 
   server.tool(

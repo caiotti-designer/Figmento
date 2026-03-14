@@ -18,6 +18,7 @@ import { registerReferenceTools } from './tools/references';
 import { registerFigmaNativeTools } from './tools/figma-native';
 import { registerRefinementTools } from './tools/refinement';
 import { registerLearningTools } from './tools/learning';
+import { registerResourceTools } from './tools/resources';
 
 /**
  * Creates and configures the Figmento MCP server with all design tools.
@@ -76,6 +77,7 @@ export function createFigmentoServer(): FigmentoServerResult {
   registerFigmaNativeTools(server, sendDesignCommand);
   registerRefinementTools(server, sendDesignCommand);
   registerLearningTools(server, wsClient);
+  registerResourceTools(server);
 
   return { server, wsClient };
 }

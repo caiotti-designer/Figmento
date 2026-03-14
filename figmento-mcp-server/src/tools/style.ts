@@ -65,56 +65,121 @@ export const setAutoLayoutSchema = {
   counterAxisSizingMode: z.string().optional().describe('FIXED = fixed size; HUG/AUTO = hug contents'),
 };
 
+// ═══════════════════════════════════════════════════════════
+// Consolidated set_style schema
+// ═══════════════════════════════════════════════════════════
+
+export const setStyleSchema = {
+  property: z.string().describe('Which style property to set: "fill" | "stroke" | "effects" | "cornerRadius" | "opacity"'),
+  nodeId: z.string().describe('Target node ID'),
+  // fill params
+  color: z.string().optional().describe('Hex color for fill or stroke'),
+  opacity: z.number().optional().describe('Opacity value (0-1). For fill: fill opacity. For opacity property: node opacity.'),
+  fills: z.array(z.object({
+    type: z.string().describe('Fill type: SOLID or GRADIENT_LINEAR'),
+    color: z.string().optional(),
+    opacity: z.number().optional(),
+    gradientStops: z.array(z.object({
+      position: z.number(),
+      color: z.string(),
+      opacity: z.number().optional(),
+    })).optional(),
+    gradientDirection: z.string().optional().describe('Gradient direction: left-right, right-left, top-bottom, bottom-top'),
+  })).optional().describe('Full fills array (overrides color param). Used when property="fill".'),
+  // stroke params
+  width: z.number().optional().describe('Stroke width in pixels. Used when property="stroke".'),
+  // effects params
+  effects: z.array(z.object({
+    type: z.string().describe('Effect type: DROP_SHADOW or INNER_SHADOW'),
+    color: z.string().describe('Shadow color hex'),
+    opacity: z.number().optional().describe('Shadow opacity 0-1 (default: 0.25)'),
+    offset: z.object({ x: z.number(), y: z.number() }),
+    blur: z.number(),
+    spread: z.number().optional(),
+  })).optional().describe('Effects array. Used when property="effects".'),
+  // cornerRadius params
+  radius: z.union([
+    z.number().describe('Uniform radius'),
+    z.tuple([z.number(), z.number(), z.number(), z.number()]).describe('[topLeft, topRight, bottomRight, bottomLeft]'),
+  ]).optional().describe('Corner radius. Used when property="cornerRadius".'),
+};
+
+function wrap(data: Record<string, unknown>) {
+  return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+}
+
+async function handleSetStyle(params: Record<string, unknown>, sendDesignCommand: SendDesignCommand) {
+  const property = params.property as string;
+  switch (property) {
+    case 'fill':
+      return wrap(await sendDesignCommand('set_fill', { nodeId: params.nodeId, color: params.color, opacity: params.opacity, fills: params.fills }));
+    case 'stroke':
+      return wrap(await sendDesignCommand('set_stroke', { nodeId: params.nodeId, color: params.color, width: params.width }));
+    case 'effects':
+      return wrap(await sendDesignCommand('set_effects', { nodeId: params.nodeId, effects: params.effects }));
+    case 'cornerRadius':
+      return wrap(await sendDesignCommand('set_corner_radius', { nodeId: params.nodeId, radius: params.radius }));
+    case 'opacity':
+      return wrap(await sendDesignCommand('set_opacity', { nodeId: params.nodeId, opacity: params.opacity }));
+    default:
+      throw new Error(`Unknown set_style property: "${property}". Must be one of: fill, stroke, effects, cornerRadius, opacity`);
+  }
+}
+
 export function registerStyleTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
+  // ═══════════════════════════════════════════════════════════
+  // Consolidated tool: set_style
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'set_style',
+    'Set a visual style property on a node. Use the "property" param to choose what to set: "fill" (solid or gradient fills), "stroke" (border), "effects" (shadows), "cornerRadius", or "opacity".',
+    setStyleSchema,
+    async (params) => handleSetStyle(params as Record<string, unknown>, sendDesignCommand)
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // Deprecated aliases — delegate to set_style handler
+  // ═══════════════════════════════════════════════════════════
+
   server.tool(
     'set_fill',
-    'Set the fill color of an existing node. Supports solid colors and gradients.',
+    '[DEPRECATED — use set_style instead] Set the fill color of an existing node. Supports solid colors and gradients.',
     setFillSchema,
-    async (params) => {
-      const data = await sendDesignCommand('set_fill', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
-    }
+    async (params) => handleSetStyle({ ...params, property: 'fill' } as Record<string, unknown>, sendDesignCommand)
   );
 
   server.tool(
     'set_stroke',
-    'Set or remove the stroke (border) on a node.',
+    '[DEPRECATED — use set_style instead] Set or remove the stroke (border) on a node.',
     setStrokeSchema,
-    async (params) => {
-      const data = await sendDesignCommand('set_stroke', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
-    }
+    async (params) => handleSetStyle({ ...params, property: 'stroke' } as Record<string, unknown>, sendDesignCommand)
   );
 
   server.tool(
     'set_effects',
-    'Add drop shadow or inner shadow effects to a node.',
+    '[DEPRECATED — use set_style instead] Add drop shadow or inner shadow effects to a node.',
     setEffectsSchema,
-    async (params) => {
-      const data = await sendDesignCommand('set_effects', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
-    }
+    async (params) => handleSetStyle({ ...params, property: 'effects' } as Record<string, unknown>, sendDesignCommand)
   );
 
   server.tool(
     'set_corner_radius',
-    'Set corner radius on a frame or rectangle.',
+    '[DEPRECATED — use set_style instead] Set corner radius on a frame or rectangle.',
     setCornerRadiusSchema,
-    async (params) => {
-      const data = await sendDesignCommand('set_corner_radius', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
-    }
+    async (params) => handleSetStyle({ ...params, property: 'cornerRadius' } as Record<string, unknown>, sendDesignCommand)
   );
 
   server.tool(
     'set_opacity',
-    'Set the opacity of a node.',
+    '[DEPRECATED — use set_style instead] Set the opacity of a node.',
     setOpacitySchema,
-    async (params) => {
-      const data = await sendDesignCommand('set_opacity', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
-    }
+    async (params) => handleSetStyle({ ...params, property: 'opacity' } as Record<string, unknown>, sendDesignCommand)
   );
+
+  // ═══════════════════════════════════════════════════════════
+  // set_auto_layout stays separate (not merged into set_style)
+  // ═══════════════════════════════════════════════════════════
 
   server.tool(
     'set_auto_layout',
