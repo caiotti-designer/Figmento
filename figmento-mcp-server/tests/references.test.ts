@@ -325,10 +325,17 @@ describe('scoreReference — scoring logic', () => {
 
 describe('loadAllReferencesInCategory — empty and missing directories', () => {
   test('empty subcategory folder returns empty array without throwing', () => {
-    // All folders start empty (no YAML files, just .gitkeep)
+    // ads/brand-awareness exists on disk but has no YAML files yet
+    const refs = loadAllReferencesInCategory('ads', 'brand-awareness');
+    expect(Array.isArray(refs)).toBe(true);
+    expect(refs.length).toBe(0);
+  });
+
+  test('populated subcategory returns loaded references without throwing', () => {
+    // web/hero now has real reference files
     const refs = loadAllReferencesInCategory('web', 'hero');
     expect(Array.isArray(refs)).toBe(true);
-    expect(refs.length).toBe(0); // No references added yet
+    expect(refs.length).toBeGreaterThan(0);
   });
 
   test('empty category folder returns empty array without throwing', () => {

@@ -54,7 +54,7 @@ export const createTextSchema = {
   y: z.number().optional(),
   parentId: z.string().optional().describe('Parent frame nodeId to append to'),
   textAlign: z.string().optional().describe('Text alignment: LEFT, CENTER, or RIGHT'),
-  lineHeight: z.number().optional().describe('Line height: values > 3 treated as pixels, values ≤ 3 treated as a multiplier (e.g. 1.5 = 1.5× fontSize).'),
+  lineHeight: z.number().optional().describe('Line height: values < 10 treated as a multiplier (e.g. 1.5 = 1.5× fontSize, 1.2 = tight). Values ≥ 10 treated as pixels. Pass 1.2–1.6 for ratios, or e.g. 70 for exact pixels.'),
   letterSpacing: z.number().optional(),
   italic: z.boolean().optional().describe('Italic style for entire text'),
   underline: z.boolean().optional().describe('Underline decoration for entire text'),

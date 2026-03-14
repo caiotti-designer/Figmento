@@ -420,4 +420,45 @@ export function registerIntelligenceTools(server: McpServer): void {
       return { content: [{ type: 'text' as const, text: `Brand kit saved: ${safeName}` }] };
     }
   );
+
+  // ═══════════════════════════════════════════════════════════
+  // get_design_rules — verbose reference data for design decisions
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'get_design_rules',
+    'Retrieve verbose design reference data by category. Use this instead of relying on hardcoded knowledge in the prompt. Categories: typography, layout, color, print, evaluation, refinement, anti-patterns, gradients, taste, all.',
+    { category: z.string().describe('Category: typography | layout | color | print | evaluation | refinement | anti-patterns | gradients | taste | all') },
+    async (params) => {
+      const data = loadKnowledge('design-rules.yaml');
+      const cat = (params.category || 'all').toLowerCase().replace(/-/g, '_');
+
+      const keyMap: Record<string, string> = {
+        'anti_patterns': 'anti_patterns',
+        'antipatterns': 'anti_patterns',
+        'gradients': 'gradients',
+        'taste': 'taste',
+        'typography': 'typography',
+        'layout': 'layout',
+        'color': 'color',
+        'print': 'print',
+        'evaluation': 'evaluation',
+        'refinement': 'refinement',
+      };
+
+      let result: unknown;
+      if (cat === 'all') {
+        result = data;
+      } else {
+        const key = keyMap[cat] || cat;
+        result = (data as Record<string, unknown>)[key];
+        if (!result) {
+          const available = Object.keys(data).join(', ');
+          throw new Error(`Unknown category '${params.category}'. Available: ${available}`);
+        }
+      }
+
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
 }

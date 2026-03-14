@@ -1642,6 +1642,14 @@ async function handleCreateText(params: Record<string, unknown>): Promise<Record
   const node = await createElement(element, true);
   if (!node) throw new Error('Failed to create text');
 
+  // Belt-and-suspenders: re-apply fill after createElement in case setupTextNode
+  // lost it during segment application or font fallback. Ensures fillColor always persists.
+  if ('fills' in node) {
+    try {
+      (node as TextNode).fills = [{ type: 'SOLID', color: hexToRgb(textColor), opacity: 1 }];
+    } catch { /* ignore — best effort */ }
+  }
+
   if (params.parentId) {
     const parent = figma.getNodeById(params.parentId as string);
     if (parent && 'appendChild' in parent) {

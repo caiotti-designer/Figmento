@@ -1,0 +1,365 @@
+---
+# Design rules knowledge base — verbose reference data extracted from CLAUDE.md.
+# Accessed via get_design_rules(category). Categories: typography, layout, color, print, evaluation, refinement, anti-patterns, gradients, taste
+
+typography:
+  font_pairings:
+    description: "Mood → font pairing table. Use when no font is specified in the brief."
+    entries:
+      - mood: "Modern, tech, SaaS"
+        pairing_id: modern
+        heading: Inter
+        body: Inter
+      - mood: "Classic, editorial"
+        pairing_id: classic
+        heading: Playfair Display
+        body: Source Serif Pro
+      - mood: "Bold, marketing"
+        pairing_id: bold
+        heading: Montserrat
+        body: Hind
+      - mood: "Luxury, fashion"
+        pairing_id: luxury
+        heading: Cormorant Garamond
+        body: Proza Libre
+      - mood: "Playful, friendly"
+        pairing_id: playful
+        heading: Poppins
+        body: Nunito
+      - mood: "Corporate, finance"
+        pairing_id: corporate
+        heading: Roboto
+        body: Roboto Slab
+      - mood: "Journalistic, blog"
+        pairing_id: editorial
+        heading: Libre Baskerville
+        body: Open Sans
+      - mood: "Minimal, portfolio"
+        pairing_id: minimalist
+        heading: DM Sans
+        body: DM Sans
+      - mood: "Creative, agency"
+        pairing_id: creative
+        heading: Space Grotesk
+        body: General Sans
+      - mood: "Elegant, literary"
+        pairing_id: elegant
+        heading: Lora
+        body: Merriweather
+
+  line_height_rules:
+    - range: ">48px (display/hero)"
+      line_height: "1.1–1.2"
+    - range: "H1–H3 (headings)"
+      line_height: "1.3–1.4"
+    - range: "14–18px (body)"
+      line_height: "1.5–1.6"
+    - range: "<14px (captions)"
+      line_height: "1.6–1.8"
+
+  letter_spacing_rules:
+    - context: Display text
+      value: "-0.02em (tighten)"
+    - context: Headings
+      value: "-0.01em"
+    - context: Body
+      value: "0 (natural)"
+    - context: Uppercase labels
+      value: "+0.05 to +0.15em (open up)"
+
+  weight_hierarchy: "400 body → 500 emphasis → 600 subheadings → 700 headings → 800+ display"
+
+  font_consistency_rule: >
+    When a prompt specifies a font (e.g. 'use Outfit'), use ONLY that font for the entire design.
+    Never mix it with Inter or any other font unless the prompt explicitly requests multiple fonts.
+    The pairing table above is for when NO font is specified — if the user names a font, that overrides
+    the table completely. Before every create_text call, verify you are passing the correct fontFamily.
+
+  minimum_sizes_by_format:
+    - format: "Instagram/Social (1080px wide)"
+      display: "72–120px"
+      headline: "48–72px"
+      subheadline: "32–40px"
+      body: "28–32px"
+      caption: "22–26px"
+    - format: "Print (300dpi)"
+      display: "80–140px"
+      headline: "56–80px"
+      subheadline: "36–48px"
+      body: "24–32px"
+      caption: "18–24px"
+    - format: "Presentation (1920px wide)"
+      display: "64–96px"
+      headline: "40–64px"
+      subheadline: "28–36px"
+      body: "20–28px"
+      caption: "16–20px"
+    - format: "Web Hero (1440px wide)"
+      display: "56–96px"
+      headline: "36–56px"
+      subheadline: "24–32px"
+      body: "16–20px"
+      caption: "12–16px"
+
+layout:
+  grid: "8px grid — all spacing values must come from the scale: 4|8|12|16|20|24|32|40|48|64|80|96|128"
+
+  margins_by_format:
+    - type: Social media
+      range: "40–60px"
+      default: 48
+    - type: Print
+      range: "72–96px"
+      default: 72
+    - type: Presentation slides
+      range: "60–80px"
+      default: 64
+    - type: Web heroes
+      range: "40–80px"
+      default: 64
+    - type: Posters
+      range: "96–128px"
+      default: 96
+
+  social_safe_zones:
+    - platform: Instagram
+      top_bottom: 150
+      sides: 60
+    - platform: TikTok
+      top: 100
+      bottom: 200
+      left: 60
+      right: 100
+    - platform: YouTube thumbnails
+      note: "Avoid bottom-right (timestamp overlay)"
+
+  visual_hierarchy_checklist:
+    - "Headlines ≥ 2× body size"
+    - "At least 2 weight steps between hierarchy levels"
+    - "Primary text at full color, secondary at muted, tertiary at light muted"
+    - "Section gaps ≥ 2× item gaps"
+
+color:
+  mood_to_palette:
+    description: "Match mood keywords to palette ID in color-system.yaml"
+    entries:
+      - keywords: "moody, dark, coffee, cinematic"
+        palette: moody-dark
+      - keywords: "fresh, light, health, wellness"
+        palette: fresh-light
+      - keywords: "corporate, business, finance"
+        palette: corporate-professional
+      - keywords: "luxury, gold, premium, fashion"
+        palette: luxury-premium
+      - keywords: "playful, fun, colorful, kids"
+        palette: playful-fun
+      - keywords: "nature, organic, eco, botanical"
+        palette: nature-organic
+      - keywords: "tech, digital, AI, startup"
+        palette: tech-modern
+      - keywords: "warm, cozy, autumn, bakery"
+        palette: warm-cozy
+      - keywords: "minimal, clean, monochrome"
+        palette: minimal-clean
+      - keywords: "retro, vintage, nostalgic"
+        palette: retro-vintage
+      - keywords: "ocean, calm, serene, spa"
+        palette: ocean-calm
+      - keywords: "sunset, energy, sport, music"
+        palette: sunset-energy
+
+  contrast_rules:
+    - text_size: "Normal (<18px)"
+      min_ratio: "4.5:1"
+    - text_size: "Large (≥18px)"
+      min_ratio: "3:1"
+
+  forbidden: "Light grey background + timid blue accent — this is the generic AI look."
+
+gradients:
+  overlay_rules:
+    description: >
+      When placing text over an image, the gradient direction depends on WHERE the text sits,
+      not a fixed recipe. Place solid opacity at the text, transparency at the image.
+    text_position_map:
+      - position: Bottom
+        direction: bottom-top
+        stop_0: "opacity: 0 (top = transparent, image shows)"
+        stop_1: "opacity: 1 (bottom = solid, text readable)"
+      - position: Top
+        direction: top-bottom
+        stop_0: "opacity: 0 (bottom = transparent)"
+        stop_1: "opacity: 1 (top = solid)"
+      - position: Left
+        direction: left-right
+        stop_0: "opacity: 0 (right = transparent)"
+        stop_1: "opacity: 1 (left = solid)"
+      - position: Right
+        direction: right-left
+        stop_0: "opacity: 0 (left = transparent)"
+        stop_1: "opacity: 1 (right = solid)"
+    rules:
+      - "Only 2 stops. Never 3+."
+      - "The 0.4–0.5 breakpoint: 40-50% of the overlay is fully solid."
+      - "Gradient color ALWAYS matches section/page background color."
+      - "NEVER use black gradient on a light section or white gradient on a dark section."
+
+print:
+  mandatory_auto_layout: >
+    ALL print designs (A4+) MUST use auto-layout exclusively. Never use absolute x/y positioning.
+    Absolute positioning on A4 (2480×3508px) creates unpredictable gaps.
+
+  spacing_scale:
+    - token: page-margin
+      size: 72px
+      usage: Root frame padding on all sides
+    - token: section-gap
+      size: "48–64px"
+      usage: Between major page sections
+    - token: content-gap
+      size: "24–32px"
+      usage: Between heading and body, or between content blocks
+    - token: element-gap
+      size: "12–16px"
+      usage: Between list items, paragraphs, small elements
+    - token: tight-gap
+      size: "4–8px"
+      usage: Between icon and label, or label and value
+
+  page_structure: |
+    Page Frame (VERTICAL auto-layout, padding: 72 all sides, itemSpacing: 48-64)
+    ├── Header (HORIZONTAL auto-layout, gap: 16)
+    ├── Main Content (VERTICAL auto-layout, gap: 32)
+    │   ├── Section (VERTICAL auto-layout, gap: 16)
+    │   │   ├── Section heading
+    │   │   ├── Body text
+    │   │   └── Supporting image
+    │   └── Card grid (HORIZONTAL auto-layout, gap: 16)
+    └── Footer (HORIZONTAL auto-layout, gap: 16)
+
+  auto_layout_rules:
+    - "Call set_auto_layout on EVERY frame — root, sections, subsections, card groups."
+    - "Use itemSpacing from the spacing scale above."
+    - "Use paddingTop/Right/Bottom/Left on root frame for page margins."
+    - "For multi-column: HORIZONTAL parent with VERTICAL children."
+    - "Set primaryAxisSizingMode: FIXED, counterAxisSizingMode: FILL on child frames."
+    - "If page looks empty: reduce section-gap or add content. Never leave >100px unstructured space."
+
+  typography_hierarchy:
+    - level: "Display"
+      size: "96–120px"
+      weight: "700–800"
+      usage: Cover title only
+    - level: "H1 — Page Title"
+      size: "64–80px"
+      weight: "700"
+      usage: Page/section main title
+    - level: "H2 — Section Title"
+      size: "40–48px"
+      weight: "600–700"
+      usage: Section headings
+    - level: "H3 — Subsection"
+      size: "28–32px"
+      weight: "600"
+      usage: Sub-headings, card titles
+    - level: Body
+      size: "24–28px"
+      weight: "400"
+      usage: "Main body text (NEVER below 24px on A4)"
+    - level: Caption
+      size: "18–22px"
+      weight: "400"
+      usage: Photo captions, footnotes
+    - level: Label
+      size: "16–18px"
+      weight: "500–600 UPPERCASE"
+      usage: Tags, categories (tracking 0.1em)
+
+  size_ratios:
+    - "H1 ≥ 2.5× Body"
+    - "H2 ≥ 1.5× Body"
+    - "H3 ≥ 1.1× Body"
+    - "Body NEVER below 24px on A4 print"
+
+evaluation:
+  checklist_16:
+    - "Alignment — All elements on a consistent grid? No stray offsets?"
+    - "Contrast — All text readable? WCAG AA?"
+    - "Hierarchy — Clear reading order: first, second, third?"
+    - "Whitespace — Enough breathing room? Not cramped?"
+    - "Consistency — Spacing, colors, fonts consistent throughout?"
+    - "Safe zones — Critical text within platform safe zone?"
+    - "Balance — Composition balanced, not top-heavy?"
+    - "Intent — Does the design serve the user's stated goal and mood?"
+    - "Typography polish — Display text tightened? Uppercase spaced? Lines under 75 chars?"
+    - "Shadow quality — Shadows match palette temperature? Not pure black?"
+    - "Memorable element — ONE standout element that makes this unforgettable?"
+    - "Refinement applied — At least 3 micro-adjustments made?"
+    - "Reference consulted — find_design_references called? Composition aligns with proven reference?"
+    - "Images resolved — All image areas filled? Zero empty rectangles remaining?"
+    - "Gradient direction — Solid end of every gradient overlay behind the text?"
+    - "Print structure — Every frame uses auto-layout? No manually positioned elements? (print only)"
+
+refinement:
+  pass_steps:
+    - step: Typography tightening
+      check: "Display text letter-spacing -0.02em? Uppercase labels +0.05em or more?"
+    - step: Shadow warmth
+      check: "Shadows match palette temperature? Warm palette → warm shadow (10% brown tint). Cool → cool (10% blue tint). Never pure black."
+    - step: Card elevation
+      check: "Cards 3-5% lighter than section background? Identical fills = flat hierarchy."
+    - step: CTA isolation
+      check: "Primary CTA has 2× surrounding element spacing? itemSpacing 24 → gap before CTA 48+"
+    - step: Memorable element
+      check: "ONE disproportionate element? Check blueprint's memorable_element hint."
+    - step: Whitespace ratio
+      check: "Content density under 60%? Vertical rhythm follows Fibonacci-adjacent gaps (1:1.6:2.6)?"
+    - step: Accent text contrast
+      check: "Accent color as text on dark bg: lightened 15-20% vs fill version? (e.g. button #C45A3C → text #E8956A)"
+
+anti_patterns:
+  description: >
+    These are signals of generic AI output. If you catch yourself doing any of these,
+    stop and redesign that element.
+  list:
+    - "White or light-grey background as the default for any hero or full-page design"
+    - "Inter Regular for everything — weight variation is the minimum; font variety is better"
+    - "Centered text on every single element — vary alignment by hierarchy level"
+    - "Equal padding on every frame — vary padding to create visual rhythm"
+    - "Three feature cards that look identical to every other three-card grid ever generated"
+    - "CTA button in the same blue/purple as every other SaaS product — commit to something specific"
+    - "Pricing cards with no visual hierarchy — one card must dominate (scale, color, shadow)"
+    - "Shadow on everything or shadow on nothing — use shadow to direct attention"
+    - "A design with no negative space — some elements should breathe alone"
+    - "Typography without contrast — if all text is the same weight and size, hierarchy is broken"
+    - "Gradient overlay with wrong color — gradient end doesn't match section background = ugly visible edge"
+    - "fontWeight 600 on non-Inter fonts — silently falls back to Inter. Only use 400 or 700 unless verified."
+    - "Content frames with fixed height — clips text on overflow. Use layoutSizingVertical: HUG on text containers."
+    - "Gradient solid end facing away from text — most common AI gradient mistake. Solid must be behind text."
+    - "Absolute positioning on print pages — creates random gaps. Every print frame MUST use auto-layout."
+
+taste:
+  description: "Design taste rules — apply when no brand system is specified or creative latitude is given."
+  aesthetic_directions:
+    - name: editorial
+      description: "Asymmetric grids, large serif display, generous whitespace, minimal color"
+    - name: brutalist
+      description: "Raw structure exposed, stark contrast, oversized type, no decoration"
+    - name: organic
+      description: "Soft curves, warm tones, layered textures, humanist sans-serif"
+    - name: luxury
+      description: "Near-black backgrounds, gold/champagne accents, thin serifs, airspace"
+    - name: geometric
+      description: "Clean grids, primary color blocks, sans-serif, mathematical spacing"
+    - name: playful
+      description: "Bold saturated colors, rounded type, irregular layouts, energetic"
+
+  rules:
+    - rule: "Commit to ONE aesthetic direction before calling any tool."
+    - rule: "Typography is the first decision — never default to Inter/Inter."
+    - rule: "Pick a dominant color story and paint with it boldly. Forbidden: light grey + timid blue."
+    - rule: "Never use flat solid fills on hero sections — always depth (gradient, radial glow, etc.)"
+    - rule: "Increase all padding by 1.5× what feels enough. Designs need room to breathe."
+    - rule: "Every brief produces a visually distinct output — actively diverge from the last design."
+    - rule: "After every get_screenshot: does this look like a senior designer or a bot? Fix the most generic element."
+    - rule: "Every design must have ONE element that makes it unforgettable (giant headline, unexpected color, full-bleed image)."

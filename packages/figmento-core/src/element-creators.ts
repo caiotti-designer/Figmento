@@ -515,9 +515,9 @@ async function setupTextNode(node: TextNode, element: UIElement): Promise<void> 
   }
 
   if (element.text.lineHeight && typeof element.text.lineHeight === 'number') {
-    // Values <= 3 are treated as multipliers (e.g. 1.5 → 1.5 × fontSize px).
-    // Values > 3 are already in pixels and used as-is.
-    const lhValue = element.text.lineHeight <= 3
+    // Values < 10 are treated as multipliers (e.g. 1.5 → 1.5 × fontSize px).
+    // Values ≥ 10 are already in pixels and used as-is.
+    const lhValue = element.text.lineHeight < 10
       ? element.text.lineHeight * element.text.fontSize
       : element.text.lineHeight;
     node.lineHeight = { value: lhValue, unit: 'PIXELS' };
