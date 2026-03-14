@@ -32,6 +32,7 @@ export const createDesignSchema = {
     elements: z.array(z.any()),
   }).describe('Complete UIAnalysis design structure'),
   name: z.string().optional().describe('Name for the main frame'),
+  autoEvaluate: z.boolean().optional().describe('Auto-run refinement check + screenshot after design creation. Default true. Skipped when no frame is created.'),
 };
 
 export const batchExecuteSchema = {
@@ -41,6 +42,7 @@ export const batchExecuteSchema = {
     tempId: z.string().optional().describe('Optional identifier for this command\'s result. Other commands can reference the created nodeId as "$tempId".'),
   })).describe(`Array of commands to execute sequentially. Max ${MAX_BATCH_COMMANDS}.`),
   chunkSize: z.number().int().min(1).max(50).optional().describe(`Number of commands per WS round-trip (default ${DEFAULT_CHUNK_SIZE}). Reduce for Railway relay; increase for localhost-only.`),
+  autoEvaluate: z.boolean().optional().describe('Auto-run refinement check + screenshot after batch. Default true. Skipped for batches < 5 commands or when no FRAME is created.'),
 };
 
 export const cloneWithOverridesSchema = {
@@ -152,6 +154,60 @@ async function runChunked(
   };
 }
 
+// ─── Auto-evaluate postamble ────────────────────────────────────────────────
+// Runs refinement check + screenshot in parallel after batch/create_design.
+// Returns { evaluation, screenshot } or nulls on failure. Non-fatal — caller
+// always gets the original batch results even if evaluation blows up.
+
+interface EvalResult {
+  evaluation: Record<string, unknown> | null;
+  screenshot: Record<string, unknown> | null;
+}
+
+async function runAutoEvaluate(
+  rootNodeId: string,
+  send: SendDesignCommand,
+): Promise<EvalResult> {
+  try {
+    // Verify it's a FRAME before investing in parallel calls
+    const nodeInfo = await send('get_node_info', { nodeId: rootNodeId });
+    if ((nodeInfo as Record<string, unknown>).type !== 'FRAME') {
+      return { evaluation: null, screenshot: null };
+    }
+
+    const [refResult, ssResult] = await Promise.all([
+      send('run_refinement_check', { nodeId: rootNodeId }).catch(() => null),
+      send('get_screenshot', { nodeId: rootNodeId, scale: 1 }).catch(() => null),
+    ]);
+
+    return {
+      evaluation: refResult as Record<string, unknown> | null,
+      screenshot: ssResult as Record<string, unknown> | null,
+    };
+  } catch {
+    return { evaluation: null, screenshot: null };
+  }
+}
+
+function buildContentBlocks(
+  textPayload: Record<string, unknown>,
+  screenshot: Record<string, unknown> | null,
+): Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }> {
+  const blocks: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }> = [];
+
+  blocks.push({ type: 'text' as const, text: JSON.stringify(textPayload, null, 2) });
+
+  if (screenshot && (screenshot as Record<string, unknown>).base64) {
+    blocks.push({
+      type: 'image' as const,
+      data: (screenshot as Record<string, unknown>).base64 as string,
+      mimeType: 'image/png',
+    });
+  }
+
+  return blocks;
+}
+
 export function registerBatchTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
 
   // ─── create_design (existing) ───────────────────────────────
@@ -160,7 +216,16 @@ export function registerBatchTools(server: McpServer, sendDesignCommand: SendDes
     'Create a complete design from a UIAnalysis JSON structure. This is the batch tool — it creates a main frame with all child elements (text, shapes, images, icons, auto-layout) in a single operation. Best for creating full designs at once rather than element-by-element.',
     createDesignSchema,
     async (params) => {
-      const data = await sendDesignCommand('create_design', params);
+      const data = await sendDesignCommand('create_design', params) as Record<string, unknown>;
+
+      const shouldEvaluate = params.autoEvaluate !== false && data.nodeId;
+      if (shouldEvaluate) {
+        const { evaluation, screenshot } = await runAutoEvaluate(data.nodeId as string, sendDesignCommand);
+        const textPayload: Record<string, unknown> = { ...data };
+        if (evaluation) textPayload.evaluation = evaluation;
+        return { content: buildContentBlocks(textPayload, screenshot) };
+      }
+
       return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
     }
   );
@@ -191,6 +256,23 @@ Prefer this over sequential tool calls for any design with 3+ elements.`,
       }
 
       const data = await runChunked(commands, chunkSize, sendDesignCommand);
+
+      const shouldEvaluate = params.autoEvaluate !== false
+        && data.summary.total >= 5
+        && data.createdNodeIds?.length > 0;
+
+      if (shouldEvaluate) {
+        const rootId = data.createdNodeIds[0];
+        const { evaluation, screenshot } = await runAutoEvaluate(rootId, sendDesignCommand);
+        const textPayload: Record<string, unknown> = {
+          results: data.results,
+          summary: data.summary,
+          createdNodeIds: data.createdNodeIds,
+        };
+        if (evaluation) textPayload.evaluation = evaluation;
+        return { content: buildContentBlocks(textPayload, screenshot) };
+      }
+
       return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
     }
   );
