@@ -53,6 +53,26 @@ function listAvailableSystems(): string[] {
     .map(e => e.name);
 }
 
+// Exported list handler (used by resources.ts dispatcher)
+export async function listComponentsHandler(_filter?: string) {
+  const components = loadComponents();
+  const result = Object.entries(components).map(([name, def]) => ({
+    name,
+    description: def.description,
+    variants: def.variants ? Object.keys(def.variants) : ['default'],
+    sizes: def.size_overrides ? Object.keys(def.size_overrides) : [],
+    props: Object.entries(def.props).map(([propName, propDef]) => ({
+      name: propName,
+      type: propDef.type,
+      required: propDef.required || false,
+      default: propDef.default,
+      values: propDef.values,
+    })),
+  }));
+
+  return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+}
+
 export function registerComponentTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
 
   server.tool(
@@ -161,25 +181,8 @@ export function registerComponentTools(server: McpServer, sendDesignCommand: Sen
 
   server.tool(
     'list_components',
-    'List all available design system components with their variants, props, and descriptions.',
+    '[DEPRECATED — use list_resources(type="components") instead] List all available design system components with their variants, props, and descriptions.',
     listComponentsSchema,
-    async () => {
-      const components = loadComponents();
-      const result = Object.entries(components).map(([name, def]) => ({
-        name,
-        description: def.description,
-        variants: def.variants ? Object.keys(def.variants) : ['default'],
-        sizes: def.size_overrides ? Object.keys(def.size_overrides) : [],
-        props: Object.entries(def.props).map(([propName, propDef]) => ({
-          name: propName,
-          type: propDef.type,
-          required: propDef.required || false,
-          default: propDef.default,
-          values: propDef.values,
-        })),
-      }));
-
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    }
+    async () => listComponentsHandler(),
   );
 }

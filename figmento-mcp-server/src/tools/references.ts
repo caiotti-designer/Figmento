@@ -327,6 +327,44 @@ function findImagesWithoutYaml(dir: string): string[] {
 }
 
 // ═══════════════════════════════════════════════════════════
+// Exported list handler (used by resources.ts dispatcher)
+// ═══════════════════════════════════════════════════════════
+
+export async function listReferenceCategoriesHandler(_filter?: string) {
+  const refsDir = getReferencesDir();
+  let total = 0;
+
+  const categories = CATEGORIES.map(cat => {
+    const catDir = nodePath.join(refsDir, cat);
+    if (!fs.existsSync(catDir)) {
+      return { category: cat, subcategories: [] };
+    }
+
+    const subdirs = fs.readdirSync(catDir).filter(d => {
+      return fs.statSync(nodePath.join(catDir, d)).isDirectory();
+    });
+
+    const subcategories = subdirs.map(sub => {
+      const subDir = nodePath.join(catDir, sub);
+      const yamlFiles = fs.readdirSync(subDir).filter(
+        f => f.endsWith('.yaml') && !f.startsWith('_')
+      );
+      total += yamlFiles.length;
+      return { name: sub, count: yamlFiles.length };
+    });
+
+    return { category: cat, subcategories };
+  });
+
+  return {
+    content: [{
+      type: 'text' as const,
+      text: JSON.stringify({ categories, total }, null, 2),
+    }],
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
 // MCP Tool Registration
 // ═══════════════════════════════════════════════════════════
 
@@ -512,40 +550,8 @@ export function registerReferenceTools(server: McpServer): void {
 
   server.tool(
     'list_reference_categories',
-    'List all available reference categories, subcategories, and reference counts. Use to check what references exist before calling find_design_references.',
+    '[DEPRECATED — use list_resources(type="references") instead] List all available reference categories, subcategories, and reference counts.',
     listReferenceCategoriesSchema,
-    async () => {
-      const refsDir = getReferencesDir();
-      let total = 0;
-
-      const categories = CATEGORIES.map(cat => {
-        const catDir = nodePath.join(refsDir, cat);
-        if (!fs.existsSync(catDir)) {
-          return { category: cat, subcategories: [] };
-        }
-
-        const subdirs = fs.readdirSync(catDir).filter(d => {
-          return fs.statSync(nodePath.join(catDir, d)).isDirectory();
-        });
-
-        const subcategories = subdirs.map(sub => {
-          const subDir = nodePath.join(catDir, sub);
-          const yamlFiles = fs.readdirSync(subDir).filter(
-            f => f.endsWith('.yaml') && !f.startsWith('_')
-          );
-          total += yamlFiles.length;
-          return { name: sub, count: yamlFiles.length };
-        });
-
-        return { category: cat, subcategories };
-      });
-
-      return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({ categories, total }, null, 2),
-        }],
-      };
-    }
+    async () => listReferenceCategoriesHandler(),
   );
 }

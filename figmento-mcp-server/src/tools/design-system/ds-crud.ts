@@ -277,6 +277,40 @@ export async function saveDesignSystem(name: string, tokens: DesignTokens): Prom
 }
 
 // ═══════════════════════════════════════════════════════════
+// Exported list handler (used by resources.ts dispatcher)
+// ═══════════════════════════════════════════════════════════
+
+export async function listDesignSystemsHandler(_filter?: string) {
+  const dir = getDesignSystemsDir();
+  if (!fs.existsSync(dir)) {
+    return { content: [{ type: 'text' as const, text: JSON.stringify([], null, 2) }] };
+  }
+
+  const systems: Array<Record<string, unknown>> = [];
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const tokensPath = nodePath.join(dir, entry.name, 'tokens.yaml');
+    if (!fs.existsSync(tokensPath)) continue;
+    try {
+      const content = fs.readFileSync(tokensPath, 'utf-8');
+      const tokens = yaml.load(content) as Record<string, unknown>;
+      const colors = tokens.colors as Record<string, string> | undefined;
+      systems.push({
+        name: tokens.name || entry.name,
+        created: tokens.created,
+        presetUsed: tokens.preset_used,
+        primaryColor: colors?.primary,
+      });
+    } catch {
+      // Skip malformed files
+    }
+  }
+
+  return { content: [{ type: 'text' as const, text: JSON.stringify(systems, null, 2) }] };
+}
+
+// ═══════════════════════════════════════════════════════════
 // Tool Registration
 // ═══════════════════════════════════════════════════════════
 
@@ -356,37 +390,9 @@ export function registerCrudTools(server: McpServer, _sendDesignCommand: SendDes
 
   server.tool(
     'list_design_systems',
-    'List all saved design systems with summary info (name, preset used, primary color).',
+    '[DEPRECATED — use list_resources(type="designSystems") instead] List all saved design systems with summary info.',
     listDesignSystemsSchema,
-    async () => {
-      const dir = getDesignSystemsDir();
-      if (!fs.existsSync(dir)) {
-        return { content: [{ type: 'text' as const, text: JSON.stringify([], null, 2) }] };
-      }
-
-      const systems: Array<Record<string, unknown>> = [];
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        const tokensPath = nodePath.join(dir, entry.name, 'tokens.yaml');
-        if (!fs.existsSync(tokensPath)) continue;
-        try {
-          const content = fs.readFileSync(tokensPath, 'utf-8');
-          const tokens = yaml.load(content) as Record<string, unknown>;
-          const colors = tokens.colors as Record<string, string> | undefined;
-          systems.push({
-            name: tokens.name || entry.name,
-            created: tokens.created,
-            presetUsed: tokens.preset_used,
-            primaryColor: colors?.primary,
-          });
-        } catch {
-          // Skip malformed files
-        }
-      }
-
-      return { content: [{ type: 'text' as const, text: JSON.stringify(systems, null, 2) }] };
-    }
+    async () => listDesignSystemsHandler(),
   );
 
   server.tool(

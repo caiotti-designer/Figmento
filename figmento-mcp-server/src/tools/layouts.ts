@@ -102,6 +102,32 @@ function resolveBlueprint(
 }
 
 // ─────────────────────────────────────────────────────────────
+// Exported list handler (used by resources.ts dispatcher)
+// ─────────────────────────────────────────────────────────────
+
+const VALID_CATEGORIES_CONST = ['web', 'social', 'ads', 'print', 'presentation'];
+
+export async function listBlueprintsHandler(filter?: string) {
+  const layoutsDir = getLayoutsDir();
+  const categories = filter ? [filter] : VALID_CATEGORIES_CONST;
+  const results: Blueprint[] = [];
+  for (const cat of categories) {
+    const bps = loadAllInCategory(layoutsDir, cat);
+    results.push(...bps.map((bp) => ({
+      id: bp.id,
+      category: bp.category,
+      subcategory: bp.subcategory,
+      description: bp.description,
+      mood: bp.mood,
+      canvas: bp.canvas,
+    })));
+  }
+  return {
+    content: [{ type: 'text' as const, text: JSON.stringify({ blueprints: results, total: results.length }, null, 2) }],
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
 // Tool registration
 // ─────────────────────────────────────────────────────────────
 
@@ -135,25 +161,8 @@ export function registerLayoutTools(server: McpServer): void {
 
   server.tool(
     'list_layout_blueprints',
-    'List all available layout blueprints, optionally filtered by category. Returns id, description, mood, and canvas info for each blueprint.',
+    '[DEPRECATED — use list_resources(type="blueprints") instead] List all available layout blueprints, optionally filtered by category. Returns id, description, mood, and canvas info for each blueprint.',
     listLayoutBlueprintsSchema,
-    async (params) => {
-      const categories = params.category ? [params.category] : VALID_CATEGORIES;
-      const results: Blueprint[] = [];
-      for (const cat of categories) {
-        const bps = loadAllInCategory(LAYOUTS_DIR, cat);
-        results.push(...bps.map((bp) => ({
-          id: bp.id,
-          category: bp.category,
-          subcategory: bp.subcategory,
-          description: bp.description,
-          mood: bp.mood,
-          canvas: bp.canvas,
-        })));
-      }
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ blueprints: results, total: results.length }, null, 2) }],
-      };
-    }
+    async (params) => listBlueprintsHandler(params.category),
   );
 }
