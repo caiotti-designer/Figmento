@@ -1,0 +1,198 @@
+/// <reference types="@figma/plugin-typings" />
+
+import { hexToRgb, getFontStyle } from '../color-utils';
+import { getGradientTransform } from '../gradient-utils';
+
+export async function handleSetFill(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required');
+
+  const node = figma.getNodeById(nodeId);
+  if (!node) throw new Error(`Node not found: ${nodeId}`);
+  if (!('fills' in node)) throw new Error(`Node ${nodeId} does not support fills`);
+
+  if (params.color) {
+    const rgb = hexToRgb(params.color as string);
+    const opacity = params.opacity as number | undefined;
+    (node as GeometryMixin).fills = [{
+      type: 'SOLID',
+      color: rgb,
+      opacity: opacity != null ? opacity : 1,
+    }];
+  } else if (params.fills) {
+    const fills = params.fills as Array<{ type: string; color?: string; opacity?: number; gradientStops?: Array<{ position: number; color: string; opacity?: number }>; gradientDirection?: string }>;
+    const paintFills: Paint[] = [];
+
+    for (const fill of fills) {
+      if (fill.type === 'SOLID' && fill.color) {
+        paintFills.push({
+          type: 'SOLID',
+          color: hexToRgb(fill.color),
+          opacity: fill.opacity != null ? fill.opacity : 1,
+        });
+      } else if (fill.type === 'GRADIENT_LINEAR' && fill.gradientStops) {
+        paintFills.push({
+          type: 'GRADIENT_LINEAR',
+          gradientTransform: getGradientTransform(fill.gradientDirection as any),
+          gradientStops: fill.gradientStops.map(stop => ({
+            position: stop.position,
+            color: { ...hexToRgb(stop.color), a: stop.opacity != null ? stop.opacity : 1 },
+          })),
+        });
+      }
+    }
+
+    (node as GeometryMixin).fills = paintFills;
+  }
+
+  return { nodeId, success: true };
+}
+
+export async function handleSetStroke(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required');
+
+  const node = figma.getNodeById(nodeId);
+  if (!node || !('strokes' in node)) throw new Error(`Node ${nodeId} not found or does not support strokes`);
+
+  const color = params.color as string;
+  const width = (params.width as number) || 1;
+
+  if (color) {
+    (node as GeometryMixin).strokes = [{ type: 'SOLID', color: hexToRgb(color) }];
+    (node as GeometryMixin).strokeWeight = width;
+  } else {
+    (node as GeometryMixin).strokes = [];
+  }
+
+  return { nodeId, success: true };
+}
+
+export async function handleSetEffects(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required');
+
+  const node = figma.getNodeById(nodeId);
+  if (!node || !('effects' in node)) throw new Error(`Node ${nodeId} not found or does not support effects`);
+
+  const effects = params.effects as Array<{
+    type: 'DROP_SHADOW' | 'INNER_SHADOW';
+    color: string;
+    opacity?: number;
+    offset: { x: number; y: number };
+    blur: number;
+    spread?: number;
+  }>;
+
+  if (!effects || effects.length === 0) {
+    (node as BlendMixin).effects = [];
+    return { nodeId, success: true };
+  }
+
+  const figmaEffects: Effect[] = effects.map(e => {
+    const rgb = hexToRgb(e.color);
+    return {
+      type: e.type,
+      color: { r: rgb.r, g: rgb.g, b: rgb.b, a: e.opacity != null ? e.opacity : 0.25 },
+      offset: { x: e.offset.x, y: e.offset.y },
+      radius: e.blur,
+      spread: e.spread || 0,
+      visible: true,
+      blendMode: 'NORMAL' as const,
+    };
+  });
+
+  (node as BlendMixin).effects = figmaEffects;
+  return { nodeId, success: true };
+}
+
+export async function handleSetCornerRadius(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required');
+
+  const node = figma.getNodeById(nodeId);
+  if (!node || !('cornerRadius' in node)) throw new Error(`Node ${nodeId} not found or does not support corner radius`);
+
+  const radius = params.radius as number | [number, number, number, number];
+  if (Array.isArray(radius)) {
+    (node as FrameNode).topLeftRadius = radius[0];
+    (node as FrameNode).topRightRadius = radius[1];
+    (node as FrameNode).bottomRightRadius = radius[2];
+    (node as FrameNode).bottomLeftRadius = radius[3];
+  } else {
+    (node as FrameNode).cornerRadius = radius;
+  }
+
+  return { nodeId, success: true };
+}
+
+export async function handleSetOpacity(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required');
+
+  const node = figma.getNodeById(nodeId);
+  if (!node || !('opacity' in node)) throw new Error(`Node ${nodeId} not found or does not support opacity`);
+
+  (node as BlendMixin).opacity = (params.opacity as number) ?? 1;
+  return { nodeId, success: true };
+}
+
+export async function handleSetAutoLayout(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required');
+
+  const node = figma.getNodeById(nodeId);
+  if (!node || node.type !== 'FRAME') throw new Error(`Node ${nodeId} not found or is not a frame`);
+
+  const frame = node as FrameNode;
+  const mode = params.layoutMode as 'HORIZONTAL' | 'VERTICAL' | 'NONE';
+
+  if (mode === 'NONE') {
+    frame.layoutMode = 'NONE';
+    return { nodeId, success: true };
+  }
+
+  frame.layoutMode = mode || 'VERTICAL';
+
+  if (params.itemSpacing !== undefined) frame.itemSpacing = params.itemSpacing as number;
+  if (params.paddingTop !== undefined) frame.paddingTop = params.paddingTop as number;
+  if (params.paddingRight !== undefined) frame.paddingRight = params.paddingRight as number;
+  if (params.paddingBottom !== undefined) frame.paddingBottom = params.paddingBottom as number;
+  if (params.paddingLeft !== undefined) frame.paddingLeft = params.paddingLeft as number;
+  if (params.primaryAxisAlignItems) frame.primaryAxisAlignItems = params.primaryAxisAlignItems as 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN';
+  if (params.counterAxisAlignItems) frame.counterAxisAlignItems = params.counterAxisAlignItems as 'MIN' | 'CENTER' | 'MAX';
+
+  if (params.primaryAxisSizingMode !== undefined) {
+    const raw = params.primaryAxisSizingMode as string;
+    frame.primaryAxisSizingMode = (raw === 'HUG' ? 'AUTO' : raw) as 'FIXED' | 'AUTO';
+  }
+  if (params.counterAxisSizingMode !== undefined) {
+    const raw = params.counterAxisSizingMode as string;
+    frame.counterAxisSizingMode = (raw === 'HUG' ? 'AUTO' : raw) as 'FIXED' | 'AUTO';
+  }
+
+  return { nodeId, success: true };
+}
+
+export async function handleSetText(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required');
+
+  const node = figma.getNodeById(nodeId);
+  if (!node) throw new Error(`Node not found: ${nodeId}`);
+  if (node.type !== 'TEXT') throw new Error(`Node ${nodeId} is not a text node`);
+
+  const textNode = node as TextNode;
+  const content = (params.text as string) || (params.content as string);
+  if (!content) throw new Error('text content is required');
+
+  const existingFont = textNode.fontName as FontName;
+  try {
+    await figma.loadFontAsync(existingFont);
+  } catch (_e) {
+    await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
+  }
+
+  textNode.characters = content;
+  return { nodeId, characters: textNode.characters };
+}
