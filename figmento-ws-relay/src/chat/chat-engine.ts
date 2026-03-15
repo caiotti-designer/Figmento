@@ -67,6 +67,14 @@ export interface ChatTurnRequest {
   attachmentBase64?: string;
   /** Learned user preferences to inject into system prompt. */
   preferences?: LearnedPreference[];
+  /** Optional snapshot of the user's current Figma selection at time of Send. */
+  currentSelection?: Array<{
+    id: string;
+    type: string;
+    name: string;
+    width: number;
+    height: number;
+  }>;
 }
 
 export interface ChatTurnResponse {
@@ -507,11 +515,24 @@ const MAX_ITERATIONS = 50;
  * Execute a single chat turn: detect brief, build system prompt, run the
  * AI tool-use loop, and route tool calls through the relay channel.
  */
+
+function buildSelectionContext(selection?: ChatTurnRequest['currentSelection']): string {
+  if (!selection || selection.length === 0) return '';
+  const frames = selection.filter(n => n.type === 'FRAME');
+  if (frames.length === 0) return '';
+  const descriptions = frames.map(f => `"${f.name}" (id: ${f.id}, ${f.width}×${f.height}px)`);
+  return `[Figma context: user has ${frames.length === 1 ? 'a frame' : 'frames'} selected — ${descriptions.join(', ')}. Pass frameId to generate_design_image or other frame-targeting tools instead of calling get_selection.]`;
+}
+
 export async function handleChatTurn(
   relay: FigmentoRelay,
   request: ChatTurnRequest,
 ): Promise<ChatTurnResponse> {
-  const { message, channel, provider, apiKey, model, memory, geminiApiKey } = request;
+  const { channel, provider, apiKey, model, memory, geminiApiKey } = request;
+
+  // IG-2: Prepend selection context note to message text (scoped to this turn only)
+  const selectionContext = buildSelectionContext(request.currentSelection);
+  const message = selectionContext ? `${selectionContext}\n\n${request.message}` : request.message;
 
   // Verify the channel has connected clients
   if (!relay.hasClientsInChannel(channel)) {

@@ -35,6 +35,14 @@ interface PendingCommand {
   reject: (error: Error) => void;
 }
 
+interface SelectionNode {
+  id: string;
+  type: string;
+  name: string;
+  width: number;
+  height: number;
+}
+
 export interface ChatSettings {
   anthropicApiKey: string;
   geminiApiKey: string;
@@ -75,6 +83,22 @@ function loadPreferencesFromSandbox(): Promise<LearnedPreference[]> {
     };
     window.addEventListener('message', handler);
     postToSandbox({ type: 'get-preferences' });
+  });
+}
+
+function getSelectionSnapshot(): Promise<SelectionNode[]> {
+  return new Promise(resolve => {
+    const timeout = setTimeout(() => resolve([]), 500);
+    const handler = (event: MessageEvent) => {
+      const msg = event.data?.pluginMessage;
+      if (msg?.type === 'selection-snapshot') {
+        clearTimeout(timeout);
+        window.removeEventListener('message', handler);
+        resolve((msg.selection as SelectionNode[]) || []);
+      }
+    };
+    window.addEventListener('message', handler);
+    postToSandbox({ type: 'get-selection-snapshot' });
   });
 }
 
@@ -719,6 +743,9 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
   // LC-9: Load latest preferences before each relay turn (max 2s wait)
   learnedPreferences = await loadPreferencesFromSandbox();
 
+  // IG-2: Snapshot current Figma selection (500ms timeout, graceful degradation)
+  const selectionSnapshot = await getSelectionSnapshot();
+
   const provider = useGemini ? 'gemini' : useOpenAI ? 'openai' : 'claude';
   const apiKey = useGemini ? chatSettings.geminiApiKey
     : useOpenAI ? chatSettings.openaiApiKey
@@ -738,6 +765,7 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
     preferences: learnedPreferences,
     geminiApiKey: chatSettings.geminiApiKey || undefined,
     ...(attachment && { attachmentBase64: attachment }),
+    ...(selectionSnapshot.length > 0 && { currentSelection: selectionSnapshot }),
   };
 
   const resp = await fetch(url, {

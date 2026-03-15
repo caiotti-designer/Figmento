@@ -359,6 +359,20 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
       return true;
     }
 
+    case 'get-selection-snapshot': {
+      const selection = figma.currentPage.selection
+        .filter(node => 'width' in node && 'height' in node)
+        .map(node => ({
+          id: node.id,
+          type: node.type,
+          name: node.name,
+          width: (node as SceneNode & { width: number }).width,
+          height: (node as SceneNode & { height: number }).height,
+        }));
+      figma.ui.postMessage({ type: 'selection-snapshot', selection });
+      return true;
+    }
+
     case 'clear-preferences': {
       try {
         await figma.clientStorage.setAsync(PREFERENCES_STORAGE_KEY, []);
