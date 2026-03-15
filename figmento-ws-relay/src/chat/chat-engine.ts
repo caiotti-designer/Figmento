@@ -100,6 +100,32 @@ interface ToolCallResult {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// DESIGN SESSION STATE (IG-3)
+// ═══════════════════════════════════════════════════════════════
+
+interface LayerNode {
+  id: string;
+  name: string;
+  type: string;
+  children?: LayerNode[];
+}
+
+interface DesignSession {
+  frameId: string;
+  frameName: string;
+  width: number;
+  height: number;
+  layerSummary: string;
+  updatedAt: number;
+}
+
+/** Per-channel session cache. Keyed by channelId. */
+const designSessions = new Map<string, DesignSession>();
+
+/** Sessions expire after 30 minutes of inactivity. */
+const SESSION_TTL_MS = 30 * 60 * 1000;
+
+// ═══════════════════════════════════════════════════════════════
 // PROVIDER API CALLERS (no browser headers)
 // ═══════════════════════════════════════════════════════════════
 
@@ -516,6 +542,41 @@ const MAX_ITERATIONS = 50;
  * AI tool-use loop, and route tool calls through the relay channel.
  */
 
+function buildLayerSummary(nodes: LayerNode[], depth = 0, remaining = { count: 50 }): string {
+  const parts: string[] = [];
+  for (const node of nodes) {
+    if (remaining.count <= 0) {
+      parts.push('[... more layers]');
+      break;
+    }
+    remaining.count--;
+    const indent = '> '.repeat(depth);
+    const childSummary = node.children?.length
+      ? ` {${buildLayerSummary(node.children, depth + 1, remaining)}}`
+      : '';
+    parts.push(`${indent}${node.name} [${node.type} id:${node.id}]${childSummary}`);
+  }
+  return parts.join(', ');
+}
+
+function buildLayerContext(session: DesignSession): string {
+  return `[Layer map for "${session.frameName}" (id: ${session.frameId}, ${session.width}×${session.height}px): ${session.layerSummary}. Use these nodeIds to target layers directly — do NOT call scan_frame_structure or get_selection.]`;
+}
+
+function buildSessionContext(
+  channel: string,
+  selection?: ChatTurnRequest['currentSelection'],
+): string {
+  const session = designSessions.get(channel);
+  if (!session) return '';
+  if (Date.now() - session.updatedAt > SESSION_TTL_MS) {
+    designSessions.delete(channel);
+    return '';
+  }
+  if (!selection?.some(n => n.id === session.frameId)) return '';
+  return buildLayerContext(session);
+}
+
 function buildSelectionContext(selection?: ChatTurnRequest['currentSelection']): string {
   if (!selection || selection.length === 0) return '';
   const frames = selection.filter(n => n.type === 'FRAME');
@@ -530,12 +591,15 @@ export async function handleChatTurn(
 ): Promise<ChatTurnResponse> {
   const { channel, provider, apiKey, model, memory, geminiApiKey } = request;
 
+  // IG-3: Inject cached layer map (session context) — only when same frame is selected
+  const sessionContext = buildSessionContext(channel, request.currentSelection);
   // IG-2: Prepend selection context note to message text (scoped to this turn only)
   const selectionContext = buildSelectionContext(request.currentSelection);
-  const message = selectionContext ? `${selectionContext}\n\n${request.message}` : request.message;
+  const message = [sessionContext, selectionContext, request.message].filter(Boolean).join('\n\n');
 
   // Verify the channel has connected clients
   if (!relay.hasClientsInChannel(channel)) {
+    designSessions.delete(channel);
     throw new Error(`No plugin connected to channel "${channel}". Ensure the Bridge tab is connected.`);
   }
 
@@ -588,6 +652,30 @@ export async function handleChatTurn(
     // All other tools — route through relay WS channel to plugin sandbox
     try {
       const data = await sendToPlugin(name, args);
+
+      // IG-3: Cache scan_frame_structure result as design session
+      if (name === 'scan_frame_structure') {
+        try {
+          const r = data as Record<string, unknown>;
+          const frameId = (r['frameId'] ?? r['id']) as string | undefined;
+          const frameName = r['name'] as string | undefined;
+          const width = r['width'] as number | undefined;
+          const height = r['height'] as number | undefined;
+          const children = (r['children'] ?? r['nodes']) as LayerNode[] | undefined;
+          if (frameId && children) {
+            designSessions.set(channel, {
+              frameId,
+              frameName: frameName ?? 'Design Frame',
+              width: width ?? 0,
+              height: height ?? 0,
+              layerSummary: buildLayerSummary(children),
+              updatedAt: Date.now(),
+            });
+          }
+        } catch {
+          // Parse failure — skip session update, no side effect
+        }
+      }
 
       const content = SCREENSHOT_TOOLS.has(name)
         ? summarizeScreenshotResult(name, data)
