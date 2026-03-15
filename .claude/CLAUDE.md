@@ -256,15 +256,14 @@ The Figmento MCP server includes a knowledge base at `figmento-mcp-server/knowle
 
 ### Standard Design Workflow
 
-1. **Understand** — format, mood, content, brand constraints. Print tasks: call `get_design_rules('print')` first.
-2. **Size** — `get_design_guidance(aspect="size")`. Never guess dimensions.
-3. **Palette** — `get_design_guidance(aspect="color", mood=...)`. Brand kit overrides if available.
-4. **Fonts** — `get_design_guidance(aspect="fonts", mood=...)`. Use `get_design_guidance(aspect="typeScale", ratio=...)` for sizes. Scale guide: minor_third=documents, major_third=general, perfect_fourth=marketing, golden_ratio=hero.
-5. **Layout** — `get_design_guidance(aspect="layout")`. Spacing scale only — no arbitrary pixel values.
-6. **Create frame** — exact dimensions, background color.
-7. **Content hierarchy** — headline → subheadline → body → CTA, top-down.
-8. **Style** — colors, shadows, gradients, radii.
-9. **Refine** — alignment, spacing, contrast, whitespace.
+1. **Connect** — `connect_to_figma` (skip if already connected).
+2. **Frame** — skip if a frame is already selected in Figma. Otherwise `get_design_guidance(aspect="size")` to confirm dimensions — only if format is unknown.
+3. **Generate background** — `generate_design_image(brief, format, mood)` → returns `frameId`, `imageNodeId`, `textZone`. This is the **first creative decision** — the composition is built around the image. Skippable only if the user explicitly says no image.
+4. **Overlay** — `set_fill` gradient overlay on the frame if text contrast needs reinforcement (2 stops, color-matched to frame bg, solid end behind text zone).
+5. **Content** — `batch_execute` → headline + subheadline + CTA in one call. Position text within the `textZone` returned by step 3.
+6. **Refine** — `run_refinement_check` → fix any flagged issues → done.
+
+> Steps 1–2 collapse to nothing when already connected and format is known. In practice most designs start at step 3.
 
 ### Blueprint-First Workflow (Preferred)
 
