@@ -2,7 +2,7 @@
  * AUTO-GENERATED — DO NOT EDIT
  * Compiled from figmento-mcp-server/knowledge/ YAML files.
  * Run: npx tsx scripts/compile-knowledge.ts
- * Generated: 2026-03-13T20:35:28.074Z
+ * Generated: 2026-03-15T02:24:46.441Z
  */
 
 import type {
@@ -1079,4 +1079,4 @@ export const REFINEMENT_CHECKS: RefinementCheck[] = [
   }
 ] as RefinementCheck[];
 
-export const KNOWLEDGE_VERSION: string = "4d74ae253d278e3e";
+export const KNOWLEDGE_VERSION: string = "0386ab38bcf77ea3";

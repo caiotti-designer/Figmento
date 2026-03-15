@@ -151,4 +151,16 @@ export function registerStyleTools(server: McpServer, sendDesignCommand: SendDes
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
   );
+
+  server.tool(
+    'flip_gradient',
+    'Reverse the direction of gradient fills on a node by inverting all stop positions (position → 1 - position). Use when the gradient is going the wrong direction. One atomic call — no need to read stops first.',
+    {
+      nodeId: z.string().describe('NodeId of the node whose gradient fills should be flipped'),
+    },
+    async (params) => {
+      const result = await sendDesignCommand('flip_gradient', { nodeId: params.nodeId });
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+    }
+  );
 }

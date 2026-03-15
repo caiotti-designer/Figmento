@@ -99,6 +99,7 @@ const BUILD_PHASE_TOOLS = new Set([
   'move_node', 'resize_node', 'append_child', 'clone_node', 'delete_node',
   'get_node_info',
   'generate_image', 'update_memory',
+  'flip_gradient',
 ]);
 
 /**
@@ -291,6 +292,17 @@ export const FIGMENTO_TOOLS: ToolDefinition[] = [
         color: { type: 'string' },
         opacity: { type: 'number' },
         fills: { type: 'array', items: fillSchema },
+      },
+      required: ['nodeId'],
+    },
+  },
+  {
+    name: 'flip_gradient',
+    description: 'Reverse the direction of gradient fills on a node by inverting all stop positions. Use when the user says "flip the gradient", "reverse the gradient", or "the gradient is going the wrong way". Requires the nodeId of the gradient rectangle/frame — available from the Layer Map context.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'NodeId of the node whose gradient fills should be flipped' },
       },
       required: ['nodeId'],
     },

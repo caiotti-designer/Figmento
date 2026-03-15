@@ -6,7 +6,7 @@ import { PREFERENCES_STORAGE_KEY } from './storage';
 
 // Canvas handlers
 import { handleCreateFrame, handleCreateText, handleCreateRectangle, handleCreateEllipse, handleCreateImage, handleCreateIcon } from './canvas-create';
-import { handleSetFill, handleSetStroke, handleSetEffects, handleSetCornerRadius, handleSetOpacity, handleSetAutoLayout, handleSetText } from './canvas-style';
+import { handleSetFill, handleSetStroke, handleSetEffects, handleSetCornerRadius, handleSetOpacity, handleSetAutoLayout, handleSetText, handleFlipGradient } from './canvas-style';
 import { handleDeleteNode, handleMoveNode, handleResizeNode, handleRenameNode, handleAppendChild, handleReorderChild, handleCloneNode, handleCloneWithOverrides, handleGroupNodes, handleGetSelection, handleGetNodeInfo, handleGetPageNodes } from './canvas-scene';
 import { handleExportNode, handleGetScreenshot, handleScanFrameStructure, handleReadFigmaContext, handleBindVariable, handleApplyPaintStyle, handleApplyTextStyle, handleApplyEffectStyle, handleCreateFigmaVariables } from './canvas-query';
 import { handleBatchExecute, handleCreateDesignCmd, handleScanTemplateCmd, handleApplyTemplateTextCmd, handleApplyTemplateImageCmd, runRefinementCheck } from './canvas-batch';
@@ -28,6 +28,8 @@ export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
         data = await handleCreateText(cmd.params); break;
       case 'set_fill':
         data = await handleSetFill(cmd.params); break;
+      case 'flip_gradient':
+        data = handleFlipGradient(cmd.params); break;
       case 'export_node':
         data = await handleExportNode(cmd.params); break;
       case 'get_screenshot':

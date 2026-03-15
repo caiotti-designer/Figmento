@@ -174,6 +174,41 @@ export async function handleSetAutoLayout(params: Record<string, unknown>): Prom
   return { nodeId, success: true };
 }
 
+export function handleFlipGradient(params: Record<string, unknown>): Record<string, unknown> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) return { success: false, error: 'nodeId is required' };
+
+  const node = figma.getNodeById(nodeId) as SceneNode;
+  if (!node) return { success: false, error: `Node "${nodeId}" not found` };
+  if (!('fills' in node)) return { success: false, error: `Node "${nodeId}" has no fills` };
+
+  const fills = (node as GeometryMixin).fills;
+  if (!Array.isArray(fills)) {
+    return { success: false, error: 'Node has mixed fills (multi-selection not supported)' };
+  }
+
+  let flippedCount = 0;
+  const newFills: Paint[] = fills.map(fill => {
+    if (
+      (fill.type === 'GRADIENT_LINEAR' || fill.type === 'GRADIENT_RADIAL') &&
+      fill.gradientStops?.length
+    ) {
+      flippedCount++;
+      return {
+        ...fill,
+        gradientStops: fill.gradientStops.map(stop => ({
+          ...stop,
+          position: 1 - stop.position,
+        })),
+      } as Paint;
+    }
+    return fill;
+  });
+
+  (node as GeometryMixin).fills = newFills;
+  return { success: true, nodeId, flippedCount };
+}
+
 export async function handleSetText(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const nodeId = params.nodeId as string;
   if (!nodeId) throw new Error('nodeId is required');
