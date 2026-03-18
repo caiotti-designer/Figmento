@@ -23,6 +23,27 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
   if (await handleSettingsMessage(msg)) return;
 
   switch (msg.type) {
+    case 'get-selection': {
+      const sel = figma.currentPage.selection.map(n => ({
+        id: n.id, name: n.name, type: n.type,
+        width: Math.round(n.width), height: Math.round(n.height),
+      }));
+      figma.ui.postMessage({ type: 'selection-changed', selection: sel });
+      break;
+    }
+
+    case 'save-theme':
+      await figma.clientStorage.setAsync('figmento-theme', (msg as any).theme);
+      break;
+
+    case 'get-theme': {
+      const savedTheme = await figma.clientStorage.getAsync('figmento-theme');
+      if (savedTheme) {
+        figma.ui.postMessage({ type: 'load-theme', theme: savedTheme });
+      }
+      break;
+    }
+
     case 'create-design':
       try {
         figma.notify('Creating design...', { timeout: 2000 });
@@ -335,6 +356,15 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
 
   }
 };
+
+// ── MF-5: Selection change → notify UI ──────────────────────────────────────
+figma.on('selectionchange', () => {
+  const sel = figma.currentPage.selection.map(n => ({
+    id: n.id, name: n.name, type: n.type,
+    width: Math.round(n.width), height: Math.round(n.height),
+  }));
+  figma.ui.postMessage({ type: 'selection-changed', selection: sel });
+});
 
 // ── Page change: clear all snapshots ─────────────────────────────────────────
 figma.on('currentpagechange', () => {

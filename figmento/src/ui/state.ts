@@ -470,9 +470,10 @@ export const dom = {
 
 export function initDomRefs(): void {
   dom.settingsBtn = document.getElementById('settingsBtn') as HTMLButtonElement;
-  dom.settingsOverlay = document.getElementById('settingsOverlay') as HTMLDivElement;
-  dom.settingsPanel = document.getElementById('settingsPanel') as HTMLElement;
-  dom.settingsClose = document.getElementById('settingsClose') as HTMLButtonElement;
+  // Redirected to new sheet elements (UI-2 revamp)
+  dom.settingsOverlay = document.getElementById('sheetBackdrop') as HTMLDivElement;
+  dom.settingsPanel = document.getElementById('settingsSheet') as HTMLElement;
+  dom.settingsClose = document.getElementById('sheetClose') as HTMLButtonElement;
   dom.statusDot = document.getElementById('statusDot') as HTMLSpanElement;
 
   dom.dropZone = document.getElementById('dropZone') as HTMLDivElement;

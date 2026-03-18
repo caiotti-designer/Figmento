@@ -24,6 +24,7 @@ import {
 import { LOCAL_TOOL_HANDLERS } from './local-intelligence';
 import { getBridgeChannelId, getBridgeConnected, sendBridgeMessage, setClaudeCodeResultHandler } from './bridge';
 import { renderDiffPanel } from './diff-panel';
+import { openSettings, closeSettings } from './settings';
 import type { CorrectionEntry, LearnedPreference } from '../types';
 
 // ═══════════════════════════════════════════════════════════════
@@ -66,7 +67,90 @@ let chatCommandCounter = 0;
 const pendingChatCommands = new Map<string, PendingCommand>();
 let memoryEntries: string[] = [];
 let currentBrief: DesignBrief | undefined;
+// MF-1: Multi-file attachment queue (replaces single pendingAttachment)
+interface AttachmentFile {
+  id: string;
+  name: string;
+  type: string;
+  dataUri: string;
+  size: number;
+}
+const MAX_ATTACHMENTS = 10;
+const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB
+let pendingAttachments: AttachmentFile[] = [];
+// Legacy alias for backward compat in API paths
 let pendingAttachment: string | null = null;
+
+// MF-5: Selection context
+interface SelectionContext {
+  nodes: Array<{ id: string; name: string; type: string; width: number; height: number }>;
+}
+let currentSelection: SelectionContext = { nodes: [] };
+let selectionIncluded = true; // whether to include selection in next message
+
+// ═══════════════════════════════════════════════════════════════
+// CU-1: QUICK ACTION TYPES & REGISTRY
+// ═══════════════════════════════════════════════════════════════
+
+interface QuickActionField {
+  key: string;
+  label: string;
+  type: 'text' | 'select' | 'file' | 'textarea';
+  required: boolean;
+  options?: { value: string; label: string }[];
+  placeholder?: string;
+  accept?: string; // for file fields
+}
+
+interface QuickAction {
+  id: string;
+  label: string;
+  icon: string;
+  description: string;
+  fields: QuickActionField[];
+  buildPrompt: (values: Record<string, string>, attachments: AttachmentFile[]) => string;
+}
+
+const quickActionRegistry: QuickAction[] = [];
+let activeQuickAction: QuickAction | null = null;
+let quickActionValues: Record<string, string> = {};
+
+function registerQuickAction(action: QuickAction): void {
+  if (!quickActionRegistry.find(a => a.id === action.id)) {
+    quickActionRegistry.push(action);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CU-4: DESIGN SETTINGS STATE
+// ═══════════════════════════════════════════════════════════════
+
+interface DesignSettingsState {
+  imageModel: string;
+  imageQuality: string;
+  imageStyle: string;
+  defaultFont: string;
+  brandColors: string[];
+  gridEnabled: boolean;
+}
+
+const DESIGN_SETTINGS_KEY = 'figmento-design-settings';
+
+function loadDesignSettings(): DesignSettingsState {
+  try {
+    const raw = localStorage.getItem(DESIGN_SETTINGS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* localStorage unavailable in Figma iframe */ }
+  return { imageModel: 'nano-banana-2', imageQuality: '2k', imageStyle: 'auto', defaultFont: 'auto', brandColors: [], gridEnabled: true };
+}
+
+function saveDesignSettings(s: DesignSettingsState): void {
+  try { localStorage.setItem(DESIGN_SETTINGS_KEY, JSON.stringify(s)); } catch { /* */ }
+}
+
+let designSettings: DesignSettingsState = loadDesignSettings();
+
+export function getDesignSettings(): DesignSettingsState { return designSettings; }
 let autoDetectEnabled = false; // LC-8: updated when learning-config-loaded arrives
 let learnedPreferences: LearnedPreference[] = []; // LC-9: updated each relay turn
 
@@ -149,6 +233,34 @@ function isClaudeCodeModel(model: string): boolean {
 
 export function updateChatSettings(s: ChatSettings) {
   chatSettings = s;
+  // Sync the toolbar model label when settings are loaded from storage
+  syncModelToolbarLabel();
+}
+
+function syncModelToolbarLabel() {
+  const settingsModelSelect = document.getElementById('settings-model') as HTMLSelectElement | null;
+  const modelSelectorLabel = document.getElementById('modelSelectorLabel');
+  if (!settingsModelSelect || !modelSelectorLabel) return;
+
+  // Sync the hidden select to match chatSettings.model
+  if (chatSettings.model && settingsModelSelect.value !== chatSettings.model) {
+    settingsModelSelect.value = chatSettings.model;
+  }
+
+  // Update toolbar label from the select's displayed text
+  const selectedOpt = settingsModelSelect.selectedOptions[0];
+  if (selectedOpt) {
+    modelSelectorLabel.textContent = selectedOpt.textContent?.trim() || chatSettings.model;
+  }
+
+  // Re-populate dropdown active state
+  const modelDropdown = document.getElementById('modelDropdown');
+  if (modelDropdown) {
+    modelDropdown.querySelectorAll('.dropdown-item').forEach(item => {
+      const el = item as HTMLElement;
+      el.classList.toggle('active', el.dataset.model === chatSettings.model);
+    });
+  }
 }
 
 export function getChatSettings(): ChatSettings {
@@ -182,6 +294,13 @@ interface ChatTemplate {
   prompt: string;
 }
 
+interface PromptTemplate {
+  icon: string;
+  label: string;
+  prompt: string;
+  prefill?: boolean; // if true, prefills input instead of auto-sending
+}
+
 const CHAT_TEMPLATES: ChatTemplate[] = [
   { icon: '📸', label: 'Instagram Ad',  prompt: 'Create an Instagram post (1080×1350) for a hippie coffee shop — warm earthy tones, vintage feel, include a CTA' },
   { icon: '💼', label: 'LinkedIn Post', prompt: 'Create a LinkedIn post banner (1200×627) for a SaaS productivity tool — modern, clean, corporate blue' },
@@ -191,20 +310,66 @@ const CHAT_TEMPLATES: ChatTemplate[] = [
   { icon: '📄', label: 'A4 Flyer',      prompt: 'Create an A4 flyer (2480×3508) for a summer music festival — vibrant, energetic, neon accents' },
 ];
 
+// CU-5: Prompt templates replacing killed tools (Text to Layout, Template Fill, Presentation, Hero Generator)
+const TOOL_REPLACEMENT_TEMPLATES: PromptTemplate[] = [
+  { icon: '🎨', label: 'Create a social post', prompt: 'Create a {format: Instagram/Twitter/LinkedIn} post about {topic}. Style: {mood}. Font: {font or "auto"}.', prefill: true },
+  { icon: '📋', label: 'Fill a template', prompt: 'Scan the selected frame and fill all #-prefixed placeholders with content about {topic}.', prefill: true },
+  { icon: '📊', label: 'Build a presentation', prompt: 'Create a {count}-slide presentation about {topic}. Format: {16:9/A4}. Style: {minimal/vibrant/dark}.', prefill: true },
+  { icon: '🖼', label: 'Generate a hero image', prompt: 'Generate a hero image: {subject description}. Position: {center/left/right}. Quality: {2k/4k}.', prefill: true },
+];
+
 function renderChatTemplates(): void {
   const chatInput = $('chat-input') as HTMLTextAreaElement;
   const container = document.createElement('div');
-  container.className = 'chat-templates';
+  container.className = 'welcome-templates';
+
+  const label = document.createElement('div');
+  label.className = 'welcome-templates-label';
+  label.textContent = 'Try these prompts:';
+  container.appendChild(label);
 
   for (const tpl of CHAT_TEMPLATES) {
-    const chip = document.createElement('button');
-    chip.className = 'chat-template-chip';
-    chip.innerHTML = `<span>${tpl.icon}</span><span>${tpl.label}</span>`;
-    chip.addEventListener('click', () => {
+    const card = document.createElement('button');
+    card.className = 'template-card';
+    card.innerHTML = `<div class="template-card-title">${tpl.label}</div><div class="template-card-desc">${tpl.prompt}</div>`;
+    card.addEventListener('click', () => {
       chatInput.value = tpl.prompt;
       chatInput.focus();
+      sendMessage();
     });
-    container.appendChild(chip);
+    container.appendChild(card);
+  }
+
+  // CU-5: Tool replacement templates (prefill mode)
+  const toolLabel = document.createElement('div');
+  toolLabel.className = 'welcome-templates-label';
+  toolLabel.textContent = 'Design tools:';
+  toolLabel.style.marginTop = '12px';
+  container.appendChild(toolLabel);
+
+  for (const tpl of TOOL_REPLACEMENT_TEMPLATES) {
+    const card = document.createElement('button');
+    card.className = 'template-card template-card-tool';
+    card.innerHTML = `<span class="template-card-icon">${tpl.icon}</span><div class="template-card-title">${tpl.label}</div>`;
+    card.addEventListener('click', () => {
+      chatInput.value = tpl.prompt;
+      chatInput.focus();
+      // Select first {placeholder} for easy replacement
+      const match = tpl.prompt.match(/\{[^}]+\}/);
+      if (match) {
+        const start = tpl.prompt.indexOf(match[0]);
+        chatInput.setSelectionRange(start, start + match[0].length);
+      }
+    });
+    // CU-5 AC11: "Fill a template" needs selection context
+    if (tpl.label === 'Fill a template') {
+      card.addEventListener('click', () => {
+        if (currentSelection.nodes.length === 0) {
+          appendChatBubble('assistant', '<span class="chat-warning">Select a frame with #-prefixed layers first, then use this template.</span>');
+        }
+      });
+    }
+    container.appendChild(card);
   }
 
   $('chat-messages').appendChild(container);
@@ -214,44 +379,136 @@ function renderChatTemplates(): void {
 // CHAT — ATTACHMENT PREVIEW
 // ═══════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════
+// MF-1: MULTI-FILE ATTACHMENT QUEUE
+// ═══════════════════════════════════════════════════════════════
+
+function getFileTypeInfo(file: { name: string; type: string }): { icon: string; badge: string; isImage: boolean } {
+  if (file.type === 'application/pdf') return { icon: '📄', badge: 'PDF', isImage: false };
+  if (file.type === 'text/plain') return { icon: '📝', badge: 'TXT', isImage: false };
+  if (file.type === 'image/svg+xml') return { icon: '🎨', badge: 'SVG', isImage: false };
+  return { icon: '🖼', badge: 'IMG', isImage: true };
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function getTotalAttachmentSize(): number {
+  return pendingAttachments.reduce((sum, f) => sum + f.size, 0);
+}
+
+function addAttachment(name: string, type: string, dataUri: string, size: number): boolean {
+  if (pendingAttachments.length >= MAX_ATTACHMENTS) {
+    appendChatBubble('assistant', `<span class="chat-error">Max ${MAX_ATTACHMENTS} files allowed</span>`);
+    return false;
+  }
+  if (getTotalAttachmentSize() + size > MAX_TOTAL_SIZE) {
+    appendChatBubble('assistant', `<span class="chat-error">Total size exceeds 50MB limit</span>`);
+    return false;
+  }
+  pendingAttachments.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), name, type, dataUri, size });
+  // Legacy compat: keep first image as pendingAttachment for API paths
+  const firstImage = pendingAttachments.find(f => f.type.startsWith('image/'));
+  pendingAttachment = firstImage?.dataUri || null;
+  renderAttachmentQueue();
+  return true;
+}
+
+function removeAttachment(id: string): void {
+  pendingAttachments = pendingAttachments.filter(f => f.id !== id);
+  const firstImage = pendingAttachments.find(f => f.type.startsWith('image/'));
+  pendingAttachment = firstImage?.dataUri || null;
+  renderAttachmentQueue();
+}
+
+function clearAttachments(): void {
+  pendingAttachments = [];
+  pendingAttachment = null;
+  renderAttachmentQueue();
+}
+
 function clearAttachmentUI(): void {
-  const existing = document.getElementById('chat-attachment-preview');
+  const existing = document.getElementById('attachment-queue');
   if (existing) existing.remove();
 }
 
-function renderAttachmentPreview(dataUri: string): void {
+function renderAttachmentQueue(): void {
   clearAttachmentUI();
-  const chatInput = $('chat-input');
-  const preview = document.createElement('div');
-  preview.id = 'chat-attachment-preview';
-  preview.className = 'chat-attachment-preview';
+  if (pendingAttachments.length === 0) return;
 
-  const img = document.createElement('img');
-  img.className = 'chat-attachment-thumb';
-  img.src = dataUri;
-  img.alt = 'Attached image';
+  const inputArea = document.querySelector('.input-area');
+  if (!inputArea) return;
 
-  const placeBtn = document.createElement('button');
-  placeBtn.className = 'chat-attachment-place';
-  placeBtn.title = 'Place image on Figma canvas';
-  placeBtn.textContent = '→ Figma';
-  placeBtn.addEventListener('click', () => {
-    if (pendingAttachment) placePastedImage(placeBtn, pendingAttachment);
-  });
+  const queue = document.createElement('div');
+  queue.id = 'attachment-queue';
+  queue.className = 'attachment-queue';
 
-  const removeBtn = document.createElement('button');
-  removeBtn.className = 'chat-attachment-remove';
-  removeBtn.title = 'Remove image';
-  removeBtn.textContent = '✕';
-  removeBtn.addEventListener('click', () => {
-    pendingAttachment = null;
-    clearAttachmentUI();
-  });
+  for (const file of pendingAttachments) {
+    const info = getFileTypeInfo(file);
+    const item = document.createElement('div');
+    item.className = 'attachment-item';
 
-  preview.appendChild(img);
-  preview.appendChild(placeBtn);
-  preview.appendChild(removeBtn);
-  chatInput.parentElement!.insertBefore(preview, chatInput);
+    if (info.isImage && !file.type.includes('svg')) {
+      const thumb = document.createElement('img');
+      thumb.className = 'attachment-thumb';
+      thumb.src = file.dataUri;
+      thumb.alt = file.name;
+      item.appendChild(thumb);
+    } else {
+      const icon = document.createElement('span');
+      icon.className = 'attachment-icon';
+      icon.textContent = info.icon;
+      item.appendChild(icon);
+    }
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'attachment-name';
+    nameEl.textContent = file.name;
+    item.appendChild(nameEl);
+
+    const badge = document.createElement('span');
+    badge.className = 'attachment-badge';
+    badge.textContent = `${info.badge} · ${formatFileSize(file.size)}`;
+    item.appendChild(badge);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'attachment-remove';
+    removeBtn.textContent = '×';
+    removeBtn.title = 'Remove file';
+    removeBtn.addEventListener('click', () => removeAttachment(file.id));
+    item.appendChild(removeBtn);
+
+    queue.appendChild(item);
+  }
+
+  // Footer: count + total size + clear all
+  const footer = document.createElement('div');
+  footer.className = 'attachment-footer';
+  footer.innerHTML = `<span>${pendingAttachments.length} file${pendingAttachments.length > 1 ? 's' : ''} · ${formatFileSize(getTotalAttachmentSize())}</span>`;
+  if (pendingAttachments.length >= 2) {
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'attachment-clear';
+    clearBtn.textContent = 'Clear all';
+    clearBtn.addEventListener('click', clearAttachments);
+    footer.appendChild(clearBtn);
+  }
+  queue.appendChild(footer);
+
+  inputArea.insertBefore(queue, inputArea.firstChild);
+}
+
+// Legacy wrapper for backward compat
+function renderAttachmentPreview(dataUri: string): void {
+  // Called by old paste/upload handlers — now routes to queue
+  // Name is derived from MIME type
+  const mime = dataUri.match(/data:([^;]+)/)?.[1] || 'image/png';
+  const ext = mime.split('/')[1]?.replace('svg+xml', 'svg') || 'file';
+  const name = `pasted-${Date.now()}.${ext}`;
+  const size = Math.round(dataUri.length * 0.75); // approximate base64 → bytes
+  addAttachment(name, mime, dataUri, size);
 }
 
 async function placePastedImage(placeBtn: HTMLButtonElement, attachment: string): Promise<void> {
@@ -490,8 +747,8 @@ export function initChat() {
         e.preventDefault();
         const blob = item.getAsFile();
         if (!blob) return;
-        if (blob.size > 4 * 1024 * 1024) {
-          appendChatBubble('assistant', '<span class="chat-error">Image too large — please paste a screenshot under 4MB</span>');
+        if (blob.size > 20 * 1024 * 1024) {
+          appendChatBubble('assistant', '<span class="chat-error">File too large (max 20MB)</span>');
           return;
         }
         const reader = new FileReader();
@@ -506,13 +763,45 @@ export function initChat() {
     // No image item found — let normal text paste proceed
   });
 
+  // CF-1: Upload button handler — file picker for images
+  $('chat-upload-btn').addEventListener('click', () => {
+    ($('chat-file-upload') as HTMLInputElement).click();
+  });
+
+  ($('chat-file-upload') as HTMLInputElement).addEventListener('change', (e: Event) => {
+    const fileInput = e.target as HTMLInputElement;
+    const file = fileInput.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'application/pdf', 'text/plain'];
+    if (!validTypes.includes(file.type)) {
+      appendChatBubble('assistant', '<span class="chat-error">Unsupported file type. Please upload PNG, JPG, WEBP, SVG, PDF, or TXT.</span>');
+      fileInput.value = '';
+      return;
+    }
+
+    // Validate file size (20MB max)
+    if (file.size > 20 * 1024 * 1024) {
+      appendChatBubble('assistant', '<span class="chat-error">File too large (max 20MB)</span>');
+      fileInput.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      addAttachment(file.name, file.type, reader.result as string, file.size);
+    };
+    reader.readAsDataURL(file);
+    fileInput.value = ''; // Reset so the same file can be re-selected
+  });
+
   $('chat-new').addEventListener('click', () => {
     conversationHistory = [];
     geminiHistory = [];
     openaiHistory = [];
     claudeCodeHistory = [];
-    pendingAttachment = null;
-    clearAttachmentUI();
+    clearAttachments();
     $('chat-messages').innerHTML = '';
     addChatWelcome();
   });
@@ -569,24 +858,811 @@ export function initChat() {
     }
   });
 
+  // ── Theme toggle wiring ───────────────────────────────────────
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  const themeIconSun = document.getElementById('themeIconSun');
+  const themeIconMoon = document.getElementById('themeIconMoon');
+
+  function applyTheme(theme: string) {
+    document.documentElement.dataset.theme = theme;
+    if (themeIconSun && themeIconMoon) {
+      themeIconSun.style.display = theme === 'light' ? '' : 'none';
+      themeIconMoon.style.display = theme === 'dark' ? '' : 'none';
+    }
+  }
+
+  themeToggleBtn?.addEventListener('click', () => {
+    const current = document.documentElement.dataset.theme || 'light';
+    const next = current === 'light' ? 'dark' : 'light';
+    applyTheme(next);
+    postToSandbox({ type: 'save-theme', theme: next });
+  });
+
+  // Listen for theme loaded from storage on startup
+  window.addEventListener('message', (event: MessageEvent) => {
+    const msg = event.data?.pluginMessage;
+    if (msg?.type === 'load-theme' && msg.theme) {
+      applyTheme(msg.theme);
+    }
+  });
+
+  // Request saved theme from sandbox
+  postToSandbox({ type: 'get-theme' });
+
+  // ── Migrate settings + bridge content into sheet on init ──────
+  const sheetBody = document.getElementById('settingsSheetBody');
+  if (sheetBody && sheetBody.children.length === 0) {
+    const settingsContent = document.querySelector('#tab-settings .chat-settings-content');
+    if (settingsContent) sheetBody.appendChild(settingsContent);
+    const bridgeContent = document.querySelector('#tab-bridge .bridge-content');
+    if (bridgeContent) {
+      const bridgeSection = document.createElement('div');
+      bridgeSection.className = 'sheet-section';
+      const bridgeTitle = document.createElement('div');
+      bridgeTitle.className = 'sheet-section-title';
+      bridgeTitle.textContent = 'MCP Bridge';
+      bridgeSection.appendChild(bridgeTitle);
+      bridgeSection.appendChild(bridgeContent);
+      sheetBody.appendChild(bridgeSection);
+    }
+  }
+  // Note: open/close handled by settings.ts via dom.settingsPanel/settingsOverlay (redirected to sheet in state.ts)
+
+  // ── Dropdown wiring (mode & model selectors) ─────────────────
+  function setupDropdown(btnId: string, menuId: string) {
+    const btn = document.getElementById(btnId);
+    const menu = document.getElementById(menuId);
+    if (!btn || !menu) return;
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = menu.classList.contains('open');
+      // Close all dropdowns first
+      document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+      if (!isOpen) menu.classList.add('open');
+    });
+  }
+
+  // Close dropdowns on outside click
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+  });
+
+  setupDropdown('modelSelectorBtn', 'modelDropdown');
+  setupDropdown('quickActionBtn', 'quickActionDropdown');
+
+  // ── Populate model dropdown from settings-model <select> ──────
+  const modelDropdown = document.getElementById('modelDropdown');
+  const modelSelectorLabel = document.getElementById('modelSelectorLabel');
+  const settingsModelSelect = document.getElementById('settings-model') as HTMLSelectElement | null;
+
+  function populateModelDropdown() {
+    if (!modelDropdown || !settingsModelSelect) return;
+    modelDropdown.innerHTML = '';
+    const currentModel = settingsModelSelect.value;
+
+    let lastGroup = '';
+    for (const opt of Array.from(settingsModelSelect.options)) {
+      const group = opt.parentElement?.tagName === 'OPTGROUP'
+        ? (opt.parentElement as HTMLOptGroupElement).label
+        : '';
+      if (group && group !== lastGroup) {
+        if (lastGroup) {
+          const div = document.createElement('div');
+          div.className = 'dropdown-divider';
+          modelDropdown.appendChild(div);
+        }
+        const label = document.createElement('div');
+        label.className = 'dropdown-label';
+        label.textContent = group;
+        modelDropdown.appendChild(label);
+        lastGroup = group;
+      }
+      const item = document.createElement('div');
+      item.className = 'dropdown-item' + (opt.value === currentModel ? ' active' : '');
+      item.dataset.model = opt.value;
+      item.textContent = opt.textContent?.trim() || opt.value;
+      modelDropdown.appendChild(item);
+    }
+
+    // Update toolbar label
+    const selectedOpt = settingsModelSelect.selectedOptions[0];
+    if (modelSelectorLabel && selectedOpt) {
+      modelSelectorLabel.textContent = selectedOpt.textContent?.trim() || 'Model';
+    }
+  }
+
+  populateModelDropdown();
+
+  // ── Model dropdown item click → update settings model ─────────
+  modelDropdown?.addEventListener('click', (e) => {
+    const item = (e.target as HTMLElement).closest('.dropdown-item') as HTMLElement | null;
+    if (!item || !item.dataset.model) return;
+
+    // Update the hidden settings select
+    if (settingsModelSelect) {
+      settingsModelSelect.value = item.dataset.model;
+      settingsModelSelect.dispatchEvent(new Event('change'));
+    }
+
+    // Update chatSettings
+    chatSettings.model = item.dataset.model;
+
+    // Refresh dropdown active state + label
+    modelDropdown.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+    if (modelSelectorLabel) modelSelectorLabel.textContent = item.textContent?.trim() || 'Model';
+    modelDropdown.classList.remove('open');
+  });
+
+  // CU-6: Mode dropdown removed — replaced by QuickAction dropdown
+
+  // ── CU-1: Register built-in quick actions ────────────────────
+  registerBuiltinQuickActions();
+
+  // ── CU-1: Quick action dropdown wiring ──────────────────────
+  const qaDropdown = document.getElementById('quickActionDropdown');
+  qaDropdown?.addEventListener('click', (e) => {
+    const item = (e.target as HTMLElement).closest('.dropdown-item') as HTMLElement | null;
+    if (!item || !item.dataset.action) return;
+    e.stopPropagation(); // Prevent bubble to parent button which would reopen
+    qaDropdown.classList.remove('open');
+    activateQuickAction(item.dataset.action);
+  });
+
+  // Populate quick action dropdown dynamically
+  if (qaDropdown) {
+    qaDropdown.innerHTML = '';
+    const label = document.createElement('div');
+    label.className = 'dropdown-label';
+    label.textContent = 'Quick Actions';
+    qaDropdown.appendChild(label);
+    for (const qa of quickActionRegistry) {
+      const item = document.createElement('div');
+      item.className = 'dropdown-item';
+      item.dataset.action = qa.id;
+      item.textContent = `${qa.icon} ${qa.label}`;
+      qaDropdown.appendChild(item);
+    }
+  }
+
+  // ── CU-4: Design drawer toggle ──────────────────────────────
+  const designDrawerBtn = document.getElementById('designDrawerBtn');
+  designDrawerBtn?.addEventListener('click', () => {
+    const drawer = document.getElementById('design-drawer');
+    if (drawer?.classList.contains('open')) closeDesignDrawer();
+    else openDesignDrawer();
+  });
+
+  // ── CU-7: Keyboard shortcuts (expanded) ──────────────────────
+  document.addEventListener('keydown', (e: KeyboardEvent) => {
+    const isCmd = e.metaKey || e.ctrlKey;
+    const sheetEl = document.getElementById('settingsSheet');
+
+    // Cmd+, → toggle API settings sheet
+    if (isCmd && e.key === ',') {
+      e.preventDefault();
+      if (sheetEl?.classList.contains('open')) closeSettings();
+      else openSettings();
+      return;
+    }
+
+    // Escape → dismiss layers (quick action → design drawer → settings → dropdowns)
+    if (e.key === 'Escape') {
+      if (activeQuickAction) { dismissQuickActionCard(); return; }
+      const designDrawer = document.getElementById('design-drawer');
+      if (designDrawer?.classList.contains('open')) { closeDesignDrawer(); return; }
+      if (sheetEl?.classList.contains('open')) { closeSettings(); return; }
+      document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+      return;
+    }
+
+    // Cmd+K → focus chat input
+    if (isCmd && e.key === 'k') {
+      e.preventDefault();
+      ($('chat-input') as HTMLTextAreaElement).focus();
+      return;
+    }
+
+    // Cmd+Shift+S → open Screenshot quick action (fallback: Cmd+Alt+S)
+    if (isCmd && (e.shiftKey || e.altKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      activateQuickAction('screenshot-to-layout');
+      return;
+    }
+
+    // Cmd+Shift+A → open Ad Analyzer quick action (fallback: Cmd+Alt+A)
+    if (isCmd && (e.shiftKey || e.altKey) && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      activateQuickAction('ad-analyzer');
+      return;
+    }
+  });
+
+  // ── Textarea auto-grow ────────────────────────────────────────
+  const chatTextarea = $('chat-input') as HTMLTextAreaElement;
+  chatTextarea.addEventListener('input', () => {
+    chatTextarea.style.height = 'auto';
+    chatTextarea.style.height = Math.min(chatTextarea.scrollHeight, 200) + 'px';
+  });
+
+  // ── CU-7: Rotating placeholder text ─────────────────────────
+  const placeholders = [
+    'Describe a design to generate...',
+    'Drop a screenshot to convert...',
+    'Ask about your Figma selection...',
+    'Create a social post, presentation, or hero...',
+    'Fill a template with AI content...',
+  ];
+  let placeholderIndex = 0;
+  let placeholderInterval: ReturnType<typeof setInterval> | null = null;
+
+  function startPlaceholderRotation() {
+    stopPlaceholderRotation();
+    placeholderInterval = setInterval(() => {
+      if (document.activeElement === chatTextarea || chatTextarea.value.trim()) return;
+      placeholderIndex = (placeholderIndex + 1) % placeholders.length;
+      chatTextarea.placeholder = placeholders[placeholderIndex];
+    }, 5000);
+  }
+
+  function stopPlaceholderRotation() {
+    if (placeholderInterval) { clearInterval(placeholderInterval); placeholderInterval = null; }
+  }
+
+  chatTextarea.addEventListener('focus', stopPlaceholderRotation);
+  chatTextarea.addEventListener('blur', startPlaceholderRotation);
+  startPlaceholderRotation();
+
+  // ── MF-5: Selection context listener ──────────────────────────
+  window.addEventListener('message', (event: MessageEvent) => {
+    const msg = event.data?.pluginMessage;
+    if (msg?.type === 'selection-changed') {
+      currentSelection = { nodes: (msg.selection || []).slice(0, 20) };
+      selectionIncluded = true;
+      renderSelectionBadge();
+      renderSelectionHint();
+    }
+  });
+
+  // Request initial selection
+  postToSandbox({ type: 'get-selection' });
+
+  // ── MF-2: Drag & drop zone ───────────────────────────────────
+  const chatSurface = document.querySelector('.chat-surface') as HTMLElement;
+  if (chatSurface) {
+    let dragCounter = 0;
+    const dropOverlay = document.createElement('div');
+    dropOverlay.className = 'drop-overlay';
+    dropOverlay.innerHTML = `<div class="drop-overlay-content"><svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" fill="none" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><div>Drop files here</div><div class="drop-overlay-hint">Images, PDFs, SVGs, text files</div></div>`;
+    chatSurface.style.position = 'relative';
+    chatSurface.appendChild(dropOverlay);
+
+    chatSurface.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer?.types.includes('Files')) {
+        dragCounter++;
+        dropOverlay.classList.add('active');
+      }
+    });
+
+    chatSurface.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        dropOverlay.classList.remove('active');
+      }
+    });
+
+    chatSurface.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    });
+
+    chatSurface.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dragCounter = 0;
+      dropOverlay.classList.remove('active');
+
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+
+      const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'application/pdf', 'text/plain'];
+      for (const file of Array.from(files)) {
+        if (!validTypes.includes(file.type)) continue;
+        if (file.size > 20 * 1024 * 1024) {
+          appendChatBubble('assistant', `<span class="chat-error">${file.name} too large (max 20MB)</span>`);
+          continue;
+        }
+        const reader = new FileReader();
+        reader.onload = () => addAttachment(file.name, file.type, reader.result as string, file.size);
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
   addChatWelcome();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MF-5: SELECTION BADGE
+// ═══════════════════════════════════════════════════════════════
+
+function renderSelectionBadge(): void {
+  const existing = document.getElementById('selection-badge');
+  if (existing) existing.remove();
+
+  if (!selectionIncluded || currentSelection.nodes.length === 0) return;
+
+  const inputArea = document.querySelector('.input-area');
+  if (!inputArea) return;
+
+  const badge = document.createElement('div');
+  badge.id = 'selection-badge';
+  badge.className = 'selection-badge';
+
+  const nodes = currentSelection.nodes;
+  if (nodes.length === 1) {
+    const n = nodes[0];
+    badge.innerHTML = `<span class="selection-badge-icon">🔲</span><span class="selection-badge-text">${n.name} <span class="selection-badge-dim">${Math.round(n.width)}×${Math.round(n.height)} ${n.type}</span></span>`;
+  } else {
+    badge.innerHTML = `<span class="selection-badge-icon">🔲</span><span class="selection-badge-text">${nodes.length} frames selected</span>`;
+  }
+
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'selection-badge-clear';
+  clearBtn.textContent = '×';
+  clearBtn.title = 'Remove selection from message';
+  clearBtn.addEventListener('click', () => {
+    selectionIncluded = false;
+    renderSelectionBadge();
+  });
+  badge.appendChild(clearBtn);
+
+  // Insert before attachment queue or textarea
+  const attachQueue = document.getElementById('attachment-queue');
+  inputArea.insertBefore(badge, attachQueue || inputArea.firstChild);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CU-7: SELECTION-AWARE SUGGESTION HINT
+// ═══════════════════════════════════════════════════════════════
+
+let selectionHintDebounce: ReturnType<typeof setTimeout> | null = null;
+
+function renderSelectionHint(): void {
+  if (selectionHintDebounce) clearTimeout(selectionHintDebounce);
+  selectionHintDebounce = setTimeout(() => {
+    const existing = document.getElementById('selection-hint');
+    if (existing) existing.remove();
+
+    if (currentSelection.nodes.length === 0 || !selectionIncluded) return;
+
+    const inputArea = document.querySelector('.input-area');
+    if (!inputArea) return;
+
+    const hint = document.createElement('div');
+    hint.id = 'selection-hint';
+    hint.className = 'selection-hint';
+
+    const n = currentSelection.nodes[0];
+    const name = n.name.length > 25 ? n.name.slice(0, 22) + '...' : n.name;
+    const suggestions = currentSelection.nodes.length === 1
+      ? `Try: "redesign ${name}" or "fill template placeholders"`
+      : `Try: "redesign these frames" or "make them consistent"`;
+
+    hint.textContent = suggestions;
+    inputArea.appendChild(hint);
+  }, 300); // 300ms debounce
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CU-1: QUICK ACTION CARD RENDERER
+// ═══════════════════════════════════════════════════════════════
+
+function renderQuickActionCard(): void {
+  // Remove existing card DOM without clearing activeQuickAction state
+  const existingCard = document.getElementById('quick-action-card');
+  if (existingCard) existingCard.remove();
+  quickActionValues = {};
+
+  if (!activeQuickAction) return;
+  const action = activeQuickAction;
+
+  const inputArea = document.querySelector('.input-area');
+  if (!inputArea) return;
+
+  const card = document.createElement('div');
+  card.id = 'quick-action-card';
+  card.className = 'quick-action-card';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'qa-card-header';
+  header.innerHTML = `<span>${action.icon} ${action.label}</span>`;
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'qa-card-cancel';
+  cancelBtn.textContent = '×';
+  cancelBtn.addEventListener('click', dismissQuickActionCard);
+  header.appendChild(cancelBtn);
+  card.appendChild(header);
+
+  // Fields
+  const fieldsEl = document.createElement('div');
+  fieldsEl.className = 'qa-card-fields';
+
+  for (const field of action.fields) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'qa-field';
+
+    if (field.type === 'file') {
+      // File drop zone
+      const dropZone = document.createElement('div');
+      dropZone.className = 'qa-file-zone';
+      dropZone.id = `qa-field-${field.key}`;
+      dropZone.innerHTML = `<span class="qa-file-zone-label">${field.placeholder || 'Drop image here'}</span>`;
+      dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+      dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+      dropZone.addEventListener('click', () => {
+        const fi = document.createElement('input');
+        fi.type = 'file';
+        fi.accept = field.accept || 'image/*';
+        fi.addEventListener('change', () => {
+          const f = fi.files?.[0];
+          if (f) handleQuickActionFile(field.key, f, dropZone);
+        });
+        fi.click();
+      });
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        const f = e.dataTransfer?.files[0];
+        if (f) handleQuickActionFile(field.key, f, dropZone);
+      });
+      wrapper.appendChild(dropZone);
+    } else if (field.type === 'select') {
+      const sel = document.createElement('select');
+      sel.className = 'qa-select';
+      sel.id = `qa-field-${field.key}`;
+      for (const opt of field.options || []) {
+        const o = document.createElement('option');
+        o.value = opt.value;
+        o.textContent = opt.label;
+        sel.appendChild(o);
+      }
+      sel.addEventListener('change', () => { quickActionValues[field.key] = sel.value; });
+      quickActionValues[field.key] = sel.value;
+
+      const label = document.createElement('label');
+      label.className = 'qa-label';
+      label.textContent = field.label;
+      wrapper.appendChild(label);
+      wrapper.appendChild(sel);
+    } else if (field.type === 'textarea') {
+      const label = document.createElement('label');
+      label.className = 'qa-label';
+      label.textContent = field.label;
+      const ta = document.createElement('textarea');
+      ta.className = 'qa-textarea';
+      ta.id = `qa-field-${field.key}`;
+      ta.placeholder = field.placeholder || '';
+      ta.rows = 2;
+      ta.addEventListener('input', () => { quickActionValues[field.key] = ta.value; });
+      wrapper.appendChild(label);
+      wrapper.appendChild(ta);
+    } else {
+      const label = document.createElement('label');
+      label.className = 'qa-label';
+      label.textContent = field.label;
+      const inp = document.createElement('input');
+      inp.className = 'qa-input';
+      inp.type = 'text';
+      inp.id = `qa-field-${field.key}`;
+      inp.placeholder = field.placeholder || '';
+      inp.addEventListener('input', () => { quickActionValues[field.key] = inp.value; });
+      if (!field.required) quickActionValues[field.key] = '';
+      wrapper.appendChild(label);
+      wrapper.appendChild(inp);
+    }
+    fieldsEl.appendChild(wrapper);
+  }
+  card.appendChild(fieldsEl);
+
+  // Submit button
+  const submitBtn = document.createElement('button');
+  submitBtn.className = 'qa-card-submit';
+  submitBtn.id = 'qa-card-submit';
+  submitBtn.textContent = action.id === 'ad-analyzer' ? 'Analyze' : 'Generate';
+  submitBtn.addEventListener('click', submitQuickAction);
+  card.appendChild(submitBtn);
+
+  inputArea.insertBefore(card, inputArea.firstChild);
+
+  // Update submit state
+  updateQuickActionSubmitState();
+}
+
+function handleQuickActionFile(key: string, file: File, dropZone: HTMLElement): void {
+  if (file.size > 20 * 1024 * 1024) {
+    appendChatBubble('assistant', `<span class="chat-error">${file.name} too large (max 20MB)</span>`);
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUri = reader.result as string;
+    quickActionValues[key] = dataUri;
+    // Show thumbnail
+    if (file.type.startsWith('image/') && !file.type.includes('svg')) {
+      dropZone.innerHTML = `<img class="qa-file-thumb" src="${dataUri}" alt="${file.name}">`;
+    } else {
+      dropZone.innerHTML = `<span class="qa-file-zone-label">${file.name}</span>`;
+    }
+    dropZone.classList.add('has-file');
+    // Also add to attachment queue for sendMessage
+    addAttachment(file.name, file.type, dataUri, file.size);
+    updateQuickActionSubmitState();
+  };
+  reader.readAsDataURL(file);
+}
+
+function updateQuickActionSubmitState(): void {
+  if (!activeQuickAction) return;
+  const btn = document.getElementById('qa-card-submit') as HTMLButtonElement | null;
+  if (!btn) return;
+
+  const allRequired = activeQuickAction.fields
+    .filter(f => f.required)
+    .every(f => quickActionValues[f.key]?.trim());
+
+  btn.disabled = !allRequired || isProcessing;
+  if (isProcessing) btn.title = 'Processing...';
+  else btn.title = '';
+}
+
+function submitQuickAction(): void {
+  if (!activeQuickAction || isProcessing) return;
+
+  const prompt = activeQuickAction.buildPrompt(quickActionValues, pendingAttachments);
+  const chatInput = $('chat-input') as HTMLTextAreaElement;
+  chatInput.value = prompt;
+
+  dismissQuickActionCard();
+  sendMessage();
+}
+
+function dismissQuickActionCard(): void {
+  activeQuickAction = null;
+  quickActionValues = {};
+  const existing = document.getElementById('quick-action-card');
+  if (existing) {
+    existing.classList.add('qa-card-exit');
+    setTimeout(() => existing.remove(), 100);
+  }
+}
+
+function activateQuickAction(id: string): void {
+  const action = quickActionRegistry.find(a => a.id === id);
+  if (!action) return;
+  activeQuickAction = action;
+  quickActionValues = {};
+  renderQuickActionCard();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CU-4: DESIGN SETTINGS DRAWER
+// ═══════════════════════════════════════════════════════════════
+
+function renderDesignDrawer(): void {
+  if (document.getElementById('design-drawer')) return;
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'design-drawer-backdrop';
+  backdrop.className = 'design-drawer-backdrop';
+  backdrop.addEventListener('click', closeDesignDrawer);
+
+  const drawer = document.createElement('aside');
+  drawer.id = 'design-drawer';
+  drawer.className = 'design-drawer';
+
+  drawer.innerHTML = `
+    <div class="drawer-header">
+      <span class="drawer-title">Design Settings</span>
+      <button class="icon-btn" id="drawerClose">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="drawer-body">
+      <div class="drawer-section">
+        <div class="drawer-section-title">Generation</div>
+        <label class="drawer-label">Image Model</label>
+        <select class="drawer-select" id="ds-image-model">
+          <option value="nano-banana-2">Nano Banana 2</option>
+          <option value="gemini-imagen">Gemini Imagen</option>
+          <option value="dall-e-3">DALL-E 3</option>
+        </select>
+        <label class="drawer-label">Quality</label>
+        <div class="drawer-radio-group" id="ds-quality">
+          <label class="drawer-radio"><input type="radio" name="ds-quality" value="1k"> 1k</label>
+          <label class="drawer-radio"><input type="radio" name="ds-quality" value="2k" checked> 2k</label>
+          <label class="drawer-radio"><input type="radio" name="ds-quality" value="4k"> 4k</label>
+        </div>
+        <label class="drawer-label">Style</label>
+        <select class="drawer-select" id="ds-style">
+          <option value="auto">Auto</option>
+          <option value="photographic">Photographic</option>
+          <option value="illustration">Illustration</option>
+          <option value="artistic">Artistic</option>
+        </select>
+      </div>
+      <div class="drawer-section">
+        <div class="drawer-section-title">Design Defaults</div>
+        <label class="drawer-label">Default Font</label>
+        <select class="drawer-select" id="ds-font">
+          <option value="auto">Auto (from brief)</option>
+          <option value="Inter">Inter</option>
+          <option value="Playfair Display">Playfair Display</option>
+          <option value="Space Grotesk">Space Grotesk</option>
+          <option value="DM Sans">DM Sans</option>
+          <option value="Cormorant Garamond">Cormorant Garamond</option>
+        </select>
+        <label class="drawer-label">Brand Colors</label>
+        <div class="drawer-colors" id="ds-colors"></div>
+        <label class="drawer-label">8px Grid</label>
+        <label class="drawer-toggle"><input type="checkbox" id="ds-grid" checked> Enabled</label>
+      </div>
+    </div>`;
+
+  document.body.appendChild(backdrop);
+  document.body.appendChild(drawer);
+
+  // Bind close button
+  drawer.querySelector('#drawerClose')?.addEventListener('click', closeDesignDrawer);
+
+  // Load saved values
+  const s = designSettings;
+  (drawer.querySelector('#ds-image-model') as HTMLSelectElement).value = s.imageModel;
+  (drawer.querySelector('#ds-style') as HTMLSelectElement).value = s.imageStyle;
+  (drawer.querySelector('#ds-font') as HTMLSelectElement).value = s.defaultFont;
+  (drawer.querySelector('#ds-grid') as HTMLInputElement).checked = s.gridEnabled;
+  const qualityRadio = drawer.querySelector(`input[name="ds-quality"][value="${s.imageQuality}"]`) as HTMLInputElement | null;
+  if (qualityRadio) qualityRadio.checked = true;
+
+  // Render color chips
+  renderColorChips();
+
+  // Bind change events
+  drawer.querySelector('#ds-image-model')?.addEventListener('change', (e) => { designSettings.imageModel = (e.target as HTMLSelectElement).value; saveDesignSettings(designSettings); });
+  drawer.querySelector('#ds-style')?.addEventListener('change', (e) => { designSettings.imageStyle = (e.target as HTMLSelectElement).value; saveDesignSettings(designSettings); });
+  drawer.querySelector('#ds-font')?.addEventListener('change', (e) => { designSettings.defaultFont = (e.target as HTMLSelectElement).value; saveDesignSettings(designSettings); });
+  drawer.querySelector('#ds-grid')?.addEventListener('change', (e) => { designSettings.gridEnabled = (e.target as HTMLInputElement).checked; saveDesignSettings(designSettings); });
+  drawer.querySelectorAll('input[name="ds-quality"]').forEach(r => r.addEventListener('change', (e) => { designSettings.imageQuality = (e.target as HTMLInputElement).value; saveDesignSettings(designSettings); }));
+}
+
+function renderColorChips(): void {
+  const container = document.getElementById('ds-colors');
+  if (!container) return;
+  container.innerHTML = '';
+
+  for (let i = 0; i < designSettings.brandColors.length; i++) {
+    const hex = designSettings.brandColors[i];
+    const chip = document.createElement('span');
+    chip.className = 'color-chip';
+    chip.style.background = hex;
+    chip.title = hex;
+    chip.addEventListener('click', () => {
+      designSettings.brandColors.splice(i, 1);
+      saveDesignSettings(designSettings);
+      renderColorChips();
+    });
+    container.appendChild(chip);
+  }
+
+  if (designSettings.brandColors.length < 6) {
+    const addBtn = document.createElement('button');
+    addBtn.className = 'color-chip-add';
+    addBtn.textContent = '+';
+    addBtn.title = 'Add brand color';
+    addBtn.addEventListener('click', () => {
+      const inp = document.createElement('input');
+      inp.type = 'color';
+      inp.addEventListener('input', () => {
+        designSettings.brandColors.push(inp.value);
+        saveDesignSettings(designSettings);
+        renderColorChips();
+      });
+      inp.click();
+    });
+    container.appendChild(addBtn);
+  }
+}
+
+function openDesignDrawer(): void {
+  renderDesignDrawer();
+  requestAnimationFrame(() => {
+    document.getElementById('design-drawer')?.classList.add('open');
+    document.getElementById('design-drawer-backdrop')?.classList.add('open');
+  });
+}
+
+function closeDesignDrawer(): void {
+  document.getElementById('design-drawer')?.classList.remove('open');
+  document.getElementById('design-drawer-backdrop')?.classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CU-2 & CU-3: QUICK ACTION REGISTRATIONS
+// ═══════════════════════════════════════════════════════════════
+
+function registerBuiltinQuickActions(): void {
+  // CU-2: Screenshot to Layout
+  registerQuickAction({
+    id: 'screenshot-to-layout',
+    label: 'Screenshot to Layout',
+    icon: '📸',
+    description: 'Convert screenshots into Figma designs',
+    fields: [
+      { key: 'image', label: 'Screenshot', type: 'file', required: true, placeholder: 'Drop screenshot here or click to upload', accept: '.png,.jpg,.jpeg,.webp' },
+      { key: 'format', label: 'Format', type: 'select', required: false, options: [
+        { value: 'auto', label: 'Auto-detect' },
+        { value: '1080x1350', label: 'Instagram (1080×1350)' },
+        { value: '1200x627', label: 'LinkedIn (1200×627)' },
+        { value: '1280x720', label: 'YouTube (1280×720)' },
+        { value: '1440x800', label: 'Web Hero (1440×800)' },
+        { value: '1920x1080', label: 'Presentation (1920×1080)' },
+      ]},
+    ],
+    buildPrompt: (values) => {
+      const fmt = values.format && values.format !== 'auto' ? ` Target format: ${values.format}.` : '';
+      return `Convert this screenshot to an editable Figma layout. Recreate the exact design with proper auto-layout, text nodes, and styling.${fmt}`;
+    },
+  });
+
+  // CU-3: Ad Analyzer
+  registerQuickAction({
+    id: 'ad-analyzer',
+    label: 'Ad Analyzer',
+    icon: '🎯',
+    description: 'Analyze ads and build 3 redesigned variants',
+    fields: [
+      { key: 'image', label: 'Ad Image', type: 'file', required: true, placeholder: 'Drop ad image here', accept: '.png,.jpg,.jpeg,.webp' },
+      { key: 'product', label: 'Product Name', type: 'text', required: true, placeholder: 'e.g. Café Noir Premium Blend' },
+      { key: 'category', label: 'Category', type: 'text', required: false, placeholder: 'e.g. Coffee, SaaS, Fashion' },
+      { key: 'platform', label: 'Platform', type: 'select', required: false, options: [
+        { value: 'instagram-4x5', label: 'Instagram 4:5' },
+        { value: 'instagram-1x1', label: 'Instagram 1:1' },
+        { value: 'instagram-story', label: 'Instagram Story' },
+        { value: 'facebook-feed', label: 'Facebook Feed' },
+      ]},
+      { key: 'notes', label: 'Notes', type: 'textarea', required: false, placeholder: 'Additional context or requirements...' },
+    ],
+    buildPrompt: (values) => {
+      const parts = [`Analyze this ad image and create 3 redesigned variants.`];
+      parts.push(`Product: ${values.product}`);
+      if (values.category) parts.push(`Category: ${values.category}`);
+      if (values.platform) parts.push(`Platform: ${values.platform}`);
+      if (values.notes) parts.push(`Notes: ${values.notes}`);
+      parts.push(`Use start_ad_analyzer to begin the analysis, then complete_ad_analyzer for each variant.`);
+      return parts.join('\n');
+    },
+  });
 }
 
 function addChatWelcome() {
   const messagesEl = $('chat-messages');
-  messagesEl.innerHTML = `<div class="chat-welcome">
-    <div class="chat-welcome-icon">F</div>
-    <div class="chat-welcome-title">Figmento AI</div>
-    <div class="chat-welcome-subtitle">AI design agent. Describe what you want to create.</div>
+  messagesEl.innerHTML = `<div class="welcome-state">
+    <div class="welcome-logo">F</div>
+    <div class="welcome-title">Figmento</div>
+    <div class="welcome-subtitle">Your AI design assistant. Describe what you want to create.</div>
   </div>`;
   renderChatTemplates();
 }
 
 function appendChatBubble(role: 'user' | 'assistant', html: string) {
   const messagesEl = $('chat-messages');
-  const welcome = messagesEl.querySelector('.chat-welcome');
+  const welcome = messagesEl.querySelector('.welcome-state');
   if (welcome) welcome.remove();
-  const templates = messagesEl.querySelector('.chat-templates');
+  const templates = messagesEl.querySelector('.welcome-templates');
   if (templates) templates.remove();
 
   const bubble = document.createElement('div');
@@ -620,7 +1696,7 @@ function setProcessing(processing: boolean) {
 
 async function sendMessage() {
   const input = $('chat-input') as HTMLTextAreaElement;
-  const text = input.value.trim();
+  let text = input.value.trim();
   if (!text || isProcessing) return;
 
   const useGemini = isGeminiModel(chatSettings.model);
@@ -644,17 +1720,40 @@ async function sendMessage() {
     }
   }
 
-  // Capture and clear attachment before the API call
-  const capturedAttachment = pendingAttachment;
-  pendingAttachment = null;
-  clearAttachmentUI();
+  // Capture and clear attachments before the API call
+  const capturedAttachments = [...pendingAttachments];
+  const capturedAttachment = pendingAttachment; // legacy compat: first image
+  clearAttachments();
+
+  // MF-5: Capture selection context at send time
+  const capturedSelection = selectionIncluded && currentSelection.nodes.length > 0
+    ? { ...currentSelection } : null;
+
+  // MF-4: Build file analysis instructions if attachments present
+  if (capturedAttachments.length > 0) {
+    const fileList = capturedAttachments.map(f => {
+      const info = getFileTypeInfo(f);
+      return `- ${f.name} (${info.badge}, ${formatFileSize(f.size)})`;
+    }).join('\n');
+    text += `\n\n[ATTACHED FILES]\n${fileList}\nAnalyze each file by type: images visually, PDFs via store_temp_file→import_pdf, SVGs as brand assets, text as context.`;
+  }
+
+  // MF-5: Inject selection context
+  if (capturedSelection && capturedSelection.nodes.length > 0) {
+    const nodes = capturedSelection.nodes.slice(0, 20);
+    const nodeList = nodes.map(n => `- nodeId: "${n.id}", name: "${n.name}", type: ${n.type}, size: ${n.width}×${n.height}`).join('\n');
+    const extra = capturedSelection.nodes.length > 20 ? `\n...and ${capturedSelection.nodes.length - 20} more nodes` : '';
+    text += `\n\n[FIGMA SELECTION CONTEXT]\nSelected nodes (use these nodeIds for edits):\n${nodeList}${extra}`;
+  }
 
   input.value = '';
 
-  // Show user bubble with optional attachment indicator
-  const userHtml = capturedAttachment
-    ? `${escapeHtml(text)}<br><span class="chat-attachment-indicator">📎 image attached</span>`
-    : escapeHtml(text);
+  // Show user bubble with optional attachment/selection indicators
+  const badges: string[] = [];
+  if (capturedAttachments.length > 0) badges.push(`📎 ${capturedAttachments.length} file${capturedAttachments.length > 1 ? 's' : ''} attached`);
+  if (capturedSelection) badges.push(`🔲 ${capturedSelection.nodes.length} frame${capturedSelection.nodes.length > 1 ? 's' : ''} selected`);
+  const badgeHtml = badges.length > 0 ? `<br><span class="chat-attachment-indicator">${badges.join(' · ')}</span>` : '';
+  const userHtml = escapeHtml(text.split('\n\n[ATTACHED FILES]')[0].split('\n\n[FIGMA SELECTION')[0]) + badgeHtml;
   appendChatBubble('user', userHtml);
 
   // Detect design brief from the user's message (KI-2)
@@ -679,7 +1778,7 @@ async function sendMessage() {
         throw new Error('Claude Code requires a local relay. Start with: `cd figmento-ws-relay && npm run dev`');
       }
       console.log('[Figmento Chat] → CLAUDE CODE path (WS)');
-      await runClaudeCodeTurn(text);
+      await runClaudeCodeTurn(text, capturedAttachment);
     // Route through relay if enabled and bridge is connected
     } else if (relayEnabled && bridgeConnected) {
       console.log('[Figmento Chat] → RELAY path');
@@ -823,7 +1922,7 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
 // CHAT — CLAUDE CODE TURN (WS → local relay → SDK subprocess)
 // ═══════════════════════════════════════════════════════════════
 
-async function runClaudeCodeTurn(text: string): Promise<void> {
+async function runClaudeCodeTurn(text: string, attachment?: string | null): Promise<void> {
   const channelId = getBridgeChannelId();
   if (!channelId) {
     throw new Error('Bridge channel not available. Connect to the local relay first.');
@@ -837,6 +1936,7 @@ async function runClaudeCodeTurn(text: string): Promise<void> {
     history: claudeCodeHistory,
     memory: memoryEntries,
     model: chatSettings.claudeCodeModel || undefined,
+    ...(attachment && { attachmentBase64: attachment }),
   });
 
   if (!sent) {
@@ -847,8 +1947,8 @@ async function runClaudeCodeTurn(text: string): Promise<void> {
   const result = await new Promise<Record<string, unknown>>((resolve, reject) => {
     const timeout = setTimeout(() => {
       setClaudeCodeResultHandler(null);
-      reject(new Error('Claude Code turn timed out (180s). The subprocess may still be running.'));
-    }, 185_000); // Slightly longer than server timeout to let server timeout arrive first
+      reject(new Error('Claude Code turn timed out (10 min). The subprocess may still be running.'));
+    }, 605_000); // Slightly longer than server timeout (600s) to let server timeout arrive first
 
     setClaudeCodeResultHandler((msg) => {
       clearTimeout(timeout);
