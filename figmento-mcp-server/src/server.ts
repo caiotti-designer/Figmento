@@ -6,7 +6,7 @@ import { registerStyleTools } from './tools/style';
 import { registerSceneTools } from './tools/scene';
 import { registerGetScreenshotTool, registerExportNodeTool, registerExportToFileTool, registerEvaluateDesignTool } from './tools/export';
 import { registerBatchTools } from './tools/batch';
-import { registerIntelligenceTools } from './tools/intelligence';
+import { registerIntelligenceTools, preWarmKnowledgeCache } from './tools/intelligence';
 import { registerTemplateTools } from './tools/template';
 import { registerDesignSystemTools } from './tools/design-system';
 import { registerPatternTools } from './tools/patterns';
@@ -20,6 +20,8 @@ import { registerRefinementTools } from './tools/refinement';
 import { registerLearningTools } from './tools/learning';
 import { registerResourceTools } from './tools/resources';
 import { registerImageGenTools } from './tools/image-gen';
+import { registerFileStorageTools, cleanupOldTempFiles } from './tools/file-storage';
+import { registerOrchestrationTools } from './tools/orchestration';
 
 /**
  * Creates and configures the Figmento MCP server with all design tools.
@@ -80,6 +82,14 @@ export function createFigmentoServer(): FigmentoServerResult {
   registerLearningTools(server, wsClient);
   registerResourceTools(server);
   registerImageGenTools(server, sendDesignCommand);
+  registerFileStorageTools(server, sendDesignCommand);
+  registerOrchestrationTools(server, sendDesignCommand);
+
+  // SP-7: Pre-warm knowledge cache (fire-and-forget, non-blocking)
+  preWarmKnowledgeCache();
+
+  // CF-2: Cleanup temp files older than 24h
+  cleanupOldTempFiles();
 
   return { server, wsClient };
 }

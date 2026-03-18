@@ -21,6 +21,7 @@ export interface ClaudeCodeTurnRequest {
   history: Array<{ role: string; content: string }>;
   memory?: string[];
   model?: string;
+  attachmentBase64?: string;
 }
 
 export interface ClaudeCodeTurnResult {
@@ -57,7 +58,7 @@ export function isLocalRelay(): boolean {
 export async function handleClaudeCodeTurn(
   request: ClaudeCodeTurnRequest,
 ): Promise<ClaudeCodeTurnResult | ClaudeCodeTurnError> {
-  const { channel, message, history, memory, model } = request;
+  const { channel, message, history, memory, model, attachmentBase64 } = request;
 
   // AC15: Local-only guard
   if (!isLocalRelay()) {
@@ -69,7 +70,7 @@ export async function handleClaudeCodeTurn(
   }
 
   // Delegate entirely to the session manager (concurrency + session lifecycle)
-  return sessionManager.turn(channel, message, history, memory, model);
+  return sessionManager.turn(channel, message, history, memory, model, attachmentBase64);
 }
 
 /** Active in-flight turn count — used by the /health endpoint. */

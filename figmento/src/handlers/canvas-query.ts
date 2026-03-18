@@ -30,6 +30,9 @@ export async function handleExportNode(params: Record<string, unknown>): Promise
   };
 }
 
+// Max base64 size for API compatibility (Claude limit is 5MB, keep under 4MB for safety)
+const MAX_BASE64_BYTES = 4 * 1024 * 1024;
+
 export async function handleGetScreenshot(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const nodeId = params.nodeId as string;
   if (!nodeId) throw new Error('nodeId is required');
@@ -38,21 +41,46 @@ export async function handleGetScreenshot(params: Record<string, unknown>): Prom
   if (!node) throw new Error(`Node not found: ${nodeId}`);
   if (!('exportAsync' in node)) throw new Error(`Node ${nodeId} cannot be exported`);
 
-  const scale = Math.min(Math.max((params.scale as number) || 1, 0.1), 3);
+  const requestedScale = Math.min(Math.max((params.scale as number) || 1, 0.1), 3);
+  const sceneNode = node as SceneNode;
 
-  const bytes = await (node as SceneNode).exportAsync({
-    format: 'PNG',
-    constraint: { type: 'SCALE', value: scale },
-  });
+  // Try progressively lower scales until under the size limit
+  const scales = [requestedScale, 0.75, 0.5, 0.35, 0.25];
+  // Also try JPG as last resort (much smaller for photos/complex designs)
+  const attempts: Array<{ scale: number; format: 'PNG' | 'JPG' }> = [
+    ...scales.map(s => ({ scale: s, format: 'PNG' as const })),
+    { scale: 0.5, format: 'JPG' as const },
+    { scale: 0.25, format: 'JPG' as const },
+  ];
 
-  const base64 = figma.base64Encode(bytes);
+  for (const { scale, format } of attempts) {
+    const bytes = await sceneNode.exportAsync({
+      format,
+      constraint: { type: 'SCALE', value: scale },
+    });
 
+    const base64 = figma.base64Encode(bytes);
+
+    if (base64.length <= MAX_BASE64_BYTES) {
+      return {
+        nodeId,
+        name: node.name,
+        width: sceneNode.width,
+        height: sceneNode.height,
+        scale,
+        format,
+        base64,
+      };
+    }
+  }
+
+  // All attempts exceeded limit — return metadata only, no image
   return {
     nodeId,
     name: node.name,
-    width: (node as SceneNode).width,
-    height: (node as SceneNode).height,
-    base64,
+    width: sceneNode.width,
+    height: sceneNode.height,
+    error: `Screenshot too large even at 0.25x JPG (node is ${Math.round(sceneNode.width)}×${Math.round(sceneNode.height)}). Use export_node_to_file instead.`,
   };
 }
 

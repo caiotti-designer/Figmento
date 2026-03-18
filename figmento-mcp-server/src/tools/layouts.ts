@@ -8,7 +8,7 @@ import * as yaml from 'js-yaml';
 // Path resolution — two-candidate fallback for ts-jest and esbuild
 // ─────────────────────────────────────────────────────────────
 
-function getLayoutsDir(): string {
+export function getLayoutsDir(): string {
   const oneUp = nodePath.join(__dirname, '..', 'knowledge', 'layouts');
   if (fs.existsSync(oneUp)) return oneUp;
   return nodePath.join(__dirname, '..', '..', 'knowledge', 'layouts');
@@ -50,7 +50,7 @@ export function scoreMoodMatch(blueprint: Blueprint, queryMoods: string[]): numb
   }, 0);
 }
 
-function resolveBlueprint(
+export function resolveBlueprint(
   layoutsDir: string,
   category: string,
   subcategory?: string,

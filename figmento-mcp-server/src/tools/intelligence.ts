@@ -22,6 +22,30 @@ function loadKnowledge(filename: string): Record<string, unknown> {
   return data;
 }
 
+/**
+ * Pre-warm the knowledge cache by eagerly loading the most commonly used YAML files.
+ * Called at server startup (fire-and-forget). Fault-tolerant — logs errors but never throws.
+ */
+export function preWarmKnowledgeCache(): void {
+  const filesToPreload = [
+    'size-presets.yaml',
+    'typography.yaml',
+    'color-system.yaml',
+    'layout.yaml',
+    'image-generation.yaml',
+  ];
+
+  for (const filename of filesToPreload) {
+    try {
+      loadKnowledge(filename);
+    } catch (err) {
+      console.error(`[Figmento MCP] Pre-warm cache: failed to load ${filename}: ${(err as Error).message}`);
+    }
+  }
+
+  console.error(`[Figmento MCP] Knowledge cache pre-warmed (${filesToPreload.length} files)`);
+}
+
 export const getSizePresetSchema = {
   platform: z.string().optional().describe('Platform filter: instagram, facebook, tiktok, youtube, linkedin, twitter, pinterest, snapchat'),
   category: z.string().optional().describe('Category filter: social, print, presentation, web'),

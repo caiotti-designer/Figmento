@@ -22,7 +22,7 @@ import type { ClaudeCodeTurnResult, ClaudeCodeTurnError } from './claude-code-ha
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════
 
-const CLAUDE_CODE_TIMEOUT_MS = 180_000;  // per-turn hard limit
+const CLAUDE_CODE_TIMEOUT_MS = 600_000;  // per-turn hard limit (10 min — complex designs need tool loops)
 const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10-min session idle teardown
 
 const MCP_SERVER_PATH = path.resolve(
@@ -81,12 +81,31 @@ class AsyncQueue<T> implements AsyncIterable<T> {
 // ═══════════════════════════════════════════════════════════════
 
 /** Construct the SDKUserMessage shape the SDK expects over the AsyncIterable path. */
-function makeUserMessage(text: string, sessionId = ''): SDKUserMessage {
+function makeUserMessage(text: string, sessionId = '', attachmentBase64?: string): SDKUserMessage {
+  const content: any[] = [];
+
+  // Include image attachment if provided (data URI → base64 content block)
+  if (attachmentBase64) {
+    const commaIdx = attachmentBase64.indexOf(',');
+    const meta = commaIdx > 0 ? attachmentBase64.slice(0, commaIdx) : '';
+    const base64Data = commaIdx > 0 ? attachmentBase64.slice(commaIdx + 1) : attachmentBase64;
+    // Extract MIME from "data:image/png;base64" prefix
+    const mimeMatch = meta.match(/data:([^;]+)/);
+    const mediaType = mimeMatch?.[1] || 'image/png';
+
+    content.push({
+      type: 'image',
+      source: { type: 'base64', media_type: mediaType, data: base64Data },
+    });
+  }
+
+  content.push({ type: 'text', text });
+
   return {
     type: 'user',
     message: {
       role: 'user',
-      content: [{ type: 'text', text }] as any,
+      content,
     },
     parent_tool_use_id: null,
     session_id: sessionId,
@@ -150,6 +169,7 @@ export class ClaudeCodeSessionManager {
     history: Array<{ role: string; content: string }>,
     memory: string[] | undefined,
     model?: string,
+    attachmentBase64?: string,
   ): Promise<ClaudeCodeTurnResult | ClaudeCodeTurnError> {
     let session = this.sessions.get(channel);
 
@@ -202,7 +222,7 @@ export class ClaudeCodeSessionManager {
     session.turnTimer = turnTimer;
 
     // Push the user message into the queue → SDK receives it → starts the turn
-    session.queue.push(makeUserMessage(message, session.lastSessionId));
+    session.queue.push(makeUserMessage(message, session.lastSessionId, attachmentBase64));
 
     console.log(
       `[Figmento Claude Code] Turn pushed channel=${channel} ` +

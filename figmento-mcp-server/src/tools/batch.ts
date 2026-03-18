@@ -7,7 +7,7 @@ type SendDesignCommand = (action: string, params: Record<string, unknown>, timeo
 // Chunking handles splitting before each WS round-trip, so this is just an input guard.
 const MAX_BATCH_COMMANDS = 50;
 
-const DEFAULT_CHUNK_SIZE = 15;
+const DEFAULT_CHUNK_SIZE = 22;
 
 // ─── BatchCommand type ──────────────────────────────────────────────────────
 
@@ -42,7 +42,7 @@ export const batchExecuteSchema = {
     tempId: z.string().optional().describe('Optional identifier for this command\'s result. Other commands can reference the created nodeId as "$tempId".'),
   })).describe(`Array of commands to execute sequentially. Max ${MAX_BATCH_COMMANDS}.`),
   chunkSize: z.number().int().min(1).max(50).optional().describe(`Number of commands per WS round-trip (default ${DEFAULT_CHUNK_SIZE}). Reduce for Railway relay; increase for localhost-only.`),
-  autoEvaluate: z.boolean().optional().describe('Auto-run refinement check + screenshot after batch. Default true. Skipped for batches < 5 commands or when no FRAME is created.'),
+  autoEvaluate: z.boolean().optional().describe('Auto-run refinement check + screenshot after batch. Default false — pass true on the final batch only. Skipped for batches < 5 commands or when no FRAME is created.'),
 };
 
 export const cloneWithOverridesSchema = {
@@ -257,7 +257,7 @@ Prefer this over sequential tool calls for any design with 3+ elements.`,
 
       const data = await runChunked(commands, chunkSize, sendDesignCommand);
 
-      const shouldEvaluate = params.autoEvaluate !== false
+      const shouldEvaluate = params.autoEvaluate === true
         && data.summary.total >= 5
         && data.createdNodeIds?.length > 0;
 

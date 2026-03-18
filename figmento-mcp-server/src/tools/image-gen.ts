@@ -2,9 +2,39 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import * as fs from 'fs';
 import * as nodePath from 'path';
+import * as yaml from 'js-yaml';
 import { GoogleGenAI } from '@google/genai';
 
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
+
+// ─── Image Generation Knowledge (lazy-loaded) ────────────────────────────────
+
+let imageGenKnowledge: Record<string, unknown> | null = null;
+
+function getImageGenKnowledge(): Record<string, unknown> {
+  if (imageGenKnowledge) return imageGenKnowledge;
+  try {
+    const knowledgeDir = nodePath.join(__dirname, '..', 'knowledge');
+    const filePath = nodePath.join(knowledgeDir, 'image-generation.yaml');
+    const content = fs.readFileSync(filePath, 'utf-8');
+    imageGenKnowledge = yaml.load(content) as Record<string, unknown>;
+  } catch {
+    imageGenKnowledge = {};
+  }
+  return imageGenKnowledge!;
+}
+
+function getResolutionForFormat(formatKey: string): string {
+  const knowledge = getImageGenKnowledge();
+  const map = knowledge['resolution_by_format'] as Record<string, string> | undefined;
+  return map?.[formatKey] ?? '1K';
+}
+
+function getAspectRatioForFormat(formatKey: string): string {
+  const knowledge = getImageGenKnowledge();
+  const map = knowledge['aspect_ratio_by_format'] as Record<string, string> | undefined;
+  return map?.[formatKey] ?? '1:1';
+}
 
 // ─── Composition Tables ────────────────────────────────────────────────────────
 
@@ -67,15 +97,76 @@ function buildGeminiPrompt(brief: string, mood?: string, textZone?: string): str
   return suffix ? `${base} ${suffix} Professional quality, suitable for social media or digital advertising.` : `${base} Professional quality, suitable for social media or digital advertising.`;
 }
 
+// ─── Reference Image Helpers ──────────────────────────────────────────────────
+
+const MIME_MAP: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+};
+
+interface ReferenceImage {
+  data: string;     // base64-encoded image data (no prefix)
+  mimeType: string; // e.g. "image/jpeg"
+}
+
+function loadReferenceImage(filePath: string): ReferenceImage | null {
+  try {
+    if (!fs.existsSync(filePath)) {
+      process.stderr.write(`[Figmento] Reference image not found: ${filePath}\n`);
+      return null;
+    }
+    const buffer = fs.readFileSync(filePath);
+    const ext = nodePath.extname(filePath).toLowerCase();
+    const mimeType = MIME_MAP[ext];
+    if (!mimeType) {
+      process.stderr.write(`[Figmento] Unsupported reference image format: ${ext}\n`);
+      return null;
+    }
+    return { data: buffer.toString('base64'), mimeType };
+  } catch (err) {
+    process.stderr.write(`[Figmento] Failed to read reference image: ${(err as Error).message}\n`);
+    return null;
+  }
+}
+
 // ─── Gemini API Call ───────────────────────────────────────────────────────────
 
-async function callGemini(prompt: string, apiKey: string): Promise<Buffer> {
+interface CallGeminiOptions {
+  aspectRatio?: string;
+  imageSize?: string;
+  referenceImages?: ReferenceImage[];
+}
+
+async function callGemini(
+  prompt: string,
+  apiKey: string,
+  options?: CallGeminiOptions,
+): Promise<Buffer> {
   const ai = new GoogleGenAI({ apiKey });
 
+  const imageConfig: Record<string, string> = {};
+  if (options?.aspectRatio) imageConfig.aspectRatio = options.aspectRatio;
+  if (options?.imageSize) imageConfig.imageSize = options.imageSize;
+
+  // Build contents: reference images (as inlineData parts) + text prompt
+  const parts: Array<Record<string, unknown>> = [];
+
+  if (options?.referenceImages?.length) {
+    for (const ref of options.referenceImages) {
+      parts.push({ inlineData: { mimeType: ref.mimeType, data: ref.data } });
+    }
+  }
+  parts.push({ text: prompt });
+
   const rawResponse = await ai.models.generateContent({
-    model: 'gemini-3-pro-image-preview',
-    contents: [{ parts: [{ text: prompt }] }],
-    config: { responseModalities: ['IMAGE'] },
+    model: 'gemini-3.1-flash-image-preview',
+    contents: [{ parts }],
+    config: {
+      responseModalities: ['IMAGE'],
+      ...(Object.keys(imageConfig).length > 0 ? { imageConfig } : {}),
+    },
   });
 
   // Handle both wrapped ({ response: ... }) and direct response shapes
@@ -86,8 +177,8 @@ async function callGemini(prompt: string, apiKey: string): Promise<Buffer> {
     throw new Error('No image generated: empty candidates in Gemini response');
   }
 
-  const parts = ((candidates[0] as Record<string, unknown>)['content'] as Record<string, unknown>)?.['parts'] as unknown[] ?? [];
-  const imagePart = parts.find((p) => (p as Record<string, unknown>)['inlineData']) as Record<string, unknown> | undefined;
+  const responseParts = ((candidates[0] as Record<string, unknown>)['content'] as Record<string, unknown>)?.['parts'] as unknown[] ?? [];
+  const imagePart = responseParts.find((p) => (p as Record<string, unknown>)['inlineData']) as Record<string, unknown> | undefined;
   const inlineData = imagePart?.['inlineData'] as Record<string, string> | undefined;
 
   if (!inlineData?.['data']) {
@@ -190,12 +281,129 @@ async function resolveFrame(
   return { frameId, width, height, isNewFrame: true };
 }
 
+// ─── Background Image Placement ──────────────────────────────────────────────
+// Fire-and-forget: generates image via Gemini, places in frame, reorders to back.
+// If skipPreview=false (default), does two-phase: 512px preview first, then high-res replacement.
+
+async function placeImageInBackground(
+  sendDesignCommand: SendDesignCommand,
+  frameId: string,
+  width: number,
+  height: number,
+  geminiPrompt: string,
+  apiKey: string,
+  aspectRatio: string,
+  imageSize: string,
+  brief: string,
+  skipPreview: boolean,
+  referenceImages?: ReferenceImage[],
+): Promise<void> {
+  const IMAGE_OUTPUT_DIR = process.env.IMAGE_OUTPUT_DIR ?? nodePath.join(process.cwd(), 'output');
+  fs.mkdirSync(IMAGE_OUTPUT_DIR, { recursive: true });
+
+  // Helper: place an image buffer in the frame and reorder to back
+  async function placeAndReorder(imageBase64: string, name: string): Promise<string> {
+    const imageResult = await sendDesignCommand('create_image', {
+      imageData: imageBase64,
+      name,
+      width,
+      height,
+      x: 0,
+      y: 0,
+      parentId: frameId,
+      scaleMode: 'FILL',
+    }) as Record<string, unknown>;
+
+    const nodeId = (imageResult['nodeId'] as string) ?? (imageResult['id'] as string);
+
+    // Reorder to index 0 (bottom-most layer, behind all other elements)
+    try {
+      await sendDesignCommand('reorder_child', { parentId: frameId, nodeId, index: 0 });
+    } catch {
+      // reorder_child may not be available — image still placed, just not at back
+      process.stderr.write('[Figmento] reorder_child failed — image may not be at bottom layer\n');
+    }
+
+    return nodeId;
+  }
+
+  // Helper: generate image and convert to base64
+  async function generateAndEncode(size: string): Promise<string> {
+    const imageBuffer = await callGemini(geminiPrompt, apiKey, { aspectRatio, imageSize: size, referenceImages: referenceImages?.length ? referenceImages : undefined });
+    const outPath = nodePath.join(IMAGE_OUTPUT_DIR, `figmento-generated-${Date.now()}.png`);
+    fs.writeFileSync(outPath, imageBuffer);
+    return `data:image/png;base64,${imageBuffer.toString('base64')}`;
+  }
+
+  // Helper: fallback to picsum placeholder
+  async function placeFallback(): Promise<void> {
+    try {
+      const fallbackBase64 = await fetchPlaceholderBase64(brief, width, height);
+      await placeAndReorder(fallbackBase64, 'Background Image (placeholder)');
+      process.stderr.write('[Figmento] Background: placeholder image placed\n');
+    } catch (err) {
+      process.stderr.write(`[Figmento] Background: placeholder also failed: ${(err as Error).message}\n`);
+    }
+  }
+
+  try {
+    if (skipPreview) {
+      // Single-phase: generate at target resolution directly
+      const imageBase64 = await generateAndEncode(imageSize);
+      await placeAndReorder(imageBase64, 'Background Image');
+      process.stderr.write(`[Figmento] Background: image placed at ${imageSize} resolution\n`);
+    } else {
+      // Two-phase: 512px preview first, then high-res replacement
+      // Phase A: Fast 512px preview (~1.2s)
+      let previewNodeId: string | null = null;
+      try {
+        const previewBase64 = await generateAndEncode('512');
+        previewNodeId = await placeAndReorder(previewBase64, 'Background Image (preview)');
+        process.stderr.write('[Figmento] Background: 512px preview placed\n');
+      } catch (previewErr) {
+        process.stderr.write(`[Figmento] Background: 512px preview failed: ${(previewErr as Error).message}\n`);
+        // Fall through to try high-res directly
+      }
+
+      // Phase B: High-res replacement
+      try {
+        const highResBase64 = await generateAndEncode(imageSize);
+
+        // Delete preview if it was placed
+        if (previewNodeId) {
+          try {
+            await sendDesignCommand('delete_node', { nodeId: previewNodeId });
+          } catch {
+            // Preview deletion failed — high-res will stack on top, acceptable
+          }
+        }
+
+        await placeAndReorder(highResBase64, 'Background Image');
+        process.stderr.write(`[Figmento] Background: high-res image placed at ${imageSize} resolution\n`);
+      } catch (highResErr) {
+        process.stderr.write(`[Figmento] Background: high-res failed: ${(highResErr as Error).message}\n`);
+        // If preview was placed, keep it (SP-5 AC4). If not, use placeholder.
+        if (!previewNodeId) {
+          await placeFallback();
+        }
+      }
+    }
+  } catch (err) {
+    process.stderr.write(`[Figmento] Background: image generation failed: ${(err as Error).message}\n`);
+    await placeFallback();
+  }
+}
+
 // ─── Tool Registration ─────────────────────────────────────────────────────────
 
 export function registerImageGenTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'generate_design_image',
-    'Generate a composition-aware background image with Gemini and place it directly in a Figma frame. Auto-resolves the target frame from the current Figma selection, or creates a new frame if a format is provided. Use this as the FIRST step in every design — before adding text, CTAs, or gradient overlays.',
+    `Generate a composition-aware background image with Gemini and place it in a Figma frame.
+Returns frameId IMMEDIATELY — image generation runs in the background (fire-and-forget).
+You can call batch_execute with the returned frameId right away while the image generates.
+By default, a fast 512px preview is placed first (~1.2s), then replaced with high-res (~3-5s).
+Use awaitImage=true to block until the image is fully placed (legacy sequential behavior).`,
     {
       brief: z.string().describe('Design brief describing the image subject and style (e.g. "hippie coffee shop warm earthy vintage")'),
       format: z.string().optional().describe('Format preset: instagram_portrait, story, tiktok, pinterest, instagram_square, facebook_post, hero, landing_hero, landscape, youtube_thumbnail, facebook_cover, twitter_header, linkedin_banner. Determines frame dimensions and default text zone.'),
@@ -203,9 +411,12 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
       textZone: z.string().optional().describe('Override composition text zone: bottom-40%, bottom-35%, bottom-30%, bottom-25%, or left-40%'),
       frameId: z.string().optional().describe('Target frame nodeId. If omitted, auto-resolved from current Figma selection or a new frame is created using the format dimensions.'),
       name: z.string().optional().describe('Frame name when a new frame is created. Defaults to the brief truncated to 40 characters.'),
+      referenceImagePath: z.string().optional().describe('Path to a reference image file (PNG, JPG, WEBP). The generated image will inherit the style, composition, and mood of this reference. Accepts absolute paths or paths within temp/imports/ or brand-assets/.'),
+      awaitImage: z.boolean().optional().describe('If true, block until image is fully generated and placed (legacy sequential mode). Default false — returns frameId immediately.'),
+      skipPreview: z.boolean().optional().describe('If true, skip the fast 512px preview and generate at target resolution directly. Default false — two-phase (preview + high-res).'),
     },
     async (params) => {
-      // AC5: fail fast if API key missing
+      // Fail fast if API key missing
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
         return {
@@ -234,64 +445,112 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
       const textZone = params.textZone ?? inferredTextZone;
 
       // Build composition-aware Gemini prompt
-      const geminiPrompt = buildGeminiPrompt(params.brief, params.mood, textZone);
+      const hasReference = !!params.referenceImagePath;
+      const promptPrefix = hasReference ? 'Generate an image inspired by this reference style: ' : '';
+      const geminiPrompt = promptPrefix + buildGeminiPrompt(params.brief, params.mood, textZone);
 
-      // Ensure IMAGE_OUTPUT_DIR exists (AC: Risk mitigation — missing output dir)
-      const IMAGE_OUTPUT_DIR = process.env.IMAGE_OUTPUT_DIR ?? nodePath.join(process.cwd(), 'output');
-      fs.mkdirSync(IMAGE_OUTPUT_DIR, { recursive: true });
-
-      // Generate image via Gemini, fallback to placeholder on any failure
-      let imageBase64: string;
-      let fallbackUsed = false;
-
-      try {
-        const imageBuffer = await callGemini(geminiPrompt, apiKey);
-        const outPath = nodePath.join(IMAGE_OUTPUT_DIR, `figmento-generated-${Date.now()}.png`);
-        fs.writeFileSync(outPath, imageBuffer);
-        imageBase64 = `data:image/png;base64,${imageBuffer.toString('base64')}`;
-      } catch (geminiErr) {
-        // AC6 + AC11: silent fallback — log to stderr, return fallbackUsed: true
-        process.stderr.write(`[Figmento] Gemini fallback triggered: ${(geminiErr as Error).message}\n`);
-        fallbackUsed = true;
-        try {
-          imageBase64 = await fetchPlaceholderBase64(params.brief, frame.width, frame.height);
-        } catch (fallbackErr) {
-          return {
-            content: [{
-              type: 'text' as const,
-              text: JSON.stringify({ error: `Image generation failed and placeholder fallback also failed: ${(fallbackErr as Error).message}` }),
-            }],
-            isError: true,
-          };
-        }
+      // Load reference image if provided (graceful fallback — null means text-only)
+      const referenceImages: ReferenceImage[] = [];
+      if (params.referenceImagePath) {
+        const ref = loadReferenceImage(params.referenceImagePath);
+        if (ref) referenceImages.push(ref);
       }
 
-      // Place image in the resolved frame
-      const imageResult = await sendDesignCommand('create_image', {
-        imageData: imageBase64,
-        name: 'Background Image',
-        width: frame.width,
-        height: frame.height,
-        x: 0,
-        y: 0,
-        parentId: frame.frameId,
-        scaleMode: 'FILL',
-      }) as Record<string, unknown>;
+      // Resolve format-aware image generation parameters
+      const imageSize = formatKey ? getResolutionForFormat(formatKey) : '1K';
+      const aspectRatio = formatKey ? getAspectRatioForFormat(formatKey) : '1:1';
+      const skipPreview = params.skipPreview ?? false;
 
-      const imageNodeId = (imageResult['nodeId'] as string) ?? (imageResult['id'] as string);
+      if (params.awaitImage) {
+        // ─── Legacy sequential mode: block until image is placed ───
+        const IMAGE_OUTPUT_DIR = process.env.IMAGE_OUTPUT_DIR ?? nodePath.join(process.cwd(), 'output');
+        fs.mkdirSync(IMAGE_OUTPUT_DIR, { recursive: true });
+
+        let imageBase64: string;
+        let fallbackUsed = false;
+
+        try {
+          const imageBuffer = await callGemini(geminiPrompt, apiKey, { aspectRatio, imageSize, referenceImages: referenceImages.length > 0 ? referenceImages : undefined });
+          const outPath = nodePath.join(IMAGE_OUTPUT_DIR, `figmento-generated-${Date.now()}.png`);
+          fs.writeFileSync(outPath, imageBuffer);
+          imageBase64 = `data:image/png;base64,${imageBuffer.toString('base64')}`;
+        } catch (geminiErr) {
+          process.stderr.write(`[Figmento] Gemini fallback triggered: ${(geminiErr as Error).message}\n`);
+          fallbackUsed = true;
+          try {
+            imageBase64 = await fetchPlaceholderBase64(params.brief, frame.width, frame.height);
+          } catch (fallbackErr) {
+            return {
+              content: [{
+                type: 'text' as const,
+                text: JSON.stringify({ error: `Image generation failed and placeholder fallback also failed: ${(fallbackErr as Error).message}` }),
+              }],
+              isError: true,
+            };
+          }
+        }
+
+        const imageResult = await sendDesignCommand('create_image', {
+          imageData: imageBase64,
+          name: 'Background Image',
+          width: frame.width,
+          height: frame.height,
+          x: 0,
+          y: 0,
+          parentId: frame.frameId,
+          scaleMode: 'FILL',
+        }) as Record<string, unknown>;
+
+        const imageNodeId = (imageResult['nodeId'] as string) ?? (imageResult['id'] as string);
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              frameId: frame.frameId,
+              imageNodeId,
+              width: frame.width,
+              height: frame.height,
+              isNewFrame: frame.isNewFrame,
+              textZone,
+              geminiPrompt,
+              fallbackUsed,
+              imageStatus: 'placed' as const,
+            }),
+          }],
+        };
+      }
+
+      // ─── Async mode (default): return frameId immediately, image in background ───
+
+      // Fire-and-forget: image generation + placement runs in background
+      placeImageInBackground(
+        sendDesignCommand,
+        frame.frameId,
+        frame.width,
+        frame.height,
+        geminiPrompt,
+        apiKey,
+        aspectRatio,
+        imageSize,
+        params.brief,
+        skipPreview,
+        referenceImages.length > 0 ? referenceImages : undefined,
+      ).catch((err) => {
+        process.stderr.write(`[Figmento] Background image placement error: ${(err as Error).message}\n`);
+      });
 
       return {
         content: [{
           type: 'text' as const,
           text: JSON.stringify({
             frameId: frame.frameId,
-            imageNodeId,
             width: frame.width,
             height: frame.height,
             isNewFrame: frame.isNewFrame,
             textZone,
             geminiPrompt,
-            fallbackUsed,
+            imageStatus: 'generating' as const,
           }),
         }],
       };
