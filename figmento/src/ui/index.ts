@@ -1,5 +1,6 @@
 // Main entry point for the plugin UI
 // Wires together all modules and initializes the application
+// CU-6: Removed legacy tool flows (text-layout, template, presentation, hero-generator, ad-analyzer mode UI)
 
 import { initDomRefs, dom, screenshotState } from './state';
 import { postMessage, cleanupAllListeners } from './utils';
@@ -27,39 +28,14 @@ import {
   startProcessing,
   cancelProcessing,
   resetToStart,
-  goBackToHome,
   handleKeyboardShortcuts,
   setAspectRatio,
   updateProgress,
-  setResetTemplateFillCallback,
-  setCanLeaveAdAnalyzerCallback,
   toggleCompare,
   submitFeedback,
   resolveScreenshotCommand,
 } from './screenshot';
-import { resolveTextLayoutCommand } from './text-layout';
-import {
-  initModeUI,
-  initModeSelector,
-  selectPluginMode,
-  setupModeListeners,
-  setupTextFlowScrollSpy,
-  getSavedMode,
-} from './text-layout';
-import { initTemplateFillUI, handleTemplateScanResult, handleTemplateApplyResult, resetTemplateFill } from './template';
-import {
-  initPresentationFlowUI,
-  setupPresentationFlowListeners,
-  setupAddSlideListeners,
-  setupPresFontAutocomplete,
-  setupPresentationScrollSpy,
-  handleSlideStyleResult,
-  handleAddSlideComplete,
-  handleAddSlideError,
-  resolvePresentationCommand,
-} from './presentation';
 import { initMessageHandler } from './messages';
-import { initHeroUI, setupHeroListeners } from './hero-generator';
 import { AIProvider } from '../types';
 import { apiState, imageGenState } from './state';
 import { addToQueue, startBatchProcessing, clearQueue, notifyDesignCreated } from './batch';
@@ -67,7 +43,6 @@ import { initChat, resolveChatCommand, loadMemoryEntries, getChatSettings } from
 import { initBridge, handleBridgeCommandResult, autoConnectBridge } from './bridge';
 import { initChatSettings, loadChatSettings } from './chat-settings';
 import { initPreferencesPanel, reloadPreferencesPanel } from './preferences-panel';
-import { initAdAnalyzer, canLeaveAdAnalyzer } from './ad-analyzer';
 
 function setupEventListeners(): void {
   // Settings panel
@@ -118,7 +93,7 @@ function setupEventListeners(): void {
     });
   }
 
-  // Drop zone events
+  // Drop zone events (kept for screenshot flow reuse)
   if (dom.dropZone) {
     dom.dropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
@@ -167,7 +142,7 @@ function setupEventListeners(): void {
     });
   }
 
-  // Navigation
+  // Navigation (screenshot flow steps — kept for crop modal reuse)
   if (dom.nextToCropBtn) {
     dom.nextToCropBtn.addEventListener('click', () => goToStep(2));
   }
@@ -197,20 +172,6 @@ function setupEventListeners(): void {
   }
   if (dom.feedbackBadBtn) {
     dom.feedbackBadBtn.addEventListener('click', () => submitFeedback('bad'));
-  }
-
-  // Navigation buttons
-  if (dom.backToHomeBtn) {
-    dom.backToHomeBtn.addEventListener('click', goBackToHome);
-  }
-  if (dom.breadcrumbBack) {
-    dom.breadcrumbBack.addEventListener('click', goBackToHome);
-  }
-  if (dom.breadcrumbHome) {
-    dom.breadcrumbHome.addEventListener('click', goBackToHome);
-  }
-  if (dom.logoBtn) {
-    dom.logoBtn.addEventListener('click', goBackToHome);
   }
 
   // Aspect ratio buttons
@@ -297,21 +258,18 @@ function setupEventListeners(): void {
       }
     },
     onApiKeysLoaded: onApiKeysLoaded,
-    onTemplateScanResult: handleTemplateScanResult,
-    onTemplateApplyResult: handleTemplateApplyResult,
-    onSlideStyleResult: handleSlideStyleResult,
-    onAddSlideComplete: handleAddSlideComplete,
-    onAddSlideError: handleAddSlideError,
+    // CU-6: Removed template/presentation/slide handlers
+    onTemplateScanResult: () => {},
+    onTemplateApplyResult: () => {},
+    onSlideStyleResult: () => {},
+    onAddSlideComplete: () => {},
+    onAddSlideError: () => {},
     onCommandResult: (response: Record<string, unknown>) => {
       const cmdId = response.id as string;
       if (cmdId && cmdId.startsWith('chat-')) {
         resolveChatCommand(cmdId, !!response.success, (response.data || {}) as Record<string, unknown>, response.error as string | undefined);
       } else if (cmdId && cmdId.startsWith('screenshot-')) {
         resolveScreenshotCommand(cmdId, !!response.success, (response.data || {}) as Record<string, unknown>, response.error as string | undefined);
-      } else if (cmdId && cmdId.startsWith('text-layout-')) {
-        resolveTextLayoutCommand(cmdId, !!response.success, (response.data || {}) as Record<string, unknown>, response.error as string | undefined);
-      } else if (cmdId && cmdId.startsWith('presentation-')) {
-        resolvePresentationCommand(cmdId, !!response.success, (response.data || {}) as Record<string, unknown>, response.error as string | undefined);
       } else {
         handleBridgeCommandResult(response);
       }
@@ -358,56 +316,19 @@ function initializeApp(): void {
   updateImageGenVisibility();
   updateModelDropdownVisibility();
 
-  // 5. Initialize mode-specific UI
-  initModeUI();
-  initModeSelector();
-  setupModeListeners();
-  setupTextFlowScrollSpy();
+  // CU-6: Steps 5-9 removed (mode UI, template fill, presentation, hero generator, ad analyzer)
 
-  // 6. Initialize template fill
-  initTemplateFillUI();
-
-  // 7. Initialize presentation
-  initPresentationFlowUI();
-  setupPresentationFlowListeners();
-  setupAddSlideListeners();
-  setupPresFontAutocomplete();
-  setupPresentationScrollSpy();
-
-  // 8. Initialize hero generator
-  initHeroUI();
-  setupHeroListeners();
-
-  // 9. Wire cross-module callbacks
-  setResetTemplateFillCallback(resetTemplateFill);
-  setCanLeaveAdAnalyzerCallback(canLeaveAdAnalyzer);
-
-  // 9b. Initialize ad analyzer
-  initAdAnalyzer();
-
-  // 10. Initialize unified tabs (Chat, Modes, Bridge, Settings)
+  // 10. Initialize unified tabs (Chat, Settings)
   initUnifiedTabs();
   initChat();
   initBridge();
   initChatSettings();
   initPreferencesPanel();
 
-  // 11. Restore saved mode or show mode selector
-  const savedMode = getSavedMode();
-  if (savedMode) {
-    selectPluginMode(savedMode);
-  } else {
-    const modeSelectorEl = document.getElementById('modeSelector');
-    if (modeSelectorEl) modeSelectorEl.classList.remove('hidden');
-  }
-
-  // 12. Focus drop zone for paste
-  setTimeout(() => {
-    dom.dropZone?.focus();
-  }, 100);
+  // CU-6: Steps 11-12 removed (saved mode restore, drop zone focus)
 }
 
-/** Initialize the unified 4-tab layout (Chat, Modes, Bridge, Settings). */
+/** Initialize the unified tab layout. */
 function initUnifiedTabs() {
   document.querySelectorAll('.unified-tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
