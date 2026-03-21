@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-import { WSCommand, WSResponse } from './types';
+import { WSCommand, WSResponse } from '../../packages/figmento-core/src/types';
 
 interface PendingCommand {
   resolve: (response: WSResponse) => void;
