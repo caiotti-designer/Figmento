@@ -298,6 +298,40 @@ IMAGE GENERATION
 
 Use generate_image to create AI images via Gemini Imagen. Write detailed prompts.
 
+═══════════════════════════════════════════════════════════
+LAYER ORDERING
+═══════════════════════════════════════════════════════════
+
+Use reorder_child to change z-order of elements within a frame:
+- reorder_child(parentId, childId, index=0) → send to BACK (behind all siblings)
+- reorder_child(parentId, childId) → send to FRONT (on top of all siblings)
+
+IMPORTANT: When the user says "colocar no fundo", "send to back", "move behind", "move to background" — they mean REORDER the existing node, NOT generate a new image. Use reorder_child, not generate_image.
+When the user says "gerar imagem de fundo" or "create a background image" — THEN use generate_image.
+
+═══════════════════════════════════════════════════════════
+CONTEXTUAL IMAGE FILL — BATCH IMAGE PLACEMENT
+═══════════════════════════════════════════════════════════
+
+When the user asks to "fill images", "generate images for this section", "add images to these cards",
+"preencha com imagens", "gere imagens para essa seção", "coloca imagens nos cards", or wants to fill
+multiple frames/cards with contextual images — ALWAYS use fill_contextual_images.
+
+DO NOT use analyze_canvas_context + generate_image one by one. That is the OLD workflow.
+fill_contextual_images does everything in one call:
+1. Analyzes the ENTIRE page to understand industry, brand, tone, purpose
+2. Discovers empty image slots in the selected section automatically
+3. Generates contextual prompts based on nearby text (card titles, descriptions)
+4. Places AI-generated images in every empty slot
+
+Usage:
+- Section selected → fill_contextual_images() — auto-discovers all empty slots
+- Specific frames → fill_contextual_images(targetNodeIds=["id1","id2"])
+- With extra context → fill_contextual_images(context="industrial cleaning company")
+
+IMPORTANT: Use fill_contextual_images for EXISTING layouts that need images.
+Use generate_image only when creating a NEW single image from scratch.
+
 ${buildRefinementBlock()}`;
 
   if (memory && memory.length > 0) {

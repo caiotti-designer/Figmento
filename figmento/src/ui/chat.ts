@@ -1047,8 +1047,9 @@ export function initChat() {
       return;
     }
 
-    // Escape → dismiss layers (quick action → design drawer → settings → dropdowns)
+    // Escape → cancel chat (if processing) → dismiss layers (quick action → design drawer → settings → dropdowns)
     if (e.key === 'Escape') {
+      if (isProcessing && chatAbortController) { cancelChat(); return; }
       if (activeQuickAction) { dismissQuickActionCard(); return; }
       const designDrawer = document.getElementById('design-drawer');
       if (designDrawer?.classList.contains('open')) { closeDesignDrawer(); return; }
@@ -1683,6 +1684,18 @@ function appendToolAction(name: string, summary: string, isError: boolean = fals
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+// ── Chat cancellation (ESC key) ──
+let chatAbortController: AbortController | null = null;
+
+function cancelChat() {
+  if (chatAbortController) {
+    chatAbortController.abort();
+    chatAbortController = null;
+  }
+  setProcessing(false);
+  appendChatBubble('assistant', '<span class="chat-error">Cancelled.</span>');
+}
+
 function setProcessing(processing: boolean) {
   isProcessing = processing;
   ($('chat-send') as HTMLButtonElement).disabled = processing;
@@ -1760,6 +1773,7 @@ async function sendMessage() {
   currentBrief = detectBrief(text);
 
   setProcessing(true);
+  chatAbortController = new AbortController();
 
   // LC-8: Auto-detect corrections before each AI turn (fire-and-forget)
   if (autoDetectEnabled) {
@@ -1793,9 +1807,14 @@ async function sendMessage() {
       await runDirectLoop(text, useGemini, useOpenAI, capturedAttachment);
     }
   } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      // User cancelled — already handled by cancelChat()
+      return;
+    }
     const msg = err instanceof Error ? err.message : 'Unknown error';
     appendChatBubble('assistant', `<span class="chat-error">Error: ${escapeHtml(msg)}</span>`);
   } finally {
+    chatAbortController = null;
     setProcessing(false);
   }
 }
@@ -1871,6 +1890,7 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: chatAbortController?.signal,
   });
 
   if (!resp.ok) {
@@ -2174,55 +2194,93 @@ function formatToolSummary(name: string, data: Record<string, unknown>): string 
 // SPECIAL TOOL HANDLERS
 // ═══════════════════════════════════════════════════════════════
 
+// CX-5: Recursive helpers for deep context extraction
+function extractTextsFromTree(node: Record<string, unknown>, results: Array<{ text: string; fontSize: number; fontFamily?: string; y: number; x: number }> = []) {
+  if (node.type === 'TEXT' && node.characters) {
+    results.push({
+      text: (node.characters as string).slice(0, 200),
+      fontSize: (node.fontSize as number) || 0,
+      fontFamily: node.fontFamily as string | undefined,
+      y: (node.y as number) ?? 0,
+      x: (node.x as number) ?? 0,
+    });
+  }
+  const children = (node.children as Array<Record<string, unknown>>) || [];
+  for (const child of children) extractTextsFromTree(child, results);
+  return results;
+}
+
+function extractColorsFromTree(node: Record<string, unknown>, colorSet: Set<string> = new Set()) {
+  const fills = (node.fills as Array<Record<string, unknown>>) || [];
+  for (const f of fills) {
+    if (f.type === 'SOLID' && f.color) colorSet.add(f.color as string);
+  }
+  const children = (node.children as Array<Record<string, unknown>>) || [];
+  for (const child of children) extractColorsFromTree(child, colorSet);
+  return colorSet;
+}
+
 async function executeAnalyzeCanvasContext(args: Record<string, unknown>): Promise<ToolCallResult> {
   appendToolAction('analyze_canvas_context', 'Analyzing canvas...');
   try {
-    let nodeId = args.nodeId as string | undefined;
+    // Step 1: Resolve target nodeIds (arg → selection → first page frame)
+    let nodeIds: string[] = [];
 
-    if (!nodeId) {
-      const selection = await sendCommandToSandbox('get_selection', {});
-      const selNodes = (selection.nodes as Array<Record<string, unknown>>) || [];
-      if (selNodes.length > 0) nodeId = selNodes[0].nodeId as string;
+    if (args.nodeId) {
+      nodeIds = [args.nodeId as string];
     }
 
-    if (!nodeId) {
+    if (nodeIds.length === 0) {
+      const selection = await sendCommandToSandbox('get_selection', {});
+      const selNodes = (selection.nodes as Array<Record<string, unknown>>) || [];
+      const frames = selNodes.filter(n => n.type === 'FRAME');
+      nodeIds = (frames.length > 0 ? frames : selNodes).map(n => n.nodeId as string).slice(0, 5);
+    }
+
+    if (nodeIds.length === 0) {
       const pageResult = await sendCommandToSandbox('get_page_nodes', {});
       const pageNodes = (pageResult.nodes as Array<Record<string, unknown>>) || [];
       const firstFrame = pageNodes.find((n: Record<string, unknown>) => n.type === 'FRAME') || pageNodes[0];
-      if (firstFrame) nodeId = firstFrame.nodeId as string;
+      if (firstFrame) nodeIds = [firstFrame.nodeId as string];
     }
 
-    if (!nodeId) {
+    if (nodeIds.length === 0) {
       appendToolAction('analyze_canvas_context', 'No frames found on canvas', true);
       return { content: 'No frames found on the canvas to analyze.', is_error: true };
     }
 
-    const nodeInfo = await sendCommandToSandbox('get_node_info', { nodeId });
+    // Step 2: Get deep node tree (depth=4) for all frames
+    const contexts = [];
+    for (const id of nodeIds) {
+      const nodeInfo = await sendCommandToSandbox('get_node_info', { nodeId: id, depth: 4 });
 
-    const fills = (nodeInfo.fills as Array<Record<string, unknown>>) || [];
-    const dominantColors = fills
-      .filter(f => f.type === 'SOLID' && f.color)
-      .map(f => f.color as string)
-      .slice(0, 4);
+      // Recursive text extraction, sorted by position, capped at 30
+      const allTexts = extractTextsFromTree(nodeInfo);
+      allTexts.sort((a, b) => a.y - b.y || a.x - b.x);
+      const texts = allTexts.slice(0, 30).map(t => ({
+        text: t.text,
+        fontSize: t.fontSize,
+        font: t.fontFamily || undefined,
+      }));
 
-    const children = (nodeInfo.children as Array<Record<string, unknown>>) || [];
-    const textContent = children
-      .filter(c => c.type === 'TEXT' && c.characters)
-      .map(c => c.characters as string)
-      .slice(0, 6);
+      // Recursive color extraction, deduplicated, capped at 8
+      const colorSet = extractColorsFromTree(nodeInfo);
+      const colors = [...colorSet].slice(0, 8);
 
-    const context = {
-      nodeId,
-      name: nodeInfo.name || 'frame',
-      dimensions: `${nodeInfo.width ?? '?'}x${nodeInfo.height ?? '?'}`,
-      dominantColors,
-      textContent,
-      childCount: children.length,
-      note: 'Use the colors and text above to infer the design mood and style for image generation.',
-    };
+      contexts.push({
+        nodeId: id,
+        name: nodeInfo.name || 'frame',
+        dimensions: `${nodeInfo.width ?? '?'}x${nodeInfo.height ?? '?'}`,
+        colors,
+        texts,
+        note: 'Use the texts, colors, and structure above to understand the full page content and design context.',
+      });
 
-    appendToolAction('analyze_canvas_context', `Analyzed "${context.name}" — ${dominantColors.length} colors, ${textContent.length} text elements`);
-    return { content: JSON.stringify(context), is_error: false };
+      appendToolAction('analyze_canvas_context', `Analyzed "${nodeInfo.name || id}" — ${colors.length} colors, ${texts.length} text elements`);
+    }
+
+    const content = JSON.stringify(contexts.length === 1 ? contexts[0] : contexts);
+    return { content, is_error: false };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     appendToolAction('analyze_canvas_context', msg, true);

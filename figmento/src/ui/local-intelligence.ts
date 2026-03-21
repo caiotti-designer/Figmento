@@ -9,6 +9,7 @@ import {
   FONT_PAIRINGS,
   SIZE_PRESETS,
   BLUEPRINTS,
+  DESIGN_RULES,
 } from '../knowledge/compiled-knowledge';
 
 // ── Blueprint Lookup ──
@@ -113,9 +114,59 @@ export function lookupSize(args: Record<string, unknown>): unknown {
 
 // ── Tool Router ──
 
+// ── WCAG Contrast Check (pure math) ──
+
+function relativeLuminance(hex: string): number {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  const toLinear = (c: number) => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
+function contrastCheck(args: Record<string, unknown>): unknown {
+  const fg = String(args.foreground || '#000000');
+  const bg = String(args.background || '#FFFFFF');
+  const fgLum = relativeLuminance(fg);
+  const bgLum = relativeLuminance(bg);
+  const lighter = Math.max(fgLum, bgLum);
+  const darker = Math.min(fgLum, bgLum);
+  const ratio = Math.round(((lighter + 0.05) / (darker + 0.05)) * 100) / 100;
+  return {
+    foreground: fg, background: bg, ratio,
+    AA_normal_text: ratio >= 4.5, AA_large_text: ratio >= 3,
+    AAA_normal_text: ratio >= 7, AAA_large_text: ratio >= 4.5,
+  };
+}
+
+// ── Design Rules Lookup ──
+
+function lookupDesignRules(args: Record<string, unknown>): unknown {
+  const cat = String(args.category || 'all').toLowerCase().replace(/-/g, '_');
+  if (!DESIGN_RULES || Object.keys(DESIGN_RULES).length === 0) {
+    return { error: 'Design rules not available.' };
+  }
+  if (cat === 'all') return DESIGN_RULES;
+  const keyMap: Record<string, string> = {
+    anti_patterns: 'anti_patterns', antipatterns: 'anti_patterns',
+    gradients: 'gradients', taste: 'taste', typography: 'typography',
+    layout: 'layout', color: 'color', print: 'print',
+    evaluation: 'evaluation', refinement: 'refinement',
+  };
+  const key = keyMap[cat] || cat;
+  const result = (DESIGN_RULES as Record<string, unknown>)[key];
+  if (!result) {
+    return { error: `Unknown category "${args.category}". Available: ${Object.keys(DESIGN_RULES).join(', ')}` };
+  }
+  return result;
+}
+
 export const LOCAL_TOOL_HANDLERS: Record<string, (args: Record<string, unknown>) => unknown> = {
   get_layout_blueprint: lookupBlueprint,
   get_color_palette: lookupPalette,
   get_font_pairing: lookupFonts,
   get_size_preset: lookupSize,
+  get_contrast_check: contrastCheck,
+  get_design_rules: lookupDesignRules,
 };

@@ -337,6 +337,12 @@ function compileRefinementChecks(): string {
   return JSON.stringify(checks, null, 2);
 }
 
+function compileDesignRules(): string {
+  const data = readYaml('design-rules.yaml') as Record<string, unknown> | null;
+  if (!data) return '{}';
+  return JSON.stringify(data, null, 2);
+}
+
 // --- Main ---
 
 function main() {
@@ -363,6 +369,7 @@ function main() {
   const patterns = compilePatterns();
   const compositionRules = compileCompositionRules();
   const refinementChecks = compileRefinementChecks();
+  const designRules = compileDesignRules();
 
   // Compute version hash across all source YAML files
   const allYamlPaths = collectAllYamlPaths();
@@ -402,6 +409,8 @@ export const PATTERNS: Record<string, PatternRecipe> = ${patterns} as Record<str
 export const COMPOSITION_RULES: CompositionRules = ${compositionRules} as CompositionRules;
 
 export const REFINEMENT_CHECKS: RefinementCheck[] = ${refinementChecks} as RefinementCheck[];
+
+export const DESIGN_RULES: Record<string, unknown> = ${designRules};
 
 export const KNOWLEDGE_VERSION: string = "${versionHash}";
 `;

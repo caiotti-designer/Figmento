@@ -56,15 +56,7 @@ const cornerRadiusSchema = {
 /** Tools never sent in chat mode — MCP-only or irrelevant for iterative chat. */
 const CHAT_EXCLUDED = new Set([
   'export_node',
-  'get_screenshot',
-  'run_refinement_check',
   'create_design',
-  'read_figma_context',
-  'bind_variable',
-  'apply_paint_style',
-  'apply_text_style',
-  'apply_effect_style',
-  'create_figma_variables',
 ]);
 
 /** Lookup tools — needed in plan phase, removed once design starts. */
@@ -86,12 +78,14 @@ const BUILD_PHASE_TRIGGERS = new Set([
   'set_auto_layout',
 ]);
 
-/** Plan phase: lookups + basic creation + scene queries (~14 tools). */
+/** Plan phase: lookups + basic creation + scene queries. */
 const PLAN_PHASE_TOOLS = new Set([
   // Lookups
   'get_layout_blueprint', 'get_color_palette', 'get_font_pairing', 'get_size_preset',
+  'get_contrast_check', 'get_design_rules',
   // Scene queries
   'get_selection', 'get_page_nodes', 'get_node_info', 'analyze_canvas_context',
+  'scan_frame_structure', 'get_screenshot', 'read_figma_context',
   // Basic creation
   'create_frame', 'create_text', 'create_rectangle', 'create_ellipse',
   // Essential styling
@@ -100,18 +94,24 @@ const PLAN_PHASE_TOOLS = new Set([
   'create_image', 'generate_image', 'update_memory',
 ]);
 
-/** Build phase: creation + styling + scene management (~17 tools). */
+/** Build phase: creation + styling + scene management. */
 const BUILD_PHASE_TOOLS = new Set([
   // Creation
   'create_frame', 'create_text', 'create_rectangle', 'create_ellipse', 'create_image',
+  'create_icon',
   // Styling
   'set_fill', 'set_stroke', 'set_effects', 'set_corner_radius', 'set_opacity', 'set_auto_layout',
   // Scene management
-  'move_node', 'resize_node', 'append_child', 'clone_node', 'delete_node',
+  'move_node', 'resize_node', 'append_child', 'reorder_child', 'clone_node', 'delete_node',
   // Inspection
-  'get_node_info',
+  'get_node_info', 'get_screenshot', 'scan_frame_structure',
   // Image + utility
   'generate_image', 'update_memory',
+  // Quality
+  'run_refinement_check',
+  // Figma native (variables, styles)
+  'read_figma_context', 'bind_variable', 'apply_paint_style', 'apply_text_style', 'apply_effect_style',
+  'create_figma_variables',
 ]);
 
 export interface ToolResolverContext {

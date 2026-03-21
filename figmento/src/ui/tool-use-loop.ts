@@ -144,16 +144,26 @@ function sleep(ms: number): Promise<void> {
  */
 const TOOL_RESULT_MAX_CHARS = 300;
 
-function truncateForHistory(content: string): string {
-  if (content.length <= TOOL_RESULT_MAX_CHARS) return content;
+/** Tools whose results carry context the model MUST see in full. */
+const CONTEXT_TOOLS = new Set([
+  'analyze_canvas_context',
+  'get_node_info',
+  'scan_frame_structure',
+  'get_page_nodes',
+]);
+
+function truncateForHistory(content: string, toolName?: string): string {
+  // Context-critical tools get a much higher budget (4KB)
+  const limit = toolName && CONTEXT_TOOLS.has(toolName) ? 4000 : TOOL_RESULT_MAX_CHARS;
+  if (content.length <= limit) return content;
 
   // Try to parse as JSON and keep only essential fields
   try {
     const parsed = JSON.parse(content);
     if (typeof parsed === 'object' && parsed !== null) {
       const slim: Record<string, unknown> = {};
-      // Keep essential identifiers
-      for (const key of ['nodeId', 'name', 'id', 'error', 'note', 'count', 'success', 'saved', 'width', 'height']) {
+      // Keep essential identifiers + context fields
+      for (const key of ['nodeId', 'name', 'id', 'error', 'note', 'count', 'success', 'saved', 'width', 'height', 'texts', 'colors', 'structure', 'dimensions', 'images']) {
         if (key in parsed) slim[key] = parsed[key];
       }
       // For arrays (e.g. batch_execute results, get_page_nodes), keep count + first item
@@ -166,13 +176,17 @@ function truncateForHistory(content: string): string {
       }
       // If we extracted anything useful, return the slim version
       if (Object.keys(slim).length > 0) {
+        const slimStr = JSON.stringify(slim);
+        if (slimStr.length <= limit) return slimStr;
+        // Still too big — drop structure, keep texts/colors
+        delete slim.structure;
         slim.note = 'Result truncated for history';
-        return JSON.stringify(slim);
+        return JSON.stringify(slim).slice(0, limit);
       }
     }
   } catch { /* not JSON, fall through to simple truncation */ }
 
-  return content.slice(0, TOOL_RESULT_MAX_CHARS - 3) + '...';
+  return content.slice(0, limit - 3) + '...';
 }
 
 /** Replace a screenshot/export result with a compact, token-efficient summary. */
@@ -484,9 +498,17 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
         toolCallCount++;
         toolsUsed.add(name);
 
-        const result = await onToolCall(name, args);
+        let result: ToolCallResult;
+        try {
+          result = await onToolCall(name, args);
+        } catch (err) {
+          result = {
+            content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
+            is_error: true,
+          };
+        }
 
-        const trimmed = truncateForHistory(result.content);
+        const trimmed = truncateForHistory(result.content, name);
         let cleanedResponse: Record<string, unknown>;
         if (result.is_error) {
           cleanedResponse = { error: trimmed };
@@ -547,8 +569,16 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
         toolCallCount++;
         toolsUsed.add(fnName);
 
-        const result = await onToolCall(fnName, args);
-        const trimmed = truncateForHistory(result.content);
+        let result: ToolCallResult;
+        try {
+          result = await onToolCall(fnName, args);
+        } catch (err) {
+          result = {
+            content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
+            is_error: true,
+          };
+        }
+        const trimmed = truncateForHistory(result.content, fnName);
         history.push({
           role: 'tool',
           tool_call_id: tc.id as string,
@@ -592,11 +622,20 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
         toolCallCount++;
         toolsUsed.add(toolUse.name!);
 
-        const result = await onToolCall(toolUse.name!, toolUse.input || {});
+        let result: ToolCallResult;
+        try {
+          result = await onToolCall(toolUse.name!, toolUse.input || {});
+        } catch (err) {
+          // Always produce a tool_result — an orphaned tool_use breaks the API protocol
+          result = {
+            content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
+            is_error: true,
+          };
+        }
         toolResults.push({
           type: 'tool_result',
           tool_use_id: toolUse.id,
-          content: truncateForHistory(result.content),
+          content: truncateForHistory(result.content, toolUse.name!),
           ...(result.is_error && { is_error: true }),
         });
       }

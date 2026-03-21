@@ -489,6 +489,17 @@ You have a generate_image tool that creates AI images via Gemini Imagen. Use it 
 
 Place generated images as background fills or content elements within the design hierarchy.
 
+═══════════════════════════════════════════════════════════
+LAYER ORDERING
+═══════════════════════════════════════════════════════════
+
+Use reorder_child to change z-order of elements within a frame:
+- reorder_child(parentId, childId, index=0) → send to BACK (behind all siblings)
+- reorder_child(parentId, childId) → send to FRONT (on top of all siblings)
+
+IMPORTANT: When the user says "colocar no fundo", "send to back", "move behind", "move to background" — they mean REORDER the existing node, NOT generate a new image. Use reorder_child, not generate_image.
+When the user says "gerar imagem de fundo" or "create a background image" — THEN use generate_image.
+
 ${buildRefinementBlock()}`;
 
   // ── Memory entries ──

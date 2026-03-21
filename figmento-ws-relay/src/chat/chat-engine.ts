@@ -117,6 +117,10 @@ interface DesignSession {
   height: number;
   layerSummary: string;
   updatedAt: number;
+  /** CX-6: Cached rich selection context string. */
+  richContext?: string;
+  /** CX-6: Hash of selection IDs that produced richContext. */
+  selectionHash?: string;
 }
 
 /** Per-channel session cache. Keyed by channelId. */
@@ -360,8 +364,18 @@ function summarizeScreenshotResult(toolName: string, data: Record<string, unknow
 
 const TOOL_RESULT_MAX_CHARS = 300;
 
-function truncateForHistory(content: string): string {
-  if (content.length <= TOOL_RESULT_MAX_CHARS) return content;
+/** Tools whose results carry context the model MUST see in full. Never truncate these. */
+const CONTEXT_TOOLS = new Set([
+  'analyze_canvas_context',
+  'get_node_info',
+  'scan_frame_structure',
+  'get_page_nodes',
+]);
+
+function truncateForHistory(content: string, toolName?: string): string {
+  // Context-critical tools get a much higher budget (4KB) to preserve extracted texts/colors/structure
+  const limit = toolName && CONTEXT_TOOLS.has(toolName) ? 4000 : TOOL_RESULT_MAX_CHARS;
+  if (content.length <= limit) return content;
 
   try {
     const parsed = JSON.parse(content);
@@ -374,17 +388,23 @@ function truncateForHistory(content: string): string {
         return JSON.stringify({ count: parsed.length, first: slimFirst, note: `${parsed.length} items (truncated)` });
       }
       const slim: Record<string, unknown> = {};
-      for (const key of ['nodeId', 'name', 'id', 'error', 'note', 'count', 'success', 'saved', 'width', 'height']) {
+      for (const key of ['nodeId', 'name', 'id', 'error', 'note', 'count', 'success', 'saved', 'width', 'height', 'texts', 'colors', 'structure', 'dimensions', 'images']) {
         if (key in parsed) slim[key] = parsed[key];
       }
       if (Object.keys(slim).length > 0) {
+        const slimStr = JSON.stringify(slim);
+        if (slimStr.length <= limit) return slimStr;
+        // Still too big — drop structure, keep texts/colors
+        delete slim.structure;
+        const slimStr2 = JSON.stringify(slim);
+        if (slimStr2.length <= limit) return slimStr2;
         slim.note = 'Result truncated for history';
-        return JSON.stringify(slim);
+        return JSON.stringify(slim).slice(0, limit);
       }
     }
   } catch { /* not JSON */ }
 
-  return content.slice(0, TOOL_RESULT_MAX_CHARS - 3) + '...';
+  return content.slice(0, limit - 3) + '...';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -459,75 +479,473 @@ async function executeGenerateImage(
 // CANVAS CONTEXT ANALYSIS (composite server-side tool)
 // ═══════════════════════════════════════════════════════════════
 
+interface TextEntry {
+  text: string;
+  fontSize: number;
+  fontFamily?: string;
+  y: number;
+  x: number;
+}
+
+/** Recursively extract all TEXT nodes from a node tree. */
+function extractTextsRecursive(node: Record<string, unknown>, results: TextEntry[] = []): TextEntry[] {
+  if (node.type === 'TEXT' && node.characters) {
+    results.push({
+      text: (node.characters as string).slice(0, 200),
+      fontSize: (node.fontSize as number) || 0,
+      fontFamily: node.fontFamily as string | undefined,
+      y: (node.y as number) ?? 0,
+      x: (node.x as number) ?? 0,
+    });
+  }
+  const children = (node.children as Array<Record<string, unknown>>) || [];
+  for (const child of children) extractTextsRecursive(child, results);
+  return results;
+}
+
+/** Recursively extract all unique solid fill colors from a node tree. */
+function extractColorsRecursive(node: Record<string, unknown>, colorSet: Set<string> = new Set()): Set<string> {
+  const fills = (node.fills as Array<Record<string, unknown>>) || [];
+  for (const f of fills) {
+    if (f.type === 'SOLID' && f.color) colorSet.add(f.color as string);
+  }
+  const children = (node.children as Array<Record<string, unknown>>) || [];
+  for (const child of children) extractColorsRecursive(child, colorSet);
+  return colorSet;
+}
+
+/** Build a compact structural outline (name [TYPE]) up to maxDepth. */
+function buildStructureSummary(node: Record<string, unknown>, depth = 0, maxDepth = 3): string {
+  const name = (node.name as string) || (node.type as string) || '?';
+  const type = node.type as string;
+  const label = `${name} [${type}]`;
+  if (depth >= maxDepth) return label;
+  const children = (node.children as Array<Record<string, unknown>>) || [];
+  if (children.length === 0) return label;
+  const childSummaries = children.slice(0, 8).map(c => buildStructureSummary(c, depth + 1, maxDepth));
+  const suffix = children.length > 8 ? `, +${children.length - 8} more` : '';
+  return `${label} > ${childSummaries.join(', ')}${suffix}`;
+}
+
+/** Count image fills and empty placeholders in a node tree. */
+function countImages(node: Record<string, unknown>): { imageFills: number; emptyPlaceholders: number } {
+  let imageFills = 0;
+  let emptyPlaceholders = 0;
+  const fills = (node.fills as Array<Record<string, unknown>>) || [];
+  const hasImageFill = fills.some(f => f.type === 'IMAGE');
+  const hasChildren = ((node.children as unknown[]) || []).length > 0;
+  const w = (node.width as number) || 0;
+  const h = (node.height as number) || 0;
+  if (hasImageFill) {
+    imageFills++;
+  } else if ((node.type === 'RECTANGLE' || node.type === 'FRAME') && !hasChildren && w >= 80 && h >= 80) {
+    emptyPlaceholders++;
+  }
+  const children = (node.children as Array<Record<string, unknown>>) || [];
+  for (const child of children) {
+    const sub = countImages(child);
+    imageFills += sub.imageFills;
+    emptyPlaceholders += sub.emptyPlaceholders;
+  }
+  return { imageFills, emptyPlaceholders };
+}
+
+/** Extract rich context from a single frame's node info. */
+function extractFrameContext(nodeInfo: Record<string, unknown>, nodeId: string) {
+  // Recursive text extraction, sorted by position, capped at 30
+  const allTexts = extractTextsRecursive(nodeInfo);
+  allTexts.sort((a, b) => a.y - b.y || a.x - b.x);
+  const texts = allTexts.slice(0, 30).map(t => {
+    const font = t.fontFamily ? ` ${t.fontFamily}` : '';
+    return { text: t.text, fontSize: t.fontSize, font: font.trim() || undefined };
+  });
+
+  // Recursive color extraction, deduplicated, capped at 8
+  const colorSet = extractColorsRecursive(nodeInfo);
+  const colors = [...colorSet].slice(0, 8);
+
+  // Structural summary, capped at 500 chars
+  let structure = buildStructureSummary(nodeInfo);
+  if (structure.length > 500) structure = structure.slice(0, 497) + '...';
+
+  // Image counts
+  const images = countImages(nodeInfo);
+
+  return {
+    nodeId,
+    name: nodeInfo.name || 'frame',
+    dimensions: `${nodeInfo.width ?? '?'}x${nodeInfo.height ?? '?'}`,
+    colors,
+    texts,
+    structure,
+    images: `${images.imageFills} image fills, ${images.emptyPlaceholders} empty placeholders`,
+  };
+}
+
+const MAX_CONTEXT_CHARS = 4000;
+
+/** Trim context to fit within character budget — drop structure first, then smaller texts. */
+function trimContextToBudget(contexts: Record<string, unknown>[]): string {
+  let json = JSON.stringify(contexts.length === 1 ? contexts[0] : contexts);
+  if (json.length <= MAX_CONTEXT_CHARS) return json;
+
+  // Pass 1: remove structure fields
+  for (const ctx of contexts) delete ctx.structure;
+  json = JSON.stringify(contexts.length === 1 ? contexts[0] : contexts);
+  if (json.length <= MAX_CONTEXT_CHARS) return json;
+
+  // Pass 2: keep only largest-fontSize texts (headlines first)
+  for (const ctx of contexts) {
+    const texts = (ctx.texts as Array<{ text: string; fontSize: number }>) || [];
+    texts.sort((a, b) => b.fontSize - a.fontSize);
+    ctx.texts = texts.slice(0, 10);
+  }
+  json = JSON.stringify(contexts.length === 1 ? contexts[0] : contexts);
+  if (json.length <= MAX_CONTEXT_CHARS) return json;
+
+  // Pass 3: truncate text content
+  for (const ctx of contexts) {
+    const texts = (ctx.texts as Array<{ text: string; fontSize: number }>) || [];
+    for (const t of texts) t.text = t.text.slice(0, 60);
+    ctx.texts = texts.slice(0, 6);
+  }
+  return JSON.stringify(contexts.length === 1 ? contexts[0] : contexts).slice(0, MAX_CONTEXT_CHARS);
+}
+
 async function executeAnalyzeCanvasContext(
   args: Record<string, unknown>,
   sendToPlugin: (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>,
 ): Promise<ToolCallResult> {
   try {
-    // Step 1: Resolve target nodeId (arg → selection → first page node)
-    let nodeId = args.nodeId as string | undefined;
+    // Step 1: Resolve target nodeIds (arg → selection → first page node)
+    let nodeIds: string[] = [];
 
-    if (!nodeId) {
-      const selection = await sendToPlugin('get_selection', {});
-      const selNodes = (selection.nodes as Array<Record<string, unknown>>) || [];
-      if (selNodes.length > 0) nodeId = selNodes[0].nodeId as string;
+    if (args.nodeId) {
+      nodeIds = [args.nodeId as string];
     }
 
-    if (!nodeId) {
+    if (nodeIds.length === 0) {
+      const selection = await sendToPlugin('get_selection', {});
+      const selNodes = (selection.nodes as Array<Record<string, unknown>>) || [];
+      const frames = selNodes.filter(n => n.type === 'FRAME');
+      nodeIds = (frames.length > 0 ? frames : selNodes).map(n => n.nodeId as string).slice(0, 5);
+    }
+
+    if (nodeIds.length === 0) {
       const pageResult = await sendToPlugin('get_page_nodes', {});
       const pageNodes = (pageResult.nodes as Array<Record<string, unknown>>) || [];
       const firstFrame = pageNodes.find(n => n.type === 'FRAME') || pageNodes[0];
-      if (firstFrame) nodeId = firstFrame.nodeId as string;
+      if (firstFrame) nodeIds = [firstFrame.nodeId as string];
     }
 
-    if (!nodeId) {
+    if (nodeIds.length === 0) {
       return { content: 'No frames found on the canvas to analyze.', is_error: true };
     }
 
-    // Step 2: Get node properties
-    const nodeInfo = await sendToPlugin('get_node_info', { nodeId });
+    // Step 2: Get node properties with deep tree (depth=4) for all frames
+    const nodeInfos = await Promise.all(
+      nodeIds.map(id => sendToPlugin('get_node_info', { nodeId: id, depth: 4 }))
+    );
 
-    // Step 3: Get screenshot (optional — fails gracefully)
+    // Step 3: Get screenshot of first frame (optional — fails gracefully)
     let visionImage: string | undefined;
     try {
-      const screenshot = await sendToPlugin('get_screenshot', { nodeId });
+      const screenshot = await sendToPlugin('get_screenshot', { nodeId: nodeIds[0] });
       const imgData = screenshot.imageData as string | undefined;
       if (imgData && imgData.startsWith('data:image/')) visionImage = imgData;
     } catch { /* screenshot is optional */ }
 
-    // Step 4: Extract context from node properties
-    const fills = (nodeInfo.fills as Array<Record<string, unknown>>) || [];
-    const dominantColors = fills
-      .filter(f => f.type === 'SOLID' && f.color)
-      .map(f => f.color as string)
-      .slice(0, 4);
+    // Step 4: Extract rich context from each frame
+    const contexts = nodeInfos.map((info, i) => extractFrameContext(info, nodeIds[i]));
 
-    const children = (nodeInfo.children as Array<Record<string, unknown>>) || [];
-    const textContent = children
-      .filter(c => c.type === 'TEXT' && c.characters)
-      .map(c => c.characters as string)
-      .slice(0, 6);
-
-    const context = {
-      nodeId,
-      name: nodeInfo.name || 'frame',
-      dimensions: `${nodeInfo.width ?? '?'}x${nodeInfo.height ?? '?'}`,
-      dominantColors,
-      textContent,
-      childCount: children.length,
+    // Step 5: Add note and trim to budget
+    const result = {
+      frames: contexts.length === 1 ? undefined : contexts,
+      ...(contexts.length === 1 ? contexts[0] : {}),
       note: visionImage
-        ? 'A screenshot of this frame has been attached for visual reference. Use the colors, composition, and visual style you can see to inform any image generation or design decisions.'
-        : 'Use the color and text data above to infer the design mood and style.',
+        ? 'A screenshot has been attached for visual reference. Use the texts, colors, structure, and visual style to inform design decisions.'
+        : 'Use the texts, colors, and structure above to understand the full page content and design context.',
     };
 
+    const content = trimContextToBudget(contexts.length === 1 ? [{ ...contexts[0], note: result.note }] : contexts);
+
     return {
-      content: JSON.stringify(context),
+      content,
       is_error: false,
       visionImage,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     return { content: `analyze_canvas_context failed: ${msg}`, is_error: true };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SMART ROUTING: Fill Image Intent Detection
+// ═══════════════════════════════════════════════════════════════
+
+const FILL_IMAGE_PATTERNS = [
+  // Portuguese
+  /(?:gere?|cri[ea]|adicione?|coloque?|preencha?|bota?|ponha?).*imagens?\b.*(?:se[çc][ãa]o|cards?|frames?|aqui|nessa?|dessa?|nesse?|desse?)/i,
+  /(?:imagens?\b.*(?:para|nos?|nas?|dentro|preencher?).*(?:se[çc][ãa]o|cards?|frames?))/i,
+  /(?:preencha?|fill)\b.*(?:com\s+)?imagens?/i,
+  // English
+  /(?:fill|add|generate|place|put)\b.*images?\b.*(?:section|cards?|frames?|slots?|here|this|these)/i,
+  /(?:images?\b.*(?:for|in|into|to)\b.*(?:section|cards?|frames?))/i,
+  /fill\b.*(?:template\s+)?placeholders?/i,
+];
+
+interface FillImageIntent {
+  context?: string;
+}
+
+function detectFillImageIntent(message: string): FillImageIntent | null {
+  // Strip Figma selection context injected by the plugin
+  const cleanMsg = message.split('\n\n[FIGMA SELECTION')[0].split('\n\n[ATTACHED FILES]')[0].trim();
+
+  for (const pattern of FILL_IMAGE_PATTERNS) {
+    if (pattern.test(cleanMsg)) {
+      // Extract optional user context (e.g., "é um site de café artesanal")
+      const contextMatch = cleanMsg.match(/(?:[,;]\s*)?(?:é\s+(?:um\s+)?(?:site|p[áa]gina)\s+(?:de?\s+)?|this\s+is\s+(?:a\s+)?|context:\s*)(.+?)$/i);
+      return { context: contextMatch?.[1]?.trim() || undefined };
+    }
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CONTEXTUAL IMAGE FILL (composite server-side tool)
+// ═══════════════════════════════════════════════════════════════
+
+interface FillScannedNode {
+  nodeId?: string; id?: string; name?: string; type?: string;
+  width?: number; height?: number;
+  fills?: Array<{ type?: string; [k: string]: unknown }>;
+  children?: FillScannedNode[];
+  text?: string;
+  [k: string]: unknown;
+}
+
+function fillExtractAllText(node: FillScannedNode): string {
+  const parts: string[] = [];
+  if (node.text) parts.push(node.text);
+  if (node.name && node.type === 'TEXT') parts.push(node.name);
+  if (node.children) {
+    for (const child of node.children) parts.push(fillExtractAllText(child));
+  }
+  return parts.filter(Boolean).join(' | ');
+}
+
+function fillHasTextChildren(node: FillScannedNode): boolean {
+  if (!node.children) return false;
+  return node.children.some(c => c.type === 'TEXT' || fillHasTextChildren(c));
+}
+
+function fillIsImageSlot(node: FillScannedNode): boolean {
+  if (!node.type || !['FRAME', 'RECTANGLE'].includes(node.type)) return false;
+  if (node.fills?.some(f => f.type === 'IMAGE')) return false;
+  if (node.children?.some(c => c.type === 'TEXT')) return false;
+  const w = node.width ?? 0, h = node.height ?? 0;
+  if (w < 80 || h < 80) return false;
+  const ratio = w / h;
+  if (ratio < 0.3 || ratio > 3.5) return false;
+  return true;
+}
+
+interface FillSlot { nodeId: string; width: number; height: number; siblingContext: string; parentName: string; }
+
+function fillFindSlots(node: FillScannedNode, parent: FillScannedNode | null, slots: FillSlot[]): void {
+  if (fillIsImageSlot(node) && parent) {
+    const slotId = node.nodeId || node.id;
+    const textParts: string[] = [];
+    if (parent.children) {
+      for (const c of parent.children) {
+        if ((c.nodeId || c.id) === slotId) continue;
+        if (c.type === 'TEXT' || fillHasTextChildren(c)) textParts.push(fillExtractAllText(c));
+      }
+    }
+    slots.push({
+      nodeId: slotId as string,
+      width: node.width ?? 200, height: node.height ?? 200,
+      siblingContext: textParts.filter(Boolean).join(' | ') || parent.name || '',
+      parentName: parent.name || 'unknown',
+    });
+  }
+  if (node.children) {
+    for (const child of node.children) fillFindSlots(child, node, slots);
+  }
+}
+
+async function executeFillContextualImages(
+  args: Record<string, unknown>,
+  geminiApiKey: string | undefined,
+  sendToPlugin: (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>,
+): Promise<ToolCallResult> {
+  if (!geminiApiKey) {
+    return { content: 'Gemini API key not configured for image generation.', is_error: true };
+  }
+
+  const maxImages = Math.min((args.maxImages as number) ?? 6, 8);
+  const userContext = args.context as string | undefined;
+  const style = (args.style as string) || 'photographic';
+  const targetNodeIds = args.targetNodeIds as string[] | undefined;
+
+  try {
+    // Resolve section
+    let sectionId = args.sectionId as string | undefined;
+    if (!sectionId && !targetNodeIds?.length) {
+      const sel = await sendToPlugin('get_selection', {});
+      const nodes = (sel.selection ?? sel.nodes ?? (Array.isArray(sel) ? sel : [])) as Array<Record<string, unknown>>;
+      if (nodes[0]) sectionId = (nodes[0].id ?? nodes[0].nodeId) as string;
+      if (!sectionId) return { content: 'No section selected. Select a frame or pass sectionId.', is_error: true };
+    }
+
+    // Phase 1: Page context via Vision
+    let pageContext = { industry: 'website', brand: '', purpose: 'website', tone: 'professional', colors: 'mixed' };
+    if (!(args.skipAnalysis && userContext)) {
+      try {
+        const screenshotResult = await sendToPlugin('get_screenshot', { scale: 0.5 });
+        const base64 = screenshotResult.base64 as string;
+        if (base64) {
+          const analysisPrompt = `Analyze this website design screenshot. Extract in JSON only (no markdown): {"industry":"...","brand":"...","purpose":"...","tone":"...","colors":"...","sections":["..."]}${userContext ? `. Additional context: ${userContext}` : ''}`;
+          const resp = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [
+                  { inlineData: { mimeType: 'image/png', data: base64 } },
+                  { text: analysisPrompt },
+                ] }],
+              }),
+            }
+          );
+          if (resp.ok) {
+            const r = await resp.json() as Record<string, unknown>;
+            const candidates = r.candidates as Array<Record<string, unknown>> | undefined;
+            const parts = ((candidates?.[0] as Record<string, unknown>)?.content as Record<string, unknown>)?.parts as Array<Record<string, unknown>> | undefined;
+            const textPart = parts?.find(p => p.text) as Record<string, string> | undefined;
+            if (textPart?.text) {
+              let json = textPart.text.trim();
+              if (json.startsWith('```')) json = json.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+              const parsed = JSON.parse(json);
+              pageContext = { ...pageContext, ...parsed };
+            }
+          }
+        }
+      } catch {
+        if (userContext) pageContext.industry = userContext;
+      }
+    } else if (userContext) {
+      pageContext.industry = userContext;
+    }
+
+    // Phase 2: Discover slots
+    let slots: FillSlot[] = [];
+    if (targetNodeIds?.length) {
+      for (const nid of targetNodeIds) {
+        try {
+          const info = await sendToPlugin('get_node_info', { nodeId: nid });
+          const bounds = info.absoluteBoundingBox as Record<string, number> | undefined;
+          slots.push({
+            nodeId: nid,
+            width: (info.width as number) ?? bounds?.width ?? 400,
+            height: (info.height as number) ?? bounds?.height ?? 300,
+            siblingContext: (info.name as string) || '',
+            parentName: 'user-specified',
+          });
+        } catch { /* skip */ }
+      }
+    } else if (sectionId) {
+      const structure = await sendToPlugin('scan_frame_structure', { nodeId: sectionId, depth: 3 });
+      fillFindSlots(structure as unknown as FillScannedNode, null, slots);
+      slots.sort((a, b) => (b.width * b.height) - (a.width * a.height));
+    }
+
+    if (slots.length === 0) {
+      return {
+        content: JSON.stringify({ pageContext, slotsFound: 0, slotsFilled: 0, message: 'No empty image slots found.' }),
+        is_error: false,
+      };
+    }
+
+    const slotsToFill = slots.slice(0, maxImages);
+    const slotsSkipped = Math.max(0, slots.length - maxImages);
+
+    // Phase 3+4: Generate & place images sequentially
+    const results: Array<Record<string, unknown>> = [];
+    for (const slot of slotsToFill) {
+      const industryPart = pageContext.industry !== 'website' ? `for a ${pageContext.industry} company website` : 'for a website';
+      const prompt = `Professional ${style} ${industryPart}. ${slot.siblingContext ? `This image is for: ${slot.siblingContext}.` : ''} Clean composition suitable for web use. No text overlays. Dimensions: ${slot.width}×${slot.height}px.`;
+
+      let success = false;
+      let fallbackUsed = false;
+      let error: string | undefined;
+
+      try {
+        // Generate with Gemini
+        const genResp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${geminiApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { responseModalities: ['IMAGE'] },
+            }),
+          }
+        );
+        if (!genResp.ok) throw new Error(`Gemini ${genResp.status}`);
+        const genResult = await genResp.json() as Record<string, unknown>;
+        const candidates = genResult.candidates as Array<Record<string, unknown>> | undefined;
+        const parts = ((candidates?.[0] as Record<string, unknown>)?.content as Record<string, unknown>)?.parts as Array<Record<string, unknown>> | undefined;
+        const imgPart = parts?.find(p => p.inlineData);
+        const inlineData = imgPart?.inlineData as Record<string, unknown> | undefined;
+        const b64 = inlineData?.data as string | undefined;
+        if (!b64) throw new Error('No image data');
+
+        await sendToPlugin('create_image', {
+          imageData: `data:image/png;base64,${b64}`,
+          name: `Contextual Image — ${slot.siblingContext.slice(0, 40) || 'auto'}`,
+          width: slot.width, height: slot.height,
+          x: 0, y: 0, parentId: slot.nodeId, scaleMode: 'FILL',
+        });
+        success = true;
+      } catch (genErr) {
+        fallbackUsed = true;
+        // Fallback: Picsum
+        try {
+          const words = (slot.siblingContext || pageContext.industry).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 3).slice(0, 3);
+          const seed = words.join('-') || 'design';
+          const picRes = await fetch(`https://picsum.photos/seed/${encodeURIComponent(seed)}/${slot.width}/${slot.height}`, { redirect: 'follow' });
+          if (!picRes.ok) throw new Error(`Picsum ${picRes.status}`);
+          const ct = picRes.headers.get('content-type') || 'image/jpeg';
+          const buf = Buffer.from(await picRes.arrayBuffer());
+          await sendToPlugin('create_image', {
+            imageData: `data:${ct};base64,${buf.toString('base64')}`,
+            name: `Placeholder — ${slot.siblingContext.slice(0, 40) || 'auto'}`,
+            width: slot.width, height: slot.height,
+            x: 0, y: 0, parentId: slot.nodeId, scaleMode: 'FILL',
+          });
+          success = true;
+        } catch (fbErr) {
+          error = `Generation and placeholder failed: ${(fbErr as Error).message}`;
+        }
+      }
+
+      results.push({ nodeId: slot.nodeId, width: slot.width, height: slot.height, prompt, siblingContext: slot.siblingContext, fallbackUsed, success, error });
+    }
+
+    const filled = results.filter(r => r.success).length;
+    const suggestions = slotsSkipped > 0 ? [`${slotsSkipped} more slot(s) skipped (budget). Call again with remaining targetNodeIds.`] : [];
+
+    return {
+      content: JSON.stringify({ pageContext, slotsFound: slots.length, slotsFilled: filled, slotsSkipped, results, ...(suggestions.length ? { suggestions } : {}) }),
+      is_error: false,
+    };
+  } catch (err) {
+    return { content: `fill_contextual_images failed: ${err instanceof Error ? err.message : String(err)}`, is_error: true };
   }
 }
 
@@ -577,7 +995,133 @@ function buildSessionContext(
   return buildLayerContext(session);
 }
 
-function buildSelectionContext(selection?: ChatTurnRequest['currentSelection']): string {
+interface FrameContextResult {
+  nodeId: string;
+  name: string | {};
+  dimensions: string;
+  colors: string[];
+  texts: Array<{ text: string; fontSize: number; font?: string }>;
+  structure: string;
+  images: string;
+}
+
+/** CX-6: Build a hash of selection IDs for cache comparison. */
+function hashSelection(frames: Array<{ id: string }>): string {
+  return frames.map(f => f.id).sort().join(',');
+}
+
+/** CX-6: Format a single frame's rich context as a compact text block. */
+function formatFrameContextLine(ctx: FrameContextResult): string {
+  const textSummary = ctx.texts
+    .slice(0, 15)
+    .map(t => {
+      const font = t.font ? ` ${t.font}` : '';
+      return `"${t.text.slice(0, 80)}" (${t.fontSize}px${font})`;
+    })
+    .join(', ');
+  const colorSummary = (ctx.colors as string[]).join(', ');
+  const lines = [
+    `Frame "${ctx.name}" (id: ${ctx.nodeId}, ${ctx.dimensions})`,
+    `  Texts: ${textSummary || 'none'}`,
+    `  Colors: ${colorSummary || 'none'}`,
+    `  ${ctx.images}`,
+  ];
+  if (ctx.structure) {
+    const struct = (ctx.structure as string).slice(0, 200);
+    lines.splice(3, 0, `  Structure: ${struct}`);
+  }
+  return lines.join('\n');
+}
+
+const MAX_RICH_CONTEXT_CHARS = 3000;
+const EXTRACTION_TIMEOUT_MS = 3000;
+
+/**
+ * CX-6: Auto-extract rich content from selected frames.
+ * Returns a context block to prepend to the user message.
+ * Uses cache when selection hasn't changed.
+ */
+async function buildRichSelectionContext(
+  selection: ChatTurnRequest['currentSelection'],
+  sendToPlugin: (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>,
+  channel: string,
+): Promise<string> {
+  if (!selection || selection.length === 0) return '';
+  const frames = selection.filter(n => n.type === 'FRAME').slice(0, 3);
+  if (frames.length === 0) return '';
+
+  const currentHash = hashSelection(frames);
+
+  // Check cache first
+  const cached = designSessions.get(channel);
+  if (cached?.richContext && cached.selectionHash === currentHash &&
+      Date.now() - cached.updatedAt < SESSION_TTL_MS) {
+    return cached.richContext;
+  }
+
+  // Parallel extraction with per-frame timeout
+  const results: FrameContextResult[] = await Promise.all(
+    frames.map(async (f): Promise<FrameContextResult> => {
+      try {
+        const result = await Promise.race([
+          sendToPlugin('get_node_info', { nodeId: f.id, depth: 4 }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), EXTRACTION_TIMEOUT_MS)
+          ),
+        ]);
+        return extractFrameContext(result as Record<string, unknown>, f.id);
+      } catch {
+        // Fallback to basic metadata
+        return {
+          nodeId: f.id,
+          name: f.name,
+          dimensions: `${f.width}×${f.height}`,
+          colors: [],
+          texts: [],
+          structure: '',
+          images: 'unknown',
+        };
+      }
+    })
+  );
+
+  // Format and cap
+  let contextLines = results.map(r => formatFrameContextLine(r));
+  let context = `[Page context for selected frames:\n${contextLines.join('\n\n')}\n\nUse these texts, colors, and structure to understand the full page content. Pass frameId to tools instead of calling get_selection.]`;
+
+  if (context.length > MAX_RICH_CONTEXT_CHARS) {
+    // Trim: reduce texts per frame
+    contextLines = results.map(r => {
+      r.texts = (r.texts as Array<{ text: string; fontSize: number; font?: string }>)
+        .sort((a, b) => b.fontSize - a.fontSize)
+        .slice(0, 6);
+      r.structure = '';
+      return formatFrameContextLine(r);
+    });
+    context = `[Page context for selected frames:\n${contextLines.join('\n\n')}\n\nUse these texts, colors, and structure to understand the full page content. Pass frameId to tools instead of calling get_selection.]`;
+    if (context.length > MAX_RICH_CONTEXT_CHARS) {
+      context = context.slice(0, MAX_RICH_CONTEXT_CHARS - 3) + '...]';
+    }
+  }
+
+  // Cache it
+  const existingSession = designSessions.get(channel);
+  designSessions.set(channel, {
+    frameId: frames[0].id,
+    frameName: frames[0].name,
+    width: frames[0].width,
+    height: frames[0].height,
+    layerSummary: existingSession?.layerSummary || '',
+    updatedAt: Date.now(),
+    richContext: context,
+    selectionHash: currentHash,
+  });
+
+  return context;
+}
+
+/** Fallback: basic selection context (used when rich extraction is skipped). */
+function buildSelectionContextBasic(selection?: ChatTurnRequest['currentSelection']): string {
   if (!selection || selection.length === 0) return '';
   const frames = selection.filter(n => n.type === 'FRAME');
   if (frames.length === 0) return '';
@@ -593,14 +1137,79 @@ export async function handleChatTurn(
 
   // IG-3: Inject cached layer map (session context) — only when same frame is selected
   const sessionContext = buildSessionContext(channel, request.currentSelection);
-  // IG-2: Prepend selection context note to message text (scoped to this turn only)
-  const selectionContext = buildSelectionContext(request.currentSelection);
-  const message = [sessionContext, selectionContext, request.message].filter(Boolean).join('\n\n');
 
-  // Verify the channel has connected clients
+  // Verify the channel has connected clients (needed before sendToPlugin)
   if (!relay.hasClientsInChannel(channel)) {
     designSessions.delete(channel);
     throw new Error(`No plugin connected to channel "${channel}". Ensure the Bridge tab is connected.`);
+  }
+
+  // Send a command to the plugin sandbox through the relay channel
+  const sendToPlugin = (action: string, params: Record<string, unknown>) =>
+    relay.sendCommandToChannel(channel, action, params);
+
+  // CX-6: Build rich selection context (auto-extracts content from selected frames)
+  let selectionContext: string;
+  try {
+    selectionContext = await buildRichSelectionContext(request.currentSelection, sendToPlugin, channel);
+  } catch {
+    // Fallback to basic metadata if extraction fails entirely
+    selectionContext = buildSelectionContextBasic(request.currentSelection);
+  }
+
+  const message = [sessionContext, selectionContext, request.message].filter(Boolean).join('\n\n');
+
+  // ── Smart Routing: detect "fill images" intent and bypass LLM ──
+  const fillImageIntent = detectFillImageIntent(request.message);
+  if (fillImageIntent) {
+    const selectionNodes = request.currentSelection || [];
+    const sectionId = selectionNodes.length > 0 ? selectionNodes[0].id : undefined;
+
+    const fillResult = await executeFillContextualImages(
+      { sectionId, context: fillImageIntent.context },
+      geminiApiKey,
+      sendToPlugin,
+    );
+
+    const parsed = JSON.parse(fillResult.content);
+    const slotsFilled = parsed.slotsFilled ?? 0;
+    const slotsFound = parsed.slotsFound ?? 0;
+    const pageCtx = parsed.pageContext;
+
+    let responseText: string;
+    if (fillResult.is_error) {
+      responseText = `Could not fill images: ${fillResult.content}`;
+    } else if (slotsFound === 0) {
+      responseText = 'No empty image slots found in the selected section. All frames either already have images, contain text, or are too small (< 80px).';
+    } else {
+      const contextDesc = pageCtx?.industry && pageCtx.industry !== 'website'
+        ? ` for "${pageCtx.industry}"`
+        : '';
+      responseText = `Done! Filled ${slotsFilled}/${slotsFound} image slot${slotsFound > 1 ? 's' : ''}${contextDesc}. Images were generated based on the page context and nearby text content.`;
+      if (parsed.suggestions?.length) {
+        responseText += ` ${parsed.suggestions[0]}`;
+      }
+    }
+
+    // Build tool call log for the UI
+    const toolCalls = [
+      { name: 'get_screenshot', success: true },
+      { name: 'analyze_page_context', success: !fillResult.is_error },
+      { name: 'scan_frame_structure', success: !fillResult.is_error },
+      ...(parsed.results || []).map((r: Record<string, unknown>) => ({
+        name: `generate_image → ${(r.siblingContext as string || 'slot').slice(0, 30)}`,
+        success: r.success as boolean,
+      })),
+    ];
+
+    return {
+      text: responseText,
+      toolCalls,
+      history: request.history || [],
+      iterationsUsed: 1,
+      completedCleanly: true,
+      newMemoryEntries: [],
+    };
   }
 
   // Detect design brief from user message
@@ -616,10 +1225,6 @@ export async function handleChatTurn(
   const toolCallLog: Array<{ name: string; success: boolean }> = [];
   const newMemoryEntries: string[] = [];
 
-  // Send a command to the plugin sandbox through the relay channel
-  const sendToPlugin = (action: string, params: Record<string, unknown>) =>
-    relay.sendCommandToChannel(channel, action, params);
-
   // Tool call handler
   const handleToolCall = async (name: string, args: Record<string, unknown>): Promise<ToolCallResult> => {
     // generate_image — server-side Gemini call + place via plugin
@@ -630,6 +1235,11 @@ export async function handleChatTurn(
     // analyze_canvas_context — composite: get_selection + get_node_info + get_screenshot
     if (name === 'analyze_canvas_context') {
       return executeAnalyzeCanvasContext(args, sendToPlugin);
+    }
+
+    // fill_contextual_images — composite: page analysis + slot discovery + image gen + placement
+    if (name === 'fill_contextual_images') {
+      return executeFillContextualImages(args, geminiApiKey, sendToPlugin);
     }
 
     // update_memory — persist in response, no sandbox call
@@ -748,12 +1358,20 @@ export async function handleChatTurn(
       for (const fc of functionCalls) {
         const { name, args } = fc.functionCall!;
         toolsUsed.add(name);
-        const result = await handleToolCall(name, args);
+        let result: ToolCallResult;
+        try {
+          result = await handleToolCall(name, args);
+        } catch (err) {
+          result = {
+            content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
+            is_error: true,
+          };
+        }
         toolCallLog.push({ name, success: !result.is_error });
 
         if (result.visionImage) pendingVisionImages.push(result.visionImage);
 
-        const trimmed = truncateForHistory(result.content);
+        const trimmed = truncateForHistory(result.content, name);
         let cleanedResponse: Record<string, unknown>;
         if (result.is_error) {
           cleanedResponse = { error: trimmed };
@@ -826,10 +1444,18 @@ export async function handleChatTurn(
         try { args = JSON.parse(fn.arguments as string); } catch { args = {}; }
 
         toolsUsed.add(fnName);
-        const result = await handleToolCall(fnName, args);
+        let result: ToolCallResult;
+        try {
+          result = await handleToolCall(fnName, args);
+        } catch (err) {
+          result = {
+            content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
+            is_error: true,
+          };
+        }
         toolCallLog.push({ name: fnName, success: !result.is_error });
 
-        const trimmed = truncateForHistory(result.content);
+        const trimmed = truncateForHistory(result.content, fnName);
         openaiHistory.push({
           role: 'tool',
           tool_call_id: tc.id as string,
@@ -891,7 +1517,16 @@ export async function handleChatTurn(
     const toolResults: ContentBlock[] = [];
     for (const toolUse of toolUses) {
       toolsUsed.add(toolUse.name!);
-      const result = await handleToolCall(toolUse.name!, toolUse.input || {});
+      let result: ToolCallResult;
+      try {
+        result = await handleToolCall(toolUse.name!, toolUse.input || {});
+      } catch (err) {
+        // Always produce a tool_result — an orphaned tool_use breaks the API protocol
+        result = {
+          content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
+          is_error: true,
+        };
+      }
       toolCallLog.push({ name: toolUse.name!, success: !result.is_error });
 
       if (result.visionImage && !result.is_error) {
@@ -901,7 +1536,7 @@ export async function handleChatTurn(
           type: 'tool_result',
           tool_use_id: toolUse.id,
           content: [
-            { type: 'text', text: truncateForHistory(result.content) } as unknown as ContentBlock,
+            { type: 'text', text: truncateForHistory(result.content, toolUse.name!) } as unknown as ContentBlock,
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: base64 } } as unknown as ContentBlock,
           ] as unknown as string,
         });
@@ -909,7 +1544,7 @@ export async function handleChatTurn(
         toolResults.push({
           type: 'tool_result',
           tool_use_id: toolUse.id,
-          content: truncateForHistory(result.content),
+          content: truncateForHistory(result.content, toolUse.name!),
           ...(result.is_error && { is_error: true }),
         });
       }
