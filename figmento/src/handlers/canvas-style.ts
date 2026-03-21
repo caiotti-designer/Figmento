@@ -209,6 +209,98 @@ export function handleFlipGradient(params: Record<string, unknown>): Record<stri
   return { success: true, nodeId, flippedCount };
 }
 
+export async function handleStyleTextRange(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required');
+
+  const node = figma.getNodeById(nodeId);
+  if (!node) throw new Error(`Node not found: ${nodeId}`);
+  if (node.type !== 'TEXT') throw new Error(`Node ${nodeId} is not a text node (type: ${node.type})`);
+
+  const textNode = node as TextNode;
+  const ranges = params.ranges as Array<{
+    start: number;
+    end: number;
+    fontFamily?: string;
+    fontWeight?: number;
+    fontSize?: number;
+    color?: string;
+    letterSpacing?: number;
+    lineHeight?: number;
+    textDecoration?: string;
+    textCase?: string;
+  }>;
+
+  if (!ranges || !Array.isArray(ranges) || ranges.length === 0) {
+    throw new Error('ranges array is required and must not be empty');
+  }
+
+  const textLength = textNode.characters.length;
+  let rangesApplied = 0;
+
+  for (const range of ranges) {
+    const { start, end } = range;
+
+    if (start < 0 || end > textLength || start >= end) {
+      throw new Error(`Invalid range [${start}, ${end}] — text length is ${textLength}`);
+    }
+
+    // Load the font currently at this range position before modifying
+    const currentFont = textNode.getRangeFontName(start, start + 1) as FontName;
+    try {
+      await figma.loadFontAsync(currentFont);
+    } catch (_e) {
+      await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
+    }
+
+    if (range.fontFamily !== undefined || range.fontWeight !== undefined) {
+      const family = range.fontFamily || currentFont.family;
+      const style = range.fontWeight !== undefined ? getFontStyle(range.fontWeight) : currentFont.style;
+      try {
+        await figma.loadFontAsync({ family, style });
+        textNode.setRangeFontName(start, end, { family, style });
+      } catch (_e) {
+        // If the exact style isn't available, try Regular
+        try {
+          await figma.loadFontAsync({ family, style: 'Regular' });
+          textNode.setRangeFontName(start, end, { family, style: 'Regular' });
+        } catch (_e2) {
+          // Keep existing font if load fails entirely
+        }
+      }
+    }
+
+    if (range.fontSize !== undefined) {
+      textNode.setRangeFontSize(start, end, range.fontSize);
+    }
+
+    if (range.color !== undefined) {
+      const rgb = hexToRgb(range.color);
+      textNode.setRangeFills(start, end, [{ type: 'SOLID', color: rgb }]);
+    }
+
+    if (range.letterSpacing !== undefined) {
+      textNode.setRangeLetterSpacing(start, end, { value: range.letterSpacing, unit: 'PIXELS' });
+    }
+
+    if (range.lineHeight !== undefined) {
+      textNode.setRangeLineHeight(start, end, { value: range.lineHeight, unit: 'PIXELS' });
+    }
+
+    if (range.textDecoration !== undefined) {
+      textNode.setRangeTextDecoration(start, end, range.textDecoration as TextDecoration);
+    }
+
+    if (range.textCase !== undefined) {
+      textNode.setRangeTextCase(start, end, range.textCase as TextCase);
+    }
+
+    rangesApplied++;
+  }
+
+  return { nodeId, rangesApplied, textLength };
+}
+
 export async function handleSetText(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const nodeId = params.nodeId as string;
   if (!nodeId) throw new Error('nodeId is required');

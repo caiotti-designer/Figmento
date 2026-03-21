@@ -22,6 +22,7 @@ import { registerResourceTools } from './tools/resources';
 import { registerImageGenTools } from './tools/image-gen';
 import { registerFileStorageTools, cleanupOldTempFiles } from './tools/file-storage';
 import { registerOrchestrationTools } from './tools/orchestration';
+import { registerImageFillTools } from './tools/image-fill';
 
 /**
  * Creates and configures the Figmento MCP server with all design tools.
@@ -84,6 +85,7 @@ export function createFigmentoServer(): FigmentoServerResult {
   registerImageGenTools(server, sendDesignCommand);
   registerFileStorageTools(server, sendDesignCommand);
   registerOrchestrationTools(server, sendDesignCommand);
+  registerImageFillTools(server, sendDesignCommand);
 
   // SP-7: Pre-warm knowledge cache (fire-and-forget, non-blocking)
   preWarmKnowledgeCache();

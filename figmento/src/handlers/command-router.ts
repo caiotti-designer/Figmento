@@ -5,10 +5,10 @@ import { classifyError } from '../utils/error-classifier';
 import { PREFERENCES_STORAGE_KEY } from './storage';
 
 // Canvas handlers
-import { handleCreateFrame, handleCreateText, handleCreateRectangle, handleCreateEllipse, handleCreateImage, handleCreateIcon } from './canvas-create';
-import { handleSetFill, handleSetStroke, handleSetEffects, handleSetCornerRadius, handleSetOpacity, handleSetAutoLayout, handleSetText, handleFlipGradient } from './canvas-style';
-import { handleDeleteNode, handleMoveNode, handleResizeNode, handleRenameNode, handleAppendChild, handleReorderChild, handleCloneNode, handleCloneWithOverrides, handleGroupNodes, handleGetSelection, handleGetNodeInfo, handleGetPageNodes } from './canvas-scene';
-import { handleExportNode, handleGetScreenshot, handleScanFrameStructure, handleReadFigmaContext, handleBindVariable, handleApplyPaintStyle, handleApplyTextStyle, handleApplyEffectStyle, handleCreateFigmaVariables } from './canvas-query';
+import { handleCreateFrame, handleCreateText, handleCreateRectangle, handleCreateEllipse, handleCreateImage, handleCreateIcon, handleCreateVector } from './canvas-create';
+import { handleSetFill, handleSetStroke, handleSetEffects, handleSetCornerRadius, handleSetOpacity, handleSetAutoLayout, handleSetText, handleFlipGradient, handleStyleTextRange } from './canvas-style';
+import { handleDeleteNode, handleMoveNode, handleResizeNode, handleRenameNode, handleAppendChild, handleReorderChild, handleCloneNode, handleCloneWithOverrides, handleGroupNodes, handleGetSelection, handleGetNodeInfo, handleGetPageNodes, handleFindNodes, handleListAvailableFonts, handleBooleanOperation, handleFlattenNodes, handleImportComponentByKey, handleImportStyleByKey } from './canvas-scene';
+import { handleExportNode, handleGetScreenshot, handleScanFrameStructure, handleReadFigmaContext, handleBindVariable, handleApplyPaintStyle, handleApplyTextStyle, handleApplyEffectStyle, handleCreateFigmaVariables, handleExportAsSvg, handleSetConstraints } from './canvas-query';
 import { handleBatchExecute, handleCreateDesignCmd, handleScanTemplateCmd, handleApplyTemplateTextCmd, handleApplyTemplateImageCmd, runRefinementCheck } from './canvas-batch';
 
 export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
@@ -90,6 +90,26 @@ export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
         data = await handleScanFrameStructure(cmd.params); break;
       case 'set_text':
         data = await handleSetText(cmd.params); break;
+      case 'style_text_range':
+        data = await handleStyleTextRange(cmd.params); break;
+      case 'find_nodes':
+        data = await handleFindNodes(cmd.params); break;
+      case 'list_available_fonts':
+        data = await handleListAvailableFonts(cmd.params); break;
+      case 'create_vector':
+        data = await handleCreateVector(cmd.params); break;
+      case 'boolean_operation':
+        data = await handleBooleanOperation(cmd.params); break;
+      case 'flatten_nodes':
+        data = await handleFlattenNodes(cmd.params); break;
+      case 'import_component_by_key':
+        data = await handleImportComponentByKey(cmd.params); break;
+      case 'import_style_by_key':
+        data = await handleImportStyleByKey(cmd.params); break;
+      case 'export_as_svg':
+        data = await handleExportAsSvg(cmd.params); break;
+      case 'set_constraints':
+        data = await handleSetConstraints(cmd.params); break;
       case 'ad-analyzer-complete': {
         // Forward to UI iframe — this is a UI-only message, no Figma API action
         figma.ui.postMessage({

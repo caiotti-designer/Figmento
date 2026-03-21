@@ -6,10 +6,10 @@ import { createElement } from '../element-creators';
 import { resolveTempIds, isCreationAction } from '../utils/temp-id-resolver';
 
 // Import all handlers needed by executeSingleAction
-import { handleCreateFrame, handleCreateText, handleCreateRectangle, handleCreateEllipse, handleCreateImage, handleCreateIcon } from './canvas-create';
-import { handleSetFill, handleSetStroke, handleSetEffects, handleSetCornerRadius, handleSetOpacity, handleSetAutoLayout, handleSetText } from './canvas-style';
-import { handleDeleteNode, handleMoveNode, handleResizeNode, handleRenameNode, handleAppendChild, handleReorderChild, handleCloneNode, handleCloneWithOverrides, handleGroupNodes, handleGetSelection, handleGetNodeInfo, handleGetPageNodes } from './canvas-scene';
-import { handleExportNode, handleGetScreenshot, handleReadFigmaContext, handleBindVariable, handleApplyPaintStyle, handleApplyTextStyle, handleApplyEffectStyle, handleCreateFigmaVariables } from './canvas-query';
+import { handleCreateFrame, handleCreateText, handleCreateRectangle, handleCreateEllipse, handleCreateImage, handleCreateIcon, handleCreateVector } from './canvas-create';
+import { handleSetFill, handleSetStroke, handleSetEffects, handleSetCornerRadius, handleSetOpacity, handleSetAutoLayout, handleSetText, handleStyleTextRange } from './canvas-style';
+import { handleDeleteNode, handleMoveNode, handleResizeNode, handleRenameNode, handleAppendChild, handleReorderChild, handleCloneNode, handleCloneWithOverrides, handleGroupNodes, handleGetSelection, handleGetNodeInfo, handleGetPageNodes, handleFindNodes, handleListAvailableFonts, handleBooleanOperation, handleFlattenNodes, handleImportComponentByKey, handleImportStyleByKey } from './canvas-scene';
+import { handleExportNode, handleGetScreenshot, handleReadFigmaContext, handleBindVariable, handleApplyPaintStyle, handleApplyTextStyle, handleApplyEffectStyle, handleCreateFigmaVariables, handleExportAsSvg, handleSetConstraints } from './canvas-query';
 
 interface BatchCommand {
   action: string;
@@ -101,6 +101,16 @@ export async function executeSingleAction(action: string, params: Record<string,
     case 'apply_template_image': return await handleApplyTemplateImageCmd(params);
     case 'clone_with_overrides': return await handleCloneWithOverrides(params);
     case 'set_text': return await handleSetText(params);
+    case 'style_text_range': return await handleStyleTextRange(params);
+    case 'find_nodes': return await handleFindNodes(params);
+    case 'list_available_fonts': return await handleListAvailableFonts(params);
+    case 'create_vector': return await handleCreateVector(params);
+    case 'boolean_operation': return await handleBooleanOperation(params);
+    case 'flatten_nodes': return await handleFlattenNodes(params);
+    case 'import_component_by_key': return await handleImportComponentByKey(params);
+    case 'import_style_by_key': return await handleImportStyleByKey(params);
+    case 'export_as_svg': return await handleExportAsSvg(params);
+    case 'set_constraints': return await handleSetConstraints(params);
     case 'read_figma_context': return await handleReadFigmaContext();
     case 'bind_variable': return await handleBindVariable(params);
     case 'apply_paint_style': return await handleApplyPaintStyle(params);

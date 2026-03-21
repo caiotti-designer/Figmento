@@ -482,6 +482,74 @@ export async function handleApplyEffectStyle(params: Record<string, unknown>): P
   return { success: true, nodeId, styleId, styleName: style.name, message: `Applied effect style "${style.name}" to node "${(node as SceneNode).name}"` };
 }
 
+export async function handleExportAsSvg(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required');
+
+  const node = figma.getNodeById(nodeId);
+  if (!node) throw new Error(`Node not found: ${nodeId}`);
+  if (!('exportAsync' in node)) throw new Error(`Node ${nodeId} cannot be exported`);
+
+  const includeChildren = (params.include_children as boolean) || false;
+
+  if (includeChildren && 'children' in node) {
+    const children = (node as FrameNode).children;
+    const results: Array<{ name: string; id: string; svg: string }> = [];
+
+    for (const child of children) {
+      if (!('exportAsync' in child)) continue;
+      const bytes = await (child as SceneNode).exportAsync({ format: 'SVG' });
+      const svgString = String.fromCharCode.apply(null, Array.from(bytes));
+      results.push({ name: child.name, id: child.id, svg: svgString });
+    }
+
+    return { nodeId, mode: 'children', count: results.length, children: results };
+  }
+
+  // Single node export
+  const bytes = await (node as SceneNode).exportAsync({ format: 'SVG' });
+  const svgString = String.fromCharCode.apply(null, Array.from(bytes));
+
+  return { nodeId, mode: 'single', svg: svgString };
+}
+
+export async function handleSetConstraints(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required');
+
+  const node = figma.getNodeById(nodeId);
+  if (!node) throw new Error(`Node not found: ${nodeId}`);
+  if (!('constraints' in node)) throw new Error(`Node ${nodeId} does not support constraints`);
+
+  const sceneNode = node as SceneNode;
+
+  // Check if parent uses auto-layout — constraints don't apply there
+  if (sceneNode.parent && 'layoutMode' in sceneNode.parent) {
+    const parentFrame = sceneNode.parent as FrameNode;
+    if (parentFrame.layoutMode !== 'NONE') {
+      return {
+        nodeId,
+        success: false,
+        warning: `Parent "${parentFrame.name}" uses auto-layout (${parentFrame.layoutMode}). Constraints don't apply in auto-layout frames — use layoutAlign and layoutGrow instead.`,
+      };
+    }
+  }
+
+  const horizontal = (params.horizontal as string) || 'MIN';
+  const vertical = (params.vertical as string) || 'MIN';
+
+  const validValues = ['MIN', 'CENTER', 'MAX', 'STRETCH', 'SCALE'];
+  if (!validValues.includes(horizontal)) throw new Error(`Invalid horizontal constraint: ${horizontal}. Must be one of: ${validValues.join(', ')}`);
+  if (!validValues.includes(vertical)) throw new Error(`Invalid vertical constraint: ${vertical}. Must be one of: ${validValues.join(', ')}`);
+
+  (node as ConstraintMixin).constraints = {
+    horizontal: horizontal as ConstraintType,
+    vertical: vertical as ConstraintType,
+  };
+
+  return { nodeId, horizontal, vertical, success: true };
+}
+
 export async function handleCreateFigmaVariables(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const collectionName = params.collectionName as string;
   const variables = params.variables as Array<{

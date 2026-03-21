@@ -4,6 +4,119 @@ import type { UIElement, TextProperties } from '../types';
 import { hexToRgb } from '../color-utils';
 import { createElement } from '../element-creators';
 
+export async function handleCreateVector(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const vector = figma.createVector();
+  vector.name = (params.name as string) || 'Vector';
+  vector.x = (params.x as number) || 0;
+  vector.y = (params.y as number) || 0;
+
+  if (params.width && params.height) {
+    vector.resize(params.width as number, params.height as number);
+  }
+
+  // Method 1: SVG path data strings (simplest — Figma accepts raw SVG path syntax)
+  if (params.svgPath) {
+    vector.vectorPaths = [{
+      windingRule: (params.windingRule as string as VectorPath['windingRule']) || 'NONZERO',
+      data: params.svgPath as string,
+    }];
+  } else if (params.vectorPaths) {
+    const paths = params.vectorPaths as Array<{ data: string; windingRule?: string }>;
+    vector.vectorPaths = paths.map(p => ({
+      windingRule: (p.windingRule as VectorPath['windingRule']) || 'NONZERO',
+      data: p.data,
+    }));
+  }
+
+  // Method 2: VectorNetwork (vertices + segments) for programmatic shapes
+  if (params.vectorNetwork) {
+    const vn = params.vectorNetwork as {
+      vertices: Array<{ x: number; y: number; cornerRadius?: number; strokeCap?: string; strokeJoin?: string; handleMirroring?: string }>;
+      segments: Array<{ start: number; end: number; tangentStart?: { x: number; y: number }; tangentEnd?: { x: number; y: number } }>;
+      regions?: Array<Record<string, unknown>>;
+    };
+    vector.vectorNetwork = {
+      vertices: (vn.vertices || []).map(v => ({
+        x: v.x,
+        y: v.y,
+        strokeCap: (v.strokeCap as VectorVertex['strokeCap']) || 'NONE',
+        strokeJoin: (v.strokeJoin as VectorVertex['strokeJoin']) || 'MITER',
+        cornerRadius: v.cornerRadius || 0,
+        handleMirroring: (v.handleMirroring as VectorVertex['handleMirroring']) || 'NONE',
+      })),
+      segments: (vn.segments || []).map(s => ({
+        start: s.start,
+        end: s.end,
+        tangentStart: s.tangentStart || { x: 0, y: 0 },
+        tangentEnd: s.tangentEnd || { x: 0, y: 0 },
+      })),
+      regions: (vn.regions || []) as VectorRegion[],
+    };
+  }
+
+  // Method 3: Simple vertices array → auto-generate closed polygon
+  if (params.vertices && !params.vectorNetwork) {
+    const vertices = params.vertices as Array<{ x: number; y: number; cornerRadius?: number }>;
+    if (vertices.length >= 3) {
+      const verts: VectorVertex[] = vertices.map(v => ({
+        x: v.x,
+        y: v.y,
+        strokeCap: 'NONE' as const,
+        strokeJoin: 'MITER' as const,
+        cornerRadius: v.cornerRadius || 0,
+        handleMirroring: 'NONE' as const,
+      }));
+      const segs: VectorSegment[] = [];
+      for (let i = 0; i < vertices.length; i++) {
+        segs.push({
+          start: i,
+          end: (i + 1) % vertices.length,
+          tangentStart: { x: 0, y: 0 },
+          tangentEnd: { x: 0, y: 0 },
+        });
+      }
+      vector.vectorNetwork = {
+        vertices: verts,
+        segments: segs,
+        regions: [{ windingRule: 'NONZERO', loops: [[...Array(segs.length).keys()]] }] as VectorRegion[],
+      };
+    }
+  }
+
+  // Apply fill
+  if (params.fillColor) {
+    const rgb = hexToRgb(params.fillColor as string);
+    vector.fills = [{ type: 'SOLID', color: rgb }];
+  } else if (params.fills) {
+    // Accept fills array like create_rectangle
+    const fills = params.fills as Array<{ type: string; color?: string; opacity?: number }>;
+    vector.fills = fills.map(f => ({
+      type: 'SOLID' as const,
+      color: hexToRgb(f.color || '#000000'),
+      opacity: f.opacity ?? 1,
+    }));
+  } else {
+    vector.fills = [];
+  }
+
+  // Apply stroke
+  if (params.strokeColor) {
+    const rgb = hexToRgb(params.strokeColor as string);
+    vector.strokes = [{ type: 'SOLID', color: rgb }];
+    vector.strokeWeight = (params.strokeWeight as number) || 1;
+  }
+
+  // Parent
+  if (params.parentId) {
+    const parent = figma.getNodeById(params.parentId as string);
+    if (parent && 'appendChild' in parent) {
+      (parent as FrameNode).appendChild(vector);
+    }
+  }
+
+  return { nodeId: vector.id, name: vector.name, width: Math.round(vector.width), height: Math.round(vector.height) };
+}
+
 export async function handleCreateFrame(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const frameFills: UIElement['fills'] = params.fills as UIElement['fills'] | undefined
     ?? (params.fillColor ? [{ type: 'SOLID' as const, color: params.fillColor as string }] : undefined);

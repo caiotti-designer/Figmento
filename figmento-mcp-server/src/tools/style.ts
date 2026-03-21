@@ -104,6 +104,22 @@ export const setStyleSchema = {
   ]).optional().describe('Corner radius. Used when property="cornerRadius".'),
 };
 
+export const styleTextRangeSchema = {
+  nodeId: z.string().describe('Text node ID'),
+  ranges: z.array(z.object({
+    start: z.number().describe('Start character index (0-based, inclusive)'),
+    end: z.number().describe('End character index (exclusive)'),
+    fontFamily: z.string().optional().describe('Font family name (e.g. "Poppins", "Inter")'),
+    fontWeight: z.number().optional().describe('Font weight (100-900). Maps to style: 400=Regular, 700=Bold, etc.'),
+    fontSize: z.number().optional().describe('Font size in pixels'),
+    color: z.string().optional().describe('Text color as hex (e.g. "#FF0000")'),
+    letterSpacing: z.number().optional().describe('Letter spacing in pixels'),
+    lineHeight: z.number().optional().describe('Line height in pixels'),
+    textDecoration: z.string().optional().describe('Text decoration: NONE, UNDERLINE, or STRIKETHROUGH'),
+    textCase: z.string().optional().describe('Text case: ORIGINAL, UPPER, LOWER, or TITLE'),
+  })).describe('Array of ranges to style. Each range specifies a character span and the styles to apply.'),
+};
+
 function wrap(data: Record<string, unknown>) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
 }
@@ -161,6 +177,17 @@ export function registerStyleTools(server: McpServer, sendDesignCommand: SendDes
     async (params) => {
       const result = await sendDesignCommand('flip_gradient', { nodeId: params.nodeId });
       return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+    }
+  );
+
+  // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
+  server.tool(
+    'style_text_range',
+    'Apply different styles (font, size, weight, color, decoration) to specific character ranges within a single text node. Supports multiple ranges in one call. Essential for mixed-style text like bold keywords, colored highlights, or inline formatting.',
+    styleTextRangeSchema,
+    async (params) => {
+      const data = await sendDesignCommand('style_text_range', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
   );
 }

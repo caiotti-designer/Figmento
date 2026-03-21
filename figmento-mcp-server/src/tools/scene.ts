@@ -38,6 +38,54 @@ export const groupNodesSchema = {
   nodeIds: z.array(z.string()).min(2).describe('Array of node IDs to group (minimum 2)'),
   name: z.string().optional().describe('Name for the group'),
 };
+export const findNodesSchema = {
+  name: z.string().optional().describe('Substring to match against node names (case-insensitive)'),
+  type: z.string().optional().describe('Figma node type filter: FRAME, TEXT, RECTANGLE, ELLIPSE, GROUP, COMPONENT, INSTANCE, VECTOR, LINE, etc.'),
+  text_content: z.string().optional().describe('Substring to match against text node content (case-insensitive). Only matches TEXT nodes.'),
+  parentId: z.string().optional().describe('Limit search to the subtree of this node. Defaults to entire current page.'),
+  max_results: z.number().optional().describe('Maximum results to return (default: 50)'),
+};
+
+export const booleanOperationSchema = {
+  operation: z.string().describe('Boolean operation: UNION, SUBTRACT, INTERSECT, or EXCLUDE. For SUBTRACT, the first nodeId is the base shape.'),
+  nodeIds: z.array(z.string()).min(2).describe('Array of node IDs to combine (minimum 2, order matters for SUBTRACT)'),
+  name: z.string().optional().describe('Name for the resulting node'),
+};
+
+export const flattenNodesSchema = {
+  nodeIds: z.array(z.string()).min(1).describe('Array of node IDs to flatten into a single editable vector'),
+  name: z.string().optional().describe('Name for the resulting vector'),
+};
+
+export const importComponentByKeySchema = {
+  key: z.string().describe('Component key (40-char hex from Figma URL or list_components output)'),
+  parentId: z.string().optional().describe('Parent frame to place the instance into'),
+  x: z.number().optional().describe('X position'),
+  y: z.number().optional().describe('Y position'),
+  name: z.string().optional().describe('Override instance name'),
+  variantName: z.string().optional().describe('For component sets: variant name to select (exact or partial match)'),
+};
+
+export const exportAsSvgSchema = {
+  nodeId: z.string().describe('Node ID to export as SVG'),
+  include_children: z.boolean().optional().describe('If true, export each direct child as a separate SVG (default: false)'),
+};
+
+export const setConstraintsSchema = {
+  nodeId: z.string().describe('Target node ID'),
+  horizontal: z.string().describe('Horizontal constraint: MIN (left), CENTER, MAX (right), STRETCH, or SCALE'),
+  vertical: z.string().describe('Vertical constraint: MIN (top), CENTER, MAX (bottom), STRETCH, or SCALE'),
+};
+
+export const importStyleByKeySchema = {
+  key: z.string().describe('Style key from Figma URL or get_local_styles output'),
+};
+
+export const listAvailableFontsSchema = {
+  query: z.string().optional().describe('Filter fonts by family name (case-insensitive substring match)'),
+  limit: z.number().optional().describe('Maximum font families to return (default: 50)'),
+};
+
 export const cloneNodeSchema = {
   nodeId: z.string().describe('Node ID to clone'),
   offsetX: z.number().optional().describe('X offset from original position (default: 0)'),
@@ -187,6 +235,88 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
     cloneNodeSchema,
     async (params) => {
       const data = await sendDesignCommand('clone_node', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
+  server.tool(
+    'find_nodes',
+    'Search the canvas for nodes matching filters: name (substring), type (exact), and/or text_content (substring). Returns up to max_results matches with position, size, parent info, and text content. Use parentId to limit search to a subtree.',
+    findNodesSchema,
+    async (params) => {
+      const data = await sendDesignCommand('find_nodes', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'list_available_fonts',
+    'List all fonts available in the Figma environment, grouped by family with style variants. Also returns project fonts extracted from local text styles (design system typography). Use query to filter by family name.',
+    listAvailableFontsSchema,
+    async (params) => {
+      const data = await sendDesignCommand('list_available_fonts', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
+  server.tool(
+    'boolean_operation',
+    'Perform a boolean operation (UNION, SUBTRACT, INTERSECT, EXCLUDE) on 2+ shapes. Creates a compound shape. For SUBTRACT, the first node is the base and subsequent nodes are subtracted from it.',
+    booleanOperationSchema,
+    async (params) => {
+      const data = await sendDesignCommand('boolean_operation', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
+  // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
+  server.tool(
+    'flatten_nodes',
+    'Flatten one or more nodes into a single editable vector. Converts groups, boolean operations, or multiple shapes into one VectorNode with merged paths.',
+    flattenNodesSchema,
+    async (params) => {
+      const data = await sendDesignCommand('flatten_nodes', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
+  server.tool(
+    'import_component_by_key',
+    'Import a component from a team library by its key and create an instance on the canvas. Supports component sets with variant selection. Requires Figma Pro. The key is found in Figma component URLs or via list_components.',
+    importComponentByKeySchema,
+    async (params) => {
+      const data = await sendDesignCommand('import_component_by_key', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'import_style_by_key',
+    'Import a paint, text, or effect style from a team library by its key. The imported style becomes available locally and can be applied via apply_style. Requires Figma Pro.',
+    importStyleByKeySchema,
+    async (params) => {
+      const data = await sendDesignCommand('import_style_by_key', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
+  server.tool(
+    'export_as_svg',
+    'Export a node as raw SVG markup string (not base64). Use include_children=true to export each direct child as a separate SVG (useful for icon sets). Returns the SVG string directly for embedding in HTML/React.',
+    exportAsSvgSchema,
+    async (params) => {
+      const data = await sendDesignCommand('export_as_svg', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'set_constraints',
+    'Set responsive constraints on a node (how it behaves when parent is resized). Only works in non-auto-layout frames. For auto-layout children, use layoutAlign/layoutGrow instead.',
+    setConstraintsSchema,
+    async (params) => {
+      const data = await sendDesignCommand('set_constraints', params);
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
   );

@@ -373,6 +373,26 @@ Every design should include real images, not colored rectangles:
 3. **Never:** Leave a colored or gray rectangle as a final image — always resolve to a generated or placeholder image
 4. **Budget:** Limit to 3-4 generated images per design session to keep execution time reasonable
 
+### Contextual Image Fill (Batch Image Placement)
+
+Use `fill_contextual_images` when the user wants to fill multiple frames/cards with contextually relevant images:
+
+**When to use:** "fill images for this section", "generate images for these cards", "add images to these cards", "preencha com imagens", "gere imagens para essa seção".
+
+**How it works:**
+1. Analyzes the entire page with Vision AI to understand industry, brand, tone, purpose
+2. Discovers empty image slots in the selected section (frames/rectangles without IMAGE fills, no text children, min 80px)
+3. Builds contextual prompts per slot using nearby text (card titles, descriptions)
+4. Generates and places images sequentially (3-5s per image, max 6 per call)
+
+**Usage patterns:**
+- Section selected → `fill_contextual_images()` — auto-discovers all empty slots
+- Specific frames → `fill_contextual_images(targetNodeIds=["id1","id2"])` — fills exactly those
+- With context → `fill_contextual_images(context="industrial cleaning equipment company")` — supplements auto-detection
+- Skip analysis → `fill_contextual_images(skipAnalysis=true, context="...")` — uses manual context only
+
+**Page context is cached** for 30 minutes — second call on a different section reuses the analysis.
+
 **Multi-section background composition rule:**
 When creating multiple patterns for the same page, always think about the background color sequence first. The page should read: **bold open → breathe → breathe → bold break → breathe → bold close** (primary → surface → background → primary → surface → primary). Never have the same background color on 3+ consecutive sections. Use `create_from_template` with `composition_mode: "connected"` for landing pages — it enforces this rhythm automatically via `knowledge/patterns/composition-rules.yaml`. In connected mode, sections stack vertically (gap=0) and each section's background is overridden to match the composition plan. Treat the sequence of backgrounds as a deliberate design decision, not an afterthought.
 

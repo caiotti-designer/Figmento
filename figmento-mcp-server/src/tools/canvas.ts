@@ -132,6 +132,28 @@ export const fetchPlaceholderImageSchema = {
   height: z.number().default(1080).describe('Image height in pixels (default: 1080)'),
 };
 
+export const createVectorSchema = {
+  name: z.string().optional().describe('Layer name (default: "Vector")'),
+  x: z.number().optional().describe('X position'),
+  y: z.number().optional().describe('Y position'),
+  width: z.number().optional().describe('Bounding box width'),
+  height: z.number().optional().describe('Bounding box height'),
+  svgPath: z.string().optional().describe('SVG path data string (e.g. "M 0 0 L 100 0 L 50 86.6 Z"). Simplest way to create a vector shape.'),
+  vectorPaths: z.array(z.object({
+    data: z.string().describe('SVG path data string'),
+    windingRule: z.string().optional().describe('NONZERO (default) or EVENODD'),
+  })).optional().describe('Multiple SVG path data strings (for compound shapes)'),
+  vertices: z.array(z.object({
+    x: z.number(),
+    y: z.number(),
+    cornerRadius: z.number().optional(),
+  })).optional().describe('Simple polygon vertices — auto-generates a closed shape from 3+ points'),
+  fillColor: z.string().optional().describe('Hex fill color'),
+  strokeColor: z.string().optional().describe('Hex stroke color'),
+  strokeWeight: z.number().optional().describe('Stroke weight in pixels'),
+  parentId: z.string().optional().describe('Parent frame to append to'),
+};
+
 export const setTextSchema = {
   nodeId: z.string().describe('Text node ID to update'),
   content: z.string().describe('New text content'),
@@ -305,6 +327,17 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
     setTextSchema,
     async (params) => {
       const data = await sendDesignCommand('apply_template_text', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
+  // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
+  server.tool(
+    'create_vector',
+    'Create a custom vector shape using SVG path data, multiple paths, or simple polygon vertices. Use svgPath for SVG-syntax shapes (e.g. "M 0 0 L 100 0 L 50 86.6 Z" for a triangle). Use vertices for simple closed polygons from point arrays.',
+    createVectorSchema,
+    async (params) => {
+      const data = await sendDesignCommand('create_vector', params);
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
   );
