@@ -166,6 +166,111 @@ font_pairings:
     recommended_heading_weight: 700
     recommended_body_weight: 400
 
+  # ─── Proven pairings from Typography.js (battle-tested in production) ───
+
+  - id: scholarly
+    name: Scholarly
+    heading_font: Merriweather
+    body_font: Source Sans Pro
+    mood_tags: [authoritative, scholarly, government, institutional, readable]
+    description: "US Web Design Standards pairing. Authoritative serif + clean sans. Government, education, non-profit."
+    recommended_heading_weight: 700
+    recommended_body_weight: 400
+    scale_ratio: 2.35
+    source: "Typography.js — US Web Design Standards"
+
+  - id: warm-editorial
+    name: Warm Editorial
+    heading_font: Playfair Display
+    body_font: Fira Sans
+    mood_tags: [editorial, magazine, warm, refined, publishing]
+    description: "High-contrast display serif meets humanist sans. Magazines, blogs, cultural sites."
+    recommended_heading_weight: 700
+    recommended_body_weight: 400
+    scale_ratio: 2.15
+    source: "Typography.js — Kirkham"
+
+  - id: impactful
+    name: Impactful
+    heading_font: Oswald
+    body_font: PT Sans
+    mood_tags: [impactful, condensed, bold, strong, headline, news]
+    description: "Condensed impact headlines + workhorse sans body. News, sports, bold statements."
+    recommended_heading_weight: 700
+    recommended_body_weight: 400
+    source: "Typography.js — Elk Glen"
+
+  - id: slab-warmth
+    name: Slab Warmth
+    heading_font: Arvo
+    body_font: Cabin
+    mood_tags: [warm, sturdy, vintage, mechanical, trustworthy]
+    description: "Geometric slab serif headlines + humanist sans body. Craft brands, vintage tech, artisan."
+    recommended_heading_weight: 700
+    recommended_body_weight: 400
+    source: "Typography.js — Doelger"
+
+  - id: thin-geometric
+    name: Thin Geometric
+    heading_font: Raleway
+    body_font: Libre Baskerville
+    mood_tags: [refined, architectural, thin, sophisticated, gallery]
+    description: "Ultra-thin geometric sans + transitional serif. Architecture, galleries, design studios."
+    recommended_heading_weight: 800
+    recommended_body_weight: 400
+    source: "Typography.js — Lawton"
+
+  - id: whimsical
+    name: Whimsical
+    heading_font: Josefin Sans
+    body_font: Merriweather
+    mood_tags: [whimsical, dreamy, artistic, delicate, storytelling]
+    description: "Delicate geometric sans + readable serif. Art, storytelling, indie brands."
+    recommended_heading_weight: 600
+    recommended_body_weight: 300
+    source: "Typography.js — Stardust"
+
+  - id: versatile
+    name: Versatile
+    heading_font: Lato
+    body_font: Lato
+    mood_tags: [versatile, balanced, universal, neutral, professional]
+    description: "Single-family humanist sans with golden ratio scale. Works for almost anything."
+    recommended_heading_weight: 700
+    recommended_body_weight: 400
+    scale_ratio: 1.618
+    source: "Typography.js — Noriega"
+
+  - id: slab-journalistic
+    name: Slab Journalistic
+    heading_font: Bitter
+    body_font: Source Sans Pro
+    mood_tags: [journalistic, content, readable, serious, news]
+    description: "Slab serif headlines + Adobe's clean sans. News sites, content platforms, documentation."
+    recommended_heading_weight: 700
+    recommended_body_weight: 400
+    source: "Typography.js — WordPress 2013"
+
+  - id: adobe-matched
+    name: Adobe Matched
+    heading_font: Source Serif Pro
+    body_font: Source Sans Pro
+    mood_tags: [refined, matched, professional, polished, corporate]
+    description: "Adobe's serif/sans pair, designed to work together. Corporate, documentation, SaaS."
+    recommended_heading_weight: 700
+    recommended_body_weight: 400
+    source: "Typography.js — St. Annes"
+
+  - id: condensed-readable
+    name: Condensed Readable
+    heading_font: Roboto Condensed
+    body_font: Vollkorn
+    mood_tags: [compact, readable, dense, informational, data]
+    description: "Condensed sans for space-efficient headers + old-style serif body. Dashboards, data-heavy layouts."
+    recommended_heading_weight: 400
+    recommended_body_weight: 400
+    source: "Typography.js — Judah"
+
 # ───────────────────────────────────────────────────────────────
 # Line Height Rules
 # ───────────────────────────────────────────────────────────────
@@ -228,6 +333,7 @@ available_fonts:
   - Inter
   - Roboto
   - Roboto Slab
+  - Roboto Condensed
   - Open Sans
   - Montserrat
   - Poppins
@@ -242,7 +348,17 @@ available_fonts:
   - Work Sans
   - Bebas Neue
   - Source Serif Pro
+  - Source Sans Pro
   - Libre Baskerville
   - Cormorant Garamond
   - Hind
   - Proza Libre
+  - Fira Sans
+  - Arvo
+  - Cabin
+  - PT Sans
+  - Josefin Sans
+  - Lato
+  - Bitter
+  - Vollkorn
+  - Noto Serif
