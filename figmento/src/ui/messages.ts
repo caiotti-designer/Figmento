@@ -16,6 +16,7 @@ export interface MessageCallbacks {
   onCommandResult?: (response: Record<string, unknown>) => void;
   onSettingsLoaded?: (settings: Record<string, string>) => void;
   onMemoryLoaded?: (entries: Array<{ entry: string; timestamp: string }>) => void;
+  onDesignSystemScanned?: (cache: any, error?: string) => void;
 }
 
 const handleFigmaMessage = (event: MessageEvent, callbacks: MessageCallbacks): void => {
@@ -52,6 +53,8 @@ const handleFigmaMessage = (event: MessageEvent, callbacks: MessageCallbacks): v
     callbacks.onSettingsLoaded(msg.settings || {});
   } else if (msg.type === 'memory-loaded' && callbacks.onMemoryLoaded) {
     callbacks.onMemoryLoaded(msg.entries || []);
+  } else if (msg.type === 'design-system-scanned' && callbacks.onDesignSystemScanned) {
+    callbacks.onDesignSystemScanned(msg.cache, msg.error);
   }
 };
 

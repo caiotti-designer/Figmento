@@ -3195,6 +3195,72 @@
       accent-color: var(--accent);
     }
 
+    /* FN-16: Design System toggle in chat input area */
+    .ds-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      background: var(--bg-hover);
+      border-radius: var(--radius-md, 8px) var(--radius-md, 8px) 0 0;
+      border-bottom: 1px solid var(--border);
+      min-height: 32px;
+    }
+    .ds-toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: var(--text-sm);
+      color: var(--text-primary);
+      font-weight: var(--font-medium, 500);
+      user-select: none;
+    }
+    .ds-toggle-label input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+      margin: 0;
+      cursor: pointer;
+    }
+    .ds-toggle-label input[type="checkbox"]:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .ds-toggle-row.disabled .ds-toggle-label {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .ds-toggle-row.disabled .ds-toggle-text {
+      color: var(--text-tertiary);
+    }
+    .ds-toggle-summary {
+      font-size: var(--text-xs, 11px);
+      color: var(--text-tertiary);
+      font-weight: normal;
+    }
+    .ds-toggle-hint {
+      display: none;
+      font-size: var(--text-xs, 11px);
+    }
+    .ds-toggle-hint a {
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .ds-toggle-hint a:hover {
+      text-decoration: underline;
+    }
+    .ds-toggle-row.disabled .ds-toggle-hint {
+      display: inline;
+    }
+    .ds-toggle-row.active .ds-toggle-summary {
+      display: inline;
+    }
+    .ds-toggle-row:not(.active) .ds-toggle-summary {
+      display: none;
+    }
+
     .chat-loading {
       display: none;
       align-items: center;
@@ -3286,7 +3352,157 @@
     .pref-export-btn, .pref-import-btn { font-size: 11px; padding: 4px 10px; background: none; border: 1px solid #555; color: #aaa; border-radius: 4px; cursor: pointer; }
     .pref-export-btn:hover, .pref-import-btn:hover { border-color: #888; color: #e0e0e0; }
 
-    /* ── Bridge Tab ── */
+    /* ── FN-6: Design System Scan ── */
+    .ds-scan-status.fresh { color: var(--success); }
+    .ds-scan-status.warning { color: var(--warning); }
+    .ds-scan-status.error { color: var(--error); }
+    .ds-scan-status.scanning { color: var(--text-tertiary); font-style: italic; }
+    #ds-scan-btn:disabled { opacity: 0.6; cursor: wait; }
+
+    /* ── FN-17: Skill Export ── */
+    .skill-export-group {
+      margin-top: 4px;
+      padding: 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .skill-export-group h3 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0 0 6px;
+    }
+    .skill-export-hint {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    .skill-export-btn {
+      width: 100%;
+      padding: 10px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .skill-export-btn:hover { opacity: 0.9; }
+    .skill-export-btn:active { transform: scale(0.98); }
+    .skill-export-btn:disabled { opacity: 0.5; cursor: wait; }
+    .skill-export-status {
+      font-size: 11px;
+      margin-top: 8px;
+      min-height: 16px;
+    }
+    .skill-export-status.success { color: var(--success); }
+    .skill-export-status.warning { color: var(--warning); }
+    .skill-export-status.info { color: var(--text-tertiary); font-style: italic; }
+
+    /* ── Status Tab ── */
+
+    .status-tab-content {
+      padding: var(--space-lg);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+    }
+
+    .status-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+    }
+
+    .status-card-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-md);
+    }
+
+    .status-card-title {
+      font-size: var(--text-md);
+      font-weight: var(--font-semibold);
+      color: var(--text-primary);
+      flex: 1;
+    }
+
+    .status-card-action {
+      font-size: var(--text-xs);
+      color: var(--text-link);
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-family: var(--font-sans);
+      font-weight: var(--font-medium);
+      padding: 0;
+    }
+    .status-card-action:hover { text-decoration: underline; }
+
+    .status-dot-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .status-dot-indicator.connected { background: var(--success); }
+    .status-dot-indicator.disconnected { background: var(--text-tertiary); }
+    .status-dot-indicator.connecting { background: var(--warning); }
+
+    .status-card-body {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .status-card-body .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+    }
+
+    .status-row-label { color: var(--text-tertiary); font-size: var(--text-xs); }
+    .status-row-value { font-weight: var(--font-medium); color: var(--text-primary); font-size: var(--text-sm); }
+    .status-row-value.mono { font-family: var(--font-mono); font-size: var(--text-xs); cursor: pointer; }
+    .status-row-value.mono:hover { color: var(--text-link); }
+
+    .status-card-empty {
+      font-size: var(--text-sm);
+      color: var(--text-tertiary);
+      font-style: italic;
+    }
+
+    .status-scan-btn {
+      margin-top: var(--space-sm);
+      background: var(--accent);
+      color: var(--accent-on);
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 6px 14px;
+      font-size: var(--text-xs);
+      font-weight: var(--font-semibold);
+      font-family: var(--font-sans);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    .status-scan-btn:hover { opacity: 0.9; }
+    .status-scan-btn:disabled { opacity: 0.6; cursor: wait; }
+
+    .status-staleness { font-size: var(--text-xs); margin-top: 4px; }
+    .status-staleness.fresh { color: var(--success); }
+    .status-staleness.warning { color: var(--warning); }
+    .status-staleness.scanning { color: var(--text-tertiary); font-style: italic; }
+
+    /* ── Bridge Tab (relocated to Settings Advanced) ── */
 
     .bridge-content { padding: var(--space-lg); overflow-y: auto; }
 
@@ -3401,6 +3617,18 @@
     }
 
     .bridge-stats span { font-weight: var(--font-semibold); color: var(--text-secondary); }
+
+    /* Bridge Advanced section in Settings */
+    .bridge-advanced-details summary {
+      cursor: pointer;
+      font-size: var(--text-md);
+      font-weight: var(--font-semibold);
+      color: var(--text-primary);
+      padding: 4px 0;
+      user-select: none;
+    }
+    .bridge-advanced-details summary:hover { color: var(--text-link); }
+    .bridge-advanced-details .bridge-content { padding: var(--space-sm) 0 0 0; }
 
     /* ── Chat Settings Tab ── */
 
@@ -3519,6 +3747,17 @@
       <span>Thinking...</span>
     </div>
     <div class="input-area">
+      <!-- FN-16: Design System Toggle -->
+      <div class="ds-toggle-row" id="ds-toggle-row">
+        <label class="ds-toggle-label" for="ds-toggle">
+          <input type="checkbox" id="ds-toggle" checked />
+          <span class="ds-toggle-text">Use My Design System</span>
+          <span class="ds-toggle-summary" id="ds-toggle-summary"></span>
+        </label>
+        <span class="ds-toggle-hint" id="ds-toggle-hint">
+          <a href="#" id="ds-toggle-scan-link">Scan your design system first</a>
+        </span>
+      </div>
       <textarea id="chat-input" placeholder="Describe a design to generate..." rows="3"></textarea>
       <div class="input-toolbar">
         <div class="input-toolbar-left">
@@ -3570,7 +3809,81 @@
 
   <!-- CU-6: Mode Flows removed — chat is the only interface now -->
 
-  <!-- Bridge Tab (hidden, content accessible via Settings sheet) -->
+  <!-- Status Tab (FN-15: replaces Bridge tab) -->
+  <div id="tab-status" style="display:none">
+    <div class="status-tab-content">
+      <!-- MCP Connection Card -->
+      <div class="status-card">
+        <div class="status-card-header">
+          <div id="status-mcp-dot" class="status-dot-indicator disconnected"></div>
+          <span class="status-card-title">MCP Connection</span>
+          <button class="status-card-action" id="status-mcp-configure">Configure</button>
+        </div>
+        <div class="status-card-body">
+          <div id="status-mcp-connected" style="display:none;">
+            <div class="status-row">
+              <span class="status-row-label">Channel</span>
+              <span class="status-row-value mono" id="status-mcp-channel" title="Click to copy" onclick="copyChannelId()">---</span>
+            </div>
+            <div class="status-row">
+              <span class="status-row-label">Commands</span>
+              <span class="status-row-value" id="status-mcp-cmds">0</span>
+            </div>
+            <div class="status-row">
+              <span class="status-row-label">Errors</span>
+              <span class="status-row-value" id="status-mcp-errs">0</span>
+            </div>
+          </div>
+          <div id="status-mcp-disconnected">
+            <span class="status-card-empty">Not connected to relay</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Design System Card -->
+      <div class="status-card">
+        <div class="status-card-header">
+          <span class="status-card-title">Design System</span>
+        </div>
+        <div class="status-card-body">
+          <div id="status-ds-scanned" style="display:none;">
+            <div class="status-row">
+              <span class="status-row-label">Components</span>
+              <span class="status-row-value" id="status-ds-components">0</span>
+            </div>
+            <div class="status-row">
+              <span class="status-row-label">Variables</span>
+              <span class="status-row-value" id="status-ds-variables">0</span>
+            </div>
+            <div class="status-row">
+              <span class="status-row-label">Styles</span>
+              <span class="status-row-value" id="status-ds-styles">0</span>
+            </div>
+            <div id="status-ds-staleness" class="status-staleness"></div>
+          </div>
+          <div id="status-ds-empty">
+            <span class="status-card-empty">No design system scanned</span>
+          </div>
+          <button id="status-ds-scan-btn" class="status-scan-btn">Scan Design System</button>
+        </div>
+      </div>
+
+      <!-- Preferences Card -->
+      <div class="status-card">
+        <div class="status-card-header">
+          <span class="status-card-title">Learned Preferences</span>
+          <button class="status-card-action" id="status-prefs-view" style="display:none;">View</button>
+        </div>
+        <div class="status-card-body">
+          <div id="status-prefs-has">
+            <span class="status-row-value" id="status-prefs-count-text">No preferences learned yet</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bridge config (relocated from tab-bridge for FN-15, used by bridge.ts) -->
   <div id="tab-bridge" style="display:none">
     <div class="bridge-content">
       <div class="bridge-header">
@@ -3675,7 +3988,7 @@
           <div class="chat-settings-field">
             <label>Relay Server URL</label>
             <input type="text" id="settings-relay-url" value="http://localhost:3055" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-hover);color:var(--text-primary);font-size:var(--text-sm);" />
-            <div class="hint">The Railway-hosted relay endpoint.</div>
+            <div class="hint">The local relay server endpoint.</div>
           </div>
         </div>
         <div id="api-key-relay-hint" class="hint" style="display:none;margin-top:8px;color:var(--text-tertiary);">
@@ -3692,6 +4005,16 @@
         </div>
         <div id="image-gen-shared" class="chat-settings-field" style="display:none;">
           <div class="hint" style="color:var(--text-tertiary);">Using the same Gemini key for image generation.</div>
+        </div>
+      </div>
+
+      <div class="chat-settings-group">
+        <h3>Design System</h3>
+        <div class="chat-settings-field">
+          <div class="hint" style="margin-bottom:8px;">Scan the current file for components, variables, and styles. Results are cached for 1 hour.</div>
+          <button id="ds-scan-btn" class="btn btn-primary" style="width:100%;padding:10px;border-radius:var(--radius-md);font-size:var(--text-sm);font-weight:var(--font-semibold);cursor:pointer;border:none;background:var(--accent);color:var(--accent-on);transition:var(--transition-fast);">Scan Design System</button>
+          <div id="ds-scan-summary" style="margin-top:8px;font-size:var(--text-sm);color:var(--text-primary);font-weight:var(--font-medium);"></div>
+          <div id="ds-scan-status" class="ds-scan-status" style="margin-top:4px;font-size:var(--text-xs);color:var(--text-tertiary);"></div>
         </div>
       </div>
 
@@ -3719,6 +4042,48 @@
           <button class="pref-import-btn" id="pref-import-trigger">Import JSON</button>
           <input type="file" id="pref-import-input" accept=".json" style="display:none" />
         </div>
+      </div>
+
+      <!-- Skill Export (FN-17) -->
+      <div class="chat-settings-group skill-export-group" id="skill-export-section">
+        <h3>Share My Workflow</h3>
+        <div class="skill-export-hint">
+          Export your design system, brand kit, preferences, and format defaults as a Figma Skill file (.md). Share it with developers using Claude Code + <code>use_figma</code>.
+        </div>
+        <button class="skill-export-btn" id="skill-export-btn">Share My Workflow as a Skill</button>
+        <div class="skill-export-status" id="skill-export-status"></div>
+      </div>
+
+      <!-- Advanced: MCP Bridge (FN-15: relocated from Bridge tab) -->
+      <div class="chat-settings-group">
+        <details class="bridge-advanced-details" id="bridge-advanced-section">
+          <summary>Advanced: MCP Bridge</summary>
+          <div class="bridge-content">
+            <div class="bridge-section">
+              <label class="bridge-section-label">WebSocket Server</label>
+              <div class="bridge-input-row">
+                <input type="text" id="bridge-adv-url" value="ws://localhost:3055" />
+                <button id="bridge-adv-connect" class="bridge-btn">Connect</button>
+              </div>
+            </div>
+            <div class="bridge-section">
+              <label class="bridge-section-label">Channel ID</label>
+              <div class="channel-display" id="bridge-adv-channel-display" onclick="copyChannelId()">
+                <span id="bridge-adv-channel">---</span>
+                <div class="channel-hint" id="bridge-adv-hint">Click to copy</div>
+              </div>
+            </div>
+            <div class="bridge-section">
+              <label class="bridge-section-label">Activity Log</label>
+              <div id="bridge-adv-log" class="log-area"></div>
+            </div>
+            <div class="bridge-stats">
+              Commands: <span id="bridge-adv-cmd-count">0</span>
+              &nbsp;&nbsp;|&nbsp;&nbsp;
+              Errors: <span id="bridge-adv-err-count">0</span>
+            </div>
+          </div>
+        </details>
       </div>
 
       <button id="settings-save" class="chat-settings-save-btn">Save Settings</button>

@@ -8,12 +8,25 @@ import { handleSettingsMessage, loadSavedApiKeys } from './handlers/settings';
 import { executeCommand } from './handlers/command-router';
 import { createDesignFromAnalysis } from './handlers/design-create';
 import { handleGetSelectedImage, createReferenceImage, scanTemplateFrames, applyTemplateText, applyTemplateImage } from './handlers/templates';
+import { handleScanDesignSystem, getDesignSystemCache } from './handlers/design-system-discovery';
 
 // Show plugin UI
 figma.showUI(__html__, { width: 450, height: 820 });
 
 // Load saved API keys when plugin starts
 loadSavedApiKeys();
+
+// FN-6: Load cached design system on startup and send to UI
+(async () => {
+  try {
+    const dsCache = await getDesignSystemCache();
+    if (dsCache) {
+      figma.ui.postMessage({ type: 'design-system-scanned', cache: dsCache });
+    }
+  } catch (_e) {
+    // Non-critical — UI will show "no cache" state
+  }
+})();
 
 // Handle messages from UI
 figma.ui.onmessage = async function (msg: PluginMessage) {
@@ -41,6 +54,21 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
       if (savedTheme) {
         figma.ui.postMessage({ type: 'load-theme', theme: savedTheme });
       }
+      break;
+    }
+
+    // FN-16: "Use My Design System" toggle persistence
+    case 'save-ds-toggle': {
+      await figma.clientStorage.setAsync('figmento-use-design-system', (msg as any).enabled);
+      break;
+    }
+    case 'load-ds-toggle': {
+      const dsToggle = await figma.clientStorage.getAsync('figmento-use-design-system');
+      figma.ui.postMessage({ type: 'ds-toggle-loaded', enabled: dsToggle !== false });
+      break;
+    }
+    case 'set-auto-bind-variables': {
+      await figma.clientStorage.setAsync('figmento-auto-bind-variables', (msg as any).enabled);
       break;
     }
 
@@ -299,6 +327,22 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
       } catch (error) {
         const imgErrorMsg = error instanceof Error ? error.message : 'Image apply failed';
         figma.notify('Error: ' + imgErrorMsg, { error: true });
+      }
+      break;
+
+    case 'scan-design-system':
+      try {
+        figma.notify('Scanning design system...', { timeout: 2000 });
+        const dsCache = await handleScanDesignSystem();
+        figma.ui.postMessage({ type: 'design-system-scanned', cache: dsCache });
+        const compCount = dsCache.components.length;
+        const varCount = dsCache.variables.length;
+        const styleCount = dsCache.paintStyles.length + dsCache.textStyles.length + dsCache.effectStyles.length;
+        figma.notify(`Found ${compCount} components, ${varCount} variables, ${styleCount} styles`, { timeout: 3000 });
+      } catch (error) {
+        const scanErrorMsg = error instanceof Error ? error.message : 'Scan failed';
+        figma.ui.postMessage({ type: 'design-system-scanned', cache: null, error: scanErrorMsg });
+        figma.notify('Design system scan failed: ' + scanErrorMsg, { error: true });
       }
       break;
 

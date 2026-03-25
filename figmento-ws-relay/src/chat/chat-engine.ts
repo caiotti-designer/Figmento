@@ -65,6 +65,8 @@ export interface ChatTurnRequest {
   geminiApiKey?: string;
   /** Optional base64 image attachment (data URI) from user paste. Injected as visual context for the first message only. */
   attachmentBase64?: string;
+  /** File attachments (PDF, TXT, SVG) as data URIs. Server extracts text content and injects as context. */
+  fileAttachments?: Array<{ name: string; type: string; dataUri: string }>;
   /** Learned user preferences to inject into system prompt. */
   preferences?: LearnedPreference[];
   /** Optional snapshot of the user's current Figma selection at time of Send. */
@@ -405,6 +407,118 @@ function truncateForHistory(content: string, toolName?: string): string {
   } catch { /* not JSON */ }
 
   return content.slice(0, limit - 3) + '...';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FILE ATTACHMENT PROCESSING (PDF, TXT, SVG → text context)
+// ═══════════════════════════════════════════════════════════════
+
+interface ExtractedFileContent {
+  name: string;
+  type: string;
+  textContent: string;
+  pageCount?: number;
+  detectedColors?: string[];
+  detectedFonts?: string[];
+  warning?: string;
+}
+
+async function extractFileContent(
+  attachment: { name: string; type: string; dataUri: string },
+): Promise<ExtractedFileContent> {
+  const { name, type, dataUri } = attachment;
+
+  // Decode base64 data URI to buffer
+  const commaIndex = dataUri.indexOf(',');
+  const base64Data = commaIndex >= 0 ? dataUri.slice(commaIndex + 1) : dataUri;
+  const buffer = Buffer.from(base64Data, 'base64');
+
+  // Plain text / SVG — decode as UTF-8
+  if (type === 'text/plain' || type === 'image/svg+xml') {
+    const text = buffer.toString('utf-8').slice(0, 10000);
+    return { name, type, textContent: text };
+  }
+
+  // PDF — extract with pdf-parse
+  if (type === 'application/pdf') {
+    try {
+      const pdfParse = require('pdf-parse');
+      const data = await pdfParse(buffer);
+      const fullText: string = data.text || '';
+
+      // Detect hex color codes
+      const colorRegex = /#([0-9A-Fa-f]{3,8})\b/g;
+      const detectedColors = [...new Set(
+        (fullText.match(colorRegex) || []).map((c: string) => c.toUpperCase()),
+      )];
+
+      // Detect font mentions
+      const fontRegex = /(?:font|typeface|typography|font-family)[:\s]+["']?([A-Z][a-z]+(?:\s[A-Z][a-z]+)*)/gi;
+      const fontMatches: string[] = [];
+      let fontMatch: RegExpExecArray | null;
+      while ((fontMatch = fontRegex.exec(fullText)) !== null) {
+        fontMatches.push(fontMatch[1].trim());
+      }
+      const detectedFonts = [...new Set(fontMatches)];
+
+      return {
+        name,
+        type,
+        textContent: fullText.slice(0, 10000),
+        pageCount: data.numpages || 0,
+        detectedColors,
+        detectedFonts,
+        warning: fullText.length === 0 ? 'No text extracted — PDF may be image-only (scanned document)' : undefined,
+      };
+    } catch (err) {
+      return {
+        name,
+        type,
+        textContent: '',
+        warning: `PDF parsing failed: ${(err as Error).message}`,
+      };
+    }
+  }
+
+  return { name, type, textContent: '', warning: `Unsupported file type: ${type}` };
+}
+
+/**
+ * Process all file attachments and build a context block to prepend to the user message.
+ * PDFs get text-extracted, TXT/SVG are read directly.
+ */
+async function buildFileAttachmentContext(
+  attachments: Array<{ name: string; type: string; dataUri: string }>,
+): Promise<string> {
+  if (!attachments || attachments.length === 0) return '';
+
+  const results = await Promise.all(attachments.map(extractFileContent));
+
+  const blocks: string[] = [];
+  for (const result of results) {
+    const header = result.pageCount
+      ? `📄 ${result.name} (PDF, ${result.pageCount} pages)`
+      : `📄 ${result.name}`;
+
+    const parts: string[] = [header];
+
+    if (result.warning) {
+      parts.push(`⚠️ ${result.warning}`);
+    }
+    if (result.textContent) {
+      parts.push(`Content:\n${result.textContent}`);
+    }
+    if (result.detectedColors && result.detectedColors.length > 0) {
+      parts.push(`Detected colors: ${result.detectedColors.join(', ')}`);
+    }
+    if (result.detectedFonts && result.detectedFonts.length > 0) {
+      parts.push(`Detected fonts: ${result.detectedFonts.join(', ')}`);
+    }
+
+    blocks.push(parts.join('\n'));
+  }
+
+  return `[EXTRACTED FILE CONTENT]\n${blocks.join('\n\n---\n\n')}`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1157,7 +1271,18 @@ export async function handleChatTurn(
     selectionContext = buildSelectionContextBasic(request.currentSelection);
   }
 
-  const message = [sessionContext, selectionContext, request.message].filter(Boolean).join('\n\n');
+  // Extract text content from file attachments (PDFs, TXT, SVG)
+  let fileContext = '';
+  if (request.fileAttachments && request.fileAttachments.length > 0) {
+    try {
+      fileContext = await buildFileAttachmentContext(request.fileAttachments);
+      console.log(`[Figmento Chat] Extracted text from ${request.fileAttachments.length} file attachment(s)`);
+    } catch (err) {
+      console.error(`[Figmento Chat] File attachment extraction failed:`, (err as Error).message);
+    }
+  }
+
+  const message = [sessionContext, selectionContext, fileContext, request.message].filter(Boolean).join('\n\n');
 
   // ── Smart Routing: detect "fill images" intent and bypass LLM ──
   const fillImageIntent = detectFillImageIntent(request.message);

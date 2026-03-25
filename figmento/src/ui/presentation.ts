@@ -10,7 +10,7 @@ import {
   ExtractedSlideStyle,
   PRESENTATION_COLOR_THEMES,
 } from '../types';
-import { presentationState, addSlideState, apiState, imageGenState, GOOGLE_FONTS } from './state';
+import { presentationState, addSlideState, apiState, imageGenState, designSystemState, GOOGLE_FONTS } from './state';
 import { postMessage, showToast, debounce, escapeHtml, computeToolCallProgress, toolNameToProgressMessage } from './utils';
 import { fetchAllIcons } from './icons';
 import { openSettings } from './settings';
@@ -766,7 +766,7 @@ export const handleGeneratePresentation = async (): Promise<void> => {
         provider,
         apiKey,
         model,
-        systemPrompt: buildSystemPrompt(brief),
+        systemPrompt: buildSystemPrompt(brief, undefined, undefined, designSystemState.cache),
         tools: FIGMENTO_TOOLS,
         messages,
         maxIterations: 30,

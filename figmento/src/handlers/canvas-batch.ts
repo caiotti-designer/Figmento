@@ -10,6 +10,8 @@ import { handleCreateFrame, handleCreateText, handleCreateRectangle, handleCreat
 import { handleSetFill, handleSetStroke, handleSetEffects, handleSetCornerRadius, handleSetOpacity, handleSetAutoLayout, handleSetText, handleStyleTextRange } from './canvas-style';
 import { handleDeleteNode, handleMoveNode, handleResizeNode, handleRenameNode, handleAppendChild, handleReorderChild, handleCloneNode, handleCloneWithOverrides, handleGroupNodes, handleGetSelection, handleGetNodeInfo, handleGetPageNodes, handleFindNodes, handleListAvailableFonts, handleBooleanOperation, handleFlattenNodes, handleImportComponentByKey, handleImportStyleByKey } from './canvas-scene';
 import { handleExportNode, handleGetScreenshot, handleReadFigmaContext, handleBindVariable, handleApplyPaintStyle, handleApplyTextStyle, handleApplyEffectStyle, handleCreateFigmaVariables, handleExportAsSvg, handleSetConstraints } from './canvas-query';
+import { getDesignSystemCache } from './design-system-discovery';
+import { tryComponentInstance, isComponentMatchableFrame } from './component-matcher';
 
 interface BatchCommand {
   action: string;
@@ -70,7 +72,16 @@ export async function handleBatchExecute(params: Record<string, unknown>): Promi
 
 export async function executeSingleAction(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
   switch (action) {
-    case 'create_frame': return await handleCreateFrame(params);
+    case 'create_frame': {
+      // FN-7: Intercept create_frame calls that match a discovered component
+      const frameName = (params.name as string) || '';
+      if (params.useDesignSystem !== false && isComponentMatchableFrame(frameName)) {
+        const dsCache = await getDesignSystemCache();
+        const instanceResult = await tryComponentInstance(params, dsCache);
+        if (instanceResult) return instanceResult;
+      }
+      return await handleCreateFrame(params);
+    }
     case 'create_text': return await handleCreateText(params);
     case 'set_fill': return await handleSetFill(params);
     case 'export_node': return await handleExportNode(params);

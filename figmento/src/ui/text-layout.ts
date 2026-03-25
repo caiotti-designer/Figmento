@@ -14,7 +14,7 @@ import {
   ImageGenModel,
 } from '../types';
 import { postMessage, showToast, safeGetItem, safeSetItem, fetchWithRetry, escapeHtml, computeToolCallProgress, toolNameToProgressMessage } from './utils';
-import { modeState, apiState, imageGenState, STORAGE_KEY_MODE } from './state';
+import { modeState, apiState, imageGenState, designSystemState, STORAGE_KEY_MODE } from './state';
 import { inferCategory, getRelevantBlueprint, formatBlueprintZones } from './blueprint-loader';
 import { getRelevantReferences } from './reference-loader';
 import { buildSystemPrompt } from './system-prompt';
@@ -850,7 +850,7 @@ export const handleGenerateTextDesign = async (): Promise<void> => {
           provider,
           apiKey,
           model,
-          systemPrompt: buildSystemPrompt(brief),
+          systemPrompt: buildSystemPrompt(brief, undefined, undefined, designSystemState.cache),
           tools: FIGMENTO_TOOLS,
           messages,
           maxIterations: 30,
@@ -929,7 +929,7 @@ export const handleGenerateTextDesign = async (): Promise<void> => {
       provider,
       apiKey,
       model,
-      systemPrompt: buildSystemPrompt(brief),
+      systemPrompt: buildSystemPrompt(brief, undefined, undefined, designSystemState.cache),
       tools: FIGMENTO_TOOLS,
       messages,
       onToolCall: async (name: string, args: Record<string, unknown>): Promise<ToolCallResult> => {

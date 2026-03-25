@@ -9,7 +9,9 @@ import { handleCreateFrame, handleCreateText, handleCreateRectangle, handleCreat
 import { handleSetFill, handleSetStroke, handleSetEffects, handleSetCornerRadius, handleSetOpacity, handleSetAutoLayout, handleSetText, handleFlipGradient, handleStyleTextRange } from './canvas-style';
 import { handleDeleteNode, handleMoveNode, handleResizeNode, handleRenameNode, handleAppendChild, handleReorderChild, handleCloneNode, handleCloneWithOverrides, handleGroupNodes, handleGetSelection, handleGetNodeInfo, handleGetPageNodes, handleFindNodes, handleListAvailableFonts, handleBooleanOperation, handleFlattenNodes, handleImportComponentByKey, handleImportStyleByKey } from './canvas-scene';
 import { handleExportNode, handleGetScreenshot, handleScanFrameStructure, handleReadFigmaContext, handleBindVariable, handleApplyPaintStyle, handleApplyTextStyle, handleApplyEffectStyle, handleCreateFigmaVariables, handleExportAsSvg, handleSetConstraints } from './canvas-query';
+import { getDesignSystemCache, handleScanDesignSystem } from './design-system-discovery';
 import { handleBatchExecute, handleCreateDesignCmd, handleScanTemplateCmd, handleApplyTemplateTextCmd, handleApplyTemplateImageCmd, runRefinementCheck } from './canvas-batch';
+import { tryComponentInstance, isComponentMatchableFrame } from './component-matcher';
 
 export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
   const baseResponse = {
@@ -22,8 +24,22 @@ export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
     let data: Record<string, unknown>;
 
     switch (cmd.action) {
-      case 'create_frame':
-        data = await handleCreateFrame(cmd.params); break;
+      case 'create_frame': {
+        // FN-7: Intercept create_frame calls that match a discovered component
+        const frameName = (cmd.params.name as string) || '';
+        if (cmd.params.useDesignSystem !== false && isComponentMatchableFrame(frameName)) {
+          const dsCache = await getDesignSystemCache();
+          const instanceResult = await tryComponentInstance(cmd.params, dsCache);
+          if (instanceResult) {
+            data = instanceResult;
+            break;
+          }
+        }
+        // Fallback to primitive creation
+        data = await handleCreateFrame(cmd.params);
+        data.matchedComponent = null;
+        break;
+      }
       case 'create_text':
         data = await handleCreateText(cmd.params); break;
       case 'set_fill':
@@ -121,8 +137,17 @@ export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
         data = {};
         break;
       }
-      case 'read_figma_context':
-        data = await handleReadFigmaContext(); break;
+      case 'read_figma_context': {
+        data = await handleReadFigmaContext();
+        // FN-6: Enrich with cached component data if available
+        const dsCache = await getDesignSystemCache();
+        if (dsCache && dsCache.components.length > 0) {
+          data.discoveredComponents = dsCache.components;
+          data.componentScanTimestamp = dsCache.scannedAt;
+          data.componentsTruncated = dsCache.truncated;
+        }
+        break;
+      }
       case 'bind_variable':
         data = await handleBindVariable(cmd.params); break;
       case 'apply_paint_style':
@@ -138,6 +163,11 @@ export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
       case 'get_preferences': {
         const prefs = await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY) || [];
         data = { preferences: prefs };
+        break;
+      }
+      case 'scan_design_system': {
+        const scanResult = await handleScanDesignSystem();
+        data = scanResult as unknown as Record<string, unknown>;
         break;
       }
       default:

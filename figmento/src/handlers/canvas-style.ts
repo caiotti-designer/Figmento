@@ -2,6 +2,7 @@
 
 import { hexToRgb, getFontStyle } from '../color-utils';
 import { getGradientTransform } from '../gradient-utils';
+import { tryBindFillVariable, tryBindSpacingVariables } from './variable-binder';
 
 export async function handleSetFill(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const nodeId = params.nodeId as string;
@@ -11,6 +12,9 @@ export async function handleSetFill(params: Record<string, unknown>): Promise<Re
   if (!node) throw new Error(`Node not found: ${nodeId}`);
   if (!('fills' in node)) throw new Error(`Node ${nodeId} does not support fills`);
 
+  let boundVariable: string | null = null;
+  let solidHex: string | null = null;
+
   if (params.color) {
     const rgb = hexToRgb(params.color as string);
     const opacity = params.opacity as number | undefined;
@@ -19,6 +23,7 @@ export async function handleSetFill(params: Record<string, unknown>): Promise<Re
       color: rgb,
       opacity: opacity != null ? opacity : 1,
     }];
+    solidHex = params.color as string;
   } else if (params.fills) {
     const fills = params.fills as Array<{ type: string; color?: string; opacity?: number; gradientStops?: Array<{ position: number; color: string; opacity?: number }>; gradientDirection?: string }>;
     const paintFills: Paint[] = [];
@@ -30,6 +35,8 @@ export async function handleSetFill(params: Record<string, unknown>): Promise<Re
           color: hexToRgb(fill.color),
           opacity: fill.opacity != null ? fill.opacity : 1,
         });
+        // Only bind if there's a single solid fill
+        if (fills.length === 1) solidHex = fill.color;
       } else if (fill.type === 'GRADIENT_LINEAR' && fill.gradientStops) {
         paintFills.push({
           type: 'GRADIENT_LINEAR',
@@ -45,7 +52,20 @@ export async function handleSetFill(params: Record<string, unknown>): Promise<Re
     (node as GeometryMixin).fills = paintFills;
   }
 
-  return { nodeId, success: true };
+  // FN-8: Auto-bind COLOR variable if a solid fill was set
+  if (solidHex && 'fills' in node) {
+    try {
+      const autoBindParam = params.autoBindVariables as boolean | undefined;
+      const match = await tryBindFillVariable(node as SceneNode, solidHex, autoBindParam);
+      if (match) {
+        boundVariable = match.variableName;
+      }
+    } catch {
+      // Binding failure is silent
+    }
+  }
+
+  return { nodeId, success: true, boundVariable };
 }
 
 export async function handleSetStroke(params: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -171,7 +191,24 @@ export async function handleSetAutoLayout(params: Record<string, unknown>): Prom
     frame.counterAxisSizingMode = (raw === 'HUG' ? 'AUTO' : raw) as 'FIXED' | 'AUTO';
   }
 
-  return { nodeId, success: true };
+  // FN-8: Auto-bind FLOAT spacing variables
+  let boundSpacingVariables: Record<string, string> = {};
+  if (mode !== 'NONE') {
+    try {
+      const autoBindParam = params.autoBindVariables as boolean | undefined;
+      boundSpacingVariables = await tryBindSpacingVariables(frame, {
+        paddingTop: params.paddingTop as number | undefined,
+        paddingRight: params.paddingRight as number | undefined,
+        paddingBottom: params.paddingBottom as number | undefined,
+        paddingLeft: params.paddingLeft as number | undefined,
+        itemSpacing: params.itemSpacing as number | undefined,
+      }, autoBindParam);
+    } catch {
+      // Binding failure is silent
+    }
+  }
+
+  return { nodeId, success: true, boundSpacingVariables };
 }
 
 export function handleFlipGradient(params: Record<string, unknown>): Record<string, unknown> {

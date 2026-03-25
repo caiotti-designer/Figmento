@@ -718,7 +718,9 @@ export type PluginMessage =
   | ExecuteCommandMessage
   | CommandResultMessage
   | GetSettingsMessage
-  | SaveSettingsMessage;
+  | SaveSettingsMessage
+  | ScanDesignSystemMessage
+  | DesignSystemScannedMessage;
 
 export interface GetSettingsMessage {
   type: 'get-settings';
@@ -818,4 +820,41 @@ export interface LearnedPreference {
   enabled: boolean;
   createdAt: number;
   lastSeenAt: number;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FN-6: DESIGN SYSTEM DISCOVERY TYPES
+// ═══════════════════════════════════════════════════════════════
+
+export interface DiscoveredComponent {
+  key: string;
+  name: string;
+  description: string;
+  category: string;
+  width: number;
+  height: number;
+  nodeType: 'COMPONENT' | 'COMPONENT_SET';
+  variantProperties?: Record<string, string[]>;
+}
+
+export interface DesignSystemCache {
+  components: DiscoveredComponent[];
+  variables: unknown[];
+  collections: unknown[];
+  paintStyles: unknown[];
+  textStyles: unknown[];
+  effectStyles: unknown[];
+  scannedAt: string;
+  truncated: boolean;
+  fileKey: string;
+}
+
+export interface ScanDesignSystemMessage {
+  type: 'scan-design-system';
+}
+
+export interface DesignSystemScannedMessage {
+  type: 'design-system-scanned';
+  cache: DesignSystemCache | null;
+  error?: string;
 }

@@ -19,6 +19,7 @@ import {
   HeroQuality,
   HeroFormat,
   HERO_FORMATS,
+  DesignSystemCache,
 } from '../types';
 
 // ═══════════════════════════════════════════════════════════════
@@ -32,6 +33,7 @@ export const STORAGE_KEY_MODE = 'figmento-mode';
 export const STORAGE_KEY_CLAUDE_MODEL = 'figmento-claude-model';
 export const STORAGE_KEY_OPENAI_MODEL = 'figmento-openai-model';
 export const STORAGE_KEY_DESIGN_OVERRIDES = 'figmento-overrides';
+export const STORAGE_KEY_USE_DESIGN_SYSTEM = 'figmento-use-design-system';
 
 export const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
 export const MAX_IMAGE_DIMENSION = 2048;
@@ -340,6 +342,38 @@ export const heroState = {
   isProcessing: false,
   abortController: null as AbortController | null,
   lastGeneratedImage: null as string | null,
+};
+
+// FN-6: Design System Discovery state
+export const designSystemState = {
+  cache: null as DesignSystemCache | null,
+  isScanning: false,
+};
+
+// FN-16: "Use My Design System" toggle state
+export const dsToggleState = {
+  enabled: true, // default ON — but disabled in UI when cache is null
+};
+
+/**
+ * Returns true when the user wants DS awareness AND a scan has been performed.
+ * Use this in buildSystemPrompt() and matchComponent() call sites.
+ */
+export function isDesignSystemToggleOn(): boolean {
+  return dsToggleState.enabled && designSystemState.cache !== null;
+}
+
+/**
+ * Returns the DS cache when the toggle is active, or null when off.
+ * Convenience for gating buildSystemPrompt's dsCache parameter.
+ */
+export function getEffectiveDsCache(): DesignSystemCache | null {
+  return isDesignSystemToggleOn() ? designSystemState.cache : null;
+}
+
+// FN-15: Status Tab state
+export const statusTabState = {
+  preferencesCount: 0,
 };
 
 export const adAnalyzerState = {

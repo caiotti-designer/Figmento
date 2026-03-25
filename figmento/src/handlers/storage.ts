@@ -359,6 +359,17 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
       return true;
     }
 
+    // FN-17: Brand kit retrieval for skill export
+    case 'get-brand-kit': {
+      try {
+        const brandKit = await figma.clientStorage.getAsync('figmento-brand-kit') || null;
+        figma.ui.postMessage({ type: 'brand-kit-loaded', brandKit });
+      } catch (err) {
+        figma.ui.postMessage({ type: 'get-brand-kit-error', error: String(err) });
+      }
+      return true;
+    }
+
     case 'get-selection-snapshot': {
       const selection = figma.currentPage.selection
         .filter(node => 'width' in node && 'height' in node)

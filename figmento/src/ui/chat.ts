@@ -22,6 +22,7 @@ import {
   summarizeScreenshotResult,
 } from './tool-use-loop';
 import { LOCAL_TOOL_HANDLERS } from './local-intelligence';
+import { designSystemState, getEffectiveDsCache } from './state';
 import { getBridgeChannelId, getBridgeConnected, sendBridgeMessage, setClaudeCodeResultHandler } from './bridge';
 import { renderDiffPanel } from './diff-panel';
 import { openSettings, closeSettings } from './settings';
@@ -378,6 +379,114 @@ function renderChatTemplates(): void {
 // ═══════════════════════════════════════════════════════════════
 // CHAT — ATTACHMENT PREVIEW
 // ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+// BROWSER-SIDE FILE TEXT EXTRACTION (PDFs via pdf.js, TXT, SVG)
+// ═══════════════════════════════════════════════════════════════
+
+/** Dynamically load pdf.js from unpkg CDN (cached after first load). */
+function loadPdfJs(): Promise<void> {
+  if ((window as any).pdfjsLib) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js';
+    script.onload = () => {
+      // Disable worker — run on main thread (avoids loading a second 800KB file)
+      const lib = (window as any).pdfjsLib;
+      if (lib) {
+        lib.GlobalWorkerOptions.workerSrc = '';
+      }
+      resolve();
+    };
+    script.onerror = () => reject(new Error('Failed to load PDF.js from CDN'));
+    document.head.appendChild(script);
+  });
+}
+
+/**
+ * Extract text content from a PDF data URI using Mozilla pdf.js.
+ * Handles compressed streams, Unicode fonts, and all standard PDF formats.
+ */
+async function extractPdfTextFromDataUri(dataUri: string): Promise<string> {
+  await loadPdfJs();
+
+  const commaIdx = dataUri.indexOf(',');
+  const base64 = commaIdx >= 0 ? dataUri.slice(commaIdx + 1) : dataUri;
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+  const pdfjsLib = (window as any).pdfjsLib;
+  const loadingTask = pdfjsLib.getDocument({ data: bytes });
+  const pdf = await loadingTask.promise;
+
+  const textParts: string[] = [];
+  const pageCount = Math.min(pdf.numPages, 50); // Cap at 50 pages
+
+  for (let i = 1; i <= pageCount; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items.map((item: { str: string }) => item.str).join(' ');
+    if (pageText.trim()) textParts.push(pageText.trim());
+  }
+
+  let text = textParts.join('\n\n');
+  if (text.length > 10000) text = text.slice(0, 10000);
+  return text;
+}
+
+/**
+ * Extract text from a TXT or SVG data URI (UTF-8 decode).
+ */
+function extractTextFromDataUri(dataUri: string): string {
+  try {
+    const commaIdx = dataUri.indexOf(',');
+    const base64 = commaIdx >= 0 ? dataUri.slice(commaIdx + 1) : dataUri;
+    const binaryStr = atob(base64);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+    return new TextDecoder('utf-8').decode(bytes).slice(0, 10000);
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Extract text content from all non-image file attachments.
+ * Returns a context block to prepend to the user message.
+ * Async because PDF extraction uses pdf.js.
+ */
+async function buildClientFileContext(attachments: AttachmentFile[]): Promise<string> {
+  const nonImageFiles = attachments.filter(f => !f.type.startsWith('image/') || f.type === 'image/svg+xml');
+  if (nonImageFiles.length === 0) return '';
+
+  const blocks: string[] = [];
+  for (const file of nonImageFiles) {
+    let text = '';
+
+    if (file.type === 'application/pdf') {
+      try {
+        text = await extractPdfTextFromDataUri(file.dataUri);
+      } catch (err) {
+        console.error('[Figmento] PDF extraction failed:', err);
+      }
+      if (!text) {
+        blocks.push(`📄 ${file.name} (PDF) — could not extract text (may be image-only/scanned)`);
+        continue;
+      }
+    } else if (file.type === 'text/plain' || file.type === 'image/svg+xml') {
+      text = extractTextFromDataUri(file.dataUri);
+    }
+
+    if (text) {
+      blocks.push(`📄 ${file.name}\nContent:\n${text}`);
+    }
+  }
+
+  if (blocks.length === 0) return '';
+  return `[EXTRACTED FILE CONTENT]\n${blocks.join('\n\n---\n\n')}`;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // MF-1: MULTI-FILE ATTACHMENT QUEUE
@@ -1744,11 +1853,22 @@ async function sendMessage() {
 
   // MF-4: Build file analysis instructions if attachments present
   if (capturedAttachments.length > 0) {
-    const fileList = capturedAttachments.map(f => {
-      const info = getFileTypeInfo(f);
-      return `- ${f.name} (${info.badge}, ${formatFileSize(f.size)})`;
-    }).join('\n');
-    text += `\n\n[ATTACHED FILES]\n${fileList}\nAnalyze each file by type: images visually, PDFs via store_temp_file→import_pdf, SVGs as brand assets, text as context.`;
+    // Extract text from PDFs/TXT/SVG client-side so ALL providers can read it
+    try {
+      const fileContext = await buildClientFileContext(capturedAttachments);
+      if (fileContext) {
+        text += '\n\n' + fileContext;
+      }
+    } catch (err) {
+      console.error('[Figmento] File context extraction failed:', err);
+    }
+
+    // Also include metadata for image attachments the AI should analyze visually
+    const imageFiles = capturedAttachments.filter(f => f.type.startsWith('image/') && f.type !== 'image/svg+xml');
+    if (imageFiles.length > 0) {
+      const imgList = imageFiles.map(f => `- ${f.name} (${formatFileSize(f.size)})`).join('\n');
+      text += `\n\n[ATTACHED IMAGES]\n${imgList}\nAnalyze these images visually.`;
+    }
   }
 
   // MF-5: Inject selection context
@@ -1766,7 +1886,7 @@ async function sendMessage() {
   if (capturedAttachments.length > 0) badges.push(`📎 ${capturedAttachments.length} file${capturedAttachments.length > 1 ? 's' : ''} attached`);
   if (capturedSelection) badges.push(`🔲 ${capturedSelection.nodes.length} frame${capturedSelection.nodes.length > 1 ? 's' : ''} selected`);
   const badgeHtml = badges.length > 0 ? `<br><span class="chat-attachment-indicator">${badges.join(' · ')}</span>` : '';
-  const userHtml = escapeHtml(text.split('\n\n[ATTACHED FILES]')[0].split('\n\n[FIGMA SELECTION')[0]) + badgeHtml;
+  const userHtml = escapeHtml(text.split('\n\n[EXTRACTED FILE CONTENT]')[0].split('\n\n[ATTACHED IMAGES]')[0].split('\n\n[ATTACHED FILES]')[0].split('\n\n[FIGMA SELECTION')[0]) + badgeHtml;
   appendChatBubble('user', userHtml);
 
   // Detect design brief from the user's message (KI-2)
@@ -1796,15 +1916,15 @@ async function sendMessage() {
     // Route through relay if enabled and bridge is connected
     } else if (relayEnabled && bridgeConnected) {
       console.log('[Figmento Chat] → RELAY path');
-      await runRelayTurn(text, useGemini, useOpenAI, capturedAttachment);
+      await runRelayTurn(text, useGemini, useOpenAI, capturedAttachment, capturedAttachments);
     } else if (relayEnabled && !bridgeConnected) {
       // Fallback to direct API — relay is enabled but bridge is unreachable
       console.log('[Figmento Chat] → FALLBACK path (relay enabled but bridge not connected)');
       updateRelayStatus('fallback');
-      await runDirectLoop(text, useGemini, useOpenAI, capturedAttachment);
+      await runDirectLoop(text, useGemini, useOpenAI, capturedAttachment, capturedAttachments);
     } else {
       console.log('[Figmento Chat] → DIRECT path (relay disabled)');
-      await runDirectLoop(text, useGemini, useOpenAI, capturedAttachment);
+      await runDirectLoop(text, useGemini, useOpenAI, capturedAttachment, capturedAttachments);
     }
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
@@ -1852,7 +1972,7 @@ function updateRelayStatus(state: RelayConnectionState) {
 // CHAT — RELAY TURN (POST /chat/turn)
 // ═══════════════════════════════════════════════════════════════
 
-async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean, attachment: string | null): Promise<void> {
+async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean, attachment: string | null, allAttachments?: AttachmentFile[]): Promise<void> {
   const channelId = getBridgeChannelId();
   if (!channelId) {
     throw new Error('Bridge channel not available. Falling back to direct API.');
@@ -1872,6 +1992,11 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
 
   const url = chatSettings.chatRelayUrl.replace(/\/+$/, '') + '/api/chat/turn';
 
+  // Collect non-image file attachments for server-side text extraction (PDFs, TXT, SVG)
+  const fileAttachments = (allAttachments || [])
+    .filter(f => !f.type.startsWith('image/') || f.type === 'image/svg+xml')
+    .map(f => ({ name: f.name, type: f.type, dataUri: f.dataUri }));
+
   const body: Record<string, unknown> = {
     message: text,
     channel: channelId,
@@ -1883,6 +2008,7 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
     preferences: learnedPreferences,
     geminiApiKey: chatSettings.geminiApiKey || undefined,
     ...(attachment && { attachmentBase64: attachment }),
+    ...(fileAttachments.length > 0 && { fileAttachments }),
     ...(selectionSnapshot.length > 0 && { currentSelection: selectionSnapshot }),
   };
 
@@ -2002,7 +2128,14 @@ async function runClaudeCodeTurn(text: string, attachment?: string | null): Prom
 }
 
 /** Direct API path — used when relay is disabled or as fallback. */
-async function runDirectLoop(text: string, useGemini: boolean, useOpenAI: boolean, attachment: string | null): Promise<void> {
+async function runDirectLoop(text: string, useGemini: boolean, useOpenAI: boolean, attachment: string | null, allAttachments?: AttachmentFile[]): Promise<void> {
+  // In direct mode, non-image files can't be server-extracted — append a hint to use MCP tools
+  const nonImageFiles = (allAttachments || []).filter(f => !f.type.startsWith('image/') || f.type === 'image/svg+xml');
+  if (nonImageFiles.length > 0 && text.indexOf('[ATTACHED FILES]') === -1) {
+    const fileList = nonImageFiles.map(f => `- ${f.name} (${f.type})`).join('\n');
+    text += `\n\n[ATTACHED FILES — requires tool extraction]\n${fileList}\nUse store_temp_file then import_pdf (for PDFs) to extract text content. The files have been attached but need server-side processing.`;
+  }
+
   if (useGemini) {
     if (attachment) {
       const base64 = attachment.replace(/^data:image\/\w+;base64,/, '');
@@ -2060,7 +2193,7 @@ async function runAnthropicLoop(): Promise<void> {
     provider: 'claude',
     apiKey: chatSettings.anthropicApiKey,
     model: chatSettings.model,
-    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences),
+    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences, getEffectiveDsCache()),
     tools: chatToolResolver(),
     messages: conversationHistory,
     onToolCall: buildToolCallHandler(),
@@ -2074,7 +2207,7 @@ async function runGeminiLoop(): Promise<void> {
     provider: 'gemini',
     apiKey: chatSettings.geminiApiKey,
     model: chatSettings.model,
-    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences),
+    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences, getEffectiveDsCache()),
     tools: chatToolResolver(),
     messages: geminiHistory,
     onToolCall: buildToolCallHandler(),
@@ -2088,7 +2221,7 @@ async function runOpenAILoop(): Promise<void> {
     provider: 'openai',
     apiKey: chatSettings.openaiApiKey,
     model: chatSettings.model,
-    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences),
+    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences, getEffectiveDsCache()),
     tools: chatToolResolver(),
     messages: openaiHistory,
     onToolCall: buildToolCallHandler(),

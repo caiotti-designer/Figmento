@@ -5,6 +5,8 @@ import {
   apiState,
   progressState,
   modeState,
+  designSystemState,
+  getEffectiveDsCache,
   MAX_IMAGE_SIZE,
   MAX_IMAGE_DIMENSION,
 } from './state';
@@ -628,7 +630,7 @@ export const startProcessing = async (): Promise<void> => {
       provider,
       apiKey,
       model,
-      systemPrompt: buildSystemPrompt(undefined),
+      systemPrompt: buildSystemPrompt(undefined, undefined, undefined, getEffectiveDsCache()),
       tools: FIGMENTO_TOOLS,
       messages,
       onToolCall: async (name: string, args: Record<string, unknown>): Promise<ToolCallResult> => {

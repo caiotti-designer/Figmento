@@ -2,7 +2,7 @@
  * AUTO-GENERATED — DO NOT EDIT
  * Compiled from figmento-mcp-server/knowledge/ YAML files.
  * Run: npx tsx scripts/compile-knowledge.ts
- * Generated: 2026-03-20T23:15:51.383Z
+ * Generated: 2026-03-25T01:20:20.897Z
  */
 
 import type {
@@ -418,6 +418,157 @@ export const FONT_PAIRINGS: Record<string, FontPairing> = {
       "timeless"
     ],
     "recommended_heading_weight": 700,
+    "recommended_body_weight": 400
+  },
+  "scholarly": {
+    "id": "scholarly",
+    "name": "Scholarly",
+    "heading_font": "Merriweather",
+    "body_font": "Source Sans Pro",
+    "mood_tags": [
+      "authoritative",
+      "scholarly",
+      "government",
+      "institutional",
+      "readable"
+    ],
+    "recommended_heading_weight": 700,
+    "recommended_body_weight": 400
+  },
+  "warm-editorial": {
+    "id": "warm-editorial",
+    "name": "Warm Editorial",
+    "heading_font": "Playfair Display",
+    "body_font": "Fira Sans",
+    "mood_tags": [
+      "editorial",
+      "magazine",
+      "warm",
+      "refined",
+      "publishing"
+    ],
+    "recommended_heading_weight": 700,
+    "recommended_body_weight": 400
+  },
+  "impactful": {
+    "id": "impactful",
+    "name": "Impactful",
+    "heading_font": "Oswald",
+    "body_font": "PT Sans",
+    "mood_tags": [
+      "impactful",
+      "condensed",
+      "bold",
+      "strong",
+      "headline",
+      "news"
+    ],
+    "recommended_heading_weight": 700,
+    "recommended_body_weight": 400
+  },
+  "slab-warmth": {
+    "id": "slab-warmth",
+    "name": "Slab Warmth",
+    "heading_font": "Arvo",
+    "body_font": "Cabin",
+    "mood_tags": [
+      "warm",
+      "sturdy",
+      "vintage",
+      "mechanical",
+      "trustworthy"
+    ],
+    "recommended_heading_weight": 700,
+    "recommended_body_weight": 400
+  },
+  "thin-geometric": {
+    "id": "thin-geometric",
+    "name": "Thin Geometric",
+    "heading_font": "Raleway",
+    "body_font": "Libre Baskerville",
+    "mood_tags": [
+      "refined",
+      "architectural",
+      "thin",
+      "sophisticated",
+      "gallery"
+    ],
+    "recommended_heading_weight": 800,
+    "recommended_body_weight": 400
+  },
+  "whimsical": {
+    "id": "whimsical",
+    "name": "Whimsical",
+    "heading_font": "Josefin Sans",
+    "body_font": "Merriweather",
+    "mood_tags": [
+      "whimsical",
+      "dreamy",
+      "artistic",
+      "delicate",
+      "storytelling"
+    ],
+    "recommended_heading_weight": 600,
+    "recommended_body_weight": 300
+  },
+  "versatile": {
+    "id": "versatile",
+    "name": "Versatile",
+    "heading_font": "Lato",
+    "body_font": "Lato",
+    "mood_tags": [
+      "versatile",
+      "balanced",
+      "universal",
+      "neutral",
+      "professional"
+    ],
+    "recommended_heading_weight": 700,
+    "recommended_body_weight": 400
+  },
+  "slab-journalistic": {
+    "id": "slab-journalistic",
+    "name": "Slab Journalistic",
+    "heading_font": "Bitter",
+    "body_font": "Source Sans Pro",
+    "mood_tags": [
+      "journalistic",
+      "content",
+      "readable",
+      "serious",
+      "news"
+    ],
+    "recommended_heading_weight": 700,
+    "recommended_body_weight": 400
+  },
+  "adobe-matched": {
+    "id": "adobe-matched",
+    "name": "Adobe Matched",
+    "heading_font": "Source Serif Pro",
+    "body_font": "Source Sans Pro",
+    "mood_tags": [
+      "refined",
+      "matched",
+      "professional",
+      "polished",
+      "corporate"
+    ],
+    "recommended_heading_weight": 700,
+    "recommended_body_weight": 400
+  },
+  "condensed-readable": {
+    "id": "condensed-readable",
+    "name": "Condensed Readable",
+    "heading_font": "Roboto Condensed",
+    "body_font": "Vollkorn",
+    "mood_tags": [
+      "compact",
+      "readable",
+      "dense",
+      "informational",
+      "data"
+    ],
+    "recommended_heading_weight": 400,
     "recommended_body_weight": 400
   }
 } as Record<string, FontPairing>;
@@ -1143,6 +1294,66 @@ export const DESIGN_RULES: Record<string, unknown> = {
           "pairing_id": "elegant",
           "heading": "Lora",
           "body": "Merriweather"
+        },
+        {
+          "mood": "Scholarly, government, institutional",
+          "pairing_id": "scholarly",
+          "heading": "Merriweather",
+          "body": "Source Sans Pro"
+        },
+        {
+          "mood": "Magazine, warm editorial",
+          "pairing_id": "warm-editorial",
+          "heading": "Playfair Display",
+          "body": "Fira Sans"
+        },
+        {
+          "mood": "Impact, condensed, news",
+          "pairing_id": "impactful",
+          "heading": "Oswald",
+          "body": "PT Sans"
+        },
+        {
+          "mood": "Vintage, craft, artisan",
+          "pairing_id": "slab-warmth",
+          "heading": "Arvo",
+          "body": "Cabin"
+        },
+        {
+          "mood": "Architectural, gallery, refined",
+          "pairing_id": "thin-geometric",
+          "heading": "Raleway",
+          "body": "Libre Baskerville"
+        },
+        {
+          "mood": "Whimsical, dreamy, storytelling",
+          "pairing_id": "whimsical",
+          "heading": "Josefin Sans",
+          "body": "Merriweather"
+        },
+        {
+          "mood": "Universal, balanced, versatile",
+          "pairing_id": "versatile",
+          "heading": "Lato",
+          "body": "Lato"
+        },
+        {
+          "mood": "Journalistic, content, news",
+          "pairing_id": "slab-journalistic",
+          "heading": "Bitter",
+          "body": "Source Sans Pro"
+        },
+        {
+          "mood": "Polished, documentation, SaaS",
+          "pairing_id": "adobe-matched",
+          "heading": "Source Serif Pro",
+          "body": "Source Sans Pro"
+        },
+        {
+          "mood": "Data-dense, informational, compact",
+          "pairing_id": "condensed-readable",
+          "heading": "Roboto Condensed",
+          "body": "Vollkorn"
         }
       ]
     },
@@ -1483,7 +1694,97 @@ export const DESIGN_RULES: Record<string, unknown> = {
       "Images resolved — All image areas filled? Zero empty rectangles remaining?",
       "Gradient direction — Solid end of every gradient overlay behind the text?",
       "Print structure — Every frame uses auto-layout? No manually positioned elements? (print only)"
-    ]
+    ],
+    "scoring": {
+      "description": "Score designs on a 1-10 scale across weighted dimensions. Total = weighted average. Target: 7+ for production, 8.5+ for portfolio-quality.\n",
+      "dimensions": [
+        {
+          "name": "Visual Design",
+          "weight": 0.3,
+          "source": "Awwwards (40% → normalized to 30% with AI Distinctiveness)",
+          "criteria": [
+            "Color harmony and intentional palette usage",
+            "Typography quality — hierarchy, spacing, font choice appropriateness",
+            "Composition balance and visual flow",
+            "Consistent spacing rhythm and grid adherence",
+            "Professional finish — no rough edges, orphaned elements, or misalignments"
+          ]
+        },
+        {
+          "name": "Creativity & Originality",
+          "weight": 0.2,
+          "source": "Awwwards (20%) + 99designs (Conceptual Thought)",
+          "criteria": [
+            "Contains at least one memorable/unexpected element",
+            "Not replicable by default parameters — shows intentional creative choices",
+            "Avoids all items in the anti_patterns.ai_tells checklist",
+            "Design tells a visual story — it has a concept, not just arranged elements"
+          ]
+        },
+        {
+          "name": "Content Hierarchy",
+          "weight": 0.2,
+          "source": "CrowdCrit (CMU) — Information Architecture dimension",
+          "criteria": [
+            "Clear primary-secondary-tertiary reading order",
+            "User's eye naturally flows to the most important element first",
+            "CTA or key message is immediately identifiable",
+            "Supporting content is subordinate but accessible"
+          ]
+        },
+        {
+          "name": "Technical Execution",
+          "weight": 0.15,
+          "source": "99designs (Technical Skills) + checklist_16 automated checks",
+          "criteria": [
+            "WCAG AA contrast on all text",
+            "Platform safe zones respected",
+            "Images resolved (no empty rectangles)",
+            "Gradient directions correct",
+            "Auto-layout structure clean (print)"
+          ]
+        },
+        {
+          "name": "AI Distinctiveness",
+          "weight": 0.15,
+          "source": "Anti-AI research (Crea8ive Solution 2026)",
+          "criteria": [
+            "Would a viewer identify this as human-designed? (the 'senior designer or bot?' test)",
+            "Has texture/depth — not hyper-smooth flat surfaces",
+            "Includes intentional asymmetry or grid-breaking element",
+            "Typography has personality — not default safe pairing",
+            "Color has tension — not all same saturation, has one surprise"
+          ]
+        }
+      ],
+      "score_tiers": [
+        {
+          "range": "9-10",
+          "label": "Exceptional",
+          "description": "Award-worthy. Publishable as-is. Memorable and distinctive."
+        },
+        {
+          "range": "7-8",
+          "label": "Professional",
+          "description": "Production-ready. Would pass client review. Clear and polished."
+        },
+        {
+          "range": "5-6",
+          "label": "Adequate",
+          "description": "Functional but generic. Needs creative refinement."
+        },
+        {
+          "range": "3-4",
+          "label": "Below Standard",
+          "description": "Obvious issues. Looks AI-generated. Needs significant rework."
+        },
+        {
+          "range": "1-2",
+          "label": "Failed",
+          "description": "Broken layout, unreadable text, or fundamentally flawed."
+        }
+      ]
+    }
   },
   "refinement": {
     "pass_steps": [
@@ -1519,7 +1820,7 @@ export const DESIGN_RULES: Record<string, unknown> = {
   },
   "anti_patterns": {
     "description": "These are signals of generic AI output. If you catch yourself doing any of these, stop and redesign that element.\n",
-    "list": [
+    "structural": [
       "White or light-grey background as the default for any hero or full-page design",
       "Inter Regular for everything — weight variation is the minimum; font variety is better",
       "Centered text on every single element — vary alignment by hierarchy level",
@@ -1535,7 +1836,67 @@ export const DESIGN_RULES: Record<string, unknown> = {
       "Content frames with fixed height — clips text on overflow. Use layoutSizingVertical: HUG on text containers.",
       "Gradient solid end facing away from text — most common AI gradient mistake. Solid must be behind text.",
       "Absolute positioning on print pages — creates random gaps. Every print frame MUST use auto-layout."
-    ]
+    ],
+    "ai_tells": {
+      "surfaces": [
+        {
+          "marker": "Hyper-smooth surfaces with no texture variation",
+          "fix": "Add subtle grain/noise overlay at 3-8% opacity on large fill areas. Layer a scanned paper or fabric texture."
+        },
+        {
+          "marker": "Noise-free backgrounds — zero texture, perfectly clean",
+          "fix": "Even 'clean' designs need micro-texture. A 2-4% noise layer prevents the sterile AI look."
+        },
+        {
+          "marker": "Plastic-like shadows — identical angle, blur, and spread on every element",
+          "fix": "Vary shadow properties across elements. Use warm shadow tint for warm palettes, cool for cool."
+        }
+      ],
+      "composition": [
+        {
+          "marker": "Perfect symmetry — every element centered, balanced, mathematically safe",
+          "fix": "Offset at least one major element. Introduce slight asymmetry (60/40 split instead of 50/50)."
+        },
+        {
+          "marker": "Grid-locked layouts with no visual tension",
+          "fix": "Break the grid with one overlapping element, one element bleeding into an adjacent section, or scale contrast."
+        },
+        {
+          "marker": "Uniform spacing — identical gaps everywhere, mathematically optimized",
+          "fix": "Vary spacing deliberately: tighter grouping for related items, generous whitespace for separation."
+        }
+      ],
+      "typography": [
+        {
+          "marker": "Default font pairing — safe sans + safe serif with no personality",
+          "fix": "Choose a font with character (Bitter, Josefin Sans, Playfair Display) — a font the user would remember."
+        },
+        {
+          "marker": "Every text block center-aligned identically",
+          "fix": "Mix alignments by hierarchy: left-align body, center display, right-align accents."
+        }
+      ],
+      "color": [
+        {
+          "marker": "Generic color harmony — safe, balanced palette with no tension or surprise",
+          "fix": "Introduce one unexpected color. Mix muted and vivid saturation levels intentionally."
+        },
+        {
+          "marker": "Every color at the same saturation — flat, even, no depth",
+          "fix": "Use 2-3 saturation levels: vivid for CTA, muted for backgrounds, mid for secondary elements."
+        }
+      ],
+      "meta": [
+        {
+          "marker": "Replicable perfection — work that any tool could produce with the same parameters",
+          "fix": "Add ONE non-obvious creative choice: an unusual color treatment, a broken grid element, a typographic surprise."
+        },
+        {
+          "marker": "No memorable element — nothing stands out, everything is equally 'nice'",
+          "fix": "Every design needs a focal point that could not have been generated by default parameters."
+        }
+      ]
+    }
   },
   "taste": {
     "description": "Design taste rules — apply when no brand system is specified or creative latitude is given.",
@@ -1594,4 +1955,4 @@ export const DESIGN_RULES: Record<string, unknown> = {
   }
 };
 
-export const KNOWLEDGE_VERSION: string = "1f570d13af76d0ec";
+export const KNOWLEDGE_VERSION: string = "13ae97f984b509e7";

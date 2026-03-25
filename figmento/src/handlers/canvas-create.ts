@@ -3,6 +3,7 @@
 import type { UIElement, TextProperties } from '../types';
 import { hexToRgb } from '../color-utils';
 import { createElement } from '../element-creators';
+import { tryBindTextVariables } from './variable-binder';
 
 export async function handleCreateVector(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const vector = figma.createVector();
@@ -256,7 +257,24 @@ export async function handleCreateText(params: Record<string, unknown>): Promise
     }
   }
 
-  return { nodeId: node.id, name: node.name };
+  // FN-8: Auto-bind text color and font size variables
+  let boundColor: string | null = null;
+  let boundFontSize: string | null = null;
+  try {
+    const autoBindParam = params.autoBindVariables as boolean | undefined;
+    const textBindResult = await tryBindTextVariables(
+      node as TextNode,
+      textColor,
+      (params.fontSize as number) || undefined,
+      autoBindParam,
+    );
+    if (textBindResult.boundColor) boundColor = textBindResult.boundColor.variableName;
+    if (textBindResult.boundFontSize) boundFontSize = textBindResult.boundFontSize.variableName;
+  } catch {
+    // Binding failure is silent
+  }
+
+  return { nodeId: node.id, name: node.name, boundColor, boundFontSize };
 }
 
 export async function handleCreateRectangle(params: Record<string, unknown>): Promise<Record<string, unknown>> {

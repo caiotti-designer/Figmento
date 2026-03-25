@@ -9,7 +9,7 @@
  */
 
 import type { DesignBrief } from './brief-detector';
-import type { LearnedPreference } from '../types';
+import type { LearnedPreference, DesignSystemCache, DiscoveredComponent } from '../types';
 
 const CONFIDENCE_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
@@ -194,9 +194,170 @@ function buildRefinementBlock(): string {
   return '';
 }
 
+// ── Design System context block (FN-9) ──────────────────────────
+
+/** Max characters for the DS injection (~500 tokens at ~4 chars/token). */
+const DS_CHAR_CAP = 2000;
+
+/** Category sort priority — common UI categories surface first. */
+const CATEGORY_PRIORITY: Record<string, number> = {
+  button: 0, card: 1, input: 2, navigation: 3, badge: 4, avatar: 5,
+  icon: 6, modal: 7, menu: 8, tab: 9, header: 10, footer: 11,
+};
+
+function categorizePriority(cat: string): number {
+  const lower = cat.toLowerCase();
+  if (CATEGORY_PRIORITY[lower] !== undefined) return CATEGORY_PRIORITY[lower];
+  return 99;
+}
+
+/**
+ * Build a token-efficient summary of the design system cache.
+ * Returns empty string when cache is null/empty — zero regression.
+ */
+export function buildDesignSystemBlock(cache: DesignSystemCache | null | undefined): string {
+  if (!cache) return '';
+
+  const hasComponents = cache.components && cache.components.length > 0;
+  const hasVariables = cache.variables && cache.variables.length > 0;
+  const hasPaintStyles = cache.paintStyles && cache.paintStyles.length > 0;
+  const hasTextStyles = cache.textStyles && cache.textStyles.length > 0;
+
+  if (!hasComponents && !hasVariables && !hasPaintStyles && !hasTextStyles) return '';
+
+  const sections: string[] = [];
+
+  // ── Components (grouped by category, max 50) ──
+  if (hasComponents) {
+    const grouped = new Map<string, DiscoveredComponent[]>();
+    for (const c of cache.components) {
+      const cat = c.category || 'other';
+      if (!grouped.has(cat)) grouped.set(cat, []);
+      grouped.get(cat)!.push(c);
+    }
+
+    // Sort categories by priority
+    const sortedCats = [...grouped.entries()].sort(
+      (a, b) => categorizePriority(a[0]) - categorizePriority(b[0])
+    );
+
+    const lines: string[] = [];
+    let count = 0;
+    const MAX_COMPONENTS = 50;
+
+    for (const [cat, comps] of sortedCats) {
+      if (count >= MAX_COMPONENTS) break;
+      const remaining = MAX_COMPONENTS - count;
+      const slice = comps.slice(0, remaining);
+      count += slice.length;
+
+      const names = slice.map(c => {
+        if (c.nodeType === 'COMPONENT_SET' && c.variantProperties) {
+          const variants = Object.entries(c.variantProperties)
+            .map(([k, v]) => `${k}=${v.join('/')}`)
+            .join(', ');
+          return `${c.name} (variants: ${variants})`;
+        }
+        return c.name;
+      });
+
+      lines.push(`  [${cat}] ${names.join(', ')}`);
+      if (count >= MAX_COMPONENTS && comps.length > slice.length) {
+        const skipped = cache.components.length - MAX_COMPONENTS;
+        if (skipped > 0) lines.push(`  + ${skipped} more`);
+        break;
+      }
+    }
+
+    if (lines.length > 0) {
+      sections.push(`Components:\n${lines.join('\n')}`);
+    }
+  }
+
+  // ── Color Variables (max 20, semantic first) ──
+  if (hasVariables) {
+    const colorVars = (cache.variables as Array<{ name?: string; resolvedValue?: string; resolvedType?: string }>)
+      .filter(v => v.resolvedType === 'COLOR' && v.name && v.resolvedValue);
+
+    if (colorVars.length > 0) {
+      // Sort: semantic names first (primary, secondary, surface, text, background, etc.)
+      const semanticKeywords = ['primary', 'secondary', 'accent', 'surface', 'background', 'text', 'muted', 'error', 'success', 'warning', 'border', 'foreground'];
+      const sorted = colorVars.slice().sort((a, b) => {
+        const aName = (a.name || '').toLowerCase();
+        const bName = (b.name || '').toLowerCase();
+        const aIdx = semanticKeywords.findIndex(kw => aName.includes(kw));
+        const bIdx = semanticKeywords.findIndex(kw => bName.includes(kw));
+        const aPri = aIdx >= 0 ? aIdx : 100;
+        const bPri = bIdx >= 0 ? bIdx : 100;
+        return aPri - bPri;
+      });
+
+      const MAX_COLORS = 20;
+      const slice = sorted.slice(0, MAX_COLORS);
+      const pairs = slice.map(v => `${v.name}=${v.resolvedValue}`);
+      let line = `Colors: ${pairs.join(', ')}`;
+      if (sorted.length > MAX_COLORS) {
+        line += ` + ${sorted.length - MAX_COLORS} more`;
+      }
+      sections.push(line);
+    }
+  }
+
+  // ── Text Styles (max 10) ──
+  if (hasTextStyles) {
+    const styles = (cache.textStyles as Array<{ name?: string; fontFamily?: string; fontSize?: number; fontWeight?: number }>)
+      .filter(s => s.name);
+
+    if (styles.length > 0) {
+      const MAX_TEXT_STYLES = 10;
+      const slice = styles.slice(0, MAX_TEXT_STYLES);
+      const formatted = slice.map(s => {
+        const parts: string[] = [];
+        if (s.fontFamily) parts.push(s.fontFamily);
+        if (s.fontWeight && s.fontWeight >= 700) parts.push('Bold');
+        else if (s.fontWeight && s.fontWeight >= 500) parts.push('Medium');
+        if (s.fontSize) parts.push(`${s.fontSize}px`);
+        return `"${s.name}" (${parts.join(' ')})`;
+      });
+      let line = `Text Styles: ${formatted.join(', ')}`;
+      if (styles.length > MAX_TEXT_STYLES) {
+        line += ` + ${styles.length - MAX_TEXT_STYLES} more`;
+      }
+      sections.push(line);
+    }
+  }
+
+  if (sections.length === 0) return '';
+
+  // ── Behavioral instructions ──
+  sections.push(
+    `INSTRUCTIONS: Use the EXACT component names above with create_component — the system creates real component instances. ` +
+    `When setting colors, prefer listed variable names — the system auto-binds them to design tokens. ` +
+    `When setting typography, prefer listed text style names with apply_text_style.`
+  );
+
+  let block = `\n\n═══════════════════════════════════════════════════════════
+AVAILABLE DESIGN SYSTEM (auto-detected from file)
+═══════════════════════════════════════════════════════════
+
+${sections.join('\n\n')}`;
+
+  // ── Truncation: hard cap at ~500 tokens ──
+  if (block.length > DS_CHAR_CAP) {
+    block = block.slice(0, DS_CHAR_CAP - 20) + '\n[...truncated]';
+  }
+
+  return block;
+}
+
 // ── Main prompt builder ──────────────────────────────────────────
 
-export function buildSystemPrompt(brief?: DesignBrief, memory?: string[], preferences?: LearnedPreference[]): string {
+export function buildSystemPrompt(
+  brief?: DesignBrief,
+  memory?: string[],
+  preferences?: LearnedPreference[],
+  designSystem?: DesignSystemCache | null,
+): string {
   let prompt = `You are Figmento, an expert design agent inside a Figma plugin. You create professional, polished designs directly on the Figma canvas using your tools. Use expert-level reasoning for layout, hierarchy, spacing, and color theory. Always use the brand kit when available.
 
 ## Core Rules
@@ -229,7 +390,7 @@ If the response includes text styles:
 If the file has no variables and no styles:
   → For new projects: offer to call create_figma_variables to set up a design system.
   → For existing files with content: use set_fill/set_text normally (acceptable fallback).
-
+${buildDesignSystemBlock(designSystem)}
 ## Design Workflow (follow for EVERY design request)
 1. Parse the request: identify format (Instagram post? Poster? Presentation?), mood/style, content, brand constraints.
 1b. Call read_figma_context to discover existing variables and styles. Use them instead of hardcoding values (see Figma-Native Workflow above).
