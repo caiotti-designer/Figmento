@@ -4,6 +4,7 @@ import type { UIAnalysis } from '../types';
 import { hexToRgb, getFontStyle } from '../color-utils';
 import { createElement } from '../element-creators';
 import { resolveTempIds, isCreationAction } from '../utils/temp-id-resolver';
+import type { TempIdMap } from '../utils/temp-id-resolver';
 
 // Import all handlers needed by executeSingleAction
 import { handleCreateFrame, handleCreateText, handleCreateRectangle, handleCreateEllipse, handleCreateImage, handleCreateIcon, handleCreateVector } from './canvas-create';
@@ -12,12 +13,34 @@ import { handleDeleteNode, handleMoveNode, handleResizeNode, handleRenameNode, h
 import { handleExportNode, handleGetScreenshot, handleReadFigmaContext, handleBindVariable, handleApplyPaintStyle, handleApplyTextStyle, handleApplyEffectStyle, handleCreateFigmaVariables, handleExportAsSvg, handleSetConstraints } from './canvas-query';
 import { getDesignSystemCache } from './design-system-discovery';
 import { tryComponentInstance, isComponentMatchableFrame } from './component-matcher';
+import { tryBindFillVariable, tryBindSpacingVariables, tryBindTextVariables } from './variable-binder';
+import type { DesignSystemCache } from '../types';
+
+// ═══════════════════════════════════════════════════════════════
+// ENHANCED BATCH DSL — Types
+// ═══════════════════════════════════════════════════════════════
 
 interface BatchCommand {
   action: string;
   params: Record<string, unknown>;
   tempId?: string;
 }
+
+interface RepeatCommand {
+  action: 'repeat';
+  count: number;
+  template: DSLCommand;
+}
+
+interface ConditionalCommand {
+  action: 'if';
+  condition: string;
+  then: DSLCommand[];
+  else?: DSLCommand[];
+}
+
+/** Any command in the enhanced DSL — regular, repeat, or conditional */
+type DSLCommand = BatchCommand | RepeatCommand | ConditionalCommand;
 
 interface BatchResult {
   tempId?: string;
@@ -26,23 +49,357 @@ interface BatchResult {
   error?: string;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// SECURITY CAPS
+// ═══════════════════════════════════════════════════════════════
+
+const MAX_REPEAT_ITERATIONS = 50;
+const MAX_EXPANDED_COMMANDS = 200;
+const BATCH_TIMEOUT_MS = 30_000;
+const MAX_NESTING_DEPTH = 5;
+
+// ═══════════════════════════════════════════════════════════════
+// EXPRESSION INTERPOLATION
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Evaluate a simple `${...}` expression with the current loop index `i`.
+ * Supports: ${i}, ${i * N}, ${i + N}, ${i - N}, ${i * N + M}, ${i * N - M}
+ * Only integer arithmetic with the single variable `i`.
+ */
+function evaluateIndexExpression(expr: string, i: number): number {
+  const trimmed = expr.trim();
+
+  // Just `i`
+  if (trimmed === 'i') return i;
+
+  // `i OP N` (e.g. `i * 320`, `i + 1`, `i - 5`)
+  const twoPartMatch = trimmed.match(/^i\s*([*+\-])\s*(-?\d+)$/);
+  if (twoPartMatch) {
+    const op = twoPartMatch[1];
+    const n = parseInt(twoPartMatch[2], 10);
+    if (op === '*') return i * n;
+    if (op === '+') return i + n;
+    if (op === '-') return i - n;
+  }
+
+  // `i * N OP M` (e.g. `i * 320 + 40`, `i * 100 - 10`)
+  const threePartMatch = trimmed.match(/^i\s*\*\s*(-?\d+)\s*([+\-])\s*(-?\d+)$/);
+  if (threePartMatch) {
+    const n = parseInt(threePartMatch[1], 10);
+    const op2 = threePartMatch[2];
+    const m = parseInt(threePartMatch[3], 10);
+    const product = i * n;
+    if (op2 === '+') return product + m;
+    if (op2 === '-') return product - m;
+  }
+
+  throw new Error(`Unsupported expression in repeat template: \${${expr}}. Allowed: \${i}, \${i * N}, \${i + N}, \${i - N}, \${i * N + M}, \${i * N - M}`);
+}
+
+/**
+ * Interpolate all `${...}` expressions in a string value using the current index.
+ * Returns a string if the result contains non-numeric parts, or a number if the
+ * entire string was a single `${...}` expression that evaluated to a number.
+ */
+function interpolateString(value: string, i: number): string | number {
+  // Check if the entire value is a single ${...} expression
+  const singleExprMatch = value.match(/^\$\{([^}]+)\}$/);
+  if (singleExprMatch) {
+    return evaluateIndexExpression(singleExprMatch[1], i);
+  }
+
+  // Replace all ${...} occurrences within the string
+  return value.replace(/\$\{([^}]+)\}/g, (_match, expr) => {
+    return String(evaluateIndexExpression(expr, i));
+  });
+}
+
+/**
+ * Deep-interpolate all string values in an object/array with the current index `i`.
+ */
+function interpolateValue(value: unknown, i: number): unknown {
+  if (typeof value === 'string') {
+    return interpolateString(value, i);
+  }
+  if (Array.isArray(value)) {
+    return value.map(item => interpolateValue(item, i));
+  }
+  if (typeof value === 'object' && value !== null) {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      result[k] = interpolateValue(v, i);
+    }
+    return result;
+  }
+  return value;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PRE-EXPANSION — count total commands to enforce the 200 cap
+// ═══════════════════════════════════════════════════════════════
+
+function isRepeatCommand(cmd: DSLCommand): cmd is RepeatCommand {
+  return cmd.action === 'repeat' && 'count' in cmd && 'template' in cmd;
+}
+
+function isConditionalCommand(cmd: DSLCommand): cmd is ConditionalCommand {
+  return cmd.action === 'if' && 'condition' in cmd && 'then' in cmd;
+}
+
+/**
+ * Count the maximum possible expanded commands from a DSL command array.
+ * Repeat is always expanded (count is known). Conditionals count both branches
+ * (worst case). Returns the total count. Throws if any repeat exceeds MAX_REPEAT_ITERATIONS.
+ */
+function countExpandedCommands(commands: DSLCommand[], depth: number = 0): number {
+  if (depth > MAX_NESTING_DEPTH) {
+    throw new Error(`DSL nesting depth exceeds ${MAX_NESTING_DEPTH} levels`);
+  }
+
+  let total = 0;
+  for (const cmd of commands) {
+    if (isRepeatCommand(cmd)) {
+      if (cmd.count > MAX_REPEAT_ITERATIONS) {
+        throw new Error(`Repeat count ${cmd.count} exceeds maximum of ${MAX_REPEAT_ITERATIONS} iterations`);
+      }
+      if (cmd.count < 0) {
+        throw new Error(`Repeat count must be non-negative, got ${cmd.count}`);
+      }
+      // Each iteration produces 1 command from the template
+      total += cmd.count;
+    } else if (isConditionalCommand(cmd)) {
+      // Worst case: the larger branch runs
+      const thenCount = countExpandedCommands(cmd.then, depth + 1);
+      const elseCount = cmd.else ? countExpandedCommands(cmd.else, depth + 1) : 0;
+      total += Math.max(thenCount, elseCount);
+    } else {
+      total += 1;
+    }
+  }
+  return total;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CONDITIONAL EVALUATION
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Evaluate a condition string against the current tempIdMap.
+ * V1 supports only: `exists($name)`
+ */
+function evaluateCondition(condition: string, tempIdMap: TempIdMap): boolean {
+  const existsMatch = condition.trim().match(/^exists\(\$(\w+)\)$/);
+  if (existsMatch) {
+    const name = existsMatch[1];
+    return tempIdMap.has(name);
+  }
+  throw new Error(`Unsupported condition: "${condition}". V1 supports only exists($name).`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BATCH EXECUTOR
+// ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+// FN-7/FN-8: POST-EXECUTION DS BINDING FOR BATCH COMMANDS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Apply design system bindings after a batch command executes.
+ * Mirrors the interceptor logic in command-router.ts and canvas-create.ts / canvas-style.ts
+ * but runs inside the batch loop so batch_execute commands get the same DS binding
+ * as individually-routed commands.
+ *
+ * All operations are best-effort — failures are silent.
+ */
+async function applyDsBindings(
+  action: string,
+  params: Record<string, unknown>,
+  response: Record<string, unknown>,
+  _dsCache: DesignSystemCache,
+): Promise<void> {
+  const nodeId = response.nodeId as string;
+  if (!nodeId) return;
+
+  const autoBindParam = params.autoBindVariables as boolean | undefined;
+
+  switch (action) {
+    case 'set_fill': {
+      // Bind COLOR variable to solid fill (same as canvas-style.ts handleSetFill)
+      const solidHex = params.color as string | undefined;
+      if (!solidHex) break;
+      const node = figma.getNodeById(nodeId);
+      if (!node || !('fills' in node)) break;
+      const match = await tryBindFillVariable(node as SceneNode, solidHex, autoBindParam);
+      if (match) {
+        response.boundVariable = match.variableName;
+      }
+      break;
+    }
+
+    case 'set_auto_layout': {
+      // Bind FLOAT spacing variables (same as canvas-style.ts handleSetAutoLayout)
+      const mode = params.layoutMode as string | undefined;
+      if (mode === 'NONE') break;
+      const node = figma.getNodeById(nodeId);
+      if (!node || node.type !== 'FRAME') break;
+      const boundSpacing = await tryBindSpacingVariables(node as FrameNode, {
+        paddingTop: params.paddingTop as number | undefined,
+        paddingRight: params.paddingRight as number | undefined,
+        paddingBottom: params.paddingBottom as number | undefined,
+        paddingLeft: params.paddingLeft as number | undefined,
+        itemSpacing: params.itemSpacing as number | undefined,
+      }, autoBindParam);
+      if (Object.keys(boundSpacing).length > 0) {
+        response.boundSpacingVariables = boundSpacing;
+      }
+      break;
+    }
+
+    case 'create_text': {
+      // Bind text color + font size variables (same as canvas-create.ts handleCreateText)
+      const textColor = (params.color as string) || (params.fillColor as string) || '#000000';
+      const node = figma.getNodeById(nodeId);
+      if (!node || node.type !== 'TEXT') break;
+      const textBindResult = await tryBindTextVariables(
+        node as TextNode,
+        textColor,
+        (params.fontSize as number) || undefined,
+        autoBindParam,
+      );
+      if (textBindResult.boundColor) {
+        response.boundColor = textBindResult.boundColor.variableName;
+      }
+      if (textBindResult.boundFontSize) {
+        response.boundFontSize = textBindResult.boundFontSize.variableName;
+      }
+      break;
+    }
+
+    // create_frame matching is already handled inside executeSingleAction
+    // (the switch case for 'create_frame' calls tryComponentInstance directly)
+    // so we don't need to duplicate it here.
+  }
+}
+
 export async function handleBatchExecute(params: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const commands = params.commands as BatchCommand[];
+  const commands = params.commands as DSLCommand[];
   if (!commands || !Array.isArray(commands)) {
     throw new Error('commands array is required');
   }
 
-  const tempIdMap = new Map<string, string>();
+  // Pre-expansion validation: count total commands and enforce caps
+  const expandedTotal = countExpandedCommands(commands);
+  if (expandedTotal > MAX_EXPANDED_COMMANDS) {
+    throw new Error(
+      `Batch expansion would produce ${expandedTotal} commands, exceeding the maximum of ${MAX_EXPANDED_COMMANDS}. ` +
+      `Reduce repeat counts or split into multiple batch_execute calls.`
+    );
+  }
+
+  const tempIdMap: TempIdMap = new Map();
   const results: BatchResult[] = [];
   const createdNodeIds: string[] = [];
+  const startTime = Date.now();
+  let timedOut = false;
 
-  for (const command of commands) {
+  // FN-7/FN-8: Load DS cache once for the entire batch (not per-command)
+  let dsCache: DesignSystemCache | null = null;
+  try {
+    dsCache = await getDesignSystemCache();
+  } catch {
+    // Silent — DS binding is best-effort
+  }
+
+  /**
+   * Execute a list of DSL commands sequentially, handling repeat/if constructs.
+   * Mutates results, createdNodeIds, tempIdMap. Returns early if timeout hit.
+   */
+  async function executeCommandList(cmds: DSLCommand[], depth: number): Promise<void> {
+    if (depth > MAX_NESTING_DEPTH) {
+      results.push({ success: false, error: `DSL nesting depth exceeds ${MAX_NESTING_DEPTH} levels` });
+      return;
+    }
+
+    for (const cmd of cmds) {
+      // Timeout check before each command
+      if (Date.now() - startTime > BATCH_TIMEOUT_MS) {
+        timedOut = true;
+        return;
+      }
+
+      if (isRepeatCommand(cmd)) {
+        await executeRepeat(cmd, depth);
+      } else if (isConditionalCommand(cmd)) {
+        await executeConditional(cmd, depth);
+      } else {
+        await executeRegularCommand(cmd as BatchCommand);
+      }
+
+      if (timedOut) return;
+    }
+  }
+
+  async function executeRepeat(cmd: RepeatCommand, depth: number): Promise<void> {
+    if (cmd.count > MAX_REPEAT_ITERATIONS) {
+      results.push({
+        success: false,
+        error: `Repeat count ${cmd.count} exceeds maximum of ${MAX_REPEAT_ITERATIONS} iterations`,
+      });
+      return;
+    }
+
+    for (let i = 0; i < cmd.count; i++) {
+      if (timedOut || Date.now() - startTime > BATCH_TIMEOUT_MS) {
+        timedOut = true;
+        return;
+      }
+
+      // Deep-interpolate the template with the current index
+      const expanded = interpolateValue(cmd.template, i) as BatchCommand;
+
+      // Interpolate tempId if present
+      if (cmd.template.tempId) {
+        expanded.tempId = String(interpolateString(cmd.template.tempId, i));
+      }
+
+      await executeRegularCommand(expanded);
+    }
+  }
+
+  async function executeConditional(cmd: ConditionalCommand, depth: number): Promise<void> {
+    try {
+      const conditionResult = evaluateCondition(cmd.condition, tempIdMap);
+      if (conditionResult) {
+        await executeCommandList(cmd.then, depth + 1);
+      } else if (cmd.else) {
+        await executeCommandList(cmd.else, depth + 1);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      results.push({ success: false, error: `Conditional evaluation failed: ${errorMessage}` });
+    }
+  }
+
+  async function executeRegularCommand(command: BatchCommand): Promise<void> {
     try {
       const resolvedParams = resolveTempIds(command.params || {}, tempIdMap);
       const response = await executeSingleAction(command.action, resolvedParams);
 
-      if (command.tempId && response.nodeId) {
-        tempIdMap.set(command.tempId, response.nodeId as string);
+      // FN-7/FN-8: Post-execution DS binding (mirrors command-router.ts interceptors)
+      // These are best-effort — failures are silent and don't affect the command result.
+      if (dsCache && response.nodeId) {
+        try {
+          await applyDsBindings(command.action, resolvedParams, response, dsCache);
+        } catch {
+          // DS binding failure is always silent
+        }
+      }
+
+      // Store the FULL result object in tempIdMap (AC6)
+      if (command.tempId) {
+        tempIdMap.set(command.tempId, response);
       }
 
       if (response.nodeId && isCreationAction(command.action)) {
@@ -64,10 +421,25 @@ export async function handleBatchExecute(params: Record<string, unknown>): Promi
     }
   }
 
+  // Execute the full command list
+  await executeCommandList(commands, 0);
+
   const succeeded = results.filter(r => r.success).length;
   const failed = results.filter(r => !r.success).length;
 
-  return { results, summary: { total: results.length, succeeded, failed }, tempIdResolutions: Object.fromEntries(tempIdMap), createdNodeIds };
+  // Build tempIdResolutions: for backward compat, serialize full result objects
+  const tempIdResolutions: Record<string, Record<string, unknown>> = {};
+  for (const [key, value] of tempIdMap) {
+    tempIdResolutions[key] = value;
+  }
+
+  return {
+    results,
+    summary: { total: results.length, succeeded, failed, expandedTotal },
+    tempIdResolutions,
+    createdNodeIds,
+    ...(timedOut ? { timedOut: true } : {}),
+  };
 }
 
 export async function executeSingleAction(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {

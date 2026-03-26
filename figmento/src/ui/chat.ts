@@ -22,6 +22,7 @@ import {
   summarizeScreenshotResult,
 } from './tool-use-loop';
 import { LOCAL_TOOL_HANDLERS } from './local-intelligence';
+import { createBatchToolCallHandler } from './command-queue';
 import { designSystemState, getEffectiveDsCache } from './state';
 import { getBridgeChannelId, getBridgeConnected, sendBridgeMessage, setClaudeCodeResultHandler } from './bridge';
 import { renderDiffPanel } from './diff-panel';
@@ -2188,6 +2189,26 @@ async function runDirectLoop(text: string, useGemini: boolean, useOpenAI: boolea
 // CHAT — PROVIDER LOOP WRAPPERS (delegate to runToolUseLoop)
 // ═══════════════════════════════════════════════════════════════
 
+/**
+ * Build a batch tool call handler for auto-batching canvas commands.
+ * Wraps sendCommandToSandbox + buildToolCallHandler to batch canvas commands
+ * while executing non-canvas commands individually.
+ */
+function buildBatchToolCallHandler() {
+  const singleHandler = buildToolCallHandler();
+
+  // Format a sandbox result into the same string format as the single handler
+  const formatResult = (toolName: string, data: Record<string, unknown>): string => {
+    const summary = formatToolSummary(toolName, data);
+    appendToolAction(toolName, summary);
+    return SCREENSHOT_TOOLS.has(toolName)
+      ? summarizeScreenshotResult(toolName, data)
+      : JSON.stringify(stripBase64FromResult(data));
+  };
+
+  return createBatchToolCallHandler(sendCommandToSandbox, singleHandler, formatResult);
+}
+
 async function runAnthropicLoop(): Promise<void> {
   await runToolUseLoop({
     provider: 'claude',
@@ -2197,6 +2218,7 @@ async function runAnthropicLoop(): Promise<void> {
     tools: chatToolResolver(),
     messages: conversationHistory,
     onToolCall: buildToolCallHandler(),
+    onToolCallBatch: buildBatchToolCallHandler(),
     onProgress: () => { /* progress reserved for future mode UI */ },
     onTextChunk: (text) => appendChatBubble('assistant', formatMarkdown(text)),
   });
@@ -2211,6 +2233,7 @@ async function runGeminiLoop(): Promise<void> {
     tools: chatToolResolver(),
     messages: geminiHistory,
     onToolCall: buildToolCallHandler(),
+    onToolCallBatch: buildBatchToolCallHandler(),
     onProgress: () => { /* progress reserved for future mode UI */ },
     onTextChunk: (text) => appendChatBubble('assistant', formatMarkdown(text)),
   });
@@ -2225,6 +2248,7 @@ async function runOpenAILoop(): Promise<void> {
     tools: chatToolResolver(),
     messages: openaiHistory,
     onToolCall: buildToolCallHandler(),
+    onToolCallBatch: buildBatchToolCallHandler(),
     onProgress: () => { /* progress reserved for future mode UI */ },
     onTextChunk: (text) => appendChatBubble('assistant', formatMarkdown(text)),
   });

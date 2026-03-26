@@ -12,6 +12,7 @@
  */
 
 import { ToolDefinition, ToolResolver, ToolResolverContext } from './tools-schema';
+import { BATCH_THRESHOLD, isCanvasCommand, type ToolCallEntry, type ToolCallBatchResult } from './command-queue';
 
 // ═══════════════════════════════════════════════════════════════
 // PROVIDER-SPECIFIC TYPES (re-exported for callers)
@@ -95,6 +96,14 @@ export interface ToolUseLoopOptions {
   onTextChunk: (text: string) => void;
   /** Maximum AI↔tool iterations. Defaults to 50. */
   maxIterations?: number;
+  /**
+   * Optional batch handler for auto-batching canvas commands.
+   * When provided AND a turn has >= BATCH_THRESHOLD canvas commands,
+   * this is called instead of iterating through onToolCall individually.
+   * Canvas commands are bundled into one batch_execute call; non-canvas
+   * commands still execute individually.
+   */
+  onToolCallBatch?: (toolCalls: ToolCallEntry[]) => Promise<ToolCallBatchResult[]>;
 }
 
 export interface ToolUseResult {
@@ -438,6 +447,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
     onProgress,
     onTextChunk,
     maxIterations = 50,
+    onToolCallBatch,
   } = options;
 
   let iterationsUsed = 0;
@@ -451,6 +461,13 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
       return tools({ toolsUsed, iteration: iterationsUsed } as ToolResolverContext);
     }
     return tools;
+  };
+
+  /** Check if a batch of tool calls should be auto-batched. */
+  const shouldAutoBatch = (calls: ToolCallEntry[]): boolean => {
+    if (!onToolCallBatch) return false;
+    const canvasCount = calls.filter(tc => isCanvasCommand(tc.name)).length;
+    return canvasCount >= BATCH_THRESHOLD;
   };
 
   onProgress('Starting design agent loop');
@@ -491,38 +508,64 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
         break;
       }
 
-      const responseParts: GeminiPart[] = [];
-      for (const fc of functionCalls) {
-        const { name, args } = fc.functionCall!;
-        onProgress(`Calling tool: ${name}`, name);
-        toolCallCount++;
-        toolsUsed.add(name);
+      // Build tool call entries for auto-batch check
+      const geminiEntries: ToolCallEntry[] = functionCalls.map(fc => ({
+        name: fc.functionCall!.name,
+        args: fc.functionCall!.args,
+      }));
 
-        let result: ToolCallResult;
-        try {
-          result = await onToolCall(name, args);
-        } catch (err) {
-          result = {
-            content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
-            is_error: true,
-          };
-        }
+      let responseParts: GeminiPart[];
 
-        const trimmed = truncateForHistory(result.content, name);
-        let cleanedResponse: Record<string, unknown>;
-        if (result.is_error) {
-          cleanedResponse = { error: trimmed };
-        } else {
-          try {
-            cleanedResponse = { result: JSON.parse(trimmed) };
-          } catch {
-            cleanedResponse = { result: trimmed };
+      if (shouldAutoBatch(geminiEntries)) {
+        // Auto-batch path
+        onProgress(`Auto-batching ${functionCalls.length} tool calls`);
+        for (const fc of functionCalls) { toolCallCount++; toolsUsed.add(fc.functionCall!.name); }
+
+        const batchResults = await onToolCallBatch!(geminiEntries);
+        responseParts = functionCalls.map((fc, i) => {
+          const name = fc.functionCall!.name;
+          const trimmed = truncateForHistory(batchResults[i].content, name);
+          let cleanedResponse: Record<string, unknown>;
+          if (batchResults[i].is_error) {
+            cleanedResponse = { error: trimmed };
+          } else {
+            try { cleanedResponse = { result: JSON.parse(trimmed) }; }
+            catch { cleanedResponse = { result: trimmed }; }
           }
-        }
-
-        responseParts.push({
-          functionResponse: { name, response: cleanedResponse },
+          return { functionResponse: { name, response: cleanedResponse } };
         });
+      } else {
+        // Sequential path
+        responseParts = [];
+        for (const fc of functionCalls) {
+          const { name, args } = fc.functionCall!;
+          onProgress(`Calling tool: ${name}`, name);
+          toolCallCount++;
+          toolsUsed.add(name);
+
+          let result: ToolCallResult;
+          try {
+            result = await onToolCall(name, args);
+          } catch (err) {
+            result = {
+              content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
+              is_error: true,
+            };
+          }
+
+          const trimmed = truncateForHistory(result.content, name);
+          let cleanedResponse: Record<string, unknown>;
+          if (result.is_error) {
+            cleanedResponse = { error: trimmed };
+          } else {
+            try { cleanedResponse = { result: JSON.parse(trimmed) }; }
+            catch { cleanedResponse = { result: trimmed }; }
+          }
+
+          responseParts.push({
+            functionResponse: { name, response: cleanedResponse },
+          });
+        }
       }
 
       history.push({ role: 'user', parts: responseParts });
@@ -555,36 +598,60 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
         break;
       }
 
-      for (const tc of toolCalls) {
+      // Parse all tool calls first for auto-batch check
+      const parsedToolCalls = toolCalls.map(tc => {
         const fn = tc.function as Record<string, unknown>;
         const fnName = fn.name as string;
         let args: Record<string, unknown>;
-        try {
-          args = JSON.parse(fn.arguments as string);
-        } catch {
-          args = {};
-        }
+        try { args = JSON.parse(fn.arguments as string); }
+        catch { args = {}; }
+        return { tc, fnName, args };
+      });
 
-        onProgress(`Calling tool: ${fnName}`, fnName);
-        toolCallCount++;
-        toolsUsed.add(fnName);
+      const openaiEntries: ToolCallEntry[] = parsedToolCalls.map(p => ({
+        name: p.fnName,
+        args: p.args,
+      }));
 
-        let result: ToolCallResult;
-        try {
-          result = await onToolCall(fnName, args);
-        } catch (err) {
-          result = {
-            content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
-            is_error: true,
-          };
+      if (shouldAutoBatch(openaiEntries)) {
+        // Auto-batch path
+        onProgress(`Auto-batching ${toolCalls.length} tool calls`);
+        for (const p of parsedToolCalls) { toolCallCount++; toolsUsed.add(p.fnName); }
+
+        const batchResults = await onToolCallBatch!(openaiEntries);
+        for (let i = 0; i < parsedToolCalls.length; i++) {
+          const { tc, fnName } = parsedToolCalls[i];
+          const trimmed = truncateForHistory(batchResults[i].content, fnName);
+          history.push({
+            role: 'tool',
+            tool_call_id: tc.id as string,
+            content: batchResults[i].is_error ? `Error: ${trimmed}` : trimmed,
+          });
         }
-        const trimmed = truncateForHistory(result.content, fnName);
-        history.push({
-          role: 'tool',
-          tool_call_id: tc.id as string,
-          // OpenAI tool messages have no is_error flag — prefix error messages
-          content: result.is_error ? `Error: ${trimmed}` : trimmed,
-        });
+      } else {
+        // Sequential path
+        for (const { tc, fnName, args } of parsedToolCalls) {
+          onProgress(`Calling tool: ${fnName}`, fnName);
+          toolCallCount++;
+          toolsUsed.add(fnName);
+
+          let result: ToolCallResult;
+          try {
+            result = await onToolCall(fnName, args);
+          } catch (err) {
+            result = {
+              content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
+              is_error: true,
+            };
+          }
+          const trimmed = truncateForHistory(result.content, fnName);
+          history.push({
+            role: 'tool',
+            tool_call_id: tc.id as string,
+            // OpenAI tool messages have no is_error flag — prefix error messages
+            content: result.is_error ? `Error: ${trimmed}` : trimmed,
+          });
+        }
       }
     }
 
@@ -616,28 +683,51 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
 
       history.push({ role: 'assistant', content: response.content });
 
-      const toolResults: ContentBlock[] = [];
-      for (const toolUse of toolUses) {
-        onProgress(`Calling tool: ${toolUse.name}`, toolUse.name);
-        toolCallCount++;
-        toolsUsed.add(toolUse.name!);
+      // Build the list of tool calls for this turn
+      const entries: ToolCallEntry[] = toolUses.map(tu => ({
+        name: tu.name!,
+        args: tu.input || {},
+      }));
 
-        let result: ToolCallResult;
-        try {
-          result = await onToolCall(toolUse.name!, toolUse.input || {});
-        } catch (err) {
-          // Always produce a tool_result — an orphaned tool_use breaks the API protocol
-          result = {
-            content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
-            is_error: true,
-          };
-        }
-        toolResults.push({
-          type: 'tool_result',
+      let toolResults: ContentBlock[];
+
+      if (shouldAutoBatch(entries)) {
+        // Auto-batch path: bundle canvas commands into one batch_execute
+        onProgress(`Auto-batching ${toolUses.length} tool calls`);
+        for (const tu of toolUses) { toolCallCount++; toolsUsed.add(tu.name!); }
+
+        const batchResults = await onToolCallBatch!(entries);
+        toolResults = toolUses.map((toolUse, i) => ({
+          type: 'tool_result' as const,
           tool_use_id: toolUse.id,
-          content: truncateForHistory(result.content, toolUse.name!),
-          ...(result.is_error && { is_error: true }),
-        });
+          content: truncateForHistory(batchResults[i].content, toolUse.name!),
+          ...(batchResults[i].is_error && { is_error: true }),
+        }));
+      } else {
+        // Sequential path: existing behavior (< BATCH_THRESHOLD canvas commands)
+        toolResults = [];
+        for (const toolUse of toolUses) {
+          onProgress(`Calling tool: ${toolUse.name}`, toolUse.name);
+          toolCallCount++;
+          toolsUsed.add(toolUse.name!);
+
+          let result: ToolCallResult;
+          try {
+            result = await onToolCall(toolUse.name!, toolUse.input || {});
+          } catch (err) {
+            // Always produce a tool_result — an orphaned tool_use breaks the API protocol
+            result = {
+              content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
+              is_error: true,
+            };
+          }
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: truncateForHistory(result.content, toolUse.name!),
+            ...(result.is_error && { is_error: true }),
+          });
+        }
       }
 
       history.push({ role: 'user', content: toolResults });

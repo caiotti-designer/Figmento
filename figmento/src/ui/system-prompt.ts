@@ -274,7 +274,7 @@ export function buildDesignSystemBlock(cache: DesignSystemCache | null | undefin
     }
   }
 
-  // ── Color Variables (max 20, semantic first) ──
+  // ── Color Variables (max 20, semantic first) — PRESCRIPTIVE ──
   if (hasVariables) {
     const colorVars = (cache.variables as Array<{ name?: string; resolvedValue?: string; resolvedType?: string }>)
       .filter(v => v.resolvedType === 'COLOR' && v.name && v.resolvedValue);
@@ -294,12 +294,30 @@ export function buildDesignSystemBlock(cache: DesignSystemCache | null | undefin
 
       const MAX_COLORS = 20;
       const slice = sorted.slice(0, MAX_COLORS);
-      const pairs = slice.map(v => `${v.name}=${v.resolvedValue}`);
-      let line = `Colors: ${pairs.join(', ')}`;
+
+      // Build prescriptive table rows: "| Role | Hex | Variable |"
+      const rows = slice.map(v => {
+        // Derive role from variable name (last segment or full name)
+        const role = (v.name || 'unknown').split('/').pop() || v.name || 'unknown';
+        return `| ${role} | ${v.resolvedValue} | ${v.name} |`;
+      });
+
+      let colorBlock = `MANDATORY COLOR RULES — VIOLATION IS A DESIGN ERROR
+
+You MUST use these exact hex values. No substitutions, no similar colors.
+
+| Role | Hex | Variable |
+|------|-----|----------|
+${rows.join('\n')}
+
+- Use these EXACT hex values in every set_fill and create_text color parameter.
+- Neutral/background colors (#000000, #FFFFFF, #F5F5F5) are allowed for contrast.
+- Any other color is a design error. If you need a shade, darken/lighten the DS color, don't invent new ones.`;
+
       if (sorted.length > MAX_COLORS) {
-        line += ` + ${sorted.length - MAX_COLORS} more`;
+        colorBlock += `\n(+ ${sorted.length - MAX_COLORS} more variables available via read_figma_context)`;
       }
-      sections.push(line);
+      sections.push(colorBlock);
     }
   }
 
@@ -332,7 +350,8 @@ export function buildDesignSystemBlock(cache: DesignSystemCache | null | undefin
   // ── Behavioral instructions ──
   sections.push(
     `INSTRUCTIONS: Use the EXACT component names above with create_component — the system creates real component instances. ` +
-    `When setting colors, prefer listed variable names — the system auto-binds them to design tokens. ` +
+    `COLOR ENFORCEMENT: You MUST use ONLY the hex values from the color table above in set_fill, set_stroke, create_text(color), and create_frame(fillColor). ` +
+    `Do NOT invent new colors or use "close" shades. Copy-paste the hex from the table. ` +
     `When setting typography, prefer listed text style names with apply_text_style.`
   );
 
@@ -714,6 +733,32 @@ Use reorder_child to change z-order of elements within a frame:
 
 IMPORTANT: When the user says "colocar no fundo", "send to back", "move behind", "move to background" — they mean REORDER the existing node, NOT generate a new image. Use reorder_child, not generate_image.
 When the user says "gerar imagem de fundo" or "create a background image" — THEN use generate_image.
+
+═══════════════════════════════════════════════════════════
+BATCH EXECUTION (Enhanced DSL)
+═══════════════════════════════════════════════════════════
+
+For designs with 5+ elements, use batch_execute to send all commands in one call.
+For 1-4 elements or exploratory actions, individual tool calls are fine.
+
+batch_execute({ commands: [
+  { action: "create_frame", params: { name: "Root", width: 1080, height: 1350 }, tempId: "root" },
+  { action: "repeat", count: 3, template: {
+    action: "create_frame",
+    params: { name: "Card \${i}", parentId: "$root", y: "\${i * 440}", width: 1000, height: 400 },
+    tempId: "card_\${i}"
+  }},
+  { action: "if", condition: "exists($card_0)", then: [
+    { action: "create_text", params: { content: "Featured", parentId: "$card_0", x: "$card_0.width" } }
+  ]}
+]})
+
+Syntax:
+- tempId on any command → reference as $name (nodeId) or $name.property (width, height, name)
+- repeat: \${i} = 0-based index, supports \${i * N + M} arithmetic, max 50 iterations
+- if: condition is exists($name), runs then/else branch
+- Limits: 200 total commands after expansion, 30s timeout
+- Errors per-command don't abort the batch — all commands run independently
 
 ${buildRefinementBlock()}`;
 
