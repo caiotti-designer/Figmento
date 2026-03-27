@@ -74,5 +74,6 @@ function resolveStringValue(value: string, tempIdMap: TempIdMap): unknown {
 }
 
 export function isCreationAction(action: string): boolean {
-  return action.startsWith('create_') || action === 'clone_node' || action === 'clone_with_overrides';
+  return action.startsWith('create_') || action === 'clone_node' || action === 'clone_with_overrides'
+    || action === 'convert_to_component' || action === 'combine_as_variants';
 }

@@ -1,3 +1,11 @@
 {
-  "language": "english"
+  "language": "english",
+  "deniedMcpServers": [
+    {
+      "serverName": "pencil"
+    },
+    {
+      "serverName": "paper"
+    }
+  ]
 }

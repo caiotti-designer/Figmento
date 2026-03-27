@@ -30,6 +30,57 @@ const MCP_SERVER_PATH = path.resolve(
   '../../../figmento-mcp-server/dist/index.js',
 );
 
+/**
+ * Condensed design prompt appended to Claude Code sessions.
+ * Gives the SDK session design awareness without duplicating the full system prompt.
+ * The full design rules are accessible via tools (get_design_guidance, get_design_rules, lookup_*).
+ */
+const CLAUDE_CODE_DESIGN_PROMPT = `
+## Figmento Design Agent — Enhanced Mode
+
+You have access to Figmento MCP tools (prefixed mcp__figmento__) for creating designs in Figma. Use them with expert-level design reasoning.
+
+**CRITICAL: ONLY use mcp__figmento__* tools. NEVER use mcp__pencil__* tools or any other MCP tools. Pencil is a different editor — it does NOT connect to Figma. If you see Pencil tools available, IGNORE them completely.**
+
+### Core Design Rules
+- ALWAYS set layoutSizingVertical to HUG on content frames. NEVER leave fixed height on dynamic content.
+- ALWAYS set layoutSizingHorizontal to FILL on text inside auto-layout frames.
+- Use auto-layout on ALL container frames. Never use absolute positioning inside auto-layout parents.
+- fontWeight: ONLY use 400 (Regular) or 700 (Bold). NEVER use 600 — it causes Inter fallback on non-Inter fonts.
+- lineHeight: ALWAYS pass in PIXELS (fontSize × multiplier). NEVER pass a raw multiplier like 1.5.
+- Give every element a descriptive layer name. Never leave "Rectangle" or "Text" defaults.
+- Create exactly ONE root frame per design. Never create duplicates.
+- ALWAYS end your response with a clear completion summary. NEVER end on "Now let me..." without completing the action.
+
+### One-Click Design System Pipeline
+When user asks to generate/create a design system:
+1. Call analyze_brief with the brief text and brand name
+2. Call generate_design_system_in_figma with the BrandAnalysis result
+3. The pipeline creates: ~65 variables (4 collections), 8 text styles, 3 components, and a visual showcase page
+4. After pipeline completes, the showcase is ALREADY complete — do NOT create additional loose elements
+
+### Design Intelligence Tools
+Use these for expert decisions — never hardcode or guess values:
+- get_design_guidance(aspect="color|fonts|size|typeScale|spacing|layout") — knowledge base lookups
+- get_design_rules(category="typography|color|layout|refinement|evaluation") — detailed rules
+- get_layout_blueprint(category, mood) — proportional zone layouts
+- find_design_references(category, mood) — inspiration from reference library
+- run_refinement_check(nodeId) — automated quality feedback
+
+### Typography Quick Reference
+Line Height: Display (>48px) 1.1–1.2 | Headings 1.2–1.3 | Body 1.5–1.6 | Captions 1.4–1.5
+Letter Spacing: Display -0.02em | Headings -0.01em | Body 0 | Uppercase +0.05–0.15em
+Minimum Sizes (Social 1080px): Headline 48–72px | Sub 32–40px | Body 28–32px | Caption 22–26px
+
+### Spacing (8px grid)
+Scale: 4 | 8 | 12 | 16 | 20 | 24 | 32 | 40 | 48 | 64 | 80 | 96 | 128
+Margins: Social 48px | Print 72px | Web 64px
+
+### Overlay Gradient Rules
+Text at BOTTOM → direction "top-bottom" | Text at TOP → "bottom-top"
+EXACTLY 2 stops. Gradient color MUST match section background. Solid end = where text is.
+`;
+
 // ═══════════════════════════════════════════════════════════════
 // ASYNC QUEUE (P2-1)
 // A push/pull buffer backed by an async iterator.  close() terminates
@@ -81,7 +132,12 @@ class AsyncQueue<T> implements AsyncIterable<T> {
 // ═══════════════════════════════════════════════════════════════
 
 /** Construct the SDKUserMessage shape the SDK expects over the AsyncIterable path. */
-function makeUserMessage(text: string, sessionId = '', attachmentBase64?: string): SDKUserMessage {
+function makeUserMessage(
+  text: string,
+  sessionId = '',
+  attachmentBase64?: string,
+  fileAttachments?: Array<{ name: string; type: string; dataUri: string }>,
+): SDKUserMessage {
   const content: any[] = [];
 
   // Include image attachment if provided (data URI → base64 content block)
@@ -97,6 +153,35 @@ function makeUserMessage(text: string, sessionId = '', attachmentBase64?: string
       type: 'image',
       source: { type: 'base64', media_type: mediaType, data: base64Data },
     });
+  }
+
+  // ODS-1a: Include non-image file attachments (PDFs, TXT, SVG) as text context
+  if (fileAttachments && fileAttachments.length > 0) {
+    const fileContextParts: string[] = [];
+    for (const f of fileAttachments) {
+      // Extract raw content from data URI
+      const commaIdx = f.dataUri.indexOf(',');
+      const rawData = commaIdx > 0 ? f.dataUri.slice(commaIdx + 1) : f.dataUri;
+
+      if (f.type === 'application/pdf') {
+        // PDF: include as document content block for Claude (base64)
+        content.push({
+          type: 'document',
+          source: { type: 'base64', media_type: 'application/pdf', data: rawData },
+        });
+      } else {
+        // Text files (TXT, SVG): decode and include as text
+        try {
+          const decoded = Buffer.from(rawData, 'base64').toString('utf-8');
+          fileContextParts.push(`[File: ${f.name}]\n${decoded}`);
+        } catch {
+          fileContextParts.push(`[File: ${f.name}] (could not decode)`);
+        }
+      }
+    }
+    if (fileContextParts.length > 0) {
+      text += '\n\n[ATTACHED FILE CONTENTS]\n' + fileContextParts.join('\n\n');
+    }
   }
 
   content.push({ type: 'text', text });
@@ -170,6 +255,7 @@ export class ClaudeCodeSessionManager {
     memory: string[] | undefined,
     model?: string,
     attachmentBase64?: string,
+    fileAttachments?: Array<{ name: string; type: string; dataUri: string }>,
   ): Promise<ClaudeCodeTurnResult | ClaudeCodeTurnError> {
     let session = this.sessions.get(channel);
 
@@ -222,7 +308,7 @@ export class ClaudeCodeSessionManager {
     session.turnTimer = turnTimer;
 
     // Push the user message into the queue → SDK receives it → starts the turn
-    session.queue.push(makeUserMessage(message, session.lastSessionId, attachmentBase64));
+    session.queue.push(makeUserMessage(message, session.lastSessionId, attachmentBase64, fileAttachments));
 
     console.log(
       `[Figmento Claude Code] Turn pushed channel=${channel} ` +
@@ -302,11 +388,26 @@ export class ClaudeCodeSessionManager {
     const brief = detectBrief(lastUserMsg);
     const systemPrompt = buildSystemPrompt(brief, memory);
 
+    // Resolve project root so the SDK reads .claude/settings.json (deniedMcpServers etc.)
+    const projectRoot = path.resolve(__dirname, '../../..');
+
+    console.log(`[Figmento Claude Code] MCP server path: ${MCP_SERVER_PATH}`);
+    console.log(`[Figmento Claude Code] Project root (cwd): ${projectRoot}`);
+
     const options: Options = {
+      cwd: projectRoot,
       customSystemPrompt: systemPrompt,
+      appendSystemPrompt: CLAUDE_CODE_DESIGN_PROMPT,
       maxTurns: 50,
+      maxThinkingTokens: 10000,
       permissionMode: 'bypassPermissions',
-      ...(model ? { model } : {}),
+      // Default to Sonnet for fast tool-calling; Opus is too slow for chat UX
+      model: model || 'claude-sonnet-4-6',
+      // Log all SDK subprocess output for debugging
+      stderr: (data: string) => {
+        const t = data.trim();
+        if (t) console.error(`[SDK] ${t}`);
+      },
       mcpServers: {
         figmento: {
           command: 'node',

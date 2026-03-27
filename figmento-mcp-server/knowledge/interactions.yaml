@@ -1,0 +1,207 @@
+# Interaction Presets — IC-6
+# Reusable prototype interaction patterns for common UI elements.
+# Each preset defines triggers, actions, transitions, and easing.
+# Use $placeholder variables for destination node IDs — resolved at apply time.
+
+presets:
+  button-hover:
+    description: "Smooth hover state swap on mouse enter/leave"
+    requires: variant_with_states  # Needs state=default and state=hover variants
+    reactions:
+      - trigger: MOUSE_ENTER
+        action: NODE
+        destination: "$hover_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 150
+        easing: EASE_OUT
+        delay: 0
+      - trigger: MOUSE_LEAVE
+        action: NODE
+        destination: "$default_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 150
+        easing: EASE_OUT
+        delay: 0
+
+  button-press:
+    description: "Active/pressed state on mouse down, revert on release"
+    requires: variant_with_states  # Needs state=default and state=pressed
+    reactions:
+      - trigger: MOUSE_DOWN
+        action: NODE
+        destination: "$pressed_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 80
+        easing: EASE_IN
+        delay: 0
+      - trigger: MOUSE_UP
+        action: NODE
+        destination: "$default_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 120
+        easing: EASE_OUT
+        delay: 0
+
+  button-full:
+    description: "Complete button interaction: hover + press + release"
+    requires: variant_with_states  # Needs state=default, state=hover, state=pressed
+    reactions:
+      - trigger: MOUSE_ENTER
+        action: NODE
+        destination: "$hover_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 150
+        easing: EASE_OUT
+        delay: 0
+      - trigger: MOUSE_LEAVE
+        action: NODE
+        destination: "$default_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 150
+        easing: EASE_OUT
+        delay: 0
+      - trigger: MOUSE_DOWN
+        action: NODE
+        destination: "$pressed_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 80
+        easing: EASE_IN
+        delay: 0
+      - trigger: MOUSE_UP
+        action: NODE
+        destination: "$hover_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 120
+        easing: EASE_OUT
+        delay: 0
+
+  card-hover:
+    description: "Subtle lift effect on card hover (shadow + scale via smart animate)"
+    requires: variant_with_states
+    reactions:
+      - trigger: MOUSE_ENTER
+        action: NODE
+        destination: "$hover_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 200
+        easing: GENTLE
+        delay: 0
+      - trigger: MOUSE_LEAVE
+        action: NODE
+        destination: "$default_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 200
+        easing: GENTLE
+        delay: 0
+
+  nav-link:
+    description: "Navigate to a destination frame on click"
+    requires: destination_frame
+    reactions:
+      - trigger: ON_CLICK
+        action: NODE
+        destination: "$target"
+        navigation: NAVIGATE
+        transition: DISSOLVE
+        duration: 300
+        easing: EASE_IN_AND_OUT
+
+  modal-open:
+    description: "Open an overlay frame on click"
+    requires: overlay_frame
+    reactions:
+      - trigger: ON_CLICK
+        action: NODE
+        destination: "$overlay"
+        navigation: OVERLAY
+        transition: DISSOLVE
+        duration: 200
+        easing: EASE_OUT
+
+  modal-close:
+    description: "Close the current overlay on click"
+    reactions:
+      - trigger: ON_CLICK
+        action: CLOSE
+
+  tab-switch:
+    description: "Swap content frame on tab click"
+    requires: destination_frame
+    reactions:
+      - trigger: ON_CLICK
+        action: NODE
+        destination: "$target"
+        navigation: SWAP
+        transition: SMART_ANIMATE
+        duration: 250
+        easing: EASE_IN_AND_OUT
+
+  carousel-next:
+    description: "Slide to next item on click (left direction)"
+    requires: destination_frame
+    reactions:
+      - trigger: ON_CLICK
+        action: NODE
+        destination: "$next"
+        navigation: SWAP
+        transition: SLIDE_IN
+        duration: 300
+        easing: EASE_IN_AND_OUT
+        direction: LEFT
+
+  carousel-prev:
+    description: "Slide to previous item on click (right direction)"
+    requires: destination_frame
+    reactions:
+      - trigger: ON_CLICK
+        action: NODE
+        destination: "$prev"
+        navigation: SWAP
+        transition: SLIDE_IN
+        duration: 300
+        easing: EASE_IN_AND_OUT
+        direction: RIGHT
+
+  back-navigation:
+    description: "Navigate back on click (browser-like back)"
+    reactions:
+      - trigger: ON_CLICK
+        action: BACK
+
+  tooltip-show:
+    description: "Show tooltip overlay on hover"
+    requires: overlay_frame
+    reactions:
+      - trigger: MOUSE_ENTER
+        action: NODE
+        destination: "$tooltip"
+        navigation: OVERLAY
+        transition: DISSOLVE
+        duration: 150
+        easing: EASE_OUT
+        delay: 0
+      - trigger: MOUSE_LEAVE
+        action: CLOSE
+
+  page-transition-push:
+    description: "Push transition to a new page (mobile app style)"
+    requires: destination_frame
+    reactions:
+      - trigger: ON_CLICK
+        action: NODE
+        destination: "$target"
+        navigation: NAVIGATE
+        transition: PUSH
+        duration: 300
+        easing: EASE_IN_AND_OUT
+        direction: LEFT

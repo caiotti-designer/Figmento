@@ -14,6 +14,7 @@ import { handleExportNode, handleGetScreenshot, handleReadFigmaContext, handleBi
 import { getDesignSystemCache } from './design-system-discovery';
 import { tryComponentInstance, isComponentMatchableFrame } from './component-matcher';
 import { tryBindFillVariable, tryBindSpacingVariables, tryBindTextVariables } from './variable-binder';
+import { handleCreateComponent, handleConvertToComponent, handleCombineAsVariants, handleCreateInstance, handleDetachInstance, handleSetReactions, handleGetReactions } from './canvas-components';
 import type { DesignSystemCache } from '../types';
 
 // ═══════════════════════════════════════════════════════════════
@@ -501,6 +502,14 @@ export async function executeSingleAction(action: string, params: Record<string,
     case 'apply_effect_style': return await handleApplyEffectStyle(params);
     case 'create_figma_variables': return await handleCreateFigmaVariables(params);
     case 'run_refinement_check': return await runRefinementCheck(String(params.nodeId));
+    // IC-1/2/3: Component actions
+    case 'create_component_node': return await handleCreateComponent(params);
+    case 'convert_to_component': return await handleConvertToComponent(params);
+    case 'combine_as_variants': return await handleCombineAsVariants(params);
+    case 'create_instance': return await handleCreateInstance(params);
+    case 'detach_instance': return await handleDetachInstance(params);
+    case 'set_reactions': return await handleSetReactions(params);
+    case 'get_reactions': return await handleGetReactions(params);
     default:
       throw new Error(`Unknown action in batch: ${action}`);
   }

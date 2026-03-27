@@ -194,7 +194,7 @@ let chatSettings: ChatSettings = {
   geminiApiKey: '',
   openaiApiKey: '',
   model: 'gemini-3.1-flash-image-preview',
-  claudeCodeModel: 'claude-opus-4-6',
+  claudeCodeModel: 'claude-sonnet-4-6',
   chatRelayEnabled: false,
   chatRelayUrl: 'http://localhost:3055',
 };
@@ -898,9 +898,25 @@ export function initChat() {
       return;
     }
 
+    // ODS-1a: Show loading spinner for large files (>1MB)
+    const showSpinner = file.size > 1 * 1024 * 1024;
+    let spinnerEl: HTMLElement | null = null;
+    if (showSpinner) {
+      spinnerEl = document.createElement('div');
+      spinnerEl.className = 'attachment-loading';
+      spinnerEl.innerHTML = `<span class="attachment-spinner"></span><span>${file.name} — converting…</span>`;
+      const inputArea = document.querySelector('.input-area');
+      if (inputArea) inputArea.insertBefore(spinnerEl, inputArea.firstChild);
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
+      if (spinnerEl) spinnerEl.remove();
       addAttachment(file.name, file.type, reader.result as string, file.size);
+    };
+    reader.onerror = () => {
+      if (spinnerEl) spinnerEl.remove();
+      appendChatBubble('assistant', '<span class="chat-error">Failed to read file. Please try again.</span>');
     };
     reader.readAsDataURL(file);
     fileInput.value = ''; // Reset so the same file can be re-selected
@@ -1913,7 +1929,7 @@ async function sendMessage() {
         throw new Error('Claude Code requires a local relay. Start with: `cd figmento-ws-relay && npm run dev`');
       }
       console.log('[Figmento Chat] → CLAUDE CODE path (WS)');
-      await runClaudeCodeTurn(text, capturedAttachment);
+      await runClaudeCodeTurn(text, capturedAttachment, capturedAttachments);
     // Route through relay if enabled and bridge is connected
     } else if (relayEnabled && bridgeConnected) {
       console.log('[Figmento Chat] → RELAY path');
@@ -2069,11 +2085,16 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
 // CHAT — CLAUDE CODE TURN (WS → local relay → SDK subprocess)
 // ═══════════════════════════════════════════════════════════════
 
-async function runClaudeCodeTurn(text: string, attachment?: string | null): Promise<void> {
+async function runClaudeCodeTurn(text: string, attachment?: string | null, allAttachments?: AttachmentFile[]): Promise<void> {
   const channelId = getBridgeChannelId();
   if (!channelId) {
     throw new Error('Bridge channel not available. Connect to the local relay first.');
   }
+
+  // ODS-1a: Collect non-image file attachments for server-side processing (PDFs, TXT, SVG)
+  const fileAttachments = (allAttachments || [])
+    .filter(f => !f.type.startsWith('image/') || f.type === 'image/svg+xml')
+    .map(f => ({ name: f.name, type: f.type, dataUri: f.dataUri }));
 
   // Send claude-code-turn message through the bridge WS
   const sent = sendBridgeMessage({
@@ -2084,6 +2105,7 @@ async function runClaudeCodeTurn(text: string, attachment?: string | null): Prom
     memory: memoryEntries,
     model: chatSettings.claudeCodeModel || undefined,
     ...(attachment && { attachmentBase64: attachment }),
+    ...(fileAttachments.length > 0 && { fileAttachments }),
   });
 
   if (!sent) {

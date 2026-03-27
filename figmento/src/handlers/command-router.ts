@@ -8,10 +8,12 @@ import { PREFERENCES_STORAGE_KEY } from './storage';
 import { handleCreateFrame, handleCreateText, handleCreateRectangle, handleCreateEllipse, handleCreateImage, handleCreateIcon, handleCreateVector } from './canvas-create';
 import { handleSetFill, handleSetStroke, handleSetEffects, handleSetCornerRadius, handleSetOpacity, handleSetAutoLayout, handleSetText, handleFlipGradient, handleStyleTextRange } from './canvas-style';
 import { handleDeleteNode, handleMoveNode, handleResizeNode, handleRenameNode, handleAppendChild, handleReorderChild, handleCloneNode, handleCloneWithOverrides, handleGroupNodes, handleGetSelection, handleGetNodeInfo, handleGetPageNodes, handleFindNodes, handleListAvailableFonts, handleBooleanOperation, handleFlattenNodes, handleImportComponentByKey, handleImportStyleByKey } from './canvas-scene';
-import { handleExportNode, handleGetScreenshot, handleScanFrameStructure, handleReadFigmaContext, handleBindVariable, handleApplyPaintStyle, handleApplyTextStyle, handleApplyEffectStyle, handleCreateFigmaVariables, handleExportAsSvg, handleSetConstraints } from './canvas-query';
+import { handleExportNode, handleGetScreenshot, handleScanFrameStructure, handleReadFigmaContext, handleBindVariable, handleApplyPaintStyle, handleApplyTextStyle, handleApplyEffectStyle, handleCreateFigmaVariables, handleCreateVariableCollections, handleCreateTextStyles, handleCreateDSComponents, handleExportAsSvg, handleSetConstraints } from './canvas-query';
 import { getDesignSystemCache, handleScanDesignSystem } from './design-system-discovery';
 import { handleBatchExecute, handleCreateDesignCmd, handleScanTemplateCmd, handleApplyTemplateTextCmd, handleApplyTemplateImageCmd, runRefinementCheck } from './canvas-batch';
+import { handleCreateDSShowcase } from './ds-showcase';
 import { tryComponentInstance, isComponentMatchableFrame } from './component-matcher';
+import { handleCreateComponent, handleConvertToComponent, handleCombineAsVariants, handleCreateInstance, handleDetachInstance, handleSetReactions, handleGetReactions } from './canvas-components';
 
 export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
   const baseResponse = {
@@ -158,6 +160,14 @@ export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
         data = await handleApplyEffectStyle(cmd.params); break;
       case 'create_figma_variables':
         data = await handleCreateFigmaVariables(cmd.params); break;
+      case 'create_variable_collections':
+        data = await handleCreateVariableCollections(cmd.params); break;
+      case 'create_text_styles':
+        data = await handleCreateTextStyles(cmd.params); break;
+      case 'create_ds_components':
+        data = await handleCreateDSComponents(cmd.params); break;
+      case 'create_ds_showcase':
+        data = await handleCreateDSShowcase(cmd.params); break;
       case 'run_refinement_check':
         data = await runRefinementCheck(String(cmd.params.nodeId)); break;
       case 'get_preferences': {
@@ -170,6 +180,24 @@ export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
         data = scanResult as unknown as Record<string, unknown>;
         break;
       }
+      // IC-1: Component creation
+      case 'create_component_node':
+        data = await handleCreateComponent(cmd.params); break;
+      case 'convert_to_component':
+        data = await handleConvertToComponent(cmd.params); break;
+      // IC-2: Variant management
+      case 'combine_as_variants':
+        data = await handleCombineAsVariants(cmd.params); break;
+      // IC-3: Instance management
+      case 'create_instance':
+        data = await handleCreateInstance(cmd.params); break;
+      case 'detach_instance':
+        data = await handleDetachInstance(cmd.params); break;
+      // IC-5/8: Prototype interactions
+      case 'set_reactions':
+        data = await handleSetReactions(cmd.params); break;
+      case 'get_reactions':
+        data = await handleGetReactions(cmd.params); break;
       default:
         return { ...baseResponse, success: false, error: `Unknown action: ${cmd.action}` };
     }

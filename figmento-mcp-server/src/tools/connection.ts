@@ -15,17 +15,39 @@ export function registerConnectionTools(server: McpServer, wsClient: FigmentoWSC
     'Connect to a Figma file via the Figmento plugin. Open the Figmento MCP plugin in Figma, copy the channel ID, and pass it here. The relay server must be running on the specified URL.',
     connectToFigmaSchema,
     async ({ channel, url }) => {
-      // CR-5: If auto-connected via FIGMENTO_CHANNEL env var, skip reconnection.
-      // The MCP server was spawned by Claude Code SDK with the correct channel already set.
-      // Calling connect_to_figma again would disconnect from the correct channel.
+      // CR-5 / IC-fix: If FIGMENTO_CHANNEL env is set, this MCP server was spawned
+      // by the relay's Claude Code SDK session. ALWAYS use the env channel — never
+      // let the model override with an invented channel name.
       const autoChannel = process.env.FIGMENTO_CHANNEL;
-      if (autoChannel && wsClient.isConnected) {
-        return {
-          content: [{
-            type: 'text' as const,
-            text: `Already connected to Figma via channel "${autoChannel}" (auto-connected). Ready for design tools — no need to call connect_to_figma.`,
-          }],
-        };
+      if (autoChannel) {
+        // If already connected to the correct channel, just confirm
+        if (wsClient.isConnected) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Already connected to Figma via channel "${autoChannel}" (auto-connected). Ready for design tools.`,
+            }],
+          };
+        }
+        // Not yet connected (race condition) — connect to the env channel, NOT the model's channel
+        try {
+          const wsUrl = url || process.env.FIGMENTO_RELAY_URL || 'ws://localhost:3055';
+          await wsClient.connect(wsUrl, autoChannel);
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Connected to Figma via channel "${autoChannel}" (from env). Ready for design tools.`,
+            }],
+          };
+        } catch (err) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Failed to auto-connect to channel "${autoChannel}": ${(err as Error).message}`,
+            }],
+            isError: true,
+          };
+        }
       }
 
       const wsUrl = url || 'ws://localhost:3055';

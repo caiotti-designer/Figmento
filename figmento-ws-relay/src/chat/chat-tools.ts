@@ -75,6 +75,7 @@ const BUILD_PHASE_TRIGGERS = new Set([
   'create_image',
   'set_fill',
   'set_auto_layout',
+  'create_component_node',
 ]);
 
 const PLAN_PHASE_TOOLS = new Set([
@@ -86,6 +87,8 @@ const PLAN_PHASE_TOOLS = new Set([
   'set_fill',
   'create_image', 'generate_image', 'fill_contextual_images', 'update_memory',
   'reorder_child',
+  'analyze_brief', 'generate_design_system_in_figma',
+  'create_component_node', 'convert_to_component', 'combine_as_variants', 'set_reactions',
 ]);
 
 const BUILD_PHASE_TOOLS = new Set([
@@ -99,6 +102,11 @@ const BUILD_PHASE_TOOLS = new Set([
   'run_refinement_check',
   'read_figma_context', 'bind_variable', 'apply_paint_style', 'apply_text_style', 'apply_effect_style',
   'create_figma_variables',
+  'analyze_brief', 'generate_design_system_in_figma',
+  'create_variable_collections', 'create_text_styles', 'create_ds_components',
+  // IC: Interactive Components
+  'create_component_node', 'convert_to_component', 'combine_as_variants',
+  'create_instance', 'detach_instance', 'set_reactions', 'get_reactions',
 ]);
 
 /**
@@ -777,6 +785,206 @@ export const FIGMENTO_TOOLS: ToolDefinition[] = [
         },
       },
       required: ['collectionName', 'variables'],
+    },
+  },
+
+  // ── ODS Pipeline Tools (One-Click Design System) ──
+
+  {
+    name: 'analyze_brief',
+    description: 'Analyze a PDF brief and/or logo to extract brand identity. Returns structured BrandAnalysis JSON (colors, typography, spacing, radius) ready for generate_design_system_in_figma. Call when user uploads a PDF brief, provides a brand description, or says "generate a design system", "create a DS", "analyze this brief". All parameters are optional.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        pdfText: { type: 'string', description: 'Extracted text from PDF (if the PDF was already read from the attachment)' },
+        briefText: { type: 'string', description: 'Plain text brand/project description' },
+        brandName: { type: 'string', description: 'Brand name (overrides auto-detection)' },
+        logoBase64: { type: 'string', description: 'Logo image as base64 data URI' },
+      },
+    },
+  },
+
+  {
+    name: 'generate_design_system_in_figma',
+    description: 'One-click Design System generation. Takes a BrandAnalysis JSON (from analyze_brief) and creates a complete Figma design system: 4 variable collections (~65 variables), 8 text styles, 3 components (Button, Card, Badge). Call AFTER analyze_brief. This is the headline ODS feature.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        brandAnalysis: { type: 'object', description: 'Full BrandAnalysis JSON from analyze_brief' },
+      },
+      required: ['brandAnalysis'],
+    },
+  },
+
+  {
+    name: 'create_variable_collections',
+    description: 'Create multiple Figma Variable Collections in one call. Supports upsert (adds new variables to existing collections). Used internally by generate_design_system_in_figma.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        collections: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              variables: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, type: { type: 'string' }, value: {} }, required: ['name', 'type'] } },
+            },
+            required: ['name', 'variables'],
+          },
+        },
+      },
+      required: ['collections'],
+    },
+  },
+
+  {
+    name: 'create_text_styles',
+    description: 'Create Figma Text Styles from typography configuration. Creates 8 reusable text styles (DS/Display through DS/Caption). Used internally by generate_design_system_in_figma.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        styles: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' }, fontFamily: { type: 'string' }, fontSize: { type: 'number' },
+              fontWeight: { type: 'number' }, lineHeight: { type: 'number' }, letterSpacing: { type: 'number' },
+            },
+            required: ['name', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing'],
+          },
+        },
+      },
+      required: ['styles'],
+    },
+  },
+
+  {
+    name: 'create_ds_components',
+    description: 'Create base design system components (Button, Card, Badge) with auto-layout and variable bindings. Used internally by generate_design_system_in_figma.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        components: { type: 'array', items: { type: 'object' } },
+      },
+      required: ['components'],
+    },
+  },
+
+  // ── IC: Interactive Components ──
+  {
+    name: 'create_component_node',
+    description: 'Create a real Figma component (appears in Assets panel). Like create_frame but returns a ComponentNode. Use "Property=Value" naming for variants (e.g. "state=default", "state=hover").',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Component name. Use "Property=Value" for variants.' },
+        width: { type: 'number', description: 'Width in pixels' },
+        height: { type: 'number', description: 'Height in pixels' },
+        x: { type: 'number' }, y: { type: 'number' },
+        parentId: { type: 'string', description: 'Parent frame nodeId' },
+        fillColor: { type: 'string', description: 'Hex fill color' },
+        cornerRadius: { type: 'number' },
+        description: { type: 'string', description: 'Component description' },
+        layoutMode: { type: 'string', enum: ['HORIZONTAL', 'VERTICAL', 'NONE'] },
+        itemSpacing: { type: 'number' },
+        padding: { type: 'number', description: 'Uniform padding all sides' },
+        paddingTop: { type: 'number' }, paddingRight: { type: 'number' },
+        paddingBottom: { type: 'number' }, paddingLeft: { type: 'number' },
+        primaryAxisAlignItems: { type: 'string', enum: ['MIN', 'CENTER', 'MAX', 'SPACE_BETWEEN'] },
+        counterAxisAlignItems: { type: 'string', enum: ['MIN', 'CENTER', 'MAX'] },
+        clipsContent: { type: 'boolean' },
+      },
+    },
+  },
+  {
+    name: 'convert_to_component',
+    description: 'Convert an existing frame/group into a real Figma component in-place. Preserves all children, fills, auto-layout.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'Frame or group node ID to convert' },
+      },
+      required: ['nodeId'],
+    },
+  },
+  {
+    name: 'combine_as_variants',
+    description: 'Combine 2+ components into a Component Set with auto-detected variant properties. Names should use "Property=Value" format. Frames are auto-converted to components.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        componentIds: { type: 'array', items: { type: 'string' }, minItems: 2, description: 'Component/frame node IDs' },
+        name: { type: 'string', description: 'Name for the component set' },
+      },
+      required: ['componentIds'],
+    },
+  },
+  {
+    name: 'create_instance',
+    description: 'Create an instance of a component or component set. For component sets, use variantProperties to pick a variant.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        componentId: { type: 'string', description: 'Component or ComponentSet node ID' },
+        x: { type: 'number' }, y: { type: 'number' },
+        parentId: { type: 'string' },
+        variantProperties: { type: 'object', description: 'Variant selection e.g. { "state": "hover" }' },
+      },
+      required: ['componentId'],
+    },
+  },
+  {
+    name: 'detach_instance',
+    description: 'Detach a component instance back to a plain frame.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'Instance node ID to detach' },
+      },
+      required: ['nodeId'],
+    },
+  },
+  {
+    name: 'set_reactions',
+    description: 'Set prototype interactions on a node. For hover effects: trigger=MOUSE_ENTER, action=NODE, navigation=CHANGE_TO, destination=variantId, transition=SMART_ANIMATE. Pass empty reactions [] to clear.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'Node ID to set interactions on' },
+        reactions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              trigger: { type: 'string', description: 'ON_CLICK, MOUSE_ENTER, MOUSE_LEAVE, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT' },
+              action: { type: 'string', description: 'NODE, BACK, CLOSE, URL' },
+              destination: { type: 'string', description: 'Target node ID for NODE actions' },
+              navigation: { type: 'string', enum: ['NAVIGATE', 'SWAP', 'OVERLAY', 'SCROLL_TO', 'CHANGE_TO'] },
+              transition: { type: 'string', enum: ['DISSOLVE', 'SMART_ANIMATE', 'MOVE_IN', 'MOVE_OUT', 'PUSH', 'SLIDE_IN', 'SLIDE_OUT'] },
+              duration: { type: 'number', description: 'Transition duration in ms (default: 300)' },
+              easing: { type: 'string', enum: ['EASE_IN', 'EASE_OUT', 'EASE_IN_AND_OUT', 'LINEAR', 'GENTLE', 'QUICK', 'BOUNCY', 'SLOW'] },
+              delay: { type: 'number', description: 'Trigger delay in ms (default: 0)' },
+              direction: { type: 'string', enum: ['LEFT', 'RIGHT', 'TOP', 'BOTTOM'] },
+              url: { type: 'string' },
+            },
+            required: ['trigger', 'action'],
+          },
+        },
+      },
+      required: ['nodeId', 'reactions'],
+    },
+  },
+  {
+    name: 'get_reactions',
+    description: 'Read current prototype interactions on a node. Returns reactions in simplified format.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'Node ID to read interactions from' },
+      },
+      required: ['nodeId'],
     },
   },
 ];
