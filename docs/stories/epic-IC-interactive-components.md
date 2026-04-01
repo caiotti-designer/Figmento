@@ -265,10 +265,10 @@ TEST 3 — Clear Interactions
 
 | ID | Title | Executor | Gate | Depends On | Status |
 |----|-------|----------|------|------------|--------|
-| IC-9 | Auto-Interactive DS Components | @dev | @qa | IC-1, IC-2, IC-5, IC-7 + Epic ODS | Draft |
-| IC-10 | Make Interactive Command | @dev | @qa | IC-5, IC-7 | Draft |
-| IC-11 | Extended Interaction Knowledge Base | @dev | @architect | IC-6 | Draft |
-| IC-12 | Prototype Flow Generator | @dev | @qa | IC-5 | Draft |
+| IC-9 | Auto-Interactive DS Components | @dev | @qa | IC-1, IC-2, IC-5, IC-7 + Epic ODS | [x] Done |
+| IC-10 | Make Interactive Command | @dev | @qa | IC-5, IC-7 | [x] Done |
+| IC-11 | Extended Interaction Knowledge Base | @dev | @architect | IC-6 | [x] Done |
+| IC-12 | Prototype Flow Generator | @dev | @qa | IC-5 | [x] Done |
 
 ### IC-9: Auto-Interactive DS Components
 
@@ -417,6 +417,7 @@ All new tools are additive. Existing `create_ds_components` defaults to `interac
 | 2026-03-26 | @po (Pax) | Phase 1 stories validated (IC-1: 10/10, IC-2: 10/10, IC-3: 9/10 fixed, IC-4: 9/10 fixed). All 4 stories promoted Draft → Ready. |
 | 2026-03-26 | @dev (Dex) | Phase 1 complete. All 4 stories implemented. New files: `canvas-components.ts` (plugin), `components.ts` (MCP). 5 commands added to router + batch. Both packages build clean. |
 | 2026-03-26 | @dev (Dex) | Phase 2 complete. IC-5/8: `set_reactions` + `get_reactions` tools. IC-6: 13 interaction presets in `knowledge/interactions.yaml`. IC-7: `apply_interaction` + `list_interaction_presets` tools. Live tested: hover component created via chat UI with prototype interactions. Fixed: MCP server crash from `create_component` name collision (renamed to `create_component_node`), Pencil MCP interference (removed from global config), channel mismatch race condition, SDK session model default. |
+| 2026-03-26 | @dev (Dex) | Phase 3 complete. IC-9: `create_ds_components` gains `interactive: true` flag — auto-creates variant states (default/hover/pressed for button/badge, default/hover for card), combines as ComponentSet, wires hover/press reactions. IC-10: `make_interactive` tool scans frame tree for buttons/cards/nav-links via heuristics, creates variants and wires presets idempotently. IC-11: 11 industry-specific presets added (4 e-commerce: add-to-cart, product-zoom, filter-toggle, quantity-stepper; 4 SaaS: dropdown-menu, sidebar-collapse, toast-notification, accordion-expand; 3 mobile: swipe-navigate, bottom-sheet, pull-to-refresh). All presets tagged with `industry` field. IC-12: `create_prototype_flow` tool wires navigation between ordered frames — sets flow starting point, auto-detects clickable elements, wires PUSH forward and BACK reverse. Both packages build clean. |
 
 ---
 
