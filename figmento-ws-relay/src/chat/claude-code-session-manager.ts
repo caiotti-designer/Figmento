@@ -480,46 +480,97 @@ export class ClaudeCodeSessionManager {
       maxThinkingTokens: 4096,
       permissionMode: 'bypassPermissions',
       model: model || 'claude-sonnet-4-6',
-      // Block tools the model should never use during design sessions.
-      // This reduces the tool list from 126 → ~85, saving ~1.5K tokens per API call
-      // and speeding up model decision-making.
+      // Tool surface reduction: 109 → 55 visible tools.
+      // Hidden tools remain callable via batch_execute DSL (plugin-side actions).
+      // Saves ~2K tokens per API call and improves tool selection accuracy.
       disallowedTools: [
-        // File system tools — design sessions don't need to read/write local files
+        // File system tools — design sessions don't need local file ops
         'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
-        // DS CRUD — managed by pipeline, not direct model access
-        'mcp__figmento__load_design_system',
-        'mcp__figmento__update_design_system',
-        'mcp__figmento__delete_design_system',
-        'mcp__figmento__sync_design_system',
-        // Extraction — heavy ops not needed during live design
-        'mcp__figmento__extract_design_system_from_figma',
-        'mcp__figmento__extract_tokens',
-        'mcp__figmento__audit_component_library',
-        'mcp__figmento__analyze_design_system',
-        // File storage — rarely needed in design flow
-        'mcp__figmento__store_temp_file',
-        'mcp__figmento__list_temp_files',
-        'mcp__figmento__load_brand_assets',
-        'mcp__figmento__list_brand_assets',
-        'mcp__figmento__import_pdf',
-        // Learning — read-only, not useful during design
-        'mcp__figmento__get_learned_preferences',
-        // Deprecated/redundant
+
+        // Connection — never needed (sessions end naturally)
         'mcp__figmento__disconnect_from_figma',
-        'mcp__figmento__fetch_placeholder_image',
-        'mcp__figmento__export_node_to_file',
-        // Ad analyzer — separate flow, not part of design sessions
-        'mcp__figmento__start_ad_analyzer',
-        'mcp__figmento__complete_ad_analyzer',
-        // Orchestration — high-level wrappers, model should use primitives
-        'mcp__figmento__design_from_reference',
-        'mcp__figmento__generate_ad_variations',
-        // Presentation — separate flow
+
+        // Canvas — trivial via batch_execute or redundant
+        'mcp__figmento__create_carousel',
         'mcp__figmento__create_presentation',
-        // Heavy analysis — not needed during live design
+        'mcp__figmento__fetch_placeholder_image',
         'mcp__figmento__evaluate_design',
+
+        // Scene — advanced vector ops, never used
+        'mcp__figmento__boolean_operation',
+        'mcp__figmento__flatten_nodes',
+        'mcp__figmento__export_as_svg',
+        'mcp__figmento__set_constraints',
+        'mcp__figmento__import_component_by_key',
+        'mcp__figmento__import_style_by_key',
+        'mcp__figmento__list_available_fonts',
+
+        // Intelligence — redundant with consolidated tools
+        'mcp__figmento__generate_accessible_palette',
         'mcp__figmento__suggest_font_pairing',
         'mcp__figmento__get_contrast_check',
+        'mcp__figmento__evaluate_layout',
+
+        // DS CRUD support — managed by pipeline
+        'mcp__figmento__update_design_system',
+        'mcp__figmento__delete_design_system',
+        'mcp__figmento__refine_design_system',
+
+        // Brand kit / assets — rarely used
+        'mcp__figmento__get_brand_kit',
+        'mcp__figmento__save_brand_kit',
+        'mcp__figmento__save_brand_assets',
+        'mcp__figmento__load_brand_assets',
+        'mcp__figmento__list_brand_assets',
+
+        // File storage — support tools
+        'mcp__figmento__store_temp_file',
+        'mcp__figmento__list_temp_files',
+        'mcp__figmento__place_brand_asset',
+        'mcp__figmento__import_pdf',
+
+        // Ad analyzer — separate specialized flow
+        'mcp__figmento__start_ad_analyzer',
+        'mcp__figmento__complete_ad_analyzer',
+
+        // Orchestration — model should compose primitives
+        'mcp__figmento__design_from_reference',
+        'mcp__figmento__generate_ad_variations',
+
+        // References — CLAUDE.md guides usage, rarely called directly
+        'mcp__figmento__find_design_references',
+        'mcp__figmento__analyze_reference',
+        'mcp__figmento__batch_analyze_references',
+
+        // Figma native — DS pipeline handles these internally
+        'mcp__figmento__create_figma_variables',
+        'mcp__figmento__create_variable_collections',
+        'mcp__figmento__create_ds_components',
+        'mcp__figmento__create_text_styles',
+        'mcp__figmento__create_variables_from_design_system',
+
+        // Interactive components — entire module unused
+        'mcp__figmento__convert_to_component',
+        'mcp__figmento__combine_as_variants',
+        'mcp__figmento__create_instance',
+        'mcp__figmento__detach_instance',
+        'mcp__figmento__set_reactions',
+        'mcp__figmento__get_reactions',
+        'mcp__figmento__apply_interaction',
+        'mcp__figmento__list_interaction_presets',
+        'mcp__figmento__make_interactive',
+        'mcp__figmento__create_prototype_flow',
+
+        // DS analysis — low usage, pipeline handles
+        'mcp__figmento__design_system_preview',
+        'mcp__figmento__brand_consistency_check',
+        'mcp__figmento__get_layout_blueprint',
+
+        // Learning — never used
+        'mcp__figmento__get_learned_preferences',
+
+        // Template — deprecated (scan_frame_structure replaces)
+        'mcp__figmento__scan_template',
       ],
       stderr: (data: string) => {
         const t = data.trim();

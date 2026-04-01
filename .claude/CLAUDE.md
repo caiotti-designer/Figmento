@@ -528,13 +528,29 @@ When user says "use this as a template" or "make variations of this":
 - Cards: ALWAYS use create_component for the container
 - If a component doesn't exist for what you need: use batch_execute with token values
 
-### Deprecated Aliases (Removal: TC-3)
+### Consolidated Tools (TC-1 + TC-2 — Complete)
 
-The following old tool names are registered as deprecated aliases and will be removed next sprint. Use the new consolidated names:
+Old tool names have been fully removed. Use only the consolidated names:
 
-**TC-1 (16 aliases):** `set_fill` → `set_style(property="fill")`, `set_stroke` → `set_style(property="stroke")`, `set_effects` → `set_style(property="effects")`, `set_corner_radius` → `set_style(property="cornerRadius")`, `set_opacity` → `set_style(property="opacity")`, `move_node` → `transform_node`, `resize_node` → `transform_node`, `apply_paint_style` → `apply_style(styleType="paint")`, `apply_text_style` → `apply_style(styleType="text")`, `apply_effect_style` → `apply_style(styleType="effect")`, `get_size_preset` → `get_design_guidance(aspect="size")`, `get_font_pairing` → `get_design_guidance(aspect="fonts")`, `get_type_scale` → `get_design_guidance(aspect="typeScale")`, `get_color_palette` → `get_design_guidance(aspect="color")`, `get_spacing_scale` → `get_design_guidance(aspect="spacing")`, `get_layout_guide` → `get_design_guidance(aspect="layout")`
+| Consolidated Tool | Replaces | Parameter |
+|---|---|---|
+| `set_style` | set_fill, set_stroke, set_effects, set_corner_radius, set_opacity | `property` |
+| `transform_node` | move_node, resize_node | x, y, width, height |
+| `apply_style` | apply_paint_style, apply_text_style, apply_effect_style | `styleType` |
+| `get_design_guidance` | get_size_preset, get_font_pairing, get_type_scale, get_color_palette, get_spacing_scale, get_layout_guide | `aspect` |
+| `list_resources` | list_layout_blueprints, list_reference_categories, list_patterns, list_templates, list_icons, list_formats, list_components, list_design_systems | `type` |
 
-**TC-2 (8 aliases):** `list_layout_blueprints` → `list_resources(type="blueprints")`, `list_reference_categories` → `list_resources(type="references")`, `list_patterns` → `list_resources(type="patterns")`, `list_templates` → `list_resources(type="templates")`, `list_icons` → `list_resources(type="icons")`, `list_formats` → `list_resources(type="formats")`, `list_components` → `list_resources(type="components")`, `list_design_systems` → `list_resources(type="designSystems")`
+### Hidden Tools (54 tools — available via batch_execute)
+
+The following tools are hidden from the visible tool list in design sessions to improve tool selection accuracy (109 → 55 visible). They remain callable via `batch_execute` DSL using their action names. Categories:
+
+- **Scene advanced:** boolean_operation, flatten_nodes, export_as_svg, set_constraints, import_component_by_key, import_style_by_key, list_available_fonts
+- **Intelligence redundant:** suggest_font_pairing, get_contrast_check, generate_accessible_palette, evaluate_layout
+- **DS pipeline internals:** create_figma_variables, create_variable_collections, create_ds_components, create_text_styles, create_variables_from_design_system
+- **Interactive components:** convert_to_component, combine_as_variants, create_instance, detach_instance, set_reactions, get_reactions, apply_interaction, list_interaction_presets, make_interactive, create_prototype_flow
+- **Brand/assets/storage:** get_brand_kit, save_brand_kit, save_brand_assets, load_brand_assets, list_brand_assets, store_temp_file, list_temp_files, place_brand_asset, import_pdf
+- **Specialized flows:** start_ad_analyzer, complete_ad_analyzer, design_from_reference, generate_ad_variations, find_design_references, analyze_reference, batch_analyze_references
+- **Low usage:** update_design_system, delete_design_system, refine_design_system, design_system_preview, brand_consistency_check, get_layout_blueprint, get_learned_preferences, scan_template, disconnect_from_figma, create_carousel, create_presentation, fetch_placeholder_image, evaluate_design
 
 ---
-*Synkra AIOS Claude Code Configuration v2.1*
+*Synkra AIOS Claude Code Configuration v2.2*
