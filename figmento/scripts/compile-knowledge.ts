@@ -400,11 +400,11 @@ export const FONT_PAIRINGS: Record<string, FontPairing> = ${fontPairings} as Rec
 
 export const TYPE_SCALES: Record<string, TypeScale> = ${typeScales} as Record<string, TypeScale>;
 
-export const SIZE_PRESETS: Record<string, SizePreset> = ${sizePresets} as Record<string, SizePreset>;
+export const SIZE_PRESETS: Record<string, SizePreset> = ${sizePresets} as unknown as Record<string, SizePreset>;
 
 export const BLUEPRINTS: Blueprint[] = ${blueprints} as Blueprint[];
 
-export const PATTERNS: Record<string, PatternRecipe> = ${patterns} as Record<string, PatternRecipe>;
+export const PATTERNS: Record<string, PatternRecipe> = ${patterns} as unknown as Record<string, PatternRecipe>;
 
 export const COMPOSITION_RULES: CompositionRules = ${compositionRules} as CompositionRules;
 
