@@ -24,7 +24,7 @@ import {
 import { LOCAL_TOOL_HANDLERS } from './local-intelligence';
 import { createBatchToolCallHandler } from './command-queue';
 import { designSystemState, getEffectiveDsCache } from './state';
-import { getBridgeChannelId, getBridgeConnected, sendBridgeMessage, setClaudeCodeResultHandler } from './bridge';
+import { getBridgeChannelId, getBridgeConnected, sendBridgeMessage, setClaudeCodeResultHandler, setClaudeCodeProgressHandler } from './bridge';
 import { renderDiffPanel } from './diff-panel';
 import { openSettings, closeSettings } from './settings';
 import type { CorrectionEntry, LearnedPreference } from '../types';
@@ -50,6 +50,7 @@ export interface ChatSettings {
   anthropicApiKey: string;
   geminiApiKey: string;
   openaiApiKey: string;
+  veniceApiKey: string;
   model: string;
   claudeCodeModel: string;
   chatRelayEnabled: boolean;
@@ -193,6 +194,7 @@ let chatSettings: ChatSettings = {
   anthropicApiKey: '',
   geminiApiKey: '',
   openaiApiKey: '',
+  veniceApiKey: '',
   model: 'gemini-3.1-flash-image-preview',
   claudeCodeModel: 'claude-sonnet-4-6',
   chatRelayEnabled: false,
@@ -223,6 +225,10 @@ function isGeminiModel(model: string): boolean {
 
 function isOpenAIModel(model: string): boolean {
   return model.startsWith('gpt-') || model.startsWith('o');
+}
+
+function isVeniceModel(model: string): boolean {
+  return model.startsWith('qwen3-') || model.startsWith('zai-org-') || model.startsWith('deepseek-');
 }
 
 function isClaudeCodeModel(model: string): boolean {
@@ -1111,8 +1117,12 @@ export function initChat() {
       settingsModelSelect.dispatchEvent(new Event('change'));
     }
 
-    // Update chatSettings
+    // Update chatSettings and persist
     chatSettings.model = item.dataset.model;
+    postToSandbox({
+      type: 'save-settings',
+      settings: { model: item.dataset.model },
+    });
 
     // Refresh dropdown active state + label
     modelDropdown.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
@@ -1840,6 +1850,7 @@ async function sendMessage() {
 
   const useGemini = isGeminiModel(chatSettings.model);
   const useOpenAI = isOpenAIModel(chatSettings.model);
+  const useVenice = isVeniceModel(chatSettings.model);
   const useClaudeCode = isClaudeCodeModel(chatSettings.model);
 
   // API keys required for both relay mode (sent to server) and direct mode
@@ -1853,7 +1864,11 @@ async function sendMessage() {
       appendChatBubble('assistant', '<span class="chat-error">Set your OpenAI API key in Settings first.</span>');
       return;
     }
-    if (!useGemini && !useOpenAI && !chatSettings.anthropicApiKey) {
+    if (useVenice && !chatSettings.veniceApiKey) {
+      appendChatBubble('assistant', '<span class="chat-error">Set your Venice API key in Settings first.</span>');
+      return;
+    }
+    if (!useGemini && !useOpenAI && !useVenice && !chatSettings.anthropicApiKey) {
       appendChatBubble('assistant', '<span class="chat-error">Set your Anthropic API key in Settings first.</span>');
       return;
     }
@@ -1933,15 +1948,15 @@ async function sendMessage() {
     // Route through relay if enabled and bridge is connected
     } else if (relayEnabled && bridgeConnected) {
       console.log('[Figmento Chat] → RELAY path');
-      await runRelayTurn(text, useGemini, useOpenAI, capturedAttachment, capturedAttachments);
+      await runRelayTurn(text, useGemini, useOpenAI, useVenice, capturedAttachment, capturedAttachments);
     } else if (relayEnabled && !bridgeConnected) {
       // Fallback to direct API — relay is enabled but bridge is unreachable
       console.log('[Figmento Chat] → FALLBACK path (relay enabled but bridge not connected)');
       updateRelayStatus('fallback');
-      await runDirectLoop(text, useGemini, useOpenAI, capturedAttachment, capturedAttachments);
+      await runDirectLoop(text, useGemini, useOpenAI, useVenice, capturedAttachment, capturedAttachments);
     } else {
       console.log('[Figmento Chat] → DIRECT path (relay disabled)');
-      await runDirectLoop(text, useGemini, useOpenAI, capturedAttachment, capturedAttachments);
+      await runDirectLoop(text, useGemini, useOpenAI, useVenice, capturedAttachment, capturedAttachments);
     }
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
@@ -1989,7 +2004,7 @@ function updateRelayStatus(state: RelayConnectionState) {
 // CHAT — RELAY TURN (POST /chat/turn)
 // ═══════════════════════════════════════════════════════════════
 
-async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean, attachment: string | null, allAttachments?: AttachmentFile[]): Promise<void> {
+async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean, useVenice: boolean, attachment: string | null, allAttachments?: AttachmentFile[]): Promise<void> {
   const channelId = getBridgeChannelId();
   if (!channelId) {
     throw new Error('Bridge channel not available. Falling back to direct API.');
@@ -2001,11 +2016,12 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
   // IG-2: Snapshot current Figma selection (500ms timeout, graceful degradation)
   const selectionSnapshot = await getSelectionSnapshot();
 
-  const provider = useGemini ? 'gemini' : useOpenAI ? 'openai' : 'claude';
+  const provider = useGemini ? 'gemini' : useOpenAI ? 'openai' : useVenice ? 'venice' : 'claude';
   const apiKey = useGemini ? chatSettings.geminiApiKey
     : useOpenAI ? chatSettings.openaiApiKey
+    : useVenice ? chatSettings.veniceApiKey
     : chatSettings.anthropicApiKey;
-  const history = useGemini ? geminiHistory : useOpenAI ? openaiHistory : conversationHistory;
+  const history = useGemini ? geminiHistory : useOpenAI ? openaiHistory : useVenice ? openaiHistory : conversationHistory;
 
   const url = chatSettings.chatRelayUrl.replace(/\/+$/, '') + '/api/chat/turn';
 
@@ -2053,7 +2069,7 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
   if (useGemini) {
     geminiHistory.length = 0;
     geminiHistory.push(...(result.history || []));
-  } else if (useOpenAI) {
+  } else if (useOpenAI || useVenice) {
     openaiHistory.length = 0;
     openaiHistory.push(...(result.history || []));
   } else {
@@ -2112,16 +2128,28 @@ async function runClaudeCodeTurn(text: string, attachment?: string | null, allAt
     throw new Error('Claude Code requires a local relay. Start with: `cd figmento-ws-relay && npm run dev`');
   }
 
+  // Stream progress events — show tool execution in real-time instead of "Thinking..."
+  const progressToolNames = new Set<string>();
+  setClaudeCodeProgressHandler((msg) => {
+    const toolName = (msg.toolName as string) || '';
+    if (toolName && !progressToolNames.has(toolName)) {
+      progressToolNames.add(toolName);
+      appendToolAction(`mcp__figmento__${toolName}`, 'Running...', false);
+    }
+  });
+
   // Wait for the result via the bridge's claude-code-turn-result handler
   const result = await new Promise<Record<string, unknown>>((resolve, reject) => {
     const timeout = setTimeout(() => {
       setClaudeCodeResultHandler(null);
+      setClaudeCodeProgressHandler(null);
       reject(new Error('Claude Code turn timed out (10 min). The subprocess may still be running.'));
     }, 605_000); // Slightly longer than server timeout (600s) to let server timeout arrive first
 
     setClaudeCodeResultHandler((msg) => {
       clearTimeout(timeout);
       setClaudeCodeResultHandler(null);
+      setClaudeCodeProgressHandler(null);
       resolve(msg);
     });
   });
@@ -2151,7 +2179,7 @@ async function runClaudeCodeTurn(text: string, attachment?: string | null, allAt
 }
 
 /** Direct API path — used when relay is disabled or as fallback. */
-async function runDirectLoop(text: string, useGemini: boolean, useOpenAI: boolean, attachment: string | null, allAttachments?: AttachmentFile[]): Promise<void> {
+async function runDirectLoop(text: string, useGemini: boolean, useOpenAI: boolean, useVenice: boolean, attachment: string | null, allAttachments?: AttachmentFile[]): Promise<void> {
   // In direct mode, non-image files can't be server-extracted — append a hint to use MCP tools
   const nonImageFiles = (allAttachments || []).filter(f => !f.type.startsWith('image/') || f.type === 'image/svg+xml');
   if (nonImageFiles.length > 0 && text.indexOf('[ATTACHED FILES]') === -1) {
@@ -2188,6 +2216,19 @@ async function runDirectLoop(text: string, useGemini: boolean, useOpenAI: boolea
       openaiHistory.push({ role: 'user', content: text });
     }
     await runOpenAILoop();
+  } else if (useVenice) {
+    if (attachment) {
+      openaiHistory.push({
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: attachment } },
+          { type: 'text', text },
+        ],
+      });
+    } else {
+      openaiHistory.push({ role: 'user', content: text });
+    }
+    await runVeniceLoop();
   } else {
     if (attachment) {
       const base64 = attachment.replace(/^data:image\/\w+;base64,/, '');
@@ -2265,6 +2306,21 @@ async function runOpenAILoop(): Promise<void> {
   await runToolUseLoop({
     provider: 'openai',
     apiKey: chatSettings.openaiApiKey,
+    model: chatSettings.model,
+    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences, getEffectiveDsCache()),
+    tools: chatToolResolver(),
+    messages: openaiHistory,
+    onToolCall: buildToolCallHandler(),
+    onToolCallBatch: buildBatchToolCallHandler(),
+    onProgress: () => { /* progress reserved for future mode UI */ },
+    onTextChunk: (text) => appendChatBubble('assistant', formatMarkdown(text)),
+  });
+}
+
+async function runVeniceLoop(): Promise<void> {
+  await runToolUseLoop({
+    provider: 'venice',
+    apiKey: chatSettings.veniceApiKey,
     model: chatSettings.model,
     systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences, getEffectiveDsCache()),
     tools: chatToolResolver(),

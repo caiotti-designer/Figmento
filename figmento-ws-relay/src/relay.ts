@@ -362,7 +362,20 @@ export class FigmentoRelay {
     const channelClients = this.channels.get(msg.channel);
     console.log(`[Figmento Relay] claude-code-turn on channel="${msg.channel}" (${channelClients?.size ?? 0} clients on channel)`);
 
-    const result = await handleClaudeCodeTurn(msg);
+    // Stream progress events to the sender while the turn is in progress
+    const onProgress = (event: { type: string; toolName?: string; toolIndex?: number }) => {
+      if (sender.readyState === WebSocket.OPEN) {
+        sender.send(JSON.stringify({
+          type: 'claude-code-progress',
+          channel: msg.channel,
+          progressType: event.type,
+          toolName: event.toolName,
+          toolIndex: event.toolIndex,
+        }));
+      }
+    };
+
+    const result = await handleClaudeCodeTurn(msg, onProgress);
 
     // Send result back to the requesting client
     if (sender.readyState === WebSocket.OPEN) {

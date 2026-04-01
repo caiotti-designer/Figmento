@@ -125,13 +125,24 @@ async function handleApplyStyle(params: { styleType: string; nodeId: string; sty
   }
 }
 
+// ─── read_figma_context cache ──────────────────────────────────────────────
+// Context (variables, styles, fonts) rarely changes during a design session.
+// Cache for 60s to eliminate redundant round-trips through relay → plugin.
+let _contextCache: { data: Record<string, unknown>; timestamp: number } | null = null;
+const CONTEXT_CACHE_TTL = 60_000; // 60 seconds
+
 export function registerFigmaNativeTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'read_figma_context',
     'Read the Figma file\'s design context: variables, paint/text/effect styles, and fonts. Call first to discover IDs for bind_variable and apply_style.',
     readFigmaContextSchema,
     async () => {
+      // Return cached context if fresh (< 60s old)
+      if (_contextCache && (Date.now() - _contextCache.timestamp) < CONTEXT_CACHE_TTL) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify(_contextCache.data, null, 2) }] };
+      }
       const data = await sendDesignCommand('read_figma_context', {});
+      _contextCache = { data, timestamp: Date.now() };
       return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
     }
   );

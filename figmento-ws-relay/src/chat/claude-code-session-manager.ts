@@ -231,6 +231,14 @@ interface PendingTurn {
   reject: (e: Error) => void;
 }
 
+/** Callback for streaming progress updates to the UI during a turn. */
+export type ProgressCallback = (event: {
+  type: 'tool_start' | 'tool_done' | 'thinking';
+  toolName?: string;
+  toolIndex?: number;
+  totalTools?: number;
+}) => void;
+
 interface ClaudeCodeSession {
   /** Message queue fed into the long-running query(). */
   queue: AsyncQueue<SDKUserMessage>;
@@ -262,6 +270,8 @@ interface ClaudeCodeSession {
   lastActivity: number;
   /** True after the first tool_use event — stale detection only activates after this. */
   hasCalledTool: boolean;
+  /** Optional callback to stream progress events to the UI. */
+  onProgress: ProgressCallback | null;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -289,6 +299,7 @@ export class ClaudeCodeSessionManager {
     model?: string,
     attachmentBase64?: string,
     fileAttachments?: Array<{ name: string; type: string; dataUri: string }>,
+    onProgress?: ProgressCallback,
   ): Promise<ClaudeCodeTurnResult | ClaudeCodeTurnError> {
     let session = this.sessions.get(channel);
 
@@ -321,6 +332,7 @@ export class ClaudeCodeSessionManager {
     session.accumToolCalls = [];
     session.lastActivity = Date.now();
     session.hasCalledTool = false;
+    session.onProgress = onProgress || null;
 
     // Promise that resolves when drainLoop fires type === 'result'
     const resultPromise = new Promise<ClaudeCodeTurnResult>((resolve, reject) => {
@@ -464,12 +476,51 @@ export class ClaudeCodeSessionManager {
       abortController,
       customSystemPrompt: systemPrompt,
       appendSystemPrompt: CLAUDE_CODE_DESIGN_PROMPT,
-      maxTurns: 25,           // reduced from 50 — most designs complete in 10-15 turns; 25 is generous
-      maxThinkingTokens: 4096, // reduced from 10000 — less thinking latency for tool-calling tasks
+      maxTurns: 25,
+      maxThinkingTokens: 4096,
       permissionMode: 'bypassPermissions',
-      // Default to Sonnet for fast tool-calling; Opus is too slow for chat UX
       model: model || 'claude-sonnet-4-6',
-      // Log all SDK subprocess output for debugging
+      // Block tools the model should never use during design sessions.
+      // This reduces the tool list from 126 → ~85, saving ~1.5K tokens per API call
+      // and speeding up model decision-making.
+      disallowedTools: [
+        // File system tools — design sessions don't need to read/write local files
+        'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
+        // DS CRUD — managed by pipeline, not direct model access
+        'mcp__figmento__load_design_system',
+        'mcp__figmento__update_design_system',
+        'mcp__figmento__delete_design_system',
+        'mcp__figmento__sync_design_system',
+        // Extraction — heavy ops not needed during live design
+        'mcp__figmento__extract_design_system_from_figma',
+        'mcp__figmento__extract_tokens',
+        'mcp__figmento__audit_component_library',
+        'mcp__figmento__analyze_design_system',
+        // File storage — rarely needed in design flow
+        'mcp__figmento__store_temp_file',
+        'mcp__figmento__list_temp_files',
+        'mcp__figmento__load_brand_assets',
+        'mcp__figmento__list_brand_assets',
+        'mcp__figmento__import_pdf',
+        // Learning — read-only, not useful during design
+        'mcp__figmento__get_learned_preferences',
+        // Deprecated/redundant
+        'mcp__figmento__disconnect_from_figma',
+        'mcp__figmento__fetch_placeholder_image',
+        'mcp__figmento__export_node_to_file',
+        // Ad analyzer — separate flow, not part of design sessions
+        'mcp__figmento__start_ad_analyzer',
+        'mcp__figmento__complete_ad_analyzer',
+        // Orchestration — high-level wrappers, model should use primitives
+        'mcp__figmento__design_from_reference',
+        'mcp__figmento__generate_ad_variations',
+        // Presentation — separate flow
+        'mcp__figmento__create_presentation',
+        // Heavy analysis — not needed during live design
+        'mcp__figmento__evaluate_design',
+        'mcp__figmento__suggest_font_pairing',
+        'mcp__figmento__get_contrast_check',
+      ],
       stderr: (data: string) => {
         const t = data.trim();
         if (t) console.error(`[SDK] ${t}`);
@@ -505,6 +556,7 @@ export class ClaudeCodeSessionManager {
       staleChecker: null,
       lastActivity: Date.now(),
       hasCalledTool: false,
+      onProgress: null,
     };
 
     this.sessions.set(channel, session);
@@ -544,8 +596,19 @@ export class ClaudeCodeSessionManager {
               if (block.type === 'text' && block.text) {
                 session.accumText = block.text;
               } else if (block.type === 'tool_use') {
-                session.accumToolCalls.push({ name: (block as any).name, success: true });
+                const toolName = (block as any).name as string;
+                session.accumToolCalls.push({ name: toolName, success: true });
                 session.hasCalledTool = true;
+                // Stream progress to UI
+                if (session.onProgress) {
+                  try {
+                    session.onProgress({
+                      type: 'tool_start',
+                      toolName: toolName.replace('mcp__figmento__', ''),
+                      toolIndex: session.accumToolCalls.length,
+                    });
+                  } catch { /* non-critical */ }
+                }
               }
             }
           }

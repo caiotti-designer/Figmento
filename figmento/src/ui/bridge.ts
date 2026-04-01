@@ -135,6 +135,12 @@ export function autoConnectBridge(relayUrl: string) {
       return;
     }
 
+    if (msg.type === 'claude-code-progress') {
+      // Stream progress updates to chat UI — shows tool execution in real-time
+      if (claudeCodeProgressHandler) claudeCodeProgressHandler(msg);
+      return;
+    }
+
     if (msg.type === 'command') {
       bridgeCommandCount++;
       updateCommandCounts();
@@ -199,6 +205,13 @@ let claudeCodeResultHandler: ((msg: Record<string, unknown>) => void) | null = n
 
 export function setClaudeCodeResultHandler(handler: ((msg: Record<string, unknown>) => void) | null) {
   claudeCodeResultHandler = handler;
+}
+
+/** Callback for handling claude-code-progress messages (tool execution streaming). */
+let claudeCodeProgressHandler: ((msg: Record<string, unknown>) => void) | null = null;
+
+export function setClaudeCodeProgressHandler(handler: ((msg: Record<string, unknown>) => void) | null) {
+  claudeCodeProgressHandler = handler;
 }
 
 /** Handle a bridge command-result (non-chat commands routed here). */

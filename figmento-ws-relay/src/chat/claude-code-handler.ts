@@ -8,7 +8,7 @@
  * tracking is now owned by ClaudeCodeSessionManager (CR-5.1 AC4).
  */
 
-import { sessionManager } from './claude-code-session-manager';
+import { sessionManager, type ProgressCallback } from './claude-code-session-manager';
 
 // ═══════════════════════════════════════════════════════════════
 // PUBLIC TYPES (consumed by relay.ts and types.ts)
@@ -22,6 +22,7 @@ export interface ClaudeCodeTurnRequest {
   memory?: string[];
   model?: string;
   attachmentBase64?: string;
+  fileAttachments?: Array<{ name: string; type: string; dataUri: string }>;
 }
 
 export interface ClaudeCodeTurnResult {
@@ -57,8 +58,9 @@ export function isLocalRelay(): boolean {
 
 export async function handleClaudeCodeTurn(
   request: ClaudeCodeTurnRequest,
+  onProgress?: ProgressCallback,
 ): Promise<ClaudeCodeTurnResult | ClaudeCodeTurnError> {
-  const { channel, message, history, memory, model, attachmentBase64 } = request;
+  const { channel, message, history, memory, model, attachmentBase64, fileAttachments } = request;
 
   // AC15: Local-only guard
   if (!isLocalRelay()) {
@@ -70,7 +72,7 @@ export async function handleClaudeCodeTurn(
   }
 
   // Delegate entirely to the session manager (concurrency + session lifecycle)
-  return sessionManager.turn(channel, message, history, memory, model, attachmentBase64);
+  return sessionManager.turn(channel, message, history, memory, model, attachmentBase64, fileAttachments, onProgress);
 }
 
 /** Active in-flight turn count — used by the /health endpoint. */
