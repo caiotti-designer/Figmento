@@ -392,7 +392,7 @@ export function registerRefinementTools(
   // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK v1.26 + zod 3.25
   server.tool(
     'run_refinement_check',
-    'Run automated quality checks on a design. Checks gradient direction vs text position, auto-layout coverage, spacing scale compliance, typography hierarchy, and unfilled image placeholders. Call after creating any design with 5+ elements.',
+    'Run automated quality checks on a design: contrast, spacing, typography hierarchy, gradient direction, and more.',
     runRefinementCheckSchema,
     async (params) => {
       const tree = await sendDesignCommand('get_node_info', {

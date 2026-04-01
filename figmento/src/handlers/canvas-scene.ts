@@ -2,6 +2,7 @@
 
 import { hexToRgb, getFontStyle } from '../color-utils';
 import { serializeNode, findChildByName } from '../utils/node-utils';
+import { resolveParent } from './canvas-create';
 
 export async function handleDeleteNode(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const nodeId = params.nodeId as string;
@@ -117,9 +118,9 @@ export async function handleCloneNode(params: Record<string, unknown>): Promise<
   let targetParent: FrameNode | null = null;
 
   if (params.parentId) {
-    const target = figma.getNodeById(params.parentId as string);
-    if (target && 'appendChild' in target) {
-      targetParent = target as FrameNode;
+    const cloneTarget = resolveParent(params.parentId);
+    if (cloneTarget) {
+      targetParent = cloneTarget as FrameNode;
       targetParent.appendChild(clone);
     }
   } else if (sourceNode.parent && sourceNode.parent.type !== 'PAGE' && 'appendChild' in sourceNode.parent) {
@@ -380,12 +381,8 @@ export async function handleImportComponentByKey(params: Record<string, unknown>
   instance.y = (params.y as number) || 0;
   if (params.name) instance.name = params.name as string;
 
-  if (params.parentId) {
-    const parent = figma.getNodeById(params.parentId as string);
-    if (parent && 'appendChild' in parent) {
-      (parent as FrameNode).appendChild(instance);
-    }
-  }
+  const instParent = resolveParent(params.parentId);
+  if (instParent) instParent.appendChild(instance);
 
   // List variants if component set
   let variants: Array<{ id: string; name: string }> | null = null;

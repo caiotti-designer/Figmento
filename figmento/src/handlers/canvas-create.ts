@@ -5,6 +5,22 @@ import { hexToRgb } from '../color-utils';
 import { createElement } from '../element-creators';
 import { tryBindTextVariables } from './variable-binder';
 
+/**
+ * Resolve and validate a parentId — throws a descriptive error instead of silently
+ * placing the node at the page root when the parent is invalid or not a container.
+ */
+export function resolveParent(parentId: unknown): (FrameNode | GroupNode | ComponentNode | ComponentSetNode | SectionNode) | null {
+  if (!parentId) return null;
+  const parent = figma.getNodeById(parentId as string);
+  if (!parent) {
+    throw new Error(`Parent node "${parentId}" not found — it may have been deleted or the ID is stale.`);
+  }
+  if (!('appendChild' in parent)) {
+    throw new Error(`Parent node "${parentId}" (${parent.type}) cannot contain children. Use a Frame, Group, or Component as parent.`);
+  }
+  return parent as FrameNode | GroupNode | ComponentNode | ComponentSetNode | SectionNode;
+}
+
 export async function handleCreateVector(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const vector = figma.createVector();
   vector.name = (params.name as string) || 'Vector';
@@ -107,13 +123,9 @@ export async function handleCreateVector(params: Record<string, unknown>): Promi
     vector.strokeWeight = (params.strokeWeight as number) || 1;
   }
 
-  // Parent
-  if (params.parentId) {
-    const parent = figma.getNodeById(params.parentId as string);
-    if (parent && 'appendChild' in parent) {
-      (parent as FrameNode).appendChild(vector);
-    }
-  }
+  // Parent — throws if parentId is invalid (prevents orphaned nodes)
+  const vectorParent = resolveParent(params.parentId);
+  if (vectorParent) vectorParent.appendChild(vector);
 
   return { nodeId: vector.id, name: vector.name, width: Math.round(vector.width), height: Math.round(vector.height) };
 }
@@ -153,11 +165,9 @@ export async function handleCreateFrame(params: Record<string, unknown>): Promis
 
   const needsResizing = params.parentId && (element.layoutSizingHorizontal || element.layoutSizingVertical);
 
-  if (params.parentId) {
-    const parent = figma.getNodeById(params.parentId as string);
-    if (parent && 'appendChild' in parent) {
-      (parent as FrameNode).appendChild(node);
-    }
+  const frameParent = resolveParent(params.parentId);
+  if (frameParent) {
+    frameParent.appendChild(node);
   } else {
     if (element.x === undefined && element.y === undefined) {
       const center = figma.viewport.center;
@@ -244,11 +254,9 @@ export async function handleCreateText(params: Record<string, unknown>): Promise
     } catch { /* ignore — best effort */ }
   }
 
-  if (params.parentId) {
-    const parent = figma.getNodeById(params.parentId as string);
-    if (parent && 'appendChild' in parent) {
-      (parent as FrameNode).appendChild(node);
-    }
+  const textParent = resolveParent(params.parentId);
+  if (textParent) {
+    textParent.appendChild(node);
     if (layoutSizingH && 'layoutSizingHorizontal' in node) {
       try { (node as any).layoutSizingHorizontal = layoutSizingH; } catch { /* ignore */ }
     }
@@ -295,12 +303,8 @@ export async function handleCreateRectangle(params: Record<string, unknown>): Pr
   const node = await createElement(element, true);
   if (!node) throw new Error('Failed to create rectangle');
 
-  if (params.parentId) {
-    const parent = figma.getNodeById(params.parentId as string);
-    if (parent && 'appendChild' in parent) {
-      (parent as FrameNode).appendChild(node);
-    }
-  }
+  const rectParent = resolveParent(params.parentId);
+  if (rectParent) rectParent.appendChild(node);
 
   return { nodeId: node.id, name: node.name };
 }
@@ -321,12 +325,8 @@ export async function handleCreateEllipse(params: Record<string, unknown>): Prom
   const node = await createElement(element, true);
   if (!node) throw new Error('Failed to create ellipse');
 
-  if (params.parentId) {
-    const parent = figma.getNodeById(params.parentId as string);
-    if (parent && 'appendChild' in parent) {
-      (parent as FrameNode).appendChild(node);
-    }
-  }
+  const ellipseParent = resolveParent(params.parentId);
+  if (ellipseParent) ellipseParent.appendChild(node);
 
   return { nodeId: node.id, name: node.name };
 }
@@ -352,22 +352,19 @@ export async function handleCreateImage(params: Record<string, unknown>): Promis
   const node = await createElement(element, true);
   if (!node) throw new Error('Failed to create image');
 
-  if (params.parentId) {
-    const parent = figma.getNodeById(params.parentId as string);
-    if (parent && 'appendChild' in parent) {
-      const parentFrame = parent as FrameNode;
-      parentFrame.appendChild(node);
+  const imageParent = resolveParent(params.parentId);
+  if (imageParent) {
+    imageParent.appendChild(node);
 
-      if ('layoutMode' in parentFrame && parentFrame.layoutMode !== 'NONE') {
-        // Auto-layout parent: stretch image to fill via layout sizing
-        (node as RectangleNode).layoutSizingHorizontal = 'FILL';
-        (node as RectangleNode).layoutSizingVertical = 'FILL';
-      } else {
-        // No auto-layout: resize image to match parent dimensions (full-bleed)
-        (node as RectangleNode).resize(parentFrame.width, parentFrame.height);
-        (node as RectangleNode).x = 0;
-        (node as RectangleNode).y = 0;
-      }
+    if ('layoutMode' in imageParent && (imageParent as FrameNode).layoutMode !== 'NONE') {
+      // Auto-layout parent: stretch image to fill via layout sizing
+      (node as RectangleNode).layoutSizingHorizontal = 'FILL';
+      (node as RectangleNode).layoutSizingVertical = 'FILL';
+    } else {
+      // No auto-layout: resize image to match parent dimensions (full-bleed)
+      (node as RectangleNode).resize((imageParent as FrameNode).width, (imageParent as FrameNode).height);
+      (node as RectangleNode).x = 0;
+      (node as RectangleNode).y = 0;
     }
   }
 
@@ -399,12 +396,8 @@ export async function handleCreateIcon(params: Record<string, unknown>): Promise
   const node = await createElement(element, true);
   if (!node) throw new Error('Failed to create icon');
 
-  if (params.parentId) {
-    const parent = figma.getNodeById(params.parentId as string);
-    if (parent && 'appendChild' in parent) {
-      (parent as FrameNode).appendChild(node);
-    }
-  }
+  const iconParent = resolveParent(params.parentId);
+  if (iconParent) iconParent.appendChild(node);
 
   return { nodeId: node.id, name: node.name };
 }

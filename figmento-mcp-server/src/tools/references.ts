@@ -397,7 +397,7 @@ export function registerReferenceTools(server: McpServer): void {
   // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK v1.26 + zod 3.25
   server.tool(
     'find_design_references',
-    'Search the curated reference library for design inspiration. Call BEFORE get_layout_blueprint. Returns references scored by tag/industry/palette match. Returns image_path for each match.',
+    'Search the reference library for design inspiration. Returns references scored by tag/industry/palette match.',
     findDesignReferencesSchema,
     async (params) => {
       const all = loadAllReferences(params.category, params.subcategory);
@@ -467,7 +467,7 @@ export function registerReferenceTools(server: McpServer): void {
   // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK v1.26 + zod 3.25
   server.tool(
     'analyze_reference',
-    'Analyze a reference screenshot and generate a companion YAML with compositional DNA. Uses Claude vision (ANTHROPIC_API_KEY required). Each call costs ~$0.01-0.02. Server-side only — no Figma connection needed.',
+    'Analyze a reference screenshot with Claude vision and generate a companion YAML. Requires ANTHROPIC_API_KEY.',
     analyzeReferenceSchema,
     async (params) => {
       const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -498,7 +498,7 @@ export function registerReferenceTools(server: McpServer): void {
 
   server.tool(
     'batch_analyze_references',
-    'Scan all image files (PNG, WebP, JPEG, JPG) in the reference library and generate companion YAMLs for any that are missing one. Uses Claude vision (ANTHROPIC_API_KEY required). Batch of 50 references ≈ $0.50-1.00.',
+    'Batch-analyze all images in the reference library missing companion YAMLs. Requires ANTHROPIC_API_KEY.',
     batchAnalyzeReferencesSchema,
     async (params) => {
       const apiKey = process.env.ANTHROPIC_API_KEY;

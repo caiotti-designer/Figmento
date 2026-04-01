@@ -136,7 +136,7 @@ export function registerPatternTools(server: McpServer, sendDesignCommand: SendD
 
   server.tool(
     'create_from_pattern',
-    'Instantiate a cross-format design pattern on the Figma canvas. Loads design system tokens, resolves the pattern recipe with format-specific adaptations, and enforces canvas dimensions from the format YAML — the format always wins. Use size_variant to select a specific size (e.g. "portrait" → instagram_post 1080×1350, "landscape" → 1080×566, "square" → 1080×1080, "desktop" → landing_page 1440×1024, "mobile" → 390×844). If omitted, the format\'s default_size is used automatically. Patterns: hero_block, feature_grid, pricing_card, testimonial, contact_block, content_section, image_text_row, gallery, data_row, cta_banner.',
+    'Create a design pattern on canvas using design system tokens. Resolves format-specific dimensions and adaptations automatically.',
     createFromPatternSchema,
     async (params) => {
       // Always reload patterns from disk — ensures YAML edits are hot without server restart

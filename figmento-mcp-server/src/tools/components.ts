@@ -104,6 +104,24 @@ export const applyInteractionSchema = {
 export const listInteractionPresetsSchema = {};
 
 // ═══════════════════════════════════════════════════════════════
+// IC-10: Make Interactive Command
+// ═══════════════════════════════════════════════════════════════
+
+export const makeInteractiveSchema = {
+  nodeId: z.string().describe('Root node ID to scan for interactive elements (frame, page, or component)'),
+  context: z.string().optional().describe('Industry hint to bias detection: "e-commerce", "saas", "dashboard", "mobile", "landing-page". Influences which presets are preferred.'),
+};
+
+// ═══════════════════════════════════════════════════════════════
+// IC-12: Prototype Flow Generator
+// ═══════════════════════════════════════════════════════════════
+
+export const createPrototypeFlowSchema = {
+  frameIds: z.array(z.string()).min(2).describe('Ordered array of frame/page IDs to wire into a navigation flow. First frame becomes the starting point.'),
+  flowName: z.string().optional().describe('Name for the prototype flow (e.g. "Purchase Flow", "Onboarding"). Defaults to "Flow 1".'),
+};
+
+// ═══════════════════════════════════════════════════════════════
 // Interactions YAML loader
 // ═══════════════════════════════════════════════════════════════
 
@@ -170,7 +188,7 @@ export function registerInteractiveComponentTools(server: McpServer, sendDesignC
   // IC-1: Create Component
   server.tool(
     'create_component_node',
-    'Create a new Figma component (ComponentNode). Like create_frame but creates a real component that appears in the Assets panel. Use "Property=Value" naming (e.g. "state=default") when creating variants. Supports auto-layout, fills, corner radius, and all frame properties. Also available in batch_execute with tempId support.',
+    'Create a Figma component (appears in Assets panel). Like create_frame but produces a ComponentNode. Use "Property=Value" naming for variants.',
     createComponentSchema,
     async (params) => {
       const data = await sendDesignCommand('create_component_node', params);
@@ -181,7 +199,7 @@ export function registerInteractiveComponentTools(server: McpServer, sendDesignC
   // IC-1: Convert to Component
   server.tool(
     'convert_to_component',
-    'Convert an existing frame or group into a Figma component. Preserves all children, fills, auto-layout, and constraints. The node is replaced in-place — same position, same parent. Returns the new componentKey for future instantiation.',
+    'Convert an existing frame or group into a component in-place. Preserves all children and properties. Returns the new componentKey.',
     convertToComponentSchema,
     async (params) => {
       const data = await sendDesignCommand('convert_to_component', params);
@@ -193,7 +211,7 @@ export function registerInteractiveComponentTools(server: McpServer, sendDesignC
   // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
   server.tool(
     'combine_as_variants',
-    'Combine 2+ components into a Figma Component Set with auto-detected variant properties. Components should be named with "Property=Value" format (e.g. "state=default", "state=hover", "size=small", "size=large"). Frames/groups in the array are auto-converted to components first. All nodes must share the same parent.',
+    'Combine 2+ components into a Component Set with auto-detected variant properties. Use "Property=Value" naming. Frames are auto-converted.',
     combineAsVariantsSchema,
     async (params) => {
       const data = await sendDesignCommand('combine_as_variants', params);
@@ -204,7 +222,7 @@ export function registerInteractiveComponentTools(server: McpServer, sendDesignC
   // IC-3: Create Instance
   server.tool(
     'create_instance',
-    'Create an instance of a component or component set. For component sets, use variantProperties to select which variant (e.g. { "state": "hover" }). If no variantProperties provided, the first variant is used. Instance stays linked to main component — edits to the main component propagate to all instances.',
+    'Create an instance of a component or component set. Use variantProperties to select a variant. Instance stays linked to the main component.',
     createInstanceSchema,
     async (params) => {
       const data = await sendDesignCommand('create_instance', params);
@@ -215,7 +233,7 @@ export function registerInteractiveComponentTools(server: McpServer, sendDesignC
   // IC-3: Detach Instance
   server.tool(
     'detach_instance',
-    'Detach a component instance back to a plain frame. The node loses its connection to the main component and becomes independently editable. Useful for one-off customizations.',
+    'Detach a component instance back to a plain frame, breaking the link to the main component.',
     detachInstanceSchema,
     async (params) => {
       const data = await sendDesignCommand('detach_instance', params);
@@ -227,7 +245,7 @@ export function registerInteractiveComponentTools(server: McpServer, sendDesignC
   // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
   server.tool(
     'set_reactions',
-    'Set prototype interactions on a node. Use simplified reaction objects with trigger (ON_CLICK, MOUSE_ENTER, etc.), action (NODE, BACK, CLOSE, URL), and optional transition/easing. For hover effects on component variants: trigger=MOUSE_ENTER, action=NODE, navigation=CHANGE_TO, destination=hoverVariantId, transition=SMART_ANIMATE. Pass empty reactions array [] to clear all interactions.',
+    'Set prototype interactions on a node. Pass empty reactions array [] to clear all interactions.',
     setReactionsSchema,
     async (params) => {
       const data = await sendDesignCommand('set_reactions', params);
@@ -238,7 +256,7 @@ export function registerInteractiveComponentTools(server: McpServer, sendDesignC
   // IC-8: Get Reactions
   server.tool(
     'get_reactions',
-    'Read the current prototype interactions on a node. Returns reactions in simplified format (trigger type, action type, destination, transition). Useful for inspecting existing interactions or AI self-evaluation before adding more.',
+    'Read current prototype interactions on a node. Returns reactions in simplified format.',
     getReactionsSchema,
     async (params) => {
       const data = await sendDesignCommand('get_reactions', params);
@@ -249,7 +267,7 @@ export function registerInteractiveComponentTools(server: McpServer, sendDesignC
   // IC-7: Apply Interaction Preset
   server.tool(
     'apply_interaction',
-    'Apply a named interaction preset to a node. Presets: button-hover, button-press, button-full, card-hover, nav-link, modal-open, modal-close, tab-switch, carousel-next, carousel-prev, back-navigation, tooltip-show, page-transition-push. Pass bindings to map $placeholder destination IDs (e.g. { "$hover_variant": "nodeId", "$default_variant": "nodeId" }).',
+    'Apply a named interaction preset to a node. Pass bindings to map $placeholder destination IDs. Use list_interaction_presets to see available presets.',
     applyInteractionSchema,
     async (params: { nodeId: string; preset: string; bindings?: Record<string, string> }) => {
       const presets = loadPresets();
@@ -283,13 +301,14 @@ export function registerInteractiveComponentTools(server: McpServer, sendDesignC
   // IC-7: List available presets
   server.tool(
     'list_interaction_presets',
-    'List all available interaction presets with descriptions. Use this to discover which presets are available for apply_interaction.',
+    'List all available interaction presets with descriptions and required placeholder bindings.',
     listInteractionPresetsSchema,
     async () => {
       const presets = loadPresets();
       const list = Object.entries(presets.presets).map(([name, p]) => ({
         name,
         description: p.description,
+        industry: (p as InteractionPreset & { industry?: string }).industry || 'general',
         requires: p.requires || null,
         reactionCount: p.reactions.length,
         placeholders: p.reactions
@@ -298,6 +317,29 @@ export function registerInteractiveComponentTools(server: McpServer, sendDesignC
           .filter((v, i, a) => a.indexOf(v) === i),
       }));
       return { content: [{ type: 'text' as const, text: JSON.stringify(list, null, 2) }] };
+    }
+  );
+
+  // IC-10: Make Interactive
+  server.tool(
+    'make_interactive',
+    'Add interactive behavior to a component using presets. Scans for buttons/cards/nav links, creates variant states, and wires interactions. Idempotent.',
+    makeInteractiveSchema,
+    async (params) => {
+      const data = await sendDesignCommand('make_interactive', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  // IC-12: Prototype Flow Generator
+  // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
+  server.tool(
+    'create_prototype_flow',
+    'Wire navigation flow between ordered frames. Auto-wires forward/back navigation on detected interactive elements. Non-destructive.',
+    createPrototypeFlowSchema,
+    async (params) => {
+      const data = await sendDesignCommand('create_prototype_flow', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
     }
   );
 }

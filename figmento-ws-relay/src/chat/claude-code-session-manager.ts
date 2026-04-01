@@ -5,7 +5,7 @@
  * New user messages are pushed into an `AsyncQueue<SDKUserMessage>` that feeds
  * the single SDK process.  The `drainLoop` resolves each pending turn when
  * `type === 'result'` fires.  A 10-minute idle timer tears the session down
- * cleanly; a 180-second per-turn timer prevents hung turns.
+ * cleanly; a stale-activity detector (90s no SDK events) catches hung turns.
  *
  *  IDLE ──[first message]──▶ BOOTING ──[SDK ready]──▶ RUNNING
  *    ▲                                                    │
@@ -22,7 +22,12 @@ import type { ClaudeCodeTurnResult, ClaudeCodeTurnError } from './claude-code-ha
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════
 
-const CLAUDE_CODE_TIMEOUT_MS = 600_000;  // per-turn hard limit (10 min — complex designs need tool loops)
+/** Hard safety-net timeout — only fires if stale detection fails. */
+const HARD_TIMEOUT_MS = 600_000;  // 10 min absolute max
+/** Stale activity timeout — if no SDK event arrives in this window, abort the turn. */
+const STALE_ACTIVITY_MS = 90_000; // 90s without any SDK message = stuck
+/** Stale check interval — how often we poll for activity. */
+const STALE_CHECK_INTERVAL_MS = 10_000; // check every 10s
 const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10-min session idle teardown
 
 const MCP_SERVER_PATH = path.resolve(
@@ -52,12 +57,32 @@ You have access to Figmento MCP tools (prefixed mcp__figmento__) for creating de
 - Create exactly ONE root frame per design. Never create duplicates.
 - ALWAYS end your response with a clear completion summary. NEVER end on "Now let me..." without completing the action.
 
+### Execution Budget Rules (CRITICAL — prevents timeouts and API errors)
+- You have a HARD LIMIT of 25 tool call rounds. Plan accordingly.
+- ALWAYS use batch_execute to bundle multiple operations into ONE round. This is the #1 way to avoid timeouts.
+- NEVER call more than 3 tools in parallel in a single response. If you need to update 8 cards, use ONE batch_execute call, NOT 8 separate tool calls. Calling too many tools in parallel causes API protocol errors.
+- For COMPLEX requests (full pages, multi-section designs): use batch_execute aggressively — a single batch can hold up to 50 commands.
+- Keep your final text response SHORT (2-3 sentences max). Do NOT write long summaries.
+
+### Error Recovery Rules (CRITICAL — prevents hung turns)
+- If a tool call fails, do NOT retry more than once with the same arguments.
+- If a nodeId-based tool fails with "not found", the ID is stale — call get_page_nodes or get_node_info to get fresh IDs before retrying.
+- If reorder_child fails, skip it and move on — z-order can be fixed later.
+- NEVER enter a loop of retrying the same failed tool call. Accept partial results and finish the turn.
+
 ### One-Click Design System Pipeline
 When user asks to generate/create a design system:
 1. Call analyze_brief with the brief text and brand name
 2. Call generate_design_system_in_figma with the BrandAnalysis result
 3. The pipeline creates: ~65 variables (4 collections), 8 text styles, 3 components, and a visual showcase page
 4. After pipeline completes, the showcase is ALREADY complete — do NOT create additional loose elements
+
+### Icons — Lucide Library (MANDATORY for icon elements)
+ALWAYS use create_icon to place icons. NEVER use create_ellipse or circles as icon placeholders.
+- create_icon(name, parentId, size?, color?) — places a Lucide icon by name
+- 1900+ icons available: check, arrow-right, star, heart, zap, shield, map-pin, phone, mail, menu, search, settings, user, home, globe, code, package, leaf, droplets, thermometer, wifi, cpu, database, bar-chart, calendar, clock, bell, lock, eye, download, upload, share, filter, layers, grid, list, file-text, folder, image, camera, play, pause, volume-2, mic, headphones, monitor, smartphone, truck, shopping-cart, credit-card, tag, bookmark, flag, sun, moon, cloud, cloud-rain
+- Use list_resources(type="icons") to browse by category if unsure which name to use
+- NEVER create a circle or ellipse as an icon substitute — always call create_icon with a descriptive name
 
 ### Design Intelligence Tools
 Use these for expert decisions — never hardcode or guess values:
@@ -211,6 +236,8 @@ interface ClaudeCodeSession {
   queue: AsyncQueue<SDKUserMessage>;
   /** The live SDK query object — used for interrupt() on teardown. */
   queryObj: Query;
+  /** AbortController for graceful cancellation. */
+  abortController: AbortController;
   /** Resolves / rejects when the current turn's `type === 'result'` fires. */
   pendingTurn: PendingTurn | null;
   /** Accumulated assistant text for the current turn. */
@@ -227,8 +254,14 @@ interface ClaudeCodeSession {
   inFlight: boolean;
   /** Idle-teardown timer (10 min after last result). */
   idleTimer: ReturnType<typeof setTimeout> | null;
-  /** Per-turn hard-timeout timer (180 s). */
+  /** Per-turn hard-timeout timer. */
   turnTimer: ReturnType<typeof setTimeout> | null;
+  /** Stale activity checker interval. */
+  staleChecker: ReturnType<typeof setInterval> | null;
+  /** Timestamp of last SDK event received during current turn. */
+  lastActivity: number;
+  /** True after the first tool_use event — stale detection only activates after this. */
+  hasCalledTool: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -286,25 +319,50 @@ export class ClaudeCodeSessionManager {
     session.turnHistory = history;
     session.accumText = '';
     session.accumToolCalls = [];
+    session.lastActivity = Date.now();
+    session.hasCalledTool = false;
 
     // Promise that resolves when drainLoop fires type === 'result'
     const resultPromise = new Promise<ClaudeCodeTurnResult>((resolve, reject) => {
       session!.pendingTurn = { resolve, reject };
     });
 
-    // Per-turn 180-second hard timeout
+    // Stale activity checker — only activates AFTER the first tool call.
+    // During initial thinking (before any tool call), the model can take 60-120s
+    // to plan complex designs. That's normal. Stale detection only fires when
+    // the model was actively calling tools and then went silent.
+    const staleChecker = setInterval(() => {
+      const s = this.sessions.get(channel);
+      if (!s?.pendingTurn) { clearInterval(staleChecker); return; }
+      // Skip stale check if model hasn't called any tools yet (still thinking/planning)
+      if (!s.hasCalledTool) return;
+      const elapsed = Date.now() - s.lastActivity;
+      if (elapsed >= STALE_ACTIVITY_MS) {
+        console.error(`[Figmento Claude Code] Stale turn detected channel=${channel} — no SDK activity for ${Math.round(elapsed / 1000)}s after tool calls. Aborting.`);
+        clearInterval(staleChecker);
+        s.abortController.abort();
+        s.pendingTurn.reject(
+          new Error(`Claude Code turn stalled — no activity for ${Math.round(STALE_ACTIVITY_MS / 1000)} seconds after tool calls started. Try a simpler request.`),
+        );
+        s.pendingTurn = null;
+        s.inFlight = false;
+        this.destroy(channel);
+      }
+    }, STALE_CHECK_INTERVAL_MS);
+    session.staleChecker = staleChecker;
+
+    // Hard safety-net timeout (10 min) — only fires if stale detection fails
     const turnTimer = setTimeout(() => {
       const s = this.sessions.get(channel);
       if (s?.pendingTurn) {
         s.pendingTurn.reject(
-          new Error(`Claude Code turn timed out after ${CLAUDE_CODE_TIMEOUT_MS / 1000} seconds.`),
+          new Error(`Claude Code turn timed out after ${HARD_TIMEOUT_MS / 1000} seconds.`),
         );
         s.pendingTurn = null;
         s.inFlight = false;
       }
-      // Session is in an undefined state after timeout — destroy it
       this.destroy(channel);
-    }, CLAUDE_CODE_TIMEOUT_MS);
+    }, HARD_TIMEOUT_MS);
     session.turnTimer = turnTimer;
 
     // Push the user message into the queue → SDK receives it → starts the turn
@@ -318,9 +376,11 @@ export class ClaudeCodeSessionManager {
     try {
       const result = await resultPromise;
       clearTimeout(turnTimer);
+      clearInterval(staleChecker);
       return result;
     } catch (err) {
       clearTimeout(turnTimer);
+      clearInterval(staleChecker);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       return { type: 'claude-code-turn-result', channel, error: errorMessage };
     }
@@ -341,6 +401,10 @@ export class ClaudeCodeSessionManager {
     // Clear timers
     if (session.idleTimer) { clearTimeout(session.idleTimer); session.idleTimer = null; }
     if (session.turnTimer) { clearTimeout(session.turnTimer); session.turnTimer = null; }
+    if (session.staleChecker) { clearInterval(session.staleChecker); session.staleChecker = null; }
+
+    // Abort via controller (signals the SDK to stop)
+    session.abortController.abort();
 
     // Close the queue — ends streamInput loop → daemon gets EOF → exits
     session.queue.close();
@@ -380,6 +444,7 @@ export class ClaudeCodeSessionManager {
     model?: string,
   ): ClaudeCodeSession {
     const queue = new AsyncQueue<SDKUserMessage>();
+    const abortController = new AbortController();
 
     // System prompt is built once per session — from the channel context
     // (We don't have the first message yet at this point; brief detection happens
@@ -396,10 +461,11 @@ export class ClaudeCodeSessionManager {
 
     const options: Options = {
       cwd: projectRoot,
+      abortController,
       customSystemPrompt: systemPrompt,
       appendSystemPrompt: CLAUDE_CODE_DESIGN_PROMPT,
-      maxTurns: 50,
-      maxThinkingTokens: 10000,
+      maxTurns: 25,           // reduced from 50 — most designs complete in 10-15 turns; 25 is generous
+      maxThinkingTokens: 4096, // reduced from 10000 — less thinking latency for tool-calling tasks
       permissionMode: 'bypassPermissions',
       // Default to Sonnet for fast tool-calling; Opus is too slow for chat UX
       model: model || 'claude-sonnet-4-6',
@@ -426,6 +492,7 @@ export class ClaudeCodeSessionManager {
     const session: ClaudeCodeSession = {
       queue,
       queryObj,
+      abortController,
       pendingTurn: null,
       accumText: '',
       accumToolCalls: [],
@@ -435,6 +502,9 @@ export class ClaudeCodeSessionManager {
       inFlight: false,
       idleTimer: null,
       turnTimer: null,
+      staleChecker: null,
+      lastActivity: Date.now(),
+      hasCalledTool: false,
     };
 
     this.sessions.set(channel, session);
@@ -464,6 +534,9 @@ export class ClaudeCodeSessionManager {
         const session = this.sessions.get(channel);
         if (!session) break; // Session was destroyed while iterating
 
+        // Reset stale activity timer on ANY SDK event
+        session.lastActivity = Date.now();
+
         if (msg.type === 'assistant') {
           const content = (msg as any).message?.content;
           if (Array.isArray(content)) {
@@ -472,6 +545,7 @@ export class ClaudeCodeSessionManager {
                 session.accumText = block.text;
               } else if (block.type === 'tool_use') {
                 session.accumToolCalls.push({ name: (block as any).name, success: true });
+                session.hasCalledTool = true;
               }
             }
           }
@@ -484,8 +558,9 @@ export class ClaudeCodeSessionManager {
           // Capture session_id for the next message push
           if (resultMsg.session_id) session.lastSessionId = resultMsg.session_id;
 
-          // Clear per-turn timer
+          // Clear per-turn timers
           if (session.turnTimer) { clearTimeout(session.turnTimer); session.turnTimer = null; }
+          if (session.staleChecker) { clearInterval(session.staleChecker); session.staleChecker = null; }
 
           // Build updated history
           const updatedHistory = [

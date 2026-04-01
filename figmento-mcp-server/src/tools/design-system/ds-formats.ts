@@ -83,7 +83,7 @@ export function registerFormatTools(server: McpServer, _sendDesignCommand: SendD
 
   server.tool(
     'get_format_rules',
-    'Get complete format adapter rules for a specific output format (dimensions, safe zones, typography scale, layout rules). For presentation formats, optionally specify a slide_type.',
+    'Get format rules for a specific output format: dimensions, safe zones, typography scale, and layout rules.',
     getFormatRulesSchema,
     async (params) => {
       const formatName = params.format.toLowerCase().trim();

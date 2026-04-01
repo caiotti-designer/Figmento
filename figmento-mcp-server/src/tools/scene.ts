@@ -210,7 +210,7 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
 
   server.tool(
     'reorder_child',
-    'Move a child node to a specific index within its parent frame. Use this to fix z-order after clone_node or to reorder layers. If index is omitted, moves child to the end (top of layer stack).',
+    'Reorder a child node to a specific z-index within its parent. Omit index to move to top.',
     reorderChildSchema,
     async (params) => {
       const data = await sendDesignCommand('reorder_child', params);
@@ -221,7 +221,7 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
   // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
   server.tool(
     'group_nodes',
-    'Group multiple nodes into a single group. All nodes must share the same parent. Useful for bundling related elements (e.g. a button bg + label, a speaker card) so they can be moved/cloned as a unit.',
+    'Group multiple nodes into a single group. All nodes must share the same parent.',
     groupNodesSchema,
     async (params) => {
       const data = await sendDesignCommand('group_nodes', params);
@@ -231,7 +231,7 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
 
   server.tool(
     'clone_node',
-    '[DEPRECATED — use clone_with_overrides(copies=[{...}]) instead] Clone (duplicate) an existing node. Returns the new node\'s ID. Great for repeating patterns like menu items, speaker cards, tags, etc.',
+    '[DEPRECATED — use clone_with_overrides] Clone an existing node. Returns the new node ID.',
     cloneNodeSchema,
     async (params) => {
       const data = await sendDesignCommand('clone_node', params);
@@ -241,7 +241,7 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
 
   server.tool(
     'find_nodes',
-    'Search the canvas for nodes matching filters: name (substring), type (exact), and/or text_content (substring). Returns up to max_results matches with position, size, parent info, and text content. Use parentId to limit search to a subtree.',
+    'Search the canvas for nodes by name, type, or text content. Use parentId to limit scope. Returns up to max_results matches.',
     findNodesSchema,
     async (params) => {
       const data = await sendDesignCommand('find_nodes', params);
@@ -251,7 +251,7 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
 
   server.tool(
     'list_available_fonts',
-    'List all fonts available in the Figma environment, grouped by family with style variants. Also returns project fonts extracted from local text styles (design system typography). Use query to filter by family name.',
+    'List fonts available in the Figma environment, grouped by family. Use query to filter.',
     listAvailableFontsSchema,
     async (params) => {
       const data = await sendDesignCommand('list_available_fonts', params);
@@ -262,7 +262,7 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
   // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
   server.tool(
     'boolean_operation',
-    'Perform a boolean operation (UNION, SUBTRACT, INTERSECT, EXCLUDE) on 2+ shapes. Creates a compound shape. For SUBTRACT, the first node is the base and subsequent nodes are subtracted from it.',
+    'Perform a boolean operation (UNION, SUBTRACT, INTERSECT, EXCLUDE) on 2+ shapes.',
     booleanOperationSchema,
     async (params) => {
       const data = await sendDesignCommand('boolean_operation', params);
@@ -273,7 +273,7 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
   // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
   server.tool(
     'flatten_nodes',
-    'Flatten one or more nodes into a single editable vector. Converts groups, boolean operations, or multiple shapes into one VectorNode with merged paths.',
+    'Flatten one or more nodes into a single editable vector with merged paths.',
     flattenNodesSchema,
     async (params) => {
       const data = await sendDesignCommand('flatten_nodes', params);
@@ -283,7 +283,7 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
 
   server.tool(
     'import_component_by_key',
-    'Import a component from a team library by its key and create an instance on the canvas. Supports component sets with variant selection. Requires Figma Pro. The key is found in Figma component URLs or via list_components.',
+    'Import a component from a team library by key and create an instance. Supports variant selection. Requires Figma Pro.',
     importComponentByKeySchema,
     async (params) => {
       const data = await sendDesignCommand('import_component_by_key', params);
@@ -293,7 +293,7 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
 
   server.tool(
     'import_style_by_key',
-    'Import a paint, text, or effect style from a team library by its key. The imported style becomes available locally and can be applied via apply_style. Requires Figma Pro.',
+    'Import a style from a team library by key. Available locally for apply_style. Requires Figma Pro.',
     importStyleByKeySchema,
     async (params) => {
       const data = await sendDesignCommand('import_style_by_key', params);
@@ -303,7 +303,7 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
 
   server.tool(
     'export_as_svg',
-    'Export a node as raw SVG markup string (not base64). Use include_children=true to export each direct child as a separate SVG (useful for icon sets). Returns the SVG string directly for embedding in HTML/React.',
+    'Export a node as raw SVG markup. Use include_children=true to export each child separately.',
     exportAsSvgSchema,
     async (params) => {
       const data = await sendDesignCommand('export_as_svg', params);
@@ -313,7 +313,7 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
 
   server.tool(
     'set_constraints',
-    'Set responsive constraints on a node (how it behaves when parent is resized). Only works in non-auto-layout frames. For auto-layout children, use layoutAlign/layoutGrow instead.',
+    'Set responsive constraints on a node. Only works in non-auto-layout frames.',
     setConstraintsSchema,
     async (params) => {
       const data = await sendDesignCommand('set_constraints', params);

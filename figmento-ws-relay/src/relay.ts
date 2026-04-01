@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createHttpServer, IncomingMessage, ServerResponse } from 'http';
-import { RelayMessage, ResponseMessage } from './types';
+import { RelayMessage, CommandMessage, ResponseMessage } from './types';
 import { handleChatRequest, getActiveChatRequests } from './chat/chat-endpoint';
 import {
   handleClaudeCodeTurn,
@@ -25,8 +25,8 @@ interface ClientInfo {
 /** Relay command ID prefix — distinguishes relay-originated commands from MCP/plugin commands. */
 export const RELAY_CMD_PREFIX = 'relay-';
 
-/** Default timeout for relay-originated commands (ms). */
-const RELAY_CMD_TIMEOUT = 30_000;
+/** Default timeout for relay-originated commands (ms). Increased to 120s to handle batch_execute and complex canvas ops. */
+const RELAY_CMD_TIMEOUT = 120_000;
 
 interface PendingRelayCommand {
   resolve: (data: Record<string, unknown>) => void;
@@ -211,7 +211,7 @@ export class FigmentoRelay {
         break;
 
       case 'command':
-        this.forwardToChannel(sender, msg.channel, raw.toString());
+        this.forwardToChannel(sender, msg.channel, raw.toString(), msg);
         break;
 
       case 'response':
@@ -219,7 +219,7 @@ export class FigmentoRelay {
         if (msg.id.startsWith(RELAY_CMD_PREFIX)) {
           this.resolveRelayCommand(msg as ResponseMessage);
         } else {
-          this.forwardToChannel(sender, msg.channel, raw.toString());
+          this.forwardToChannel(sender, msg.channel, raw.toString(), msg);
         }
         break;
 
@@ -251,6 +251,33 @@ export class FigmentoRelay {
       channel,
       clients: channelSize,
     }));
+
+    // Pre-warm chat engine on connect (fire-and-forget)
+    this.preWarmChat();
+  }
+
+  /** Pre-warm system prompt, tool schemas, and knowledge cache on first connect. */
+  private preWarmDone = false;
+  private preWarmChat(): void {
+    if (this.preWarmDone) return;
+    this.preWarmDone = true;
+
+    try {
+      // Pre-build system prompt (static parts only — knowledge is lazy-loaded on first brief)
+      const { buildSystemPrompt } = require('./chat/system-prompt');
+      buildSystemPrompt();
+
+      // Pre-load compiled knowledge into memory so first design request doesn't pay import cost
+      require('./knowledge/compiled-knowledge');
+
+      // Pre-resolve tool definitions
+      const { chatToolResolver } = require('./chat/chat-tools');
+      chatToolResolver();
+
+      console.log('[Figmento Relay] Chat engine pre-warmed (system prompt + knowledge + tools cached)');
+    } catch (err) {
+      console.error('[Figmento Relay] Pre-warm failed (non-critical):', (err as Error).message);
+    }
   }
 
   private leaveChannel(ws: WebSocket, channel: string): void {
@@ -273,7 +300,7 @@ export class FigmentoRelay {
     ws.send(JSON.stringify({ type: 'left', channel }));
   }
 
-  private forwardToChannel(sender: WebSocket, channel: string, rawMessage: string): void {
+  private forwardToChannel(sender: WebSocket, channel: string, rawMessage: string, parsed: CommandMessage | ResponseMessage): void {
     const channelClients = this.channels.get(channel);
     if (!channelClients) {
       sender.send(JSON.stringify({
@@ -291,15 +318,10 @@ export class FigmentoRelay {
       }
     }
 
-    // Parse for logging
-    try {
-      const parsed = JSON.parse(rawMessage);
-      const direction = parsed.type === 'command' ? 'CMD' : 'RSP';
-      const detail = parsed.type === 'command' ? parsed.action : (parsed.success ? 'OK' : 'ERR');
-      console.log(`[Figmento Relay] ${direction} ${parsed.id || '?'} [${channel}] ${detail} -> ${forwarded} peer(s)`);
-    } catch {
-      // ignore parse errors for logging
-    }
+    // Log using pre-parsed message (already parsed in handleMessage)
+    const direction = parsed.type === 'command' ? 'CMD' : 'RSP';
+    const detail = parsed.type === 'command' ? parsed.action : (parsed.success ? 'OK' : 'ERR');
+    console.log(`[Figmento Relay] ${direction} ${parsed.id || '?'} [${channel}] ${detail} -> ${forwarded} peer(s)`);
   }
 
   private handleDisconnect(ws: WebSocket, ip?: string): void {

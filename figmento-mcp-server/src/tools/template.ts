@@ -48,7 +48,7 @@ export function registerTemplateTools(server: McpServer, sendDesignCommand: Send
 
   server.tool(
     'scan_template',
-    '[DEPRECATED — use scan_frame_structure instead] Scan a frame for template placeholders. Placeholders are layers whose names start with "#". Returns a list of placeholder nodes with their types (text or image). Use before apply_template_text/apply_template_image.',
+    '[DEPRECATED — use scan_frame_structure] Scan a frame for "#"-prefixed template placeholders.',
     scanTemplateSchema,
     async (params) => {
       const data = await sendDesignCommand('scan_template', params);
@@ -62,7 +62,7 @@ export function registerTemplateTools(server: McpServer, sendDesignCommand: Send
 
   server.tool(
     'apply_template_text',
-    'Fill a text placeholder in a template with new content. Preserves existing font styling unless overrides are provided. Use scan_template first to find placeholder nodeIds.',
+    'Fill a text placeholder with new content. Preserves existing styling unless overrides are provided.',
     applyTemplateTextSchema,
     async (params) => {
       const data = await sendDesignCommand('apply_template_text', params);
@@ -76,7 +76,7 @@ export function registerTemplateTools(server: McpServer, sendDesignCommand: Send
 
   server.tool(
     'apply_template_image',
-    'Fill an image placeholder in a template with actual image data. Replaces the placeholder fill with the provided base64 image. Use scan_template first to find placeholder nodeIds.',
+    'Fill an image placeholder with base64 image data.',
     applyTemplateImageSchema,
     async (params) => {
       const data = await sendDesignCommand('apply_template_image', params);
@@ -90,7 +90,7 @@ export function registerTemplateTools(server: McpServer, sendDesignCommand: Send
 
   server.tool(
     'create_carousel',
-    'Create a multi-slide carousel on the Figma canvas. Each slide is a separate frame positioned side-by-side with a 40px gap. Useful for Instagram carousels, multi-page social content, etc.',
+    'Create a multi-slide carousel with frames positioned side-by-side.',
     createCarouselSchema,
     async (params) => {
       const slideCount = params.slideCount;
@@ -139,7 +139,7 @@ export function registerTemplateTools(server: McpServer, sendDesignCommand: Send
 
   server.tool(
     'create_presentation',
-    'Create a multi-slide presentation on the Figma canvas. Each slide is a 1920x1080 frame (or custom size) positioned side-by-side with an 80px gap. Returns all slide nodeIds for content population.',
+    'Create a multi-slide presentation with frames positioned side-by-side. Returns all slide nodeIds.',
     createPresentationSchema,
     async (params) => {
       const slideCount = params.slideCount;

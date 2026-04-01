@@ -406,7 +406,7 @@ export function registerIntelligenceTools(server: McpServer): void {
 
   server.tool(
     'get_design_rules',
-    'Retrieve verbose design reference data by category. Use this instead of relying on hardcoded knowledge in the prompt. Categories: typography, layout, color, print, evaluation, refinement, anti-patterns, gradients, taste, saliency, all.',
+    'Retrieve design rules and reference data by category from the knowledge base.',
     { category: z.string().describe('Category: typography | layout | color | print | evaluation | refinement | anti-patterns | gradients | taste | saliency | all') },
     async (params) => {
       const data = loadKnowledge('design-rules.yaml');
@@ -471,7 +471,7 @@ export function registerIntelligenceTools(server: McpServer): void {
 
   server.tool(
     'suggest_font_pairing',
-    'Suggest complementary fonts for pairing using ML-based visual similarity vectors (Fontjoy, 802 Google Fonts). Returns similar fonts (for same-family harmony) and contrasting fonts (for heading/body pairing). Use when the user specifies ONE font and you need to find its best partner.',
+    'Suggest complementary fonts using ML-based similarity vectors. Returns similar and contrasting font pairings.',
     {
       font: z.string().describe('The font family name to find pairings for (e.g. "Playfair Display", "Inter")'),
       mode: z.string().describe('contrast (different visual feel, best for heading/body pairs) | similar (same visual feel, same-family harmony) | both').optional(),

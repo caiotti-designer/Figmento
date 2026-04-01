@@ -12,7 +12,7 @@ export const disconnectFromFigmaSchema = {};
 export function registerConnectionTools(server: McpServer, wsClient: FigmentoWSClient): void {
   server.tool(
     'connect_to_figma',
-    'Connect to a Figma file via the Figmento plugin. Open the Figmento MCP plugin in Figma, copy the channel ID, and pass it here. The relay server must be running on the specified URL.',
+    'Connect to a Figma file via the Figmento plugin using a channel ID.',
     connectToFigmaSchema,
     async ({ channel, url }) => {
       // CR-5 / IC-fix: If FIGMENTO_CHANNEL env is set, this MCP server was spawned

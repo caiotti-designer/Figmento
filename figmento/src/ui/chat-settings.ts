@@ -62,8 +62,16 @@ export function loadChatSettings(saved: Record<string, string>) {
     ($('settings-api-key') as HTMLInputElement).value = saved.anthropicApiKey;
   }
   if (saved.model) {
-    s.model = saved.model;
-    ($('settings-model') as HTMLSelectElement).value = saved.model;
+    const select = $('settings-model') as HTMLSelectElement;
+    // Validate the saved model exists in the dropdown — if not, fall back to default
+    const optionExists = Array.from(select.options).some(opt => opt.value === saved.model);
+    if (optionExists) {
+      s.model = saved.model;
+      select.value = saved.model;
+    } else {
+      console.warn(`[Figmento] Saved model "${saved.model}" not found in dropdown, using default`);
+      s.model = select.value; // keep the HTML default (claude-code)
+    }
   }
   if (saved.geminiApiKey) {
     s.geminiApiKey = saved.geminiApiKey;
@@ -73,6 +81,10 @@ export function loadChatSettings(saved: Record<string, string>) {
   if (saved.openaiApiKey) {
     s.openaiApiKey = saved.openaiApiKey;
     ($('settings-openai-key') as HTMLInputElement).value = saved.openaiApiKey;
+  }
+  if (saved.veniceApiKey) {
+    s.veniceApiKey = saved.veniceApiKey;
+    ($('settings-venice-key') as HTMLInputElement).value = saved.veniceApiKey;
   }
 
   // Relay settings
@@ -112,12 +124,14 @@ function updateSettingsUI() {
   const model = ($('settings-model') as HTMLSelectElement).value;
   const useGemini = model.startsWith('gemini-');
   const useOpenAI = model.startsWith('gpt-') || model.startsWith('o');
+  const useVenice = model.startsWith('qwen3-') || model.startsWith('zai-org-') || model.startsWith('deepseek-');
   const useClaudeCode = model === 'claude-code';
 
   // AC2: Hide ALL API key fields when Claude Code is selected
   $('key-gemini-chat').style.display = (!useClaudeCode && useGemini) ? 'block' : 'none';
-  $('key-anthropic-chat').style.display = (!useClaudeCode && !useGemini && !useOpenAI) ? 'block' : 'none';
+  $('key-anthropic-chat').style.display = (!useClaudeCode && !useGemini && !useOpenAI && !useVenice) ? 'block' : 'none';
   $('key-openai-chat').style.display = (!useClaudeCode && useOpenAI) ? 'block' : 'none';
+  $('key-venice-chat').style.display = (!useClaudeCode && useVenice) ? 'block' : 'none';
 
   // Claude Code status message
   const ccStatus = document.getElementById('claude-code-status');
@@ -140,9 +154,10 @@ function saveChatSettings() {
   const ccModelSelect = document.getElementById('settings-cc-model') as HTMLSelectElement;
   const s: ChatSettings = {
     model,
-    claudeCodeModel: ccModelSelect ? ccModelSelect.value : 'claude-opus-4-6',
+    claudeCodeModel: ccModelSelect ? ccModelSelect.value : 'claude-sonnet-4-6',
     anthropicApiKey: ($('settings-api-key') as HTMLInputElement).value.trim(),
     openaiApiKey: ($('settings-openai-key') as HTMLInputElement).value.trim(),
+    veniceApiKey: ($('settings-venice-key') as HTMLInputElement).value.trim(),
     geminiApiKey: '',
     chatRelayEnabled: relayToggle ? relayToggle.checked : false,
     chatRelayUrl: relayUrlInput ? relayUrlInput.value.trim() : 'http://localhost:3055',
@@ -167,6 +182,7 @@ function saveChatSettings() {
       claudeCodeModel: s.claudeCodeModel,
       geminiApiKey: s.geminiApiKey,
       openaiApiKey: s.openaiApiKey,
+      veniceApiKey: s.veniceApiKey,
       chatRelayEnabled: String(s.chatRelayEnabled),
       chatRelayUrl: s.chatRelayUrl,
     },

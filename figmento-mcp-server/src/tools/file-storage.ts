@@ -193,7 +193,7 @@ export function registerFileStorageTools(server: McpServer, sendDesignCommand?: 
 
   server.tool(
     'save_brand_assets',
-    'Save uploaded files as a persistent brand asset collection with a name and description. Copies files from temp storage to brand-assets/{name}/ with a manifest.yaml.',
+    'Save files as a persistent brand asset collection. Copies from temp storage to brand-assets/{name}/.',
     {
       name: z.string().describe('Brand asset collection name (e.g., "my-company"). Lowercase, alphanumeric + hyphens.'),
       description: z.string().describe('Short description of the asset collection'),
@@ -306,7 +306,7 @@ export function registerFileStorageTools(server: McpServer, sendDesignCommand?: 
   if (sendDesignCommand) {
     server.tool(
       'place_brand_asset',
-      'Place a brand asset (logo, image) from temp storage or saved brand assets into a Figma design frame.',
+      'Place a brand asset from temp or saved storage into a Figma frame.',
       {
         source: z.string().describe('"temp" for temp storage or "saved" for persistent brand assets'),
         sessionId: z.string().optional().describe('Session ID (required when source="temp")'),
@@ -379,7 +379,7 @@ export function registerFileStorageTools(server: McpServer, sendDesignCommand?: 
 
   server.tool(
     'import_pdf',
-    'Extract text content and brand context (colors, fonts) from a PDF file. Returns structured data for design decisions.',
+    'Extract text and brand context (colors, fonts) from a PDF file.',
     {
       filePath: z.string().describe('Absolute path to the PDF file (from store_temp_file output)'),
     },

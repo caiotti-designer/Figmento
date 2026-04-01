@@ -399,11 +399,7 @@ async function placeImageInBackground(
 export function registerImageGenTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'generate_design_image',
-    `Generate a composition-aware background image with Gemini and place it in a Figma frame.
-Returns frameId IMMEDIATELY — image generation runs in the background (fire-and-forget).
-You can call batch_execute with the returned frameId right away while the image generates.
-By default, a fast 512px preview is placed first (~1.2s), then replaced with high-res (~3-5s).
-Use awaitImage=true to block until the image is fully placed (legacy sequential behavior).`,
+    'Generate a background image with Gemini and place it in a Figma frame. Returns frameId immediately while image generates in background. Use awaitImage=true to block until placed.',
     {
       brief: z.string().describe('Design brief describing the image subject and style (e.g. "hippie coffee shop warm earthy vintage")'),
       format: z.string().optional().describe('Format preset: instagram_portrait, story, tiktok, pinterest, instagram_square, facebook_post, hero, landing_hero, landscape, youtube_thumbnail, facebook_cover, twitter_header, linkedin_banner. Determines frame dimensions and default text zone.'),

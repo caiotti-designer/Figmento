@@ -13,11 +13,11 @@ import { IncomingMessage, ServerResponse } from 'http';
 import { FigmentoRelay } from '../relay';
 import { handleChatTurn, ChatTurnRequest, ChatTurnResponse } from './chat-engine';
 
-/** Maximum request body size (30 MB — allows image + PDF attachments as base64). */
-const MAX_BODY_SIZE = 30 * 1024 * 1024;
+/** Maximum request body size (8 MB — allows up to ~4 MB image attachments as base64). */
+const MAX_BODY_SIZE = 8 * 1024 * 1024;
 
-/** Request timeout (120s — complex designs may need 50+ tool calls). */
-const REQUEST_TIMEOUT_MS = 120_000;
+/** Request timeout (600s — complex designs may need 50+ tool calls, each routing through relay). */
+const REQUEST_TIMEOUT_MS = 600_000;
 
 /** Per-channel concurrency lock — only one turn at a time per channel. */
 const activeChannels = new Set<string>();
@@ -76,7 +76,7 @@ function validateRequest(body: unknown): body is ChatTurnRequest {
 
   if (typeof req.message !== 'string' || !req.message.trim()) return false;
   if (typeof req.channel !== 'string' || !req.channel.trim()) return false;
-  if (!['claude', 'gemini', 'openai'].includes(req.provider as string)) return false;
+  if (!['claude', 'gemini', 'openai', 'venice'].includes(req.provider as string)) return false;
   if (typeof req.apiKey !== 'string' || !req.apiKey.trim()) return false;
   if (typeof req.model !== 'string' || !req.model.trim()) return false;
   if (!Array.isArray(req.history)) return false;

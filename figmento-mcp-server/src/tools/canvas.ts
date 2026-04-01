@@ -218,7 +218,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
 
   server.tool(
     'place_generated_image',
-    'Place an AI-generated image from a local file onto the Figma canvas. Reads the image file from disk, base64 encodes it, and sends it to Figma via the existing image pipeline. Use this after generating images with mcp-image or any other tool that saves images to disk.',
+    'Place an image from a local file path onto the Figma canvas. Reads and base64-encodes the file server-side.',
     placeGeneratedImageSchema,
     async (params) => {
       const IMAGE_OUTPUT_DIR = process.env.IMAGE_OUTPUT_DIR || nodePath.join(process.cwd(), 'output');
@@ -264,7 +264,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
 
   server.tool(
     'fetch_placeholder_image',
-    'Fetch a placeholder photo from picsum.photos as a base64-encoded fallback when AI image generation fails or is unavailable. Extracts keywords from the prompt to seed consistent images, or accepts explicit keywords. Downloads the image server-side and returns { source: "placeholder_image", url, base64, width, height }. Use the base64 field with create_image or set_fill to place the photo on canvas.',
+    'Fetch a placeholder photo from picsum.photos as base64. Fallback when AI image generation is unavailable. Returns { base64, width, height }.',
     fetchPlaceholderImageSchema,
     async (params) => {
       const STOP_WORDS = new Set([
@@ -323,7 +323,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
 
   server.tool(
     'set_text',
-    'Update text content and optionally style on an existing text node. Use this to change what a text node says, its font size, font family, weight, or color — without recreating it.',
+    'Update text content and optionally style (font, size, weight, color) on an existing text node.',
     setTextSchema,
     async (params) => {
       const data = await sendDesignCommand('apply_template_text', params);
@@ -334,7 +334,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
   // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
   server.tool(
     'create_vector',
-    'Create a custom vector shape using SVG path data, multiple paths, or simple polygon vertices. Use svgPath for SVG-syntax shapes (e.g. "M 0 0 L 100 0 L 50 86.6 Z" for a triangle). Use vertices for simple closed polygons from point arrays.',
+    'Create a custom vector shape from SVG path data or polygon vertices.',
     createVectorSchema,
     async (params) => {
       const data = await sendDesignCommand('create_vector', params);

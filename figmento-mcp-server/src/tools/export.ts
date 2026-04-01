@@ -36,7 +36,7 @@ export const exportNodeToFileSchema = {
 export function registerGetScreenshotTool(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'get_screenshot',
-    'Capture a PNG screenshot of a Figma node and render it inline. Use this to visually verify your design output immediately after creating or modifying frames.',
+    'Capture a PNG screenshot of a Figma node and render it inline for visual verification.',
     getScreenshotSchema,
     async (params) => {
       const scale = params.scale != null ? Math.min(Math.max(Number(params.scale), 0.1), 3) : 1;
@@ -84,7 +84,7 @@ export function registerExportNodeTool(server: McpServer, sendDesignCommand: Sen
 export function registerEvaluateDesignTool(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'evaluate_design',
-    'Evaluate a design by exporting it to a PNG file and returning structural data (children tree with sizes, positions, fonts, colors). Use this after creating or significantly modifying a design to self-review. Returns both the file path (for visual inspection) and the node tree (for structural analysis). Maximum 2 evaluation passes per design.',
+    'Export a design to PNG and return its structural node tree for self-review. Returns file path and element data.',
     evaluateDesignSchema,
     async (params) => {
       // 1. Export the node to a file on disk
@@ -230,7 +230,7 @@ export function registerEvaluateDesignTool(server: McpServer, sendDesignCommand:
 export function registerExportToFileTool(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'export_node_to_file',
-    'Export a Figma node to a PNG/JPG file on disk and return the file path. Use this for self-evaluation: export your design, then view the file to analyze it visually. Default behavior overwrites a single eval-latest file to prevent disk accumulation.',
+    'Export a Figma node to a PNG/JPG file on disk and return the file path. Overwrites eval-latest by default.',
     exportNodeToFileSchema,
     async (params) => {
       // 1. Call existing export_node to get base64 from plugin

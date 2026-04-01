@@ -452,7 +452,7 @@ export function registerExtractionTools(
 
   server.tool(
     'generate_design_system_from_url',
-    'Generates a design system draft from a URL. Extracts what it can via CSS and vision, then guides you through refining the result. Best used as a starting point, not a final output.',
+    'Generate a design system draft from a URL by extracting CSS colors, fonts, and visual patterns.',
     generateDesignSystemFromUrlSchema,
     async (params: { url: string; name?: string; preset?: string }) => {
       // Step 1: CSS extraction
@@ -604,7 +604,7 @@ export function registerExtractionTools(
 
   server.tool(
     'refine_design_system',
-    'Refine a draft design system with user-provided corrections. Use after generate_design_system_from_url to fix colors, fonts, border radius, dark/light mode, and mood. Returns a diff of what changed.',
+    'Refine a draft design system with user corrections (colors, fonts, radius, mode, mood). Returns a diff.',
     refineDesignSystemSchema,
     async (params: {
       name: string;

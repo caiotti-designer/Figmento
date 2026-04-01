@@ -232,7 +232,7 @@ export function registerDsTemplateTools(server: McpServer, sendDesignCommand: Se
 
   server.tool(
     'create_from_template',
-    'Instantiate a multi-frame project template on the Figma canvas. Loads the template YAML, resolves all frame patterns with design system tokens, and creates every frame in one pass. Templates: social_media_kit (9 frames), pitch_deck (8 slides), brand_stationery (4 frames), landing_page_full (6 sections), restaurant_menu (5 frames). Use composition_mode="connected" (default for landing pages) to stack sections vertically with alternating backgrounds for a cohesive page feel.',
+    'Create a multi-frame project template on canvas. Resolves all patterns with design system tokens in one pass. Use composition_mode="connected" for vertically stacked pages.',
     createFromTemplateSchema,
     async (params) => {
       // 1. Load template definition

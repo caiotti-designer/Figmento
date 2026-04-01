@@ -430,14 +430,7 @@ async function generateAndPlaceImage(
 export function registerImageFillTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'fill_contextual_images',
-    `Analyze a page's context (industry, brand, tone) and automatically fill empty image slots in a selected section with contextually relevant AI-generated images.
-
-Select a section with multiple cards/frames that need images, or pass targetNodeIds for specific frames.
-The tool analyzes the entire page to understand the site's purpose, discovers empty image slots using heuristics,
-generates contextual image prompts based on nearby text (card titles, descriptions), and places AI-generated images.
-
-Use when: "fill images for this section", "generate images for these cards", "add contextual images".
-Budget: max 6 images per call (configurable). Sequential generation ~3-5s per image.`,
+    'Auto-fill empty image slots in a section with AI-generated images. Analyzes page context and nearby text to build prompts. Max 6 images per call.',
     {
       sectionId: z.string().optional().describe('Frame ID of the section to fill. If omitted, uses current Figma selection.'),
       targetNodeIds: z.array(z.string()).optional().describe('Explicit list of node IDs to fill (overrides auto-discovery heuristic).'),

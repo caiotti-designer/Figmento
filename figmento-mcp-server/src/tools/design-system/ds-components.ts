@@ -77,7 +77,7 @@ export function registerComponentTools(server: McpServer, sendDesignCommand: Sen
 
   server.tool(
     'create_component',
-    'Instantiate a design system component on the Figma canvas. Loads tokens from the named design system, resolves the component recipe, and sends batch commands to create the element. Components: button, badge, card, divider, avatar.',
+    'Create a design system component on canvas (button, badge, card, divider, avatar) using tokens from a named design system.',
     createComponentSchema,
     async (params: {
       system: string; component: string; variant?: string; size?: string;

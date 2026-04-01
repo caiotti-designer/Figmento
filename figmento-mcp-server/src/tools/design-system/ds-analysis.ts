@@ -26,7 +26,7 @@ export function registerAnalysisTools(server: McpServer, sendDesignCommand: Send
 
   server.tool(
     'scan_frame_structure',
-    'Deep-scan a Figma frame and return its complete structure tree (types, positions, sizes, styles, text content, children). Enables clone+customize and template analysis workflows.',
+    'Deep-scan a Figma frame and return its complete structure tree with types, positions, sizes, styles, and text content.',
     scanFrameStructureSchema,
     async (params) => {
       const data = await sendDesignCommand('scan_frame_structure', {
@@ -45,7 +45,7 @@ export function registerAnalysisTools(server: McpServer, sendDesignCommand: Send
 
   server.tool(
     'design_system_preview',
-    'Generate a visual design system swatch sheet on the Figma canvas. Creates a single preview frame showing all color tokens, typography scale, component samples, and spacing scale for the named design system.',
+    'Generate a visual design system preview frame showing color tokens, typography, component samples, and spacing.',
     designSystemPreviewSchema,
     async (params: { system: string; x?: number; y?: number }) => {
       const safeName = params.system.replace(/[^a-z0-9-]/gi, '').toLowerCase();
@@ -581,7 +581,7 @@ export function registerAnalysisTools(server: McpServer, sendDesignCommand: Send
 
   server.tool(
     'brand_consistency_check',
-    'Check if one or two Figma frames are brand-consistent by comparing the colors and fonts used against a design system. Returns a score (0–100), list of issues, and a consistent boolean.',
+    'Check brand consistency of Figma frames against a design system. Returns score (0-100) and issues.',
     brandConsistencyCheckSchema,
     async (params: { nodeId: string; nodeId2?: string; system: string }) => {
       // Load design system tokens

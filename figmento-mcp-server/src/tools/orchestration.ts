@@ -36,9 +36,7 @@ export function registerOrchestrationTools(server: McpServer, sendDesignCommand:
 
   server.tool(
     'design_from_reference',
-    `Orchestrated workflow: analyze a reference image → match a layout blueprint → generate a new design following that composition.
-Returns frameId + analysis for the agent to continue adding text, CTAs, and brand elements.
-Chains analyze_reference → get_layout_blueprint → generate_design_image in one call.`,
+    'Orchestrated workflow: analyze reference image, match layout blueprint, generate design. Returns frameId + analysis for adding content.',
     {
       referenceImagePath: z.string().describe('Absolute path to the reference image (from store_temp_file)'),
       brief: z.string().describe('Design brief describing the desired output'),
@@ -168,8 +166,7 @@ Chains analyze_reference → get_layout_blueprint → generate_design_image in o
 
   server.tool(
     'generate_ad_variations',
-    `Generate multiple ad variations from a reference image. Analyzes the reference ad, then creates N frames with seed-consistent product images and varied compositions.
-Each variation frame is offset 200px horizontally. Returns per-variation metadata including suggested copy and mood.`,
+    'Generate multiple ad variations from a reference image. Creates N frames with varied compositions, offset 200px apart.',
     {
       referenceImagePath: z.string().describe('Absolute path to the reference ad image'),
       count: z.number().int().min(1).max(6).optional().describe('Number of variations to generate (default 4, max 6)'),

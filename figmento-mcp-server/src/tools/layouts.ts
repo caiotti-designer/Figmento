@@ -149,7 +149,7 @@ export function registerLayoutTools(server: McpServer): void {
   // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK v1.26 + zod 3.25
   server.tool(
     'get_layout_blueprint',
-    'Get a layout blueprint for a design. Blueprints define proportional zones (y_start_pct/y_end_pct), typography hierarchy, and memorable element guidance. Use before creating any design to get a structural skeleton.',
+    'Get a layout blueprint with proportional zones, typography hierarchy, and element guidance for a design.',
     getLayoutBlueprintSchema,
     async (params) => {
       const result = resolveBlueprint(LAYOUTS_DIR, params.category, params.subcategory, params.mood);

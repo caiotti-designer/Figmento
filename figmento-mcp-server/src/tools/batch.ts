@@ -1,13 +1,79 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import * as fs from 'fs';
+import * as path from 'path';
 
 type SendDesignCommand = (action: string, params: Record<string, unknown>, timeoutMs?: number) => Promise<Record<string, unknown>>;
+
+// ─── Icon SVG Resolution for batch_execute ─────────────────────────────────
+// When batch_execute includes create_icon commands, we need to resolve the SVG
+// paths server-side before sending to the plugin (plugin has no filesystem access).
+
+function getIconsDir(): string {
+  const fromDist = path.resolve(__dirname, '..', 'node_modules', 'lucide-static', 'icons');
+  const fromSrc = path.resolve(__dirname, '..', '..', '..', 'node_modules', 'lucide-static', 'icons');
+  if (fs.existsSync(fromDist)) return fromDist;
+  if (fs.existsSync(fromSrc)) return fromSrc;
+  return path.resolve(process.cwd(), 'node_modules', 'lucide-static', 'icons');
+}
+
+function parseSvgPaths(svgContent: string): string[] {
+  const paths: string[] = [];
+  const pathRegex = /<path\s[^>]*d="([^"]+)"[^>]*\/?>/g;
+  let match: RegExpExecArray | null;
+  while ((match = pathRegex.exec(svgContent)) !== null) paths.push(match[1]);
+  const lineRegex = /<line\s[^>]*x1="([^"]+)"[^>]*y1="([^"]+)"[^>]*x2="([^"]+)"[^>]*y2="([^"]+)"[^>]*\/?>/g;
+  while ((match = lineRegex.exec(svgContent)) !== null) paths.push(`M ${match[1]} ${match[2]} L ${match[3]} ${match[4]}`);
+  const circleRegex = /<circle\s[^>]*cx="([^"]+)"[^>]*cy="([^"]+)"[^>]*r="([^"]+)"[^>]*\/?>/g;
+  while ((match = circleRegex.exec(svgContent)) !== null) {
+    const cx = parseFloat(match[1]), cy = parseFloat(match[2]), r = parseFloat(match[3]);
+    const k = 0.5522847498;
+    paths.push(`M ${cx-r} ${cy} C ${cx-r} ${cy-k*r} ${cx-k*r} ${cy-r} ${cx} ${cy-r} C ${cx+k*r} ${cy-r} ${cx+r} ${cy-k*r} ${cx+r} ${cy} C ${cx+r} ${cy+k*r} ${cx+k*r} ${cy+r} ${cx} ${cy+r} C ${cx-k*r} ${cy+r} ${cx-r} ${cy+k*r} ${cx-r} ${cy} Z`);
+  }
+  const polylineRegex = /<polyline\s[^>]*points="([^"]+)"[^>]*\/?>/g;
+  while ((match = polylineRegex.exec(svgContent)) !== null) {
+    const pts = match[1].trim().split(/[\s,]+/);
+    if (pts.length >= 2) { let d = `M ${pts[0]} ${pts[1]}`; for (let i=2;i<pts.length;i+=2) d += ` L ${pts[i]} ${pts[i+1]}`; paths.push(d); }
+  }
+  const polygonRegex = /<polygon\s[^>]*points="([^"]+)"[^>]*\/?>/g;
+  while ((match = polygonRegex.exec(svgContent)) !== null) {
+    const pts = match[1].trim().split(/[\s,]+/);
+    if (pts.length >= 2) { let d = `M ${pts[0]} ${pts[1]}`; for (let i=2;i<pts.length;i+=2) d += ` L ${pts[i]} ${pts[i+1]}`; d += ' Z'; paths.push(d); }
+  }
+  const rectRegex = /<rect\s([^>]*)\/?>/g;
+  while ((match = rectRegex.exec(svgContent)) !== null) {
+    const a = match[1];
+    const x = parseFloat(a.match(/\bx="([^"]+)"/)?.[1] || '0'), y = parseFloat(a.match(/\by="([^"]+)"/)?.[1] || '0');
+    const w = parseFloat(a.match(/\bwidth="([^"]+)"/)?.[1] || '0'), h = parseFloat(a.match(/\bheight="([^"]+)"/)?.[1] || '0');
+    const rx = parseFloat(a.match(/\brx="([^"]+)"/)?.[1] || '0');
+    if (rx > 0) paths.push(`M ${x+rx} ${y} L ${x+w-rx} ${y} Q ${x+w} ${y} ${x+w} ${y+rx} L ${x+w} ${y+h-rx} Q ${x+w} ${y+h} ${x+w-rx} ${y+h} L ${x+rx} ${y+h} Q ${x} ${y+h} ${x} ${y+h-rx} L ${x} ${y+rx} Q ${x} ${y} ${x+rx} ${y} Z`);
+    else paths.push(`M ${x} ${y} L ${x+w} ${y} L ${x+w} ${y+h} L ${x} ${y+h} Z`);
+  }
+  return paths;
+}
+
+/** Pre-process batch commands: inject svgPaths into create_icon commands. */
+function enrichIconCommands(commands: BatchCommand[]): void {
+  const iconsDir = getIconsDir();
+  for (const cmd of commands) {
+    if (cmd.action === 'create_icon' && cmd.params && !cmd.params.svgPaths) {
+      const iconName = (cmd.params.iconName as string) || (cmd.params.name as string) || '';
+      if (!iconName) continue;
+      const svgFile = path.join(iconsDir, `${iconName}.svg`);
+      if (fs.existsSync(svgFile)) {
+        const svgContent = fs.readFileSync(svgFile, 'utf-8');
+        cmd.params.svgPaths = parseSvgPaths(svgContent);
+        if (!cmd.params.iconName) cmd.params.iconName = iconName;
+      }
+    }
+  }
+}
 
 // Max commands Claude Code may pass in one tool call.
 // Chunking handles splitting before each WS round-trip, so this is just an input guard.
 const MAX_BATCH_COMMANDS = 50;
 
-const DEFAULT_CHUNK_SIZE = 22;
+const DEFAULT_CHUNK_SIZE = 40;
 
 // ─── BatchCommand type ──────────────────────────────────────────────────────
 
@@ -213,7 +279,7 @@ export function registerBatchTools(server: McpServer, sendDesignCommand: SendDes
   // ─── create_design (existing) ───────────────────────────────
   server.tool(
     'create_design',
-    'Create a complete design from a UIAnalysis JSON structure. This is the batch tool — it creates a main frame with all child elements (text, shapes, images, icons, auto-layout) in a single operation. Best for creating full designs at once rather than element-by-element.',
+    'Create a complete design from a UIAnalysis JSON structure in a single operation. Creates a main frame with all child elements.',
     createDesignSchema,
     async (params) => {
       const data = await sendDesignCommand('create_design', params) as Record<string, unknown>;
@@ -233,12 +299,7 @@ export function registerBatchTools(server: McpServer, sendDesignCommand: SendDes
   // ─── batch_execute ──────────────────────────────────────────
   server.tool(
     'batch_execute',
-    `Execute multiple Figma commands in a single logical operation. Each command has an action, params, and optional tempId.
-Use tempId to reference nodes created earlier in the same batch: set tempId on a command, then use "$tempId" as a param value in subsequent commands.
-Example: create a frame with tempId "card", then create text with parentId "$card". Cross-chunk $tempId references are resolved automatically.
-Max ${MAX_BATCH_COMMANDS} commands per call. Failed commands do NOT abort the batch — all commands execute and results are returned.
-Optional chunkSize (default ${DEFAULT_CHUNK_SIZE}): commands are split into chunks of this size and sent as sequential WS round-trips. Reduce if you experience timeouts; increase only if your relay is on localhost.
-Prefer this over sequential tool calls for any design with 3+ elements.`,
+    `Execute multiple Figma commands in one call. Supports tempId references between commands (use "$tempId" syntax). Max ${MAX_BATCH_COMMANDS} commands per call. Failed commands do not abort the batch.`,
     batchExecuteSchema,
     async (params) => {
       const commands = params.commands as BatchCommand[];
@@ -254,6 +315,9 @@ Prefer this over sequential tool calls for any design with 3+ elements.`,
           }],
         };
       }
+
+      // Pre-process: inject SVG paths into create_icon commands (plugin has no filesystem access)
+      enrichIconCommands(commands);
 
       const data = await runChunked(commands, chunkSize, sendDesignCommand);
 
@@ -280,10 +344,7 @@ Prefer this over sequential tool calls for any design with 3+ elements.`,
   // ─── clone_with_overrides ───────────────────────────────────
   server.tool(
     'clone_with_overrides',
-    `Clone a node multiple times in a single call, with optional positional offsets and named child property overrides.
-Replaces the clone → find → set_text × N pattern with one call.
-Each copy can specify offsetX/offsetY and an array of overrides targeting children by name.
-Returns an array of { nodeId, name } for all created clones.`,
+    'Clone a node N times with positional offsets and child property overrides in one call. Returns { nodeId, name } for each clone.',
     cloneWithOverridesSchema,
     async (params) => {
       const data = await sendDesignCommand('clone_with_overrides', params);

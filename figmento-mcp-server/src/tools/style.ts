@@ -170,7 +170,7 @@ export function registerStyleTools(server: McpServer, sendDesignCommand: SendDes
 
   server.tool(
     'flip_gradient',
-    'Reverse the direction of gradient fills on a node by inverting all stop positions (position → 1 - position). Use when the gradient is going the wrong direction. One atomic call — no need to read stops first.',
+    'Reverse gradient direction on a node by inverting stop positions. One atomic call.',
     {
       nodeId: z.string().describe('NodeId of the node whose gradient fills should be flipped'),
     },
@@ -183,7 +183,7 @@ export function registerStyleTools(server: McpServer, sendDesignCommand: SendDes
   // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
   server.tool(
     'style_text_range',
-    'Apply different styles (font, size, weight, color, decoration) to specific character ranges within a single text node. Supports multiple ranges in one call. Essential for mixed-style text like bold keywords, colored highlights, or inline formatting.',
+    'Apply different styles to specific character ranges within a text node. Supports multiple ranges in one call.',
     styleTextRangeSchema,
     async (params) => {
       const data = await sendDesignCommand('style_text_range', params);

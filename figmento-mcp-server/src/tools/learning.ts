@@ -31,7 +31,7 @@ export const getLearnedPreferencesSchema = {
 export function registerLearningTools(server: McpServer, wsClient: FigmentoWSClient): void {
   server.tool(
     'get_learned_preferences',
-    'Get learned design preferences from the user\'s correction history. Returns preferences the user has established through repeated manual edits to AI-generated designs.',
+    'Get learned design preferences from the user\'s correction history.',
     getLearnedPreferencesSchema,
     async ({ category }) => {
       // Validate category if provided

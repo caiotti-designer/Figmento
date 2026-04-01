@@ -1,6 +1,7 @@
 /// <reference types="@figma/plugin-typings" />
 
 import { hexToRgb } from '../color-utils';
+import { resolveParent } from './canvas-create';
 
 // ═══════════════════════════════════════════════════════════════
 // IC-1: Create Component + Convert to Component
@@ -73,12 +74,10 @@ export async function handleCreateComponent(params: Record<string, unknown>): Pr
   // Clips content
   if (params.clipsContent !== undefined) comp.clipsContent = params.clipsContent as boolean;
 
-  // Parent
-  if (params.parentId) {
-    const parent = figma.getNodeById(params.parentId as string);
-    if (parent && 'appendChild' in parent) {
-      (parent as FrameNode).appendChild(comp);
-    }
+  // Parent — throws if parentId is invalid
+  const compParent = resolveParent(params.parentId);
+  if (compParent) {
+    compParent.appendChild(comp);
   } else {
     // Center in viewport if no explicit position
     if (params.x === undefined && params.y === undefined) {
@@ -180,6 +179,16 @@ export async function handleCombineAsVariants(params: Record<string, unknown>): 
   );
   if (name) componentSet.name = name;
 
+  // Match Figma's manual variant layout: vertical auto-layout with padding + spacing
+  componentSet.layoutMode = 'VERTICAL';
+  componentSet.paddingTop = 32;
+  componentSet.paddingRight = 32;
+  componentSet.paddingBottom = 32;
+  componentSet.paddingLeft = 32;
+  componentSet.itemSpacing = 16;
+  componentSet.primaryAxisSizingMode = 'AUTO';
+  componentSet.counterAxisSizingMode = 'AUTO';
+
   // Extract variant properties
   const variantProperties: Record<string, string[]> = {};
   for (const child of componentSet.children) {
@@ -270,13 +279,9 @@ export async function handleCreateInstance(params: Record<string, unknown>): Pro
   if (params.x !== undefined) instance.x = params.x as number;
   if (params.y !== undefined) instance.y = params.y as number;
 
-  // Parent
-  if (params.parentId) {
-    const parent = figma.getNodeById(params.parentId as string);
-    if (parent && 'appendChild' in parent) {
-      (parent as FrameNode).appendChild(instance);
-    }
-  }
+  // Parent — throws if parentId is invalid
+  const instanceParent = resolveParent(params.parentId);
+  if (instanceParent) instanceParent.appendChild(instance);
 
   return {
     nodeId: instance.id,
@@ -506,4 +511,505 @@ export async function handleGetReactions(params: Record<string, unknown>): Promi
   }));
 
   return { nodeId, reactions: simplified };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// IC-10: Make Interactive — AI Element Detection + Auto-Wiring
+// ═══════════════════════════════════════════════════════════════
+
+/** Detect element type by heuristics: auto-layout + text + fill + corner radius = button, etc. */
+type DetectedType = 'button' | 'card' | 'nav-link' | 'unknown';
+
+interface DetectedElement {
+  node: SceneNode;
+  elementType: DetectedType;
+}
+
+function detectElementType(node: SceneNode): DetectedType {
+  // Must be a frame-like node
+  if (!('children' in node)) return 'unknown';
+  const frame = node as FrameNode;
+
+  const hasText = frame.children.some(c => c.type === 'TEXT');
+  const hasFill = Array.isArray(frame.fills) && (frame.fills as ReadonlyArray<Paint>).length > 0 &&
+    (frame.fills as ReadonlyArray<Paint>).some(f => f.type === 'SOLID' && f.visible !== false);
+  const hasCornerRadius = typeof frame.cornerRadius === 'number' && frame.cornerRadius > 0;
+  const hasAutoLayout = frame.layoutMode === 'HORIZONTAL' || frame.layoutMode === 'VERTICAL';
+  const childCount = frame.children.length;
+
+  // Button detection: auto-layout + text + fill + corner radius, small child count
+  if (hasAutoLayout && hasText && hasFill && hasCornerRadius && childCount <= 3) {
+    return 'button';
+  }
+
+  // Card detection: vertical layout, multiple children, has fill or elevation
+  const hasEffects = 'effects' in frame && Array.isArray(frame.effects) && frame.effects.length > 0;
+  if (frame.layoutMode === 'VERTICAL' && childCount >= 2 && (hasFill || hasEffects)) {
+    // Rough size check: cards tend to be larger
+    if (frame.width >= 150 && frame.height >= 100) {
+      return 'card';
+    }
+  }
+
+  // Nav-link detection: text node with link-like name
+  if (node.type === 'TEXT') {
+    const name = node.name.toLowerCase();
+    const linkPatterns = ['nav', 'link', 'menu', 'home', 'about', 'contact', 'pricing', 'sign', 'log'];
+    if (linkPatterns.some(p => name.includes(p))) {
+      return 'nav-link';
+    }
+  }
+
+  return 'unknown';
+}
+
+function scanForInteractiveElements(node: SceneNode, results: DetectedElement[]): void {
+  const detected = detectElementType(node);
+  if (detected !== 'unknown') {
+    results.push({ node, elementType: detected });
+    // Don't recurse into detected elements (they're already identified)
+    return;
+  }
+
+  // Recurse into children
+  if ('children' in node) {
+    for (const child of (node as FrameNode).children) {
+      scanForInteractiveElements(child, results);
+    }
+  }
+}
+
+/** Adjust a Figma 0-1 RGB color by a factor. Positive = lighten, negative = darken. */
+function adjustColor(rgb: { r: number; g: number; b: number }, factor: number): { r: number; g: number; b: number } {
+  if (factor > 0) {
+    return { r: rgb.r + (1 - rgb.r) * factor, g: rgb.g + (1 - rgb.g) * factor, b: rgb.b + (1 - rgb.b) * factor };
+  }
+  return { r: Math.max(0, rgb.r * (1 + factor)), g: Math.max(0, rgb.g * (1 + factor)), b: Math.max(0, rgb.b * (1 + factor)) };
+}
+
+export async function handleMakeInteractive(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodeId = params.nodeId as string;
+  if (!nodeId) throw new Error('nodeId is required');
+
+  const rootNode = figma.getNodeById(nodeId);
+  if (!rootNode) throw new Error(`Node ${nodeId} not found`);
+
+  const sceneNode = rootNode as SceneNode;
+  const detected: DetectedElement[] = [];
+  scanForInteractiveElements(sceneNode, detected);
+
+  if (detected.length === 0) {
+    return { processed: 0, interactions: [], message: 'No interactive elements detected' };
+  }
+
+  const results: Array<{ nodeId: string; name: string; elementType: string; presetApplied: string; skipped?: boolean }> = [];
+
+  for (const { node, elementType } of detected) {
+    // Idempotency check: skip if already has reactions
+    if ('reactions' in node) {
+      const existing = (node as SceneNode & ReactionMixin).reactions;
+      if (existing && existing.length > 0) {
+        results.push({ nodeId: node.id, name: node.name, elementType, presetApplied: 'none', skipped: true });
+        continue;
+      }
+    }
+
+    if (elementType === 'button') {
+      // Create hover + pressed variants, combine, wire
+      const frame = node as FrameNode;
+      const fills = frame.fills as ReadonlyArray<Paint>;
+      const solidFill = fills.find(f => f.type === 'SOLID' && f.visible !== false) as SolidPaint | undefined;
+      if (!solidFill) {
+        results.push({ nodeId: node.id, name: node.name, elementType, presetApplied: 'none' });
+        continue;
+      }
+
+      const baseRgb = solidFill.color;
+
+      // Convert to component if not already
+      let comp: ComponentNode;
+      if (frame.type === 'COMPONENT') {
+        comp = frame;
+      } else {
+        comp = figma.createComponentFromNode(frame);
+      }
+      comp.name = 'state=default';
+
+      // Load fonts for cloning text
+      for (const child of comp.children) {
+        if (child.type === 'TEXT') {
+          const fontName = (child as TextNode).fontName as FontName;
+          try { await figma.loadFontAsync(fontName); } catch { /* skip */ }
+        }
+      }
+
+      // Create hover variant
+      const hoverComp = figma.createComponent();
+      hoverComp.name = 'state=hover';
+      hoverComp.resize(comp.width, comp.height);
+      hoverComp.layoutMode = comp.layoutMode;
+      hoverComp.primaryAxisAlignItems = comp.primaryAxisAlignItems;
+      hoverComp.counterAxisAlignItems = comp.counterAxisAlignItems;
+      hoverComp.paddingTop = comp.paddingTop;
+      hoverComp.paddingRight = comp.paddingRight;
+      hoverComp.paddingBottom = comp.paddingBottom;
+      hoverComp.paddingLeft = comp.paddingLeft;
+      hoverComp.itemSpacing = comp.itemSpacing;
+      hoverComp.cornerRadius = comp.cornerRadius as number;
+      hoverComp.layoutSizingVertical = comp.layoutSizingVertical;
+      hoverComp.layoutSizingHorizontal = comp.layoutSizingHorizontal;
+      const hoverRgb = adjustColor(baseRgb, 0.15);
+      hoverComp.fills = [{ type: 'SOLID', color: hoverRgb }];
+
+      // Create pressed variant
+      const pressedComp = figma.createComponent();
+      pressedComp.name = 'state=pressed';
+      pressedComp.resize(comp.width, comp.height);
+      pressedComp.layoutMode = comp.layoutMode;
+      pressedComp.primaryAxisAlignItems = comp.primaryAxisAlignItems;
+      pressedComp.counterAxisAlignItems = comp.counterAxisAlignItems;
+      pressedComp.paddingTop = comp.paddingTop;
+      pressedComp.paddingRight = comp.paddingRight;
+      pressedComp.paddingBottom = comp.paddingBottom;
+      pressedComp.paddingLeft = comp.paddingLeft;
+      pressedComp.itemSpacing = comp.itemSpacing;
+      pressedComp.cornerRadius = comp.cornerRadius as number;
+      pressedComp.layoutSizingVertical = comp.layoutSizingVertical;
+      pressedComp.layoutSizingHorizontal = comp.layoutSizingHorizontal;
+      const pressedRgb = adjustColor(baseRgb, -0.15);
+      pressedComp.fills = [{ type: 'SOLID', color: pressedRgb }];
+
+      // Clone text into variants
+      for (const child of comp.children) {
+        if (child.type === 'TEXT') {
+          const srcText = child as TextNode;
+          for (const target of [hoverComp, pressedComp]) {
+            const tn = figma.createText();
+            const fontName = srcText.fontName as FontName;
+            try { await figma.loadFontAsync(fontName); } catch { await figma.loadFontAsync({ family: 'Inter', style: 'Regular' }); }
+            tn.fontName = fontName;
+            tn.characters = srcText.characters;
+            tn.fontSize = srcText.fontSize as number;
+            if (srcText.lineHeight && typeof (srcText.lineHeight as LineHeight).value === 'number') {
+              tn.lineHeight = srcText.lineHeight as LineHeight;
+            }
+            tn.fills = JSON.parse(JSON.stringify(srcText.fills));
+            tn.layoutSizingHorizontal = srcText.layoutSizingHorizontal;
+            target.appendChild(tn);
+          }
+        }
+      }
+
+      // Place variants next to original
+      const parent = comp.parent as BaseNode & ChildrenMixin;
+      parent.appendChild(hoverComp);
+      parent.appendChild(pressedComp);
+      hoverComp.x = comp.x;
+      hoverComp.y = comp.y + comp.height + 16;
+      pressedComp.x = comp.x;
+      pressedComp.y = hoverComp.y + hoverComp.height + 16;
+
+      // Combine
+      const componentSet = figma.combineAsVariants([comp, hoverComp, pressedComp], parent);
+      componentSet.name = node.name || 'Button';
+      componentSet.layoutMode = 'VERTICAL';
+      componentSet.paddingTop = 32;
+      componentSet.paddingRight = 32;
+      componentSet.paddingBottom = 32;
+      componentSet.paddingLeft = 32;
+      componentSet.itemSpacing = 16;
+      componentSet.primaryAxisSizingMode = 'AUTO';
+      componentSet.counterAxisSizingMode = 'AUTO';
+
+      // Find variants
+      const defV = componentSet.children.find(c => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'default') as ComponentNode | undefined;
+      const hovV = componentSet.children.find(c => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'hover') as ComponentNode | undefined;
+      const preV = componentSet.children.find(c => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'pressed') as ComponentNode | undefined;
+
+      if (defV && hovV && preV) {
+        await defV.setReactionsAsync([
+          { trigger: { type: 'ON_HOVER' } as Trigger, actions: [{ type: 'NODE', destinationId: hovV.id, navigation: 'CHANGE_TO' as Navigation, transition: { type: 'SMART_ANIMATE', easing: { type: 'EASE_OUT' }, duration: 300 } as SimpleTransition, resetScrollPosition: false, resetInteractiveComponents: false } as Action] },
+          { trigger: { type: 'MOUSE_DOWN', delay: 0 } as Trigger, actions: [{ type: 'NODE', destinationId: preV.id, navigation: 'CHANGE_TO' as Navigation, transition: { type: 'SMART_ANIMATE', easing: { type: 'EASE_IN' }, duration: 80 } as SimpleTransition, resetScrollPosition: false, resetInteractiveComponents: false } as Action] },
+          { trigger: { type: 'MOUSE_UP', delay: 0 } as Trigger, actions: [{ type: 'NODE', destinationId: defV.id, navigation: 'CHANGE_TO' as Navigation, transition: { type: 'SMART_ANIMATE', easing: { type: 'EASE_OUT' }, duration: 120 } as SimpleTransition, resetScrollPosition: false, resetInteractiveComponents: false } as Action] },
+        ]);
+      }
+
+      results.push({ nodeId: componentSet.id, name: componentSet.name, elementType, presetApplied: 'button-full' });
+
+    } else if (elementType === 'card') {
+      // Card: hover variant only (shadow/lift via smart animate)
+      const frame = node as FrameNode;
+      const fills = frame.fills as ReadonlyArray<Paint>;
+      const solidFill = fills.find(f => f.type === 'SOLID' && f.visible !== false) as SolidPaint | undefined;
+
+      let comp: ComponentNode;
+      if (frame.type === 'COMPONENT') {
+        comp = frame;
+      } else {
+        comp = figma.createComponentFromNode(frame);
+      }
+      comp.name = 'state=default';
+
+      // Load fonts
+      for (const child of comp.children) {
+        if (child.type === 'TEXT') {
+          try { await figma.loadFontAsync((child as TextNode).fontName as FontName); } catch { /* skip */ }
+        }
+      }
+
+      // Create hover variant with subtle shadow
+      const hoverComp = figma.createComponent();
+      hoverComp.name = 'state=hover';
+      hoverComp.resize(comp.width, comp.height);
+      hoverComp.layoutMode = comp.layoutMode;
+      hoverComp.primaryAxisAlignItems = comp.primaryAxisAlignItems;
+      hoverComp.counterAxisAlignItems = comp.counterAxisAlignItems;
+      hoverComp.paddingTop = comp.paddingTop;
+      hoverComp.paddingRight = comp.paddingRight;
+      hoverComp.paddingBottom = comp.paddingBottom;
+      hoverComp.paddingLeft = comp.paddingLeft;
+      hoverComp.itemSpacing = comp.itemSpacing;
+      hoverComp.cornerRadius = comp.cornerRadius as number;
+      hoverComp.layoutSizingVertical = comp.layoutSizingVertical;
+      hoverComp.layoutSizingHorizontal = comp.layoutSizingHorizontal;
+
+      if (solidFill) {
+        const hoverRgb = adjustColor(solidFill.color, 0.08);
+        hoverComp.fills = [{ type: 'SOLID', color: hoverRgb }];
+      } else {
+        hoverComp.fills = JSON.parse(JSON.stringify(comp.fills));
+      }
+
+      // Add elevation shadow to hover state
+      hoverComp.effects = [
+        { type: 'DROP_SHADOW', visible: true, blendMode: 'NORMAL', color: { r: 0, g: 0, b: 0, a: 0.12 }, offset: { x: 0, y: 4 }, radius: 12, spread: 0 } as DropShadowEffect,
+      ];
+
+      // Clone text children
+      for (const child of comp.children) {
+        if (child.type === 'TEXT') {
+          const srcText = child as TextNode;
+          const tn = figma.createText();
+          const fontName = srcText.fontName as FontName;
+          try { await figma.loadFontAsync(fontName); } catch { await figma.loadFontAsync({ family: 'Inter', style: 'Regular' }); }
+          tn.fontName = fontName;
+          tn.characters = srcText.characters;
+          tn.fontSize = srcText.fontSize as number;
+          if (srcText.lineHeight && typeof (srcText.lineHeight as LineHeight).value === 'number') {
+            tn.lineHeight = srcText.lineHeight as LineHeight;
+          }
+          tn.fills = JSON.parse(JSON.stringify(srcText.fills));
+          tn.layoutSizingHorizontal = srcText.layoutSizingHorizontal;
+          hoverComp.appendChild(tn);
+        }
+      }
+
+      const parent = comp.parent as BaseNode & ChildrenMixin;
+      parent.appendChild(hoverComp);
+      hoverComp.x = comp.x;
+      hoverComp.y = comp.y + comp.height + 16;
+
+      const componentSet = figma.combineAsVariants([comp, hoverComp], parent);
+      componentSet.name = node.name || 'Card';
+      componentSet.layoutMode = 'VERTICAL';
+      componentSet.paddingTop = 32;
+      componentSet.paddingRight = 32;
+      componentSet.paddingBottom = 32;
+      componentSet.paddingLeft = 32;
+      componentSet.itemSpacing = 16;
+      componentSet.primaryAxisSizingMode = 'AUTO';
+      componentSet.counterAxisSizingMode = 'AUTO';
+
+      const defV = componentSet.children.find(c => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'default') as ComponentNode | undefined;
+      const hovV = componentSet.children.find(c => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'hover') as ComponentNode | undefined;
+
+      if (defV && hovV) {
+        await defV.setReactionsAsync([
+          { trigger: { type: 'ON_HOVER' } as Trigger, actions: [{ type: 'NODE', destinationId: hovV.id, navigation: 'CHANGE_TO' as Navigation, transition: { type: 'SMART_ANIMATE', easing: { type: 'GENTLE' as Easing['type'] }, duration: 300 } as SimpleTransition, resetScrollPosition: false, resetInteractiveComponents: false } as Action] },
+        ]);
+      }
+
+      results.push({ nodeId: componentSet.id, name: componentSet.name, elementType, presetApplied: 'card-hover' });
+
+    } else if (elementType === 'nav-link') {
+      // Nav links: just mark them — prototype flow generator (IC-12) wires actual navigation
+      results.push({ nodeId: node.id, name: node.name, elementType, presetApplied: 'none (wired by create_prototype_flow)' });
+    }
+  }
+
+  return {
+    processed: results.filter(r => !r.skipped).length,
+    skipped: results.filter(r => r.skipped).length,
+    interactions: results,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// IC-12: Prototype Flow Generator
+// ═══════════════════════════════════════════════════════════════
+
+/** Find clickable elements (buttons, text links, CTAs) inside a frame. */
+function findClickableElements(frame: SceneNode): SceneNode[] {
+  const clickables: SceneNode[] = [];
+
+  function scan(node: SceneNode): void {
+    // Buttons: auto-layout frame with text + fill + corner radius
+    if ('children' in node) {
+      const f = node as FrameNode;
+      const hasText = f.children.some(c => c.type === 'TEXT');
+      const hasFill = Array.isArray(f.fills) && (f.fills as ReadonlyArray<Paint>).some(p => p.type === 'SOLID' && p.visible !== false);
+      const hasRadius = typeof f.cornerRadius === 'number' && f.cornerRadius > 0;
+      const isAutoLayout = f.layoutMode === 'HORIZONTAL' || f.layoutMode === 'VERTICAL';
+
+      if (isAutoLayout && hasText && hasFill && hasRadius && f.children.length <= 3) {
+        clickables.push(node);
+        return; // Don't recurse into buttons
+      }
+    }
+
+    // CTA text: text nodes with action-like names
+    if (node.type === 'TEXT') {
+      const name = node.name.toLowerCase();
+      const text = (node as TextNode).characters.toLowerCase();
+      const ctaPatterns = ['cta', 'button', 'get started', 'sign up', 'learn more', 'buy', 'shop', 'next', 'continue', 'submit', 'back', 'previous', 'return', 'arrow'];
+      if (ctaPatterns.some(p => name.includes(p) || text.includes(p))) {
+        clickables.push(node);
+        return;
+      }
+    }
+
+    // Recurse
+    if ('children' in node) {
+      for (const child of (node as FrameNode).children) {
+        scan(child);
+      }
+    }
+  }
+
+  scan(frame);
+  return clickables;
+}
+
+/** Determine if a clickable element suggests backward navigation. */
+function isBackElement(node: SceneNode): boolean {
+  const name = (node.name || '').toLowerCase();
+  let text = '';
+  if (node.type === 'TEXT') {
+    text = (node as TextNode).characters.toLowerCase();
+  } else if ('children' in node) {
+    const firstText = (node as FrameNode).children.find(c => c.type === 'TEXT');
+    if (firstText) text = (firstText as TextNode).characters.toLowerCase();
+  }
+  const backPatterns = ['back', 'previous', 'return', 'arrow-left', 'chevron-left', '←'];
+  return backPatterns.some(p => name.includes(p) || text.includes(p));
+}
+
+export async function handleCreatePrototypeFlow(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const frameIds = params.frameIds as string[];
+  const flowName = (params.flowName as string) || 'Flow 1';
+
+  if (!frameIds || !Array.isArray(frameIds) || frameIds.length < 2) {
+    throw new Error('frameIds requires an ordered array with at least 2 frame IDs');
+  }
+
+  // Resolve frames
+  const frames: (FrameNode | ComponentNode)[] = [];
+  for (const id of frameIds) {
+    const node = figma.getNodeById(id);
+    if (!node) throw new Error(`Frame ${id} not found`);
+    const scene = node as SceneNode;
+    if (scene.type !== 'FRAME' && scene.type !== 'COMPONENT') {
+      throw new Error(`Node ${id} is type ${scene.type} — expected FRAME or COMPONENT`);
+    }
+    frames.push(scene as FrameNode | ComponentNode);
+  }
+
+  // Set first frame as flow starting point
+  const firstFrame = frames[0] as FrameNode;
+  if ('flowStartingPoints' in firstFrame || firstFrame.type === 'FRAME') {
+    // Use reactions on first frame to mark it as a starting point
+    // Figma's flowStartingPoints is set at the page level, not on the frame
+    // We'll set it via the page if possible
+    const page = findPageForNode(firstFrame);
+    if (page) {
+      const existingFlows = page.flowStartingPoints || [];
+      const alreadyExists = existingFlows.some(f => f.nodeId === firstFrame.id);
+      if (!alreadyExists) {
+        page.flowStartingPoints = [...existingFlows, { nodeId: firstFrame.id, name: flowName }];
+      }
+    }
+  }
+
+  const connections: Array<{ from: string; fromName: string; to: string; toName: string; trigger: string; transition: string }> = [];
+
+  // Wire connections between consecutive frames
+  for (let i = 0; i < frames.length; i++) {
+    const currentFrame = frames[i];
+    const nextFrame = i < frames.length - 1 ? frames[i + 1] : null;
+    const prevFrame = i > 0 ? frames[i - 1] : null;
+
+    const clickables = findClickableElements(currentFrame);
+
+    for (const clickable of clickables) {
+      // Check if already has reactions — preserve existing, non-destructive
+      if ('reactions' in clickable) {
+        const existing = (clickable as SceneNode & ReactionMixin).reactions;
+        if (existing && existing.length > 0) continue;
+      }
+
+      if (isBackElement(clickable) && prevFrame) {
+        // Wire back navigation
+        await (clickable as SceneNode & ReactionMixin).setReactionsAsync([{
+          trigger: { type: 'ON_CLICK' } as Trigger,
+          actions: [{ type: 'BACK' } as Action],
+        }]);
+        connections.push({
+          from: clickable.id,
+          fromName: clickable.name,
+          to: prevFrame.id,
+          toName: prevFrame.name,
+          trigger: 'ON_CLICK',
+          transition: 'BACK',
+        });
+      } else if (nextFrame) {
+        // Wire forward navigation with PUSH transition
+        await (clickable as SceneNode & ReactionMixin).setReactionsAsync([{
+          trigger: { type: 'ON_CLICK' } as Trigger,
+          actions: [{
+            type: 'NODE',
+            destinationId: nextFrame.id,
+            navigation: 'NAVIGATE' as Navigation,
+            transition: { type: 'PUSH', direction: 'LEFT', matchLayers: false, easing: { type: 'EASE_IN_AND_OUT' }, duration: 300 } as DirectionalTransition,
+            resetScrollPosition: false,
+            resetInteractiveComponents: false,
+          } as Action],
+        }]);
+        connections.push({
+          from: clickable.id,
+          fromName: clickable.name,
+          to: nextFrame.id,
+          toName: nextFrame.name,
+          trigger: 'ON_CLICK',
+          transition: 'PUSH',
+        });
+      }
+    }
+  }
+
+  return {
+    flowName,
+    frameCount: frames.length,
+    connections,
+    startingPoint: { nodeId: frames[0].id, name: frames[0].name },
+  };
+}
+
+/** Walk up the node tree to find the containing PageNode. */
+function findPageForNode(node: BaseNode): PageNode | null {
+  let current: BaseNode | null = node;
+  while (current) {
+    if (current.type === 'PAGE') return current as PageNode;
+    current = current.parent;
+  }
+  return null;
 }

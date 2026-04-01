@@ -2,6 +2,7 @@
 
 import { hexToRgb } from '../color-utils';
 import type { DiscoveredComponent, DesignSystemCache } from '../types';
+import { resolveParent } from './canvas-create';
 
 // ═══════════════════════════════════════════════════════════════
 // FN-7: COMPONENT MATCHING IN GENERATION
@@ -381,12 +382,10 @@ export async function tryComponentInstance(
     instance.y = (params.y as number) || 0;
     if (params.name) instance.name = params.name as string;
 
-    // Parent appending
-    if (params.parentId) {
-      const parent = figma.getNodeById(params.parentId as string);
-      if (parent && 'appendChild' in parent) {
-        (parent as FrameNode).appendChild(instance);
-      }
+    // Parent appending — throws if parentId is invalid
+    const matchParent = resolveParent(params.parentId);
+    if (matchParent) {
+      matchParent.appendChild(instance);
     } else {
       // Center on viewport if no parent and no explicit position
       if (params.x === undefined && params.y === undefined) {

@@ -52,7 +52,7 @@ export interface ChatTurnRequest {
   /** WS channel where the plugin sandbox is connected. */
   channel: string;
   /** AI provider. */
-  provider: 'claude' | 'gemini' | 'openai';
+  provider: 'claude' | 'gemini' | 'openai' | 'venice';
   /** API key for the selected provider. */
   apiKey: string;
   /** Model ID (e.g. 'claude-sonnet-4-20250514', 'gemini-2.0-flash'). */
@@ -153,6 +153,7 @@ interface ContentBlock {
 
 interface GeminiPart {
   text?: string;
+  thought?: boolean;
   functionCall?: { name: string; args: Record<string, unknown> };
   functionResponse?: { name: string; response: Record<string, unknown> };
 }
@@ -184,6 +185,7 @@ async function callAnthropicAPI(
       tools,
       messages,
     }),
+    signal: AbortSignal.timeout(60_000),
   });
 
   if (!resp.ok) {
@@ -226,6 +228,23 @@ function convertSchemaToGemini(schema: Record<string, unknown>): Record<string, 
   return result;
 }
 
+/**
+ * Build the generationConfig for Gemini, adjusting thinking settings per model family:
+ * - Gemini 3.x: uses thinkingConfig.thinkingLevel ("LOW" for tool-use speed)
+ * - Gemini 2.5 Pro: uses thinkingConfig.thinkingBudget (min 128, cannot disable)
+ * - Gemini 2.5 Flash: uses thinkingConfig.thinkingBudget (0 disables)
+ * - Others: no thinking config needed
+ */
+function buildGeminiGenerationConfig(model: string): Record<string, unknown> {
+  const config: Record<string, unknown> = { maxOutputTokens: 8192 };
+  if (model.startsWith('gemini-3')) {
+    config.thinkingConfig = { thinkingLevel: 'LOW' };
+  } else if (model.includes('2.5-pro') || model.includes('2.5-flash')) {
+    config.thinkingConfig = { thinkingBudget: model.includes('pro') ? 128 : 0 };
+  }
+  return config;
+}
+
 async function callGeminiAPI(
   messages: GeminiContent[],
   model: string,
@@ -249,8 +268,9 @@ async function callGeminiAPI(
         systemInstruction: { parts: [{ text: systemPrompt }] },
         tools: [{ functionDeclarations: geminiTools }],
         toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
-        generationConfig: { maxOutputTokens: 8192 },
+        generationConfig: buildGeminiGenerationConfig(model),
       }),
+      signal: AbortSignal.timeout(60_000),
     }
   );
 
@@ -320,11 +340,52 @@ async function callOpenAIAPI(
       tools: openaiTools,
       tool_choice: 'auto',
     }),
+    signal: AbortSignal.timeout(60_000),
   });
 
   if (!resp.ok) {
     const errBody = await resp.text();
     throw new Error(`OpenAI API error ${resp.status}: ${errBody}`);
+  }
+
+  return resp.json() as Promise<Record<string, unknown>>;
+}
+
+async function callVeniceAPI(
+  messages: Array<Record<string, unknown>>,
+  model: string,
+  apiKey: string,
+  systemPrompt: string,
+  tools: ToolDefinition[],
+): Promise<Record<string, unknown>> {
+  const openaiTools = tools.map(tool => ({
+    type: 'function',
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: convertSchemaToOpenAI(tool.input_schema),
+    },
+  }));
+
+  const resp = await fetch('https://api.venice.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      max_completion_tokens: 8192,
+      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      tools: openaiTools,
+      tool_choice: 'auto',
+    }),
+    signal: AbortSignal.timeout(60_000),
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`Venice API error ${resp.status}: ${errBody}`);
   }
 
   return resp.json() as Promise<Record<string, unknown>>;
@@ -336,6 +397,25 @@ async function callOpenAIAPI(
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/** Retry wrapper for API calls — retries once on timeout, then throws a user-friendly error. */
+async function callWithRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 2000): Promise<T> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt < retries && err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+        await sleep(delayMs);
+        continue;
+      }
+      if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+        throw new Error('API request timed out after 60s. The model may be overloaded — try again or switch models.');
+      }
+      throw err;
+    }
+  }
+  throw new Error('Unreachable');
 }
 
 function stripBase64FromResult(data: Record<string, unknown>): Record<string, unknown> {
@@ -364,7 +444,7 @@ function summarizeScreenshotResult(toolName: string, data: Record<string, unknow
   });
 }
 
-const TOOL_RESULT_MAX_CHARS = 300;
+const TOOL_RESULT_MAX_CHARS = 1000;
 
 /** Tools whose results carry context the model MUST see in full. Never truncate these. */
 const CONTEXT_TOOLS = new Set([
@@ -390,7 +470,7 @@ function truncateForHistory(content: string, toolName?: string): string {
         return JSON.stringify({ count: parsed.length, first: slimFirst, note: `${parsed.length} items (truncated)` });
       }
       const slim: Record<string, unknown> = {};
-      for (const key of ['nodeId', 'name', 'id', 'error', 'note', 'count', 'success', 'saved', 'width', 'height', 'texts', 'colors', 'structure', 'dimensions', 'images']) {
+      for (const key of ['nodeId', 'name', 'id', 'error', 'note', 'count', 'success', 'saved', 'width', 'height', 'x', 'y', 'parentId', 'matchedComponent', 'texts', 'colors', 'structure', 'dimensions', 'images']) {
         if (key in parsed) slim[key] = parsed[key];
       }
       if (Object.keys(slim).length > 0) {
@@ -546,6 +626,7 @@ async function executeGenerateImage(
           contents: [{ parts: [{ text: `Generate an image: ${prompt}` }] }],
           generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
         }),
+        signal: AbortSignal.timeout(60_000),
       }
     );
 
@@ -1243,6 +1324,27 @@ function buildSelectionContextBasic(selection?: ChatTurnRequest['currentSelectio
   return `[Figma context: user has ${frames.length === 1 ? 'a frame' : 'frames'} selected — ${descriptions.join(', ')}. Pass frameId to generate_design_image or other frame-targeting tools instead of calling get_selection.]`;
 }
 
+/**
+ * Sanitize conversation history to prevent API 400 errors from orphaned tool_use blocks.
+ * If the last assistant message contains tool_use blocks but no following tool_result user message,
+ * strip it (and keep stripping until history is valid).
+ */
+function sanitizeHistory<T extends { role?: unknown; content?: unknown }>(history: T[]): T[] {
+  while (history.length > 0) {
+    const last = history[history.length - 1];
+    if (last.role !== 'assistant') break;
+
+    const content = last.content;
+    if (!Array.isArray(content)) break;
+    const hasToolUse = content.some((block: { type?: string }) => block.type === 'tool_use');
+    if (!hasToolUse) break;
+
+    // Assistant has tool_use but no following tool_result — orphaned → remove
+    history.pop();
+  }
+  return history;
+}
+
 export async function handleChatTurn(
   relay: FigmentoRelay,
   request: ChatTurnRequest,
@@ -1350,8 +1452,33 @@ export async function handleChatTurn(
   const toolCallLog: Array<{ name: string; success: boolean }> = [];
   const newMemoryEntries: string[] = [];
 
+  // Deduplication cache for creation commands — prevents identical tool calls
+  // from creating duplicate elements when the model retries after truncated context.
+  const DEDUP_COMMANDS = new Set([
+    'create_frame', 'create_text', 'create_rectangle', 'create_ellipse',
+    'create_image', 'create_icon', 'create_vector', 'create_component_node',
+    'create_instance', 'set_fill', 'set_stroke', 'set_effects',
+  ]);
+  const executedCallHashes = new Map<string, ToolCallResult>();
+
+  function hashToolCall(name: string, args: Record<string, unknown>): string {
+    // Stable hash: sort keys for deterministic stringification
+    const sorted = JSON.stringify(args, Object.keys(args).sort());
+    return `${name}::${sorted}`;
+  }
+
   // Tool call handler
   const handleToolCall = async (name: string, args: Record<string, unknown>): Promise<ToolCallResult> => {
+    // Check dedup cache for creation commands
+    if (DEDUP_COMMANDS.has(name)) {
+      const hash = hashToolCall(name, args);
+      const cached = executedCallHashes.get(hash);
+      if (cached) {
+        console.log(`[Figmento Chat] Dedup: skipping duplicate ${name} call`);
+        return { content: cached.content + ' (deduplicated)', is_error: false };
+      }
+    }
+
     // generate_image — server-side Gemini call + place via plugin
     if (name === 'generate_image') {
       return executeGenerateImage(args, geminiApiKey, sendToPlugin);
@@ -1373,6 +1500,178 @@ export async function handleChatTurn(
       if (!entry) return { content: 'entry is required', is_error: true };
       newMemoryEntries.push(entry);
       return { content: JSON.stringify({ saved: true, entry }), is_error: false };
+    }
+
+    // ODS-1b: analyze_brief — routes to plugin (which forwards to MCP server via tool call pattern)
+    // The chat agent should call this, then pass the result to generate_design_system_in_figma
+    // Since analyze_brief is server-side only, we handle it by letting the AI do the analysis
+    // inline and then calling generate_design_system_in_figma with the structured result.
+    // For now, route analyze_brief and generate_design_system_in_figma to the plugin sandbox
+    // which has the handlers registered via command-router.
+
+    // ODS-7: generate_design_system_in_figma — composite: variables → styles → components
+    if (name === 'generate_design_system_in_figma') {
+      const ba = args.brandAnalysis as Record<string, unknown>;
+      if (!ba) return { content: JSON.stringify({ error: 'brandAnalysis is required' }), is_error: true };
+
+      const errors: Array<{ step: string; error: string }> = [];
+      const startTime = Date.now();
+
+      // Step 1: Transform BrandAnalysis → variable collections and create them
+      let varResult: Record<string, unknown> = {};
+      try {
+        const colors = ba.colors as Record<string, unknown>;
+        const spacing = ba.spacing as Record<string, unknown>;
+        const radius = ba.radius as Record<string, unknown>;
+        const scales = (colors?.scales || {}) as Record<string, Record<string, string>>;
+        const neutrals = (colors?.neutrals || {}) as Record<string, string>;
+
+        const brandColorVars: Array<{ name: string; type: string; value: unknown }> = [];
+        for (const [colorName, scale] of Object.entries(scales)) {
+          for (const [step, hex] of Object.entries(scale)) {
+            brandColorVars.push({ name: `${colorName}/${step}`, type: 'COLOR', value: hex });
+          }
+        }
+        for (const key of ['background', 'text', 'muted', 'surface', 'error', 'success'] as const) {
+          if (colors?.[key]) brandColorVars.push({ name: key, type: 'COLOR', value: colors[key] });
+        }
+
+        const neutralVars = Object.entries(neutrals).map(([step, hex]) => ({ name: step, type: 'COLOR', value: hex }));
+        const spacingScale = ((spacing as Record<string, unknown>)?.scale || []) as number[];
+        const spacingVars = spacingScale.map(v => ({ name: String(v), type: 'FLOAT', value: v }));
+        const radiusValues = ((radius as Record<string, unknown>)?.values || {}) as Record<string, number>;
+        const radiusVars = Object.entries(radiusValues).map(([n, v]) => ({ name: n, type: 'FLOAT', value: v }));
+
+        varResult = await sendToPlugin('create_variable_collections', {
+          collections: [
+            { name: 'Brand Colors', variables: brandColorVars },
+            { name: 'Neutrals', variables: neutralVars },
+            { name: 'Spacing', variables: spacingVars },
+            { name: 'Radius', variables: radiusVars },
+          ],
+        });
+      } catch (err) { errors.push({ step: 'variables', error: (err as Error).message }); }
+
+      // Step 2: Transform typography → text styles
+      let styleResult: Record<string, unknown> = {};
+      try {
+        const typo = ba.typography as Record<string, unknown>;
+        const headingFont = (typo?.headingFont || 'Inter') as string;
+        const bodyFont = (typo?.bodyFont || 'Inter') as string;
+        const styles = (typo?.styles || {}) as Record<string, Record<string, number>>;
+
+        const mapStyle = (name: string, font: string, s: Record<string, number> | undefined) => ({
+          name, fontFamily: font,
+          fontSize: s?.size || 16, fontWeight: s?.weight || 400,
+          lineHeight: s?.lineHeight || 24, letterSpacing: s?.letterSpacing || 0,
+        });
+        const styleArray = [
+          mapStyle('DS/Display',    headingFont, styles.display),
+          mapStyle('DS/H1',         headingFont, styles.h1),
+          mapStyle('DS/H2',         headingFont, styles.h2),
+          mapStyle('DS/H3',         headingFont, styles.h3),
+          mapStyle('DS/Body Large', bodyFont,    styles.bodyLg),
+          mapStyle('DS/Body',       bodyFont,    styles.body),
+          mapStyle('DS/Body Small', bodyFont,    styles.bodySm),
+          mapStyle('DS/Caption',    bodyFont,    styles.caption),
+        ];
+
+        styleResult = await sendToPlugin('create_text_styles', { styles: styleArray });
+      } catch (err) { errors.push({ step: 'textStyles', error: (err as Error).message }); }
+
+      // Step 3: Create components
+      let compResult: Record<string, unknown> = {};
+      try {
+        const colors = ba.colors as Record<string, unknown>;
+        const typo = ba.typography as Record<string, unknown>;
+        const radiusObj = ba.radius as Record<string, unknown>;
+        const headingFont = (typo?.headingFont || 'Inter') as string;
+        const bodyFont = (typo?.bodyFont || 'Inter') as string;
+        const radiusDefault = (radiusObj?.default || 8) as number;
+
+        compResult = await sendToPlugin('create_ds_components', {
+          components: [
+            {
+              type: 'button', name: 'DS/Button',
+              fillColor: colors?.primary || '#1E3A5F', textColor: '#FFFFFF',
+              fontFamily: bodyFont, fontSize: 16, fontWeight: 700, lineHeight: 24,
+              text: 'Button', cornerRadius: radiusDefault,
+              padding: { top: 16, right: 48, bottom: 16, left: 48 }, itemSpacing: 8,
+            },
+            {
+              type: 'card', name: 'DS/Card',
+              fillColor: colors?.surface || '#F7FAFC', textColor: colors?.text || '#1A202C',
+              fontFamily: headingFont, fontSize: 24, fontWeight: 700, lineHeight: 30,
+              text: 'Card Title', cornerRadius: 12, width: 320,
+              padding: { top: 32, right: 32, bottom: 32, left: 32 }, itemSpacing: 16,
+              children: [
+                { text: 'Card Title', fontFamily: headingFont, fontSize: 24, fontWeight: 700, lineHeight: 30, textColor: colors?.text || '#1A202C' },
+                { text: 'Card description text goes here.', fontFamily: bodyFont, fontSize: 16, fontWeight: 400, lineHeight: 24, textColor: colors?.text || '#1A202C' },
+              ],
+            },
+            {
+              type: 'badge', name: 'DS/Badge',
+              fillColor: colors?.accent || '#3182CE', textColor: '#FFFFFF',
+              fontFamily: bodyFont, fontSize: 12, fontWeight: 700, lineHeight: 17,
+              text: 'Badge', cornerRadius: 9999,
+              padding: { top: 4, right: 12, bottom: 4, left: 12 }, itemSpacing: 0,
+            },
+          ],
+        });
+      } catch (err) { errors.push({ step: 'components', error: (err as Error).message }); }
+
+      // Step 4: Visual DS Showcase page
+      let showcaseResult: Record<string, unknown> = {};
+      try {
+        showcaseResult = await sendToPlugin('create_ds_showcase', {
+          brandName: ba.brandName || 'Design System',
+          colors: ba.colors || {},
+          typography: {
+            headingFont: (ba.typography as Record<string, unknown>)?.headingFont || 'Inter',
+            bodyFont: (ba.typography as Record<string, unknown>)?.bodyFont || 'Inter',
+            headingWeight: (ba.typography as Record<string, unknown>)?.headingWeight || 700,
+            bodyWeight: (ba.typography as Record<string, unknown>)?.bodyWeight || 400,
+          },
+          spacing: ba.spacing || { scale: [4, 8, 12, 16, 24, 32, 48, 64] },
+          radius: ba.radius || { default: 8, values: {} },
+          icons: ['home', 'search', 'settings', 'user', 'mail', 'phone', 'star', 'heart', 'zap', 'shield', 'globe', 'camera'],
+        });
+      } catch (err) { errors.push({ step: 'showcase', error: (err as Error).message }); }
+
+      // Step 5: Populate icon grid with actual icons
+      const iconGridId = (showcaseResult as Record<string, unknown>).iconGridId as string;
+      const iconNames = ((showcaseResult as Record<string, unknown>).icons || []) as string[];
+      if (iconGridId && iconNames.length > 0) {
+        for (const iconName of iconNames) {
+          try {
+            await sendToPlugin('create_icon', {
+              name: iconName,
+              size: 24,
+              color: (ba.colors as Record<string, unknown>)?.primary || '#1E3A5F',
+              parentId: iconGridId,
+            });
+          } catch { /* non-critical — icon may not exist in library */ }
+        }
+      }
+
+      // Enable DS toggle
+      try { await sendToPlugin('save-ds-toggle', { enabled: true }); } catch { /* non-critical */ }
+
+      const totalMs = Date.now() - startTime;
+      return {
+        content: JSON.stringify({
+          success: errors.length === 0,
+          brandName: (ba as Record<string, unknown>).brandName,
+          totalTimeMs: totalMs,
+          variables: { count: (varResult as Record<string, unknown>).totalVariablesCreated || 0 },
+          textStyles: { count: (styleResult as Record<string, unknown>).stylesCreated || 0 },
+          components: { count: (compResult as Record<string, unknown>).componentsCreated || 0 },
+          showcase: { created: !!(showcaseResult as Record<string, unknown>).showcaseId },
+          icons: { count: iconNames.length },
+          ...(errors.length > 0 && { errors }),
+        }, null, 2),
+        is_error: false,
+      };
     }
 
     // Local intelligence — resolved from bundled compiled knowledge, no WS
@@ -1416,7 +1715,15 @@ export async function handleChatTurn(
         ? summarizeScreenshotResult(name, data)
         : JSON.stringify(stripBase64FromResult(data));
 
-      return { content, is_error: false };
+      const toolResult: ToolCallResult = { content, is_error: false };
+
+      // Cache successful creation commands for dedup
+      if (DEDUP_COMMANDS.has(name)) {
+        const hash = hashToolCall(name, args);
+        executedCallHashes.set(hash, toolResult);
+      }
+
+      return toolResult;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       return { content: msg, is_error: true };
@@ -1428,8 +1735,10 @@ export async function handleChatTurn(
     return tools({ toolsUsed, iteration } as ToolResolverContext);
   };
 
-  // Clone history to avoid mutating the caller's array
-  const history = [...request.history];
+  // Clone history and sanitize orphaned tool_use blocks.
+  // If the last assistant message has tool_use blocks but no following tool_result,
+  // the API returns 400. Strip the orphan to recover from crashed turns.
+  const history = sanitizeHistory([...request.history] as Array<{ role?: unknown; content?: unknown }>);
 
   let iterationsUsed = 0;
   let completedCleanly = false;
@@ -1458,7 +1767,7 @@ export async function handleChatTurn(
       if (iterationsUsed > 0) await sleep(500);
       iterationsUsed++;
 
-      const response = await callGeminiAPI(geminiHistory, model, apiKey, systemPrompt, resolveTools(iterationsUsed));
+      const response = await callWithRetry(() => callGeminiAPI(geminiHistory, model, apiKey, systemPrompt, resolveTools(iterationsUsed)));
       const candidates = response.candidates as Array<Record<string, unknown>> | undefined;
       const candidate = candidates?.[0];
       if (!candidate?.content) throw new Error('Empty response from Gemini');
@@ -1469,7 +1778,7 @@ export async function handleChatTurn(
       const texts: string[] = [];
       const functionCalls: GeminiPart[] = [];
       for (const part of parts) {
-        if (part.text) texts.push(part.text);
+        if (part.text && !part.thought) texts.push(part.text);
         if (part.functionCall) functionCalls.push(part);
       }
       if (texts.length > 0) textParts.push(texts.join('\n'));
@@ -1508,14 +1817,16 @@ export async function handleChatTurn(
       }
       geminiHistory.push({ role: 'user', parts: responseParts });
 
-      // Inject vision screenshots as a follow-up user message (Gemini supports inlineData)
-      for (const imgData of pendingVisionImages) {
-        const base64 = imgData.replace(/^data:image\/\w+;base64,/, '');
+      // Inject only the LAST vision screenshot per iteration to limit token bloat
+      // (each base64 screenshot adds ~20K+ tokens to history)
+      if (pendingVisionImages.length > 0) {
+        const lastImg = pendingVisionImages[pendingVisionImages.length - 1];
+        const base64 = lastImg.replace(/^data:image\/\w+;base64,/, '');
         geminiHistory.push({
           role: 'user',
           parts: [
             { inlineData: { mimeType: 'image/png', data: base64 } } as unknown as GeminiPart,
-            { text: 'This is a screenshot of the frame analyzed above. Use the visual style, colors, composition, and imagery you can see to inform your design decisions and image generation prompts.' },
+            { text: 'Screenshot of the frame analyzed above. Use the visual style, colors, and composition to inform your design decisions.' },
           ],
         });
       }
@@ -1531,7 +1842,7 @@ export async function handleChatTurn(
     };
   }
 
-  if (provider === 'openai') {
+  if (provider === 'openai' || provider === 'venice') {
     const openaiHistory = history as Array<Record<string, unknown>>;
     if (request.attachmentBase64 && (model.startsWith('gpt-4') || model.includes('gpt-4o'))) {
       openaiHistory.push({
@@ -1545,15 +1856,16 @@ export async function handleChatTurn(
       openaiHistory.push({ role: 'user', content: message });
     }
 
+    const callFn = provider === 'venice' ? callVeniceAPI : callOpenAIAPI;
     let remaining = MAX_ITERATIONS;
     while (remaining-- > 0) {
       if (iterationsUsed > 0) await sleep(500);
       iterationsUsed++;
 
-      const response = await callOpenAIAPI(openaiHistory, model, apiKey, systemPrompt, resolveTools(iterationsUsed));
+      const response = await callWithRetry(() => callFn(openaiHistory, model, apiKey, systemPrompt, resolveTools(iterationsUsed)));
       const choices = response.choices as Array<Record<string, unknown>> | undefined;
       const choice = choices?.[0];
-      if (!choice?.message) throw new Error('Empty response from OpenAI');
+      if (!choice?.message) throw new Error(`Empty response from ${provider === 'venice' ? 'Venice' : 'OpenAI'}`);
 
       const msg = choice.message as Record<string, unknown>;
       if (msg.content) textParts.push(msg.content as string);
@@ -1621,7 +1933,7 @@ export async function handleChatTurn(
     if (iterationsUsed > 0) await sleep(500);
     iterationsUsed++;
 
-    const response = await callAnthropicAPI(claudeHistory, model, apiKey, systemPrompt, resolveTools(iterationsUsed));
+    const response = await callWithRetry(() => callAnthropicAPI(claudeHistory, model, apiKey, systemPrompt, resolveTools(iterationsUsed)));
 
     const texts: string[] = [];
     const toolUses: ContentBlock[] = [];
@@ -1640,6 +1952,7 @@ export async function handleChatTurn(
     claudeHistory.push({ role: 'assistant', content: response.content });
 
     const toolResults: ContentBlock[] = [];
+    let screenshotInjectedThisIteration = false;
     for (const toolUse of toolUses) {
       toolsUsed.add(toolUse.name!);
       let result: ToolCallResult;
@@ -1654,8 +1967,9 @@ export async function handleChatTurn(
       }
       toolCallLog.push({ name: toolUse.name!, success: !result.is_error });
 
-      if (result.visionImage && !result.is_error) {
-        // Include screenshot inline in the tool_result for Claude vision
+      // Limit to 1 screenshot per iteration to prevent token bloat (~20K+ tokens each)
+      if (result.visionImage && !result.is_error && !screenshotInjectedThisIteration) {
+        screenshotInjectedThisIteration = true;
         const base64 = result.visionImage.replace(/^data:image\/\w+;base64,/, '');
         toolResults.push({
           type: 'tool_result',

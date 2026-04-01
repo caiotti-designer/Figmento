@@ -13,7 +13,29 @@ import { getDesignSystemCache, handleScanDesignSystem } from './design-system-di
 import { handleBatchExecute, handleCreateDesignCmd, handleScanTemplateCmd, handleApplyTemplateTextCmd, handleApplyTemplateImageCmd, runRefinementCheck } from './canvas-batch';
 import { handleCreateDSShowcase } from './ds-showcase';
 import { tryComponentInstance, isComponentMatchableFrame } from './component-matcher';
-import { handleCreateComponent, handleConvertToComponent, handleCombineAsVariants, handleCreateInstance, handleDetachInstance, handleSetReactions, handleGetReactions } from './canvas-components';
+import { handleCreateComponent, handleConvertToComponent, handleCombineAsVariants, handleCreateInstance, handleDetachInstance, handleSetReactions, handleGetReactions, handleMakeInteractive, handleCreatePrototypeFlow } from './canvas-components';
+
+/**
+ * Idempotency guard — prevents duplicate command execution from WebSocket replays
+ * or retry logic. Tracks recently processed command IDs with a sliding window.
+ */
+const processedCommandIds = new Set<string>();
+const IDEMPOTENCY_WINDOW = 500; // max tracked IDs before pruning
+
+function markProcessed(id: string): void {
+  processedCommandIds.add(id);
+  if (processedCommandIds.size > IDEMPOTENCY_WINDOW) {
+    // Prune oldest half (Set preserves insertion order)
+    const entries = [...processedCommandIds];
+    for (let i = 0; i < entries.length / 2; i++) {
+      processedCommandIds.delete(entries[i]);
+    }
+  }
+}
+
+/** Cached results for idempotency — stores last response per command ID. */
+const idempotencyCache = new Map<string, WSResponse>();
+const IDEMPOTENCY_CACHE_MAX = 200;
 
 export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
   const baseResponse = {
@@ -21,6 +43,17 @@ export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
     id: cmd.id,
     channel: cmd.channel,
   };
+
+  // Idempotency check: if this command ID was already processed, return cached result
+  if (cmd.id && processedCommandIds.has(cmd.id)) {
+    const cached = idempotencyCache.get(cmd.id);
+    if (cached) {
+      console.log(`[Idempotency] Skipping duplicate command ${cmd.id} (${cmd.action})`);
+      return cached;
+    }
+    // ID was processed but cache was pruned — return success with warning
+    return { ...baseResponse, success: true, data: { warning: 'Duplicate command skipped', action: cmd.action } };
+  }
 
   try {
     let data: Record<string, unknown>;
@@ -198,14 +231,36 @@ export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
         data = await handleSetReactions(cmd.params); break;
       case 'get_reactions':
         data = await handleGetReactions(cmd.params); break;
+      // IC-10: Make Interactive
+      case 'make_interactive':
+        data = await handleMakeInteractive(cmd.params); break;
+      // IC-12: Prototype Flow Generator
+      case 'create_prototype_flow':
+        data = await handleCreatePrototypeFlow(cmd.params); break;
       default:
         return { ...baseResponse, success: false, error: `Unknown action: ${cmd.action}` };
     }
 
-    return { ...baseResponse, success: true, data };
+    const response: WSResponse = { ...baseResponse, success: true, data };
+    // Mark as processed and cache for idempotency
+    if (cmd.id) {
+      markProcessed(cmd.id);
+      idempotencyCache.set(cmd.id, response);
+      if (idempotencyCache.size > IDEMPOTENCY_CACHE_MAX) {
+        const firstKey = idempotencyCache.keys().next().value;
+        if (firstKey) idempotencyCache.delete(firstKey);
+      }
+    }
+    return response;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const { code, recoverable } = classifyError(errorMessage);
-    return { ...baseResponse, success: false, error: errorMessage, errorCode: code, recoverable };
+    const errResponse: WSResponse = { ...baseResponse, success: false, error: errorMessage, errorCode: code, recoverable };
+    // Mark failed commands as processed too — prevent retry of known failures
+    if (cmd.id) {
+      markProcessed(cmd.id);
+      idempotencyCache.set(cmd.id, errResponse);
+    }
+    return errResponse;
   }
 }
