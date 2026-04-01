@@ -280,11 +280,10 @@ function stripBase64FromMessages(messages: unknown[]): unknown[] {
 
 function saveChatHistory() {
   const history = getActiveHistory();
-  if (history.length === 0) return;
+  const bubbles = document.querySelectorAll('#chat-messages .chat-bubble');
+  if (history.length === 0 && bubbles.length === 0) return;
 
   const apiHistory = stripBase64FromMessages(history).slice(-50);
-
-  const bubbles = document.querySelectorAll('#chat-messages .chat-bubble');
   const displayLog: ChatHistoryPayload['displayLog'] = [];
   bubbles.forEach(el => {
     const role = el.classList.contains('user') ? 'user' as const : 'assistant' as const;
