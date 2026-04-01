@@ -4,12 +4,9 @@
 
 import { detectNeededHelpers } from './helpers';
 import { TEMPLATES } from './templates';
+import type { BatchCommand } from '../batch';
 
-export interface CodegenCommand {
-  action: string;
-  params: Record<string, unknown>;
-  tempId?: string;
-}
+export type CodegenCommand = BatchCommand;
 
 const MAX_CODE_SIZE = 45_000; // 45KB, leaving 5KB margin within use_figma's 50KB limit
 const CREATION_ACTIONS = new Set([

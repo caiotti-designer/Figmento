@@ -5,6 +5,7 @@ import * as nodePath from 'path';
 import * as yaml from 'js-yaml';
 import { analyzeAndSave } from './references';
 import { resolveBlueprint, getLayoutsDir } from './layouts';
+import { generateFigmaCode } from './codegen/codegen';
 
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
@@ -42,6 +43,7 @@ export function registerOrchestrationTools(server: McpServer, sendDesignCommand:
       brief: z.string().describe('Design brief describing the desired output'),
       format: z.string().optional().describe('Format preset (e.g., "instagram_portrait", "hero"). Defaults to "instagram_square".'),
       brandKit: z.string().optional().describe('Brand kit name to load colors/fonts from'),
+      outputMode: z.enum(['execute', 'codegen']).optional().describe('Output mode: "execute" (default) or "codegen" for use_figma JavaScript'),
     },
     async (params) => {
       const format = params.format || 'instagram_square';
@@ -91,12 +93,25 @@ export function registerOrchestrationTools(server: McpServer, sendDesignCommand:
         }
       }
 
-      // Step 4: Generate design image (async by default)
+      // Step 4: Codegen path — return Plugin API JavaScript
+      if (params.outputMode === 'codegen') {
+        const commands = [{
+          action: 'create_frame' as const,
+          params: { name: `Reference Design — ${params.brief.slice(0, 30)}`, width: 1080, height: 1080, fillColor: '#0A0A0F' },
+          tempId: 'ref_frame',
+        }];
+        const code = generateFigmaCode(commands);
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({
+            outputMode: 'codegen', code, commandCount: 1,
+            analysis, blueprint, enrichedBrief: params.brief,
+          }) }],
+        };
+      }
+
+      // Step 4b: Execute path — Generate design image
       let frameResult: Record<string, unknown> = {};
       try {
-        // Call generate_design_image via sendDesignCommand through the tool system
-        // Since we can't call MCP tools internally, we replicate the core logic:
-        // Create frame → fire background image gen
         const formatKey = format.toLowerCase().replace(/[\s-]/g, '_');
 
         // Create frame
@@ -173,6 +188,7 @@ export function registerOrchestrationTools(server: McpServer, sendDesignCommand:
       format: z.string().optional().describe('Format preset (default "instagram_square")'),
       prompt: z.string().optional().describe('Additional prompt guidance for variations'),
       brandKit: z.string().optional().describe('Brand kit name for brand-consistent overlays'),
+      outputMode: z.enum(['execute', 'codegen']).optional().describe('Output mode: "execute" (default) or "codegen" for use_figma JavaScript'),
     },
     async (params) => {
       const count = Math.min(params.count ?? 4, 6);
@@ -229,10 +245,33 @@ export function registerOrchestrationTools(server: McpServer, sendDesignCommand:
       };
       const dims = formatDims[format.toLowerCase().replace(/[\s-]/g, '_')] || { w: 1080, h: 1080 };
 
-      // Step 3: Generate variations
-      const variations: Array<Record<string, unknown>> = [];
+      // Step 3: Codegen path — batch all frames into single code block
       const baseMood = analysis ? ((analysis.tags as string[]) || []).slice(0, 2).join(' ') : 'modern professional';
       const basePrompt = params.prompt || (analysis?.notable as string) || 'Professional product advertisement';
+
+      if (params.outputMode === 'codegen') {
+        const commands = [];
+        for (let i = 0; i < count; i++) {
+          const x = i * (dims.w + 200);
+          commands.push({
+            action: 'create_frame',
+            params: { name: `Ad Variation ${i + 1}`, width: dims.w, height: dims.h, x, y: 0, fillColor: '#0A0A0F' },
+            tempId: `ad_var_${i}`,
+          });
+        }
+        const code = generateFigmaCode(commands);
+        const variations = commands.map((c, i) => ({
+          index: i + 1, tempId: c.tempId, width: dims.w, height: dims.h,
+          prompt: `${basePrompt}. ${VARIATION_MODIFIERS[i % VARIATION_MODIFIERS.length]}.${brandContext}`,
+          mood: baseMood, textZone: 'bottom-40%',
+        }));
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ outputMode: 'codegen', code, commandCount: commands.length, format, count, analysis, variations }) }],
+        };
+      }
+
+      // Step 3b: Execute path — Generate variations
+      const variations: Array<Record<string, unknown>> = [];
 
       for (let i = 0; i < count; i++) {
         const modifier = VARIATION_MODIFIERS[i % VARIATION_MODIFIERS.length];

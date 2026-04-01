@@ -11,6 +11,7 @@ import {
   recipeToCommands,
   deepMerge,
 } from './design-system';
+import { generateFigmaCode } from './codegen/codegen';
 
 // ═══════════════════════════════════════════════════════════
 // Pattern Recipe Types
@@ -124,6 +125,7 @@ export const createFromPatternSchema = {
   parentId: z.string().optional().describe('Parent frame nodeId to place pattern inside'),
   x: z.coerce.number().optional().describe('X position'),
   y: z.coerce.number().optional().describe('Y position'),
+  outputMode: z.enum(['execute', 'codegen']).optional().describe('Output mode: "execute" (default) runs via WS relay, "codegen" returns Plugin API JavaScript for use_figma'),
 };
 
 export const listPatternsSchema = {};
@@ -272,7 +274,25 @@ export function registerPatternTools(server: McpServer, sendDesignCommand: SendD
         variant,
       });
 
-      // 9. Execute via batch_execute
+      // 9. Codegen path — return Plugin API JavaScript for use_figma
+      if (params.outputMode === 'codegen') {
+        const code = generateFigmaCode(commands);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              outputMode: 'codegen',
+              code,
+              commandCount: commands.length,
+              pattern: params.pattern,
+              variant,
+              format: params.format,
+            }),
+          }],
+        };
+      }
+
+      // 9b. Execute via batch_execute (default)
       const data = await sendDesignCommand('batch_execute', { commands });
 
       // 10. Extract result info
