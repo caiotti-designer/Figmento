@@ -77,7 +77,7 @@ const DEFAULT_CHUNK_SIZE = 40;
 
 // ─── BatchCommand type ──────────────────────────────────────────────────────
 
-interface BatchCommand {
+export interface BatchCommand {
   action: string;
   params: Record<string, unknown>;
   tempId?: string;

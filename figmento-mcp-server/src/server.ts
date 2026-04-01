@@ -26,6 +26,7 @@ import { registerImageFillTools } from './tools/image-fill';
 import { registerBriefAnalysisTools } from './tools/brief-analysis';
 import { registerDSPipelineTools } from './tools/ds-pipeline';
 import { registerInteractiveComponentTools } from './tools/components';
+import { registerCodegenTools } from './tools/codegen';
 
 /**
  * Creates and configures the Figmento MCP server with all design tools.
@@ -92,6 +93,7 @@ export function createFigmentoServer(): FigmentoServerResult {
   registerBriefAnalysisTools(server);
   registerDSPipelineTools(server, sendDesignCommand);
   registerInteractiveComponentTools(server, sendDesignCommand);
+  registerCodegenTools(server);
 
   // SP-7: Pre-warm knowledge cache (fire-and-forget, non-blocking)
   preWarmKnowledgeCache();
