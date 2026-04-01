@@ -64,8 +64,8 @@ function discoverComponents(): { components: DiscoveredComponent[]; truncated: b
         name: node.name,
         description: (node as ComponentNode | ComponentSetNode).description || '',
         category: categorizeComponent(node.name),
-        width: Math.round(node.width),
-        height: Math.round(node.height),
+        width: Math.round('width' in node ? node.width : 0),
+        height: Math.round('height' in node ? node.height : 0),
         nodeType: node.type as 'COMPONENT' | 'COMPONENT_SET',
       };
 
@@ -117,7 +117,7 @@ async function readVariablesAndStyles(): Promise<{
     const resolvedValues: Record<string, unknown> = {};
     for (const [modeId, value] of Object.entries(v.valuesByMode)) {
       const modeName = modeNameMap.get(modeId) || modeId;
-      if (typeof value === 'object' && value !== null && 'type' in value && (value as Record<string, unknown>).type === 'VARIABLE_ALIAS') {
+      if (typeof value === 'object' && value !== null && 'type' in value && (value as unknown as Record<string, unknown>).type === 'VARIABLE_ALIAS') {
         const aliasId = (value as VariableAlias).id;
         const aliasVar = await figma.variables.getVariableByIdAsync(aliasId);
         resolvedValues[modeName] = { alias: true, aliasName: aliasVar?.name || aliasId, aliasId };

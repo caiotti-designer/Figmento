@@ -398,6 +398,39 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
       }
       break;
 
+    // IS-8: Place image from Image Studio (no relay needed)
+    case 'place-studio-image':
+      try {
+        const studioBase64: string = (msg as any).imageBase64;
+        const studioMime: string = (msg as any).mimeType || 'image/png';
+        const studioName: string = (msg as any).name || 'Image Studio';
+        const studioW: number = (msg as any).width || 512;
+        const studioH: number = (msg as any).height || 512;
+
+        const stFrame = figma.createFrame();
+        stFrame.name = studioName;
+        stFrame.resize(studioW, studioH);
+
+        const stBytes = figma.base64Decode(studioBase64);
+        const stImg = figma.createImage(stBytes);
+        stFrame.fills = [{ type: 'IMAGE', imageHash: stImg.hash, scaleMode: 'FILL' }];
+
+        const stCenter = figma.viewport.center;
+        stFrame.x = Math.round(stCenter.x - studioW / 2);
+        stFrame.y = Math.round(stCenter.y - studioH / 2);
+
+        figma.currentPage.selection = [stFrame];
+        figma.viewport.scrollAndZoomIntoView([stFrame]);
+
+        figma.ui.postMessage({ type: 'studio-image-placed', nodeId: stFrame.id });
+        figma.notify('Image placed on canvas', { timeout: 2000 });
+      } catch (error) {
+        const stErr = error instanceof Error ? error.message : 'Unknown error';
+        figma.ui.postMessage({ type: 'studio-image-error', error: stErr });
+        figma.notify('Error placing image: ' + stErr, { error: true });
+      }
+      break;
+
   }
 };
 

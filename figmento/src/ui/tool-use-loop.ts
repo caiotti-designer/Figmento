@@ -36,6 +36,7 @@ export interface AnthropicMessage {
 
 export interface GeminiPart {
   text?: string;
+  thought?: boolean;
   functionCall?: { name: string; args: Record<string, unknown> };
   functionResponse?: { name: string; response: Record<string, unknown> };
 }
@@ -63,7 +64,7 @@ export interface ToolCallResult {
 
 export interface ToolUseLoopOptions {
   /** Which AI provider to call. */
-  provider: 'claude' | 'gemini' | 'openai';
+  provider: 'claude' | 'gemini' | 'openai' | 'venice';
   /** Provider API key. */
   apiKey: string;
   /** Model ID. */
@@ -144,6 +145,25 @@ export function stripBase64FromResult(data: Record<string, unknown>): Record<str
 /** Delay helper — spreads API calls to avoid TPM rate limits. */
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/** Retry wrapper for API calls — retries once on timeout, then throws a user-friendly error. */
+async function callWithRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 2000): Promise<T> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt < retries && err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+        await sleep(delayMs);
+        continue;
+      }
+      if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+        throw new Error('API request timed out after 60s. The model may be overloaded — try again or switch models.');
+      }
+      throw err;
+    }
+  }
+  throw new Error('Unreachable');
 }
 
 /**
@@ -350,6 +370,7 @@ async function callAnthropicAPI(
       tools,
       messages,
     }),
+    signal: AbortSignal.timeout(60_000),
   });
 
   if (!resp.ok) {
@@ -358,6 +379,23 @@ async function callAnthropicAPI(
   }
 
   return resp.json();
+}
+
+/**
+ * Build the generationConfig for Gemini, adjusting thinking settings per model family:
+ * - Gemini 3.x: uses `thinkingConfig.thinkingLevel` ("LOW" for tool-use speed)
+ * - Gemini 2.5 Pro: uses `thinkingConfig.thinkingBudget` (min 128, cannot disable)
+ * - Gemini 2.5 Flash: uses `thinkingConfig.thinkingBudget` (0 disables)
+ * - Others (flash-image-preview, etc.): no thinking config needed
+ */
+function buildGeminiGenerationConfig(model: string): Record<string, unknown> {
+  const config: Record<string, unknown> = { maxOutputTokens: 8192 };
+  if (model.startsWith('gemini-3')) {
+    config.thinkingConfig = { thinkingLevel: 'LOW' };
+  } else if (model.includes('2.5-pro') || model.includes('2.5-flash')) {
+    config.thinkingConfig = { thinkingBudget: model.includes('pro') ? 128 : 0 };
+  }
+  return config;
 }
 
 async function callGeminiAPI(
@@ -377,8 +415,9 @@ async function callGeminiAPI(
         systemInstruction: { parts: [{ text: systemPrompt }] },
         tools: [{ functionDeclarations: convertToolsToGemini(tools) }],
         toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
-        generationConfig: { maxOutputTokens: 8192 },
+        generationConfig: buildGeminiGenerationConfig(model),
       }),
+      signal: AbortSignal.timeout(60_000),
     }
   );
 
@@ -410,11 +449,43 @@ async function callOpenAIAPI(
       tools: convertToolsToOpenAI(tools),
       tool_choice: 'auto',
     }),
+    signal: AbortSignal.timeout(60_000),
   });
 
   if (!resp.ok) {
     const errBody = await resp.text();
     throw new Error(`OpenAI API error ${resp.status}: ${errBody}`);
+  }
+
+  return resp.json();
+}
+
+async function callVeniceAPI(
+  messages: Array<Record<string, unknown>>,
+  model: string,
+  apiKey: string,
+  systemPrompt: string,
+  tools: ToolDefinition[],
+): Promise<Record<string, unknown>> {
+  const resp = await fetch('https://api.venice.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      max_completion_tokens: 8192,
+      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      tools: convertToolsToOpenAI(tools),
+      tool_choice: 'auto',
+    }),
+    signal: AbortSignal.timeout(60_000),
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`Venice API error ${resp.status}: ${errBody}`);
   }
 
   return resp.json();
@@ -480,7 +551,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
     while (remaining-- > 0) {
       if (iterationsUsed > 0) await sleep(500);
       iterationsUsed++;
-      const response = await callGeminiAPI(history, model, apiKey, systemPrompt, resolveTools());
+      const response = await callWithRetry(() => callGeminiAPI(history, model, apiKey, systemPrompt, resolveTools()));
 
       const candidates = response.candidates as Array<Record<string, unknown>> | undefined;
       const candidate = candidates?.[0];
@@ -495,7 +566,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
       const functionCalls: GeminiPart[] = [];
 
       for (const part of parts) {
-        if (part.text) textParts.push(part.text);
+        if (part.text && !part.thought) textParts.push(part.text);
         if (part.functionCall) functionCalls.push(part);
       }
 
@@ -571,20 +642,21 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
       history.push({ role: 'user', parts: responseParts });
     }
 
-  // ── OpenAI branch ────────────────────────────────────────────
-  } else if (provider === 'openai') {
+  // ── OpenAI / Venice branch ────────────────────────────────────
+  } else if (provider === 'openai' || provider === 'venice') {
     const history = messages as Array<Record<string, unknown>>;
+    const callFn = provider === 'venice' ? callVeniceAPI : callOpenAIAPI;
     let remaining = maxIterations;
 
     while (remaining-- > 0) {
       if (iterationsUsed > 0) await sleep(500);
       iterationsUsed++;
-      const response = await callOpenAIAPI(history, model, apiKey, systemPrompt, resolveTools());
+      const response = await callWithRetry(() => callFn(history, model, apiKey, systemPrompt, resolveTools()));
 
       const choices = response.choices as Array<Record<string, unknown>> | undefined;
       const choice = choices?.[0];
       if (!choice?.message) {
-        throw new Error('Empty response from OpenAI');
+        throw new Error(`Empty response from ${provider === 'venice' ? 'Venice' : 'OpenAI'}`);
       }
 
       const message = choice.message as Record<string, unknown>;
@@ -663,7 +735,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
     while (remaining-- > 0) {
       if (iterationsUsed > 0) await sleep(500);
       iterationsUsed++;
-      const response = await callAnthropicAPI(history, model, apiKey, systemPrompt, resolveTools());
+      const response = await callWithRetry(() => callAnthropicAPI(history, model, apiKey, systemPrompt, resolveTools()));
 
       const textParts: string[] = [];
       const toolUses: ContentBlock[] = [];

@@ -683,6 +683,47 @@ export interface CreateHeroImageMessage {
   name?: string;
 }
 
+export interface GetSelectionMessage {
+  type: 'get-selection';
+}
+
+export interface SaveThemeMessage {
+  type: 'save-theme';
+  theme: string;
+}
+
+export interface GetThemeMessage {
+  type: 'get-theme';
+}
+
+export interface SaveDsToggleMessage {
+  type: 'save-ds-toggle';
+  enabled: boolean;
+}
+
+export interface LoadDsToggleMessage {
+  type: 'load-ds-toggle';
+}
+
+export interface SetAutoBindVariablesMessage {
+  type: 'set-auto-bind-variables';
+  enabled: boolean;
+}
+
+export interface ZoomToNodeMessage {
+  type: 'zoom-to-node';
+  nodeId: string;
+}
+
+export interface PlaceStudioImageMessage {
+  type: 'place-studio-image';
+  imageBase64: string;
+  mimeType?: string;
+  name?: string;
+  width?: number;
+  height?: number;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // UNIFIED PLUGIN MESSAGE TYPE
 // ═══════════════════════════════════════════════════════════════
@@ -720,7 +761,15 @@ export type PluginMessage =
   | GetSettingsMessage
   | SaveSettingsMessage
   | ScanDesignSystemMessage
-  | DesignSystemScannedMessage;
+  | DesignSystemScannedMessage
+  | GetSelectionMessage
+  | SaveThemeMessage
+  | GetThemeMessage
+  | SaveDsToggleMessage
+  | LoadDsToggleMessage
+  | SetAutoBindVariablesMessage
+  | ZoomToNodeMessage
+  | PlaceStudioImageMessage;
 
 export interface GetSettingsMessage {
   type: 'get-settings';

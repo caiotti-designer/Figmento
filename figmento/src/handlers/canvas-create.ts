@@ -67,7 +67,7 @@ export async function handleCreateVector(params: Record<string, unknown>): Promi
         tangentStart: s.tangentStart || { x: 0, y: 0 },
         tangentEnd: s.tangentEnd || { x: 0, y: 0 },
       })),
-      regions: (vn.regions || []) as VectorRegion[],
+      regions: (vn.regions || []) as unknown as VectorRegion[],
     };
   }
 

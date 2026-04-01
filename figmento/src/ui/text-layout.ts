@@ -65,7 +65,7 @@ const referenceImageRoles: ImageRole[] = [];
 let currentLayoutPreset: LayoutPreset = 'auto';
 const carouselConfig: CarouselConfig = { enabled: false, slideCount: 'auto', slideFormat: 'square' };
 let textImageGenEnabled = false;
-let textImageGenModel: ImageGenModel = 'gemini-3.1-flash-image-preview';
+let textImageGenModel: ImageGenModel = 'gemini-3-pro-image-preview';
 let customStyleEnabled = false;
 
 // Processing state
@@ -499,7 +499,7 @@ function buildTextLayoutInstruction(input: TextLayoutInput): string {
   }
 
   // Blueprint zone injection
-  const category = inferCategory(input);
+  const category = inferCategory(input.format.name);
   if (category) {
     const blueprint = getRelevantBlueprint(category);
     if (blueprint) {

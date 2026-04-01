@@ -193,7 +193,7 @@ export async function handleSetAutoLayout(params: Record<string, unknown>): Prom
 
   // FN-8: Auto-bind FLOAT spacing variables
   let boundSpacingVariables: Record<string, string> = {};
-  if (mode !== 'NONE') {
+  if ((mode as string) !== 'NONE') {
     try {
       const autoBindParam = params.autoBindVariables as boolean | undefined;
       boundSpacingVariables = await tryBindSpacingVariables(frame, {
@@ -233,7 +233,7 @@ export function handleFlipGradient(params: Record<string, unknown>): Record<stri
       flippedCount++;
       return {
         ...fill,
-        gradientStops: fill.gradientStops.map(stop => ({
+        gradientStops: fill.gradientStops.map((stop: any) => ({
           ...stop,
           position: 1 - stop.position,
         })),

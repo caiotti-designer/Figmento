@@ -731,7 +731,7 @@ export const handleGeneratePresentation = async (): Promise<void> => {
 
   const provider = getPresentationProvider();
   const model = getPresentationModel();
-  const totalSlides = input.slideCount;
+  const totalSlides = typeof input.slideCount === 'number' ? input.slideCount : 5;
   const slideWidth = input.format.width;
   const slideHeight = input.format.height;
   const font = input.font || '';

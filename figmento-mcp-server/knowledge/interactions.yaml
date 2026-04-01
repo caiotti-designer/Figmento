@@ -1,32 +1,30 @@
-# Interaction Presets — IC-6
+# Interaction Presets — IC-6 + IC-11
 # Reusable prototype interaction patterns for common UI elements.
 # Each preset defines triggers, actions, transitions, and easing.
 # Use $placeholder variables for destination node IDs — resolved at apply time.
+# Industry tags: general, e-commerce, saas, mobile
 
 presets:
+  # ═══════════════════════════════════════════════════════════════
+  # General Presets (IC-6)
+  # ═══════════════════════════════════════════════════════════════
+
   button-hover:
-    description: "Smooth hover state swap on mouse enter/leave"
+    description: "One-way hover state swap — Figma snaps back to default automatically"
+    industry: general
     requires: variant_with_states  # Needs state=default and state=hover variants
     reactions:
-      - trigger: MOUSE_ENTER
+      - trigger: ON_HOVER
         action: NODE
         destination: "$hover_variant"
         navigation: CHANGE_TO
         transition: SMART_ANIMATE
-        duration: 150
+        duration: 300
         easing: EASE_OUT
-        delay: 0
-      - trigger: MOUSE_LEAVE
-        action: NODE
-        destination: "$default_variant"
-        navigation: CHANGE_TO
-        transition: SMART_ANIMATE
-        duration: 150
-        easing: EASE_OUT
-        delay: 0
 
   button-press:
     description: "Active/pressed state on mouse down, revert on release"
+    industry: general
     requires: variant_with_states  # Needs state=default and state=pressed
     reactions:
       - trigger: MOUSE_DOWN
@@ -47,25 +45,17 @@ presets:
         delay: 0
 
   button-full:
-    description: "Complete button interaction: hover + press + release"
+    description: "Complete button interaction: one-way hover + press + release"
+    industry: general
     requires: variant_with_states  # Needs state=default, state=hover, state=pressed
     reactions:
-      - trigger: MOUSE_ENTER
+      - trigger: ON_HOVER
         action: NODE
         destination: "$hover_variant"
         navigation: CHANGE_TO
         transition: SMART_ANIMATE
-        duration: 150
+        duration: 300
         easing: EASE_OUT
-        delay: 0
-      - trigger: MOUSE_LEAVE
-        action: NODE
-        destination: "$default_variant"
-        navigation: CHANGE_TO
-        transition: SMART_ANIMATE
-        duration: 150
-        easing: EASE_OUT
-        delay: 0
       - trigger: MOUSE_DOWN
         action: NODE
         destination: "$pressed_variant"
@@ -76,7 +66,7 @@ presets:
         delay: 0
       - trigger: MOUSE_UP
         action: NODE
-        destination: "$hover_variant"
+        destination: "$default_variant"
         navigation: CHANGE_TO
         transition: SMART_ANIMATE
         duration: 120
@@ -84,28 +74,21 @@ presets:
         delay: 0
 
   card-hover:
-    description: "Subtle lift effect on card hover (shadow + scale via smart animate)"
+    description: "Subtle lift effect on card hover — one-way, Figma snaps back"
+    industry: general
     requires: variant_with_states
     reactions:
-      - trigger: MOUSE_ENTER
+      - trigger: ON_HOVER
         action: NODE
         destination: "$hover_variant"
         navigation: CHANGE_TO
         transition: SMART_ANIMATE
-        duration: 200
+        duration: 300
         easing: GENTLE
-        delay: 0
-      - trigger: MOUSE_LEAVE
-        action: NODE
-        destination: "$default_variant"
-        navigation: CHANGE_TO
-        transition: SMART_ANIMATE
-        duration: 200
-        easing: GENTLE
-        delay: 0
 
   nav-link:
     description: "Navigate to a destination frame on click"
+    industry: general
     requires: destination_frame
     reactions:
       - trigger: ON_CLICK
@@ -118,6 +101,7 @@ presets:
 
   modal-open:
     description: "Open an overlay frame on click"
+    industry: general
     requires: overlay_frame
     reactions:
       - trigger: ON_CLICK
@@ -130,12 +114,14 @@ presets:
 
   modal-close:
     description: "Close the current overlay on click"
+    industry: general
     reactions:
       - trigger: ON_CLICK
         action: CLOSE
 
   tab-switch:
     description: "Swap content frame on tab click"
+    industry: general
     requires: destination_frame
     reactions:
       - trigger: ON_CLICK
@@ -148,6 +134,7 @@ presets:
 
   carousel-next:
     description: "Slide to next item on click (left direction)"
+    industry: general
     requires: destination_frame
     reactions:
       - trigger: ON_CLICK
@@ -161,6 +148,7 @@ presets:
 
   carousel-prev:
     description: "Slide to previous item on click (right direction)"
+    industry: general
     requires: destination_frame
     reactions:
       - trigger: ON_CLICK
@@ -174,12 +162,14 @@ presets:
 
   back-navigation:
     description: "Navigate back on click (browser-like back)"
+    industry: general
     reactions:
       - trigger: ON_CLICK
         action: BACK
 
   tooltip-show:
     description: "Show tooltip overlay on hover"
+    industry: general
     requires: overlay_frame
     reactions:
       - trigger: MOUSE_ENTER
@@ -195,6 +185,7 @@ presets:
 
   page-transition-push:
     description: "Push transition to a new page (mobile app style)"
+    industry: general
     requires: destination_frame
     reactions:
       - trigger: ON_CLICK
@@ -205,3 +196,177 @@ presets:
         duration: 300
         easing: EASE_IN_AND_OUT
         direction: LEFT
+
+  # ═══════════════════════════════════════════════════════════════
+  # E-Commerce Presets (IC-11)
+  # ═══════════════════════════════════════════════════════════════
+
+  add-to-cart:
+    description: "Add-to-cart button with press feedback and confirmation overlay"
+    industry: e-commerce
+    requires: variant_with_states
+    reactions:
+      - trigger: ON_CLICK
+        action: NODE
+        destination: "$pressed_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 100
+        easing: EASE_IN
+      - trigger: MOUSE_UP
+        action: NODE
+        destination: "$default_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 200
+        easing: EASE_OUT
+
+  product-zoom:
+    description: "Zoom into product image on click (overlay at center)"
+    industry: e-commerce
+    requires: overlay_frame
+    reactions:
+      - trigger: ON_CLICK
+        action: NODE
+        destination: "$zoom_overlay"
+        navigation: OVERLAY
+        transition: SMART_ANIMATE
+        duration: 300
+        easing: EASE_OUT
+
+  filter-toggle:
+    description: "Toggle filter panel visibility on click"
+    industry: e-commerce
+    requires: variant_with_states
+    reactions:
+      - trigger: ON_CLICK
+        action: NODE
+        destination: "$toggled_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 250
+        easing: EASE_IN_AND_OUT
+
+  quantity-stepper:
+    description: "Increment/decrement quantity with press feedback"
+    industry: e-commerce
+    requires: variant_with_states
+    reactions:
+      - trigger: MOUSE_DOWN
+        action: NODE
+        destination: "$pressed_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 60
+        easing: EASE_IN
+      - trigger: MOUSE_UP
+        action: NODE
+        destination: "$default_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 100
+        easing: EASE_OUT
+
+  # ═══════════════════════════════════════════════════════════════
+  # SaaS Presets (IC-11)
+  # ═══════════════════════════════════════════════════════════════
+
+  dropdown-menu:
+    description: "Open dropdown menu as overlay below trigger"
+    industry: saas
+    requires: overlay_frame
+    reactions:
+      - trigger: ON_CLICK
+        action: NODE
+        destination: "$dropdown"
+        navigation: OVERLAY
+        transition: MOVE_IN
+        duration: 200
+        easing: EASE_OUT
+        direction: BOTTOM
+
+  sidebar-collapse:
+    description: "Collapse/expand sidebar on click"
+    industry: saas
+    requires: variant_with_states
+    reactions:
+      - trigger: ON_CLICK
+        action: NODE
+        destination: "$collapsed_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 300
+        easing: EASE_IN_AND_OUT
+
+  toast-notification:
+    description: "Slide-in toast notification from top, auto-dismiss after timeout"
+    industry: saas
+    requires: overlay_frame
+    reactions:
+      - trigger: AFTER_TIMEOUT
+        action: NODE
+        destination: "$toast"
+        navigation: OVERLAY
+        transition: MOVE_IN
+        duration: 250
+        easing: EASE_OUT
+        direction: TOP
+        timeout: 0
+
+  accordion-expand:
+    description: "Expand/collapse accordion section on click"
+    industry: saas
+    requires: variant_with_states
+    reactions:
+      - trigger: ON_CLICK
+        action: NODE
+        destination: "$expanded_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 300
+        easing: EASE_IN_AND_OUT
+
+  # ═══════════════════════════════════════════════════════════════
+  # Mobile Presets (IC-11)
+  # ═══════════════════════════════════════════════════════════════
+
+  swipe-navigate:
+    description: "Swipe left/right to navigate between pages"
+    industry: mobile
+    requires: destination_frame
+    reactions:
+      - trigger: ON_DRAG
+        action: NODE
+        destination: "$next_page"
+        navigation: NAVIGATE
+        transition: SLIDE_IN
+        duration: 300
+        easing: EASE_IN_AND_OUT
+        direction: LEFT
+
+  bottom-sheet:
+    description: "Open bottom sheet overlay sliding up from bottom"
+    industry: mobile
+    requires: overlay_frame
+    reactions:
+      - trigger: ON_CLICK
+        action: NODE
+        destination: "$sheet"
+        navigation: OVERLAY
+        transition: MOVE_IN
+        duration: 350
+        easing: GENTLE
+        direction: BOTTOM
+
+  pull-to-refresh:
+    description: "Pull-to-refresh gesture with state change"
+    industry: mobile
+    requires: variant_with_states
+    reactions:
+      - trigger: ON_DRAG
+        action: NODE
+        destination: "$refreshing_variant"
+        navigation: CHANGE_TO
+        transition: SMART_ANIMATE
+        duration: 300
+        easing: EASE_OUT

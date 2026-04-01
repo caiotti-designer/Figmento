@@ -14,7 +14,7 @@ import { handleExportNode, handleGetScreenshot, handleReadFigmaContext, handleBi
 import { getDesignSystemCache } from './design-system-discovery';
 import { tryComponentInstance, isComponentMatchableFrame } from './component-matcher';
 import { tryBindFillVariable, tryBindSpacingVariables, tryBindTextVariables } from './variable-binder';
-import { handleCreateComponent, handleConvertToComponent, handleCombineAsVariants, handleCreateInstance, handleDetachInstance, handleSetReactions, handleGetReactions } from './canvas-components';
+import { handleCreateComponent, handleConvertToComponent, handleCombineAsVariants, handleCreateInstance, handleDetachInstance, handleSetReactions, handleGetReactions, handleMakeInteractive, handleCreatePrototypeFlow } from './canvas-components';
 import type { DesignSystemCache } from '../types';
 
 // ═══════════════════════════════════════════════════════════════
@@ -361,8 +361,8 @@ export async function handleBatchExecute(params: Record<string, unknown>): Promi
       const expanded = interpolateValue(cmd.template, i) as BatchCommand;
 
       // Interpolate tempId if present
-      if (cmd.template.tempId) {
-        expanded.tempId = String(interpolateString(cmd.template.tempId, i));
+      if ((cmd.template as BatchCommand).tempId) {
+        expanded.tempId = String(interpolateString((cmd.template as BatchCommand).tempId!, i));
       }
 
       await executeRegularCommand(expanded);
@@ -510,6 +510,9 @@ export async function executeSingleAction(action: string, params: Record<string,
     case 'detach_instance': return await handleDetachInstance(params);
     case 'set_reactions': return await handleSetReactions(params);
     case 'get_reactions': return await handleGetReactions(params);
+    // IC-10/12: Smart interactions
+    case 'make_interactive': return await handleMakeInteractive(params);
+    case 'create_prototype_flow': return await handleCreatePrototypeFlow(params);
     default:
       throw new Error(`Unknown action in batch: ${action}`);
   }
@@ -751,7 +754,7 @@ export async function runRefinementCheck(nodeId: string): Promise<{
             description: `"${name}" has a gradient fill but no sibling text nodes — verify gradient direction manually.`,
           });
         } else {
-          const handles = gradientFill.gradientHandlePositions;
+          const handles = (gradientFill as any).gradientHandlePositions;
           if (handles && handles.length >= 2) {
             const nodeH = (sceneNode as LayoutMixin).height || 1;
             const nodeW = (sceneNode as LayoutMixin).width || 1;

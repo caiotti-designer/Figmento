@@ -263,7 +263,7 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
     case 'save-corrections': {
       try {
         const incoming = (msg as any).corrections as Array<Record<string, unknown>>;
-        const newEntries = incoming.map(c => ({ ...c, confirmed: true }));
+        const newEntries = incoming.map(c => ({ ...c, confirmed: true } as Record<string, unknown>));
 
         // Append to corrections store
         const existing: unknown[] = (await figma.clientStorage.getAsync(CORRECTIONS_STORAGE_KEY)) || [];

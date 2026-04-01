@@ -552,8 +552,8 @@ function detectElementType(node: SceneNode): DetectedType {
   }
 
   // Nav-link detection: text node with link-like name
-  if (node.type === 'TEXT') {
-    const name = node.name.toLowerCase();
+  if ((node.type as string) === 'TEXT') {
+    const name = (node as SceneNode).name.toLowerCase();
     const linkPatterns = ['nav', 'link', 'menu', 'home', 'about', 'contact', 'pricing', 'sign', 'log'];
     if (linkPatterns.some(p => name.includes(p))) {
       return 'nav-link';
@@ -628,8 +628,8 @@ export async function handleMakeInteractive(params: Record<string, unknown>): Pr
 
       // Convert to component if not already
       let comp: ComponentNode;
-      if (frame.type === 'COMPONENT') {
-        comp = frame;
+      if ((frame.type as string) === 'COMPONENT') {
+        comp = frame as unknown as ComponentNode;
       } else {
         comp = figma.createComponentFromNode(frame);
       }
@@ -690,8 +690,9 @@ export async function handleMakeInteractive(params: Record<string, unknown>): Pr
             tn.fontName = fontName;
             tn.characters = srcText.characters;
             tn.fontSize = srcText.fontSize as number;
-            if (srcText.lineHeight && typeof (srcText.lineHeight as LineHeight).value === 'number') {
-              tn.lineHeight = srcText.lineHeight as LineHeight;
+            const lh = srcText.lineHeight as LineHeight;
+            if (lh && lh.unit !== 'AUTO' && typeof lh.value === 'number') {
+              tn.lineHeight = lh;
             }
             tn.fills = JSON.parse(JSON.stringify(srcText.fills));
             tn.layoutSizingHorizontal = srcText.layoutSizingHorizontal;
@@ -743,8 +744,8 @@ export async function handleMakeInteractive(params: Record<string, unknown>): Pr
       const solidFill = fills.find(f => f.type === 'SOLID' && f.visible !== false) as SolidPaint | undefined;
 
       let comp: ComponentNode;
-      if (frame.type === 'COMPONENT') {
-        comp = frame;
+      if ((frame.type as string) === 'COMPONENT') {
+        comp = frame as unknown as ComponentNode;
       } else {
         comp = figma.createComponentFromNode(frame);
       }
@@ -795,8 +796,9 @@ export async function handleMakeInteractive(params: Record<string, unknown>): Pr
           tn.fontName = fontName;
           tn.characters = srcText.characters;
           tn.fontSize = srcText.fontSize as number;
-          if (srcText.lineHeight && typeof (srcText.lineHeight as LineHeight).value === 'number') {
-            tn.lineHeight = srcText.lineHeight as LineHeight;
+          const lh2 = srcText.lineHeight as LineHeight;
+          if (lh2 && lh2.unit !== 'AUTO' && typeof lh2.value === 'number') {
+            tn.lineHeight = lh2;
           }
           tn.fills = JSON.parse(JSON.stringify(srcText.fills));
           tn.layoutSizingHorizontal = srcText.layoutSizingHorizontal;

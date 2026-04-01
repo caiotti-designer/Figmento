@@ -45,6 +45,7 @@ import { initChatSettings, loadChatSettings } from './chat-settings';
 import { initPreferencesPanel, reloadPreferencesPanel } from './preferences-panel';
 import { designSystemState, statusTabState, dsToggleState, STORAGE_KEY_USE_DESIGN_SYSTEM } from './state';
 import { initSkillExport } from './skill-export';
+import { initImageStudio } from './image-studio';
 import type { DesignSystemCache } from '../types';
 
 // ═══════════════════════════════════════════════════════════════
@@ -345,7 +346,7 @@ function initStatusTab(): void {
       setTimeout(() => {
         const advSection = document.getElementById('bridge-advanced-section');
         if (advSection) {
-          advSection.open = true;
+          (advSection as HTMLDetailsElement).open = true;
           advSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       }, 200);
@@ -664,6 +665,7 @@ function initializeApp(): void {
 
   // 10. Initialize unified tabs (Chat, Settings)
   initUnifiedTabs();
+  initMainTabs();
   initChat();
   initBridge();
   initChatSettings();
@@ -672,6 +674,7 @@ function initializeApp(): void {
   initDsToggle();
   initStatusTab();
   initSkillExport();
+  initImageStudio();
 
   // CU-6: Steps 11-12 removed (saved mode restore, drop zone focus)
 }
@@ -689,6 +692,42 @@ function initUnifiedTabs() {
       // Reload preferences list whenever the Settings tab is opened
       if (tab === 'tab-settings') {
         reloadPreferencesPanel();
+      }
+    });
+  });
+}
+
+/** IS-1: Initialize main tab switching (Chat ↔ Image Studio) */
+function initMainTabs(): void {
+  const tabBtns = document.querySelectorAll<HTMLButtonElement>('.tab-bar-btn');
+  const chatPanel = document.querySelector<HTMLElement>('.chat-surface');
+  const studioPanel = document.getElementById('image-studio-panel');
+
+  if (!chatPanel || !studioPanel) return;
+
+  // Store chat scroll position for restoration
+  let chatScrollTop = 0;
+  const chatMessages = document.getElementById('chat-messages');
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      if (!tab) return;
+
+      // Update button states
+      tabBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      if (tab === 'chat') {
+        chatPanel.style.display = '';
+        studioPanel.classList.remove('active');
+        // Restore chat scroll position
+        if (chatMessages) chatMessages.scrollTop = chatScrollTop;
+      } else if (tab === 'image-studio') {
+        // Save chat scroll position before hiding
+        if (chatMessages) chatScrollTop = chatMessages.scrollTop;
+        chatPanel.style.display = 'none';
+        studioPanel.classList.add('active');
       }
     });
   });
