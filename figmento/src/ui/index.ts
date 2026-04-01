@@ -39,7 +39,7 @@ import { initMessageHandler } from './messages';
 import { AIProvider } from '../types';
 import { apiState, imageGenState } from './state';
 import { addToQueue, startBatchProcessing, clearQueue, notifyDesignCreated } from './batch';
-import { initChat, resolveChatCommand, loadMemoryEntries, getChatSettings } from './chat';
+import { initChat, resolveChatCommand, loadMemoryEntries, getChatSettings, restoreChatHistory } from './chat';
 import { initBridge, handleBridgeCommandResult, autoConnectBridge, getBridgeConnected, getBridgeChannelId, getBridgeCommandCount, getBridgeErrorCount, setOnBridgeStateChange } from './bridge';
 import { initChatSettings, loadChatSettings } from './chat-settings';
 import { initPreferencesPanel, reloadPreferencesPanel } from './preferences-panel';
@@ -635,10 +635,14 @@ function setupEventListeners(): void {
     onDesignSystemScanned: (cache, error) => {
       handleDesignSystemScanned(cache, error);
     },
+    onChatHistoryLoaded: (data) => {
+      restoreChatHistory(data);
+    },
   });
 
-  // Load chat memory from clientStorage
+  // Load chat memory and chat history from clientStorage
   postMessage({ type: 'load-memory' });
+  postMessage({ type: 'load-chat-history' });
 }
 
 function initializeApp(): void {

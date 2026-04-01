@@ -17,6 +17,7 @@ export interface MessageCallbacks {
   onSettingsLoaded?: (settings: Record<string, string>) => void;
   onMemoryLoaded?: (entries: Array<{ entry: string; timestamp: string }>) => void;
   onDesignSystemScanned?: (cache: any, error?: string) => void;
+  onChatHistoryLoaded?: (data: any) => void;
 }
 
 const handleFigmaMessage = (event: MessageEvent, callbacks: MessageCallbacks): void => {
@@ -55,6 +56,8 @@ const handleFigmaMessage = (event: MessageEvent, callbacks: MessageCallbacks): v
     callbacks.onMemoryLoaded(msg.entries || []);
   } else if (msg.type === 'design-system-scanned' && callbacks.onDesignSystemScanned) {
     callbacks.onDesignSystemScanned(msg.cache, msg.error);
+  } else if (msg.type === 'chat-history-loaded' && callbacks.onChatHistoryLoaded) {
+    callbacks.onChatHistoryLoaded(msg.data);
   }
 };
 

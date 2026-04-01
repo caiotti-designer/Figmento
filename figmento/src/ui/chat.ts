@@ -70,6 +70,16 @@ let chatCommandCounter = 0;
 const pendingChatCommands = new Map<string, PendingCommand>();
 let memoryEntries: string[] = [];
 let currentBrief: DesignBrief | undefined;
+
+// ── Chat History Persistence ─────────────────────────────────
+interface ChatHistoryPayload {
+  provider: 'claude' | 'gemini' | 'openai' | 'venice' | 'claude-code';
+  model: string;
+  apiHistory: unknown[];
+  displayLog: Array<{ role: 'user' | 'assistant'; html: string }>;
+  savedAt: number;
+}
+let pendingChatHistoryRestore: ChatHistoryPayload | null = null;
 // MF-1: Multi-file attachment queue (replaces single pendingAttachment)
 interface AttachmentFile {
   id: string;
@@ -236,6 +246,104 @@ function isClaudeCodeModel(model: string): boolean {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// CHAT HISTORY PERSISTENCE
+// ═══════════════════════════════════════════════════════════════
+
+function getActiveProvider(): ChatHistoryPayload['provider'] {
+  const m = chatSettings.model;
+  if (isClaudeCodeModel(m)) return 'claude-code';
+  if (isGeminiModel(m)) return 'gemini';
+  if (isOpenAIModel(m)) return 'openai';
+  if (isVeniceModel(m)) return 'venice';
+  return 'claude';
+}
+
+function getActiveHistory(): unknown[] {
+  switch (getActiveProvider()) {
+    case 'gemini': return geminiHistory;
+    case 'openai': case 'venice': return openaiHistory;
+    case 'claude-code': return claudeCodeHistory;
+    default: return conversationHistory;
+  }
+}
+
+function stripBase64FromMessages(messages: unknown[]): unknown[] {
+  const json = JSON.stringify(messages, (_key, value) => {
+    if (typeof value === 'string') {
+      if (value.startsWith('data:image/')) return '[image stripped]';
+      if (value.length > 50000) return '[large content stripped]';
+    }
+    return value;
+  });
+  return JSON.parse(json);
+}
+
+function saveChatHistory() {
+  const history = getActiveHistory();
+  if (history.length === 0) return;
+
+  const apiHistory = stripBase64FromMessages(history).slice(-50);
+
+  const bubbles = document.querySelectorAll('#chat-messages .chat-bubble');
+  const displayLog: ChatHistoryPayload['displayLog'] = [];
+  bubbles.forEach(el => {
+    const role = el.classList.contains('user') ? 'user' as const : 'assistant' as const;
+    displayLog.push({ role, html: el.innerHTML });
+  });
+
+  const payload: ChatHistoryPayload = {
+    provider: getActiveProvider(),
+    model: chatSettings.model,
+    apiHistory,
+    displayLog: displayLog.slice(-50),
+    savedAt: Date.now(),
+  };
+  postToSandbox({ type: 'save-chat-history', data: payload });
+}
+
+export function restoreChatHistory(data: ChatHistoryPayload | null) {
+  if (!data) return;
+  // Defer if settings haven't loaded yet
+  if (!chatSettings.model) {
+    pendingChatHistoryRestore = data;
+    return;
+  }
+  // Discard if provider doesn't match current model
+  if (data.provider !== getActiveProvider()) {
+    console.log('[Figmento] Chat history provider mismatch, discarding');
+    return;
+  }
+  // Restore API history array
+  switch (data.provider) {
+    case 'gemini':
+      geminiHistory.length = 0;
+      geminiHistory.push(...(data.apiHistory as GeminiContent[]));
+      break;
+    case 'openai': case 'venice':
+      openaiHistory.length = 0;
+      openaiHistory.push(...(data.apiHistory as Array<Record<string, unknown>>));
+      break;
+    case 'claude-code':
+      claudeCodeHistory.length = 0;
+      claudeCodeHistory.push(...(data.apiHistory as Array<{ role: string; content: string }>));
+      break;
+    default:
+      conversationHistory.length = 0;
+      conversationHistory.push(...(data.apiHistory as AnthropicMessage[]));
+  }
+  // Re-render display log
+  if (data.displayLog.length > 0) {
+    const messagesEl = document.getElementById('chat-messages');
+    if (messagesEl) messagesEl.innerHTML = '';
+    data.displayLog.forEach(entry => appendChatBubble(entry.role, entry.html));
+  }
+}
+
+function clearChatHistory() {
+  postToSandbox({ type: 'clear-chat-history' });
+}
+
+// ═══════════════════════════════════════════════════════════════
 // PUBLIC API
 // ═══════════════════════════════════════════════════════════════
 
@@ -243,6 +351,11 @@ export function updateChatSettings(s: ChatSettings) {
   chatSettings = s;
   // Sync the toolbar model label when settings are loaded from storage
   syncModelToolbarLabel();
+  // Restore deferred chat history if it was waiting for settings
+  if (pendingChatHistoryRestore) {
+    restoreChatHistory(pendingChatHistoryRestore);
+    pendingChatHistoryRestore = null;
+  }
 }
 
 function syncModelToolbarLabel() {
@@ -936,6 +1049,7 @@ export function initChat() {
     clearAttachments();
     $('chat-messages').innerHTML = '';
     addChatWelcome();
+    clearChatHistory();
   });
 
   // ── "Learn from my edits" button (LC Phase 4a) ──────────────────────────────
@@ -1968,6 +2082,7 @@ async function sendMessage() {
   } finally {
     chatAbortController = null;
     setProcessing(false);
+    saveChatHistory();
   }
 }
 

@@ -197,6 +197,35 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
       return true;
     }
 
+    // ── Chat History Persistence ────────────────────────────────
+    case 'save-chat-history': {
+      try {
+        await figma.clientStorage.setAsync('figmento-chat-history', (msg as any).data);
+      } catch (_e) {
+        // Best-effort
+      }
+      return true;
+    }
+
+    case 'load-chat-history': {
+      try {
+        const data = await figma.clientStorage.getAsync('figmento-chat-history');
+        figma.ui.postMessage({ type: 'chat-history-loaded', data: data || null });
+      } catch (_e) {
+        figma.ui.postMessage({ type: 'chat-history-loaded', data: null });
+      }
+      return true;
+    }
+
+    case 'clear-chat-history': {
+      try {
+        await figma.clientStorage.setAsync('figmento-chat-history', null);
+      } catch (_e) {
+        // Best-effort
+      }
+      return true;
+    }
+
     case 'save-feedback': {
       try {
         const existing = (await figma.clientStorage.getAsync('design-feedback')) || [];
