@@ -71,15 +71,20 @@ const pendingChatCommands = new Map<string, PendingCommand>();
 let memoryEntries: string[] = [];
 let currentBrief: DesignBrief | undefined;
 
-// ── Chat History Persistence ─────────────────────────────────
-interface ChatHistoryPayload {
+// ── Chat Sessions Persistence ────────────────────────────────
+interface ChatSession {
+  id: string;
+  title: string;
   provider: 'claude' | 'gemini' | 'openai' | 'venice' | 'claude-code';
   model: string;
   apiHistory: unknown[];
   displayLog: Array<{ role: 'user' | 'assistant'; html: string }>;
   savedAt: number;
 }
-let pendingChatHistoryRestore: ChatHistoryPayload | null = null;
+const MAX_SESSIONS = 20;
+let chatSessions: ChatSession[] = [];
+let activeSessionId: string | null = null;
+let pendingSessionsRestore: ChatSession[] | null = null;
 // MF-1: Multi-file attachment queue (replaces single pendingAttachment)
 interface AttachmentFile {
   id: string;
@@ -246,10 +251,10 @@ function isClaudeCodeModel(model: string): boolean {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// CHAT HISTORY PERSISTENCE
+// CHAT SESSIONS PERSISTENCE
 // ═══════════════════════════════════════════════════════════════
 
-function getActiveProvider(): ChatHistoryPayload['provider'] {
+function getActiveProvider(): ChatSession['provider'] {
   const m = chatSettings.model;
   if (isClaudeCodeModel(m)) return 'claude-code';
   if (isGeminiModel(m)) return 'gemini';
@@ -278,68 +283,154 @@ function stripBase64FromMessages(messages: unknown[]): unknown[] {
   return JSON.parse(json);
 }
 
-function saveChatHistory() {
-  const history = getActiveHistory();
+function collectDisplayLog(): ChatSession['displayLog'] {
   const bubbles = document.querySelectorAll('#chat-messages .chat-bubble');
-  if (history.length === 0 && bubbles.length === 0) return;
-
-  const apiHistory = stripBase64FromMessages(history).slice(-50);
-  const displayLog: ChatHistoryPayload['displayLog'] = [];
+  const log: ChatSession['displayLog'] = [];
   bubbles.forEach(el => {
     const role = el.classList.contains('user') ? 'user' as const : 'assistant' as const;
-    displayLog.push({ role, html: el.innerHTML });
+    log.push({ role, html: el.innerHTML });
   });
-
-  const payload: ChatHistoryPayload = {
-    provider: getActiveProvider(),
-    model: chatSettings.model,
-    apiHistory,
-    displayLog: displayLog.slice(-50),
-    savedAt: Date.now(),
-  };
-  postToSandbox({ type: 'save-chat-history', data: payload });
+  return log.slice(-50);
 }
 
-export function restoreChatHistory(data: ChatHistoryPayload | null) {
-  if (!data) return;
-  // Defer if settings haven't loaded yet
-  if (!chatSettings.model) {
-    pendingChatHistoryRestore = data;
-    return;
+function saveChatHistory() {
+  const history = getActiveHistory();
+  const displayLog = collectDisplayLog();
+  if (history.length === 0 && displayLog.length === 0) return;
+
+  const firstUserMsg = displayLog.find(e => e.role === 'user');
+  const titleHtml = firstUserMsg ? firstUserMsg.html : 'Untitled';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = titleHtml;
+  const title = (tmp.textContent || 'Untitled').slice(0, 80);
+
+  const session: ChatSession = {
+    id: activeSessionId || `s_${Date.now()}`,
+    title,
+    provider: getActiveProvider(),
+    model: chatSettings.model,
+    apiHistory: stripBase64FromMessages(history).slice(-50),
+    displayLog,
+    savedAt: Date.now(),
+  };
+
+  // Upsert into sessions list
+  const idx = chatSessions.findIndex(s => s.id === session.id);
+  if (idx >= 0) {
+    chatSessions[idx] = session;
+  } else {
+    chatSessions.unshift(session);
   }
-  // Discard if provider doesn't match current model
-  if (data.provider !== getActiveProvider()) {
-    console.log('[Figmento] Chat history provider mismatch, discarding');
-    return;
-  }
-  // Restore API history array
-  switch (data.provider) {
+  // Cap at MAX_SESSIONS
+  if (chatSessions.length > MAX_SESSIONS) chatSessions.length = MAX_SESSIONS;
+  activeSessionId = session.id;
+
+  postToSandbox({ type: 'save-chat-history', data: chatSessions });
+  renderSessionsList();
+}
+
+function loadSession(session: ChatSession) {
+  // Clear current state
+  conversationHistory.length = 0;
+  geminiHistory.length = 0;
+  openaiHistory.length = 0;
+  claudeCodeHistory.length = 0;
+
+  // Restore API history
+  switch (session.provider) {
     case 'gemini':
-      geminiHistory.length = 0;
-      geminiHistory.push(...(data.apiHistory as GeminiContent[]));
+      geminiHistory.push(...(session.apiHistory as GeminiContent[]));
       break;
     case 'openai': case 'venice':
-      openaiHistory.length = 0;
-      openaiHistory.push(...(data.apiHistory as Array<Record<string, unknown>>));
+      openaiHistory.push(...(session.apiHistory as Array<Record<string, unknown>>));
       break;
     case 'claude-code':
-      claudeCodeHistory.length = 0;
-      claudeCodeHistory.push(...(data.apiHistory as Array<{ role: string; content: string }>));
+      claudeCodeHistory.push(...(session.apiHistory as Array<{ role: string; content: string }>));
       break;
     default:
-      conversationHistory.length = 0;
-      conversationHistory.push(...(data.apiHistory as AnthropicMessage[]));
+      conversationHistory.push(...(session.apiHistory as AnthropicMessage[]));
   }
+
   // Re-render display log
-  if (data.displayLog.length > 0) {
-    const messagesEl = document.getElementById('chat-messages');
-    if (messagesEl) messagesEl.innerHTML = '';
-    data.displayLog.forEach(entry => appendChatBubble(entry.role, entry.html));
+  const messagesEl = document.getElementById('chat-messages');
+  if (messagesEl) messagesEl.innerHTML = '';
+  session.displayLog.forEach(entry => appendChatBubble(entry.role, entry.html));
+  activeSessionId = session.id;
+  renderSessionsList();
+  toggleSessionsDrawer(false);
+}
+
+function deleteSession(id: string) {
+  chatSessions = chatSessions.filter(s => s.id !== id);
+  if (activeSessionId === id) activeSessionId = null;
+  postToSandbox({ type: 'save-chat-history', data: chatSessions });
+  renderSessionsList();
+}
+
+export function restoreChatHistory(data: ChatSession[] | null) {
+  if (!data || !Array.isArray(data)) return;
+  // Defer if settings haven't loaded yet
+  if (!chatSettings.model) {
+    pendingSessionsRestore = data;
+    return;
+  }
+  chatSessions = data;
+  renderSessionsList();
+  // Auto-load the most recent session if chat is empty
+  const messagesEl = document.getElementById('chat-messages');
+  const hasMessages = messagesEl && messagesEl.querySelector('.chat-bubble');
+  if (!hasMessages && chatSessions.length > 0) {
+    const latest = chatSessions[0];
+    if (latest.provider === getActiveProvider()) {
+      loadSession(latest);
+    }
   }
 }
 
 function clearChatHistory() {
-  postToSandbox({ type: 'clear-chat-history' });
+  activeSessionId = null;
+  // Don't clear all sessions — just detach current
+}
+
+function timeAgo(ts: number): string {
+  const diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}
+
+function renderSessionsList() {
+  const list = document.getElementById('sessions-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  for (const session of chatSessions) {
+    const item = document.createElement('div');
+    item.className = 'session-item' + (session.id === activeSessionId ? ' active' : '');
+    item.innerHTML = `
+      <div class="session-info">
+        <span class="session-title">${escapeHtml(session.title)}</span>
+        <span class="session-meta">${escapeHtml(session.provider)} · ${timeAgo(session.savedAt)}</span>
+      </div>
+      <button class="session-delete" title="Delete">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </button>`;
+    item.querySelector('.session-info')!.addEventListener('click', () => loadSession(session));
+    item.querySelector('.session-delete')!.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteSession(session.id);
+    });
+    list.appendChild(item);
+  }
+}
+
+function toggleSessionsDrawer(forceOpen?: boolean) {
+  const drawer = document.getElementById('sessions-drawer');
+  if (!drawer) return;
+  const isOpen = drawer.classList.contains('open');
+  const shouldOpen = forceOpen !== undefined ? forceOpen : !isOpen;
+  drawer.classList.toggle('open', shouldOpen);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -350,10 +441,10 @@ export function updateChatSettings(s: ChatSettings) {
   chatSettings = s;
   // Sync the toolbar model label when settings are loaded from storage
   syncModelToolbarLabel();
-  // Restore deferred chat history if it was waiting for settings
-  if (pendingChatHistoryRestore) {
-    restoreChatHistory(pendingChatHistoryRestore);
-    pendingChatHistoryRestore = null;
+  // Restore deferred chat sessions if they were waiting for settings
+  if (pendingSessionsRestore) {
+    restoreChatHistory(pendingSessionsRestore);
+    pendingSessionsRestore = null;
   }
 }
 
@@ -1041,6 +1132,8 @@ export function initChat() {
   });
 
   $('chat-new').addEventListener('click', () => {
+    // Save current conversation before clearing
+    saveChatHistory();
     conversationHistory = [];
     geminiHistory = [];
     openaiHistory = [];
@@ -1048,8 +1141,16 @@ export function initChat() {
     clearAttachments();
     $('chat-messages').innerHTML = '';
     addChatWelcome();
-    clearChatHistory();
+    activeSessionId = null;
+    renderSessionsList();
+    toggleSessionsDrawer(false);
   });
+
+  // ── Sessions drawer toggle ──────────────────────────────────────────────────
+  const sessionsBtn = document.getElementById('chat-sessions-btn');
+  if (sessionsBtn) {
+    sessionsBtn.addEventListener('click', () => toggleSessionsDrawer());
+  }
 
   // ── "Learn from my edits" button (LC Phase 4a) ──────────────────────────────
   const learnBtn = document.getElementById('chat-learn') as HTMLButtonElement | null;
