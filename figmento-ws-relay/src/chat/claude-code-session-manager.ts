@@ -13,10 +13,36 @@
  */
 
 import * as path from 'path';
+import * as fs from 'fs';
 import { query, type SDKUserMessage, type Query, type Options } from '@anthropic-ai/claude-code';
 import { buildSystemPrompt } from './system-prompt';
 import { detectBrief } from './brief-detector';
 import type { ClaudeCodeTurnResult, ClaudeCodeTurnError } from './claude-code-handler';
+
+// ═══════════════════════════════════════════════════════════════
+// .env LOADER — reads project root .env into process.env
+// ═══════════════════════════════════════════════════════════════
+
+function loadRootEnv(): void {
+  const envPath = path.resolve(__dirname, '../../../.env');
+  if (!fs.existsSync(envPath)) return;
+  const content = fs.readFileSync(envPath, 'utf-8');
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx < 0) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const value = trimmed.slice(eqIdx + 1).trim();
+    // .env values OVERRIDE system env (project config takes precedence)
+    if (value) {
+      process.env[key] = value;
+    }
+  }
+}
+
+loadRootEnv();
+console.log(`[Figmento Claude Code] .env loaded — GEMINI_API_KEY=${process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.slice(0, 8) + '...' : 'NOT SET'}`);
 
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -28,6 +54,8 @@ const HARD_TIMEOUT_MS = 600_000;  // 10 min absolute max
 const STALE_ACTIVITY_MS = 90_000; // 90s without any SDK message = stuck
 /** Stale check interval — how often we poll for activity. */
 const STALE_CHECK_INTERVAL_MS = 10_000; // check every 10s
+/** Thinking-phase timeout — if no SDK event at all in this window (before any tool call), abort. */
+const THINKING_TIMEOUT_MS = 120_000; // 2 min max for initial thinking
 const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10-min session idle teardown
 
 const MCP_SERVER_PATH = path.resolve(
@@ -100,6 +128,22 @@ Minimum Sizes (Social 1080px): Headline 48–72px | Sub 32–40px | Body 28–32
 ### Spacing (8px grid)
 Scale: 4 | 8 | 12 | 16 | 20 | 24 | 32 | 40 | 48 | 64 | 80 | 96 | 128
 Margins: Social 48px | Print 72px | Web 64px
+
+### Image Fill on Existing Nodes
+To replace a frame's background with an image file (without creating a child), use:
+- set_image_fill(nodeId, filePath, scaleMode?) — reads file server-side, applies as IMAGE fill
+- Accepts PNG, JPG, WebP. scaleMode: FILL (default), FIT, CROP, TILE
+- Use this instead of place_generated_image when you want the image AS the fill, not as a child node.
+
+### Image Generation — Context-Aware Prompts (CRITICAL)
+When generating images with generate_design_image, ALWAYS write a descriptive, context-aware brief:
+- Read surrounding text (titles, descriptions, sibling elements) to understand what the image should depict
+- NEVER use generic briefs like "modern abstract background" or "professional clean image"
+- GOOD: "Industrial warehouse interior with CNC machines and metal fabrication equipment, corporate photography"
+- GOOD: "Aerial view of industrial plant expansion, factory buildings and heavy machinery, editorial style"
+- BAD: "modern abstract background with soft gradients and geometric shapes"
+- The brief should match the content and industry of the page being designed
+- Use asFill=true to apply directly as the frame's IMAGE fill
 
 ### Overlay Gradient Rules
 Text at BOTTOM → direction "top-bottom" | Text at TOP → "bottom-top"
@@ -339,17 +383,28 @@ export class ClaudeCodeSessionManager {
       session!.pendingTurn = { resolve, reject };
     });
 
-    // Stale activity checker — only activates AFTER the first tool call.
-    // During initial thinking (before any tool call), the model can take 60-120s
-    // to plan complex designs. That's normal. Stale detection only fires when
-    // the model was actively calling tools and then went silent.
+    // Stale activity checker — covers both thinking and tool phases.
     const staleChecker = setInterval(() => {
       const s = this.sessions.get(channel);
       if (!s?.pendingTurn) { clearInterval(staleChecker); return; }
-      // Skip stale check if model hasn't called any tools yet (still thinking/planning)
-      if (!s.hasCalledTool) return;
       const elapsed = Date.now() - s.lastActivity;
-      if (elapsed >= STALE_ACTIVITY_MS) {
+
+      // Phase 1: Thinking (no tools called yet) — 2 min timeout
+      if (!s.hasCalledTool && elapsed >= THINKING_TIMEOUT_MS) {
+        console.error(`[Figmento Claude Code] Thinking timeout channel=${channel} — no SDK activity for ${Math.round(elapsed / 1000)}s (no tools called). Aborting.`);
+        clearInterval(staleChecker);
+        s.abortController.abort();
+        s.pendingTurn.reject(
+          new Error(`Claude Code turn timed out during thinking (${Math.round(THINKING_TIMEOUT_MS / 1000)}s). The model may be overloaded. Try again.`),
+        );
+        s.pendingTurn = null;
+        s.inFlight = false;
+        this.destroy(channel);
+        return;
+      }
+
+      // Phase 2: Tool execution — 90s timeout between events
+      if (s.hasCalledTool && elapsed >= STALE_ACTIVITY_MS) {
         console.error(`[Figmento Claude Code] Stale turn detected channel=${channel} — no SDK activity for ${Math.round(elapsed / 1000)}s after tool calls. Aborting.`);
         clearInterval(staleChecker);
         s.abortController.abort();
@@ -459,11 +514,20 @@ export class ClaudeCodeSessionManager {
     const abortController = new AbortController();
 
     // System prompt is built once per session — from the channel context
-    // (We don't have the first message yet at this point; brief detection happens
-    // inside turn() before calling startSession.  We use history to infer context.)
     const lastUserMsg = [...history].reverse().find(m => m.role === 'user')?.content ?? '';
     const brief = detectBrief(lastUserMsg);
-    const systemPrompt = buildSystemPrompt(brief, memory);
+    let systemPrompt = buildSystemPrompt(brief, memory);
+
+    // Inject conversation history into system prompt so the SDK session
+    // has full context even after a session restart (relay reboot, idle timeout).
+    if (history.length > 0) {
+      const maxMessages = 10;
+      const recentHistory = history.slice(-maxMessages);
+      const historyBlock = recentHistory
+        .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.slice(0, 500)}`)
+        .join('\n\n');
+      systemPrompt += `\n\n## Previous Conversation Context\nThis is an ongoing conversation. Here are the recent messages:\n\n${historyBlock}\n\nContinue the conversation naturally, referencing prior context when relevant.`;
+    }
 
     // Resolve project root so the SDK reads .claude/settings.json (deniedMcpServers etc.)
     const projectRoot = path.resolve(__dirname, '../../..');
@@ -580,10 +644,23 @@ export class ClaudeCodeSessionManager {
         figmento: {
           command: 'node',
           args: [MCP_SERVER_PATH],
-          env: {
-            FIGMENTO_CHANNEL: channel,
-            FIGMENTO_RELAY_URL: 'ws://localhost:3055',
-          },
+          env: Object.fromEntries(
+            Object.entries({
+              FIGMENTO_CHANNEL: channel,
+              FIGMENTO_RELAY_URL: 'ws://localhost:3055',
+              GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+              ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+              IMAGE_OUTPUT_DIR: process.env.IMAGE_OUTPUT_DIR,
+              PATH: process.env.PATH,
+              NODE_PATH: process.env.NODE_PATH,
+              SYSTEMROOT: process.env.SYSTEMROOT,
+              TEMP: process.env.TEMP,
+              TMP: process.env.TMP,
+              APPDATA: process.env.APPDATA,
+              USERPROFILE: process.env.USERPROFILE,
+              HOME: process.env.HOME,
+            }).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1] !== ''),
+          ),
         },
       },
     };

@@ -297,12 +297,24 @@ async function placeImageInBackground(
   brief: string,
   skipPreview: boolean,
   referenceImages?: ReferenceImage[],
+  asFill?: boolean,
 ): Promise<void> {
-  const IMAGE_OUTPUT_DIR = process.env.IMAGE_OUTPUT_DIR ?? nodePath.join(process.cwd(), 'output');
+  const IMAGE_OUTPUT_DIR = process.env.IMAGE_OUTPUT_DIR || nodePath.join(process.cwd(), 'output');
   fs.mkdirSync(IMAGE_OUTPUT_DIR, { recursive: true });
 
-  // Helper: place an image buffer in the frame and reorder to back
+  // Helper: place an image buffer in the frame
+  // asFill=true → sets the image directly as the frame's fill (no child node)
+  // asFill=false → creates a child image node and reorders to back (legacy)
   async function placeAndReorder(imageBase64: string, name: string): Promise<string> {
+    if (asFill) {
+      await sendDesignCommand('apply_template_image', {
+        nodeId: frameId,
+        imageData: imageBase64,
+        scaleMode: 'FILL',
+      });
+      return frameId;
+    }
+
     const imageResult = await sendDesignCommand('create_image', {
       imageData: imageBase64,
       name,
@@ -410,10 +422,12 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
       referenceImagePath: z.string().optional().describe('Path to a reference image file (PNG, JPG, WEBP). The generated image will inherit the style, composition, and mood of this reference. Accepts absolute paths or paths within temp/imports/ or brand-assets/.'),
       awaitImage: z.boolean().optional().describe('If true, block until image is fully generated and placed (legacy sequential mode). Default false — returns frameId immediately.'),
       skipPreview: z.boolean().optional().describe('If true, skip the fast 512px preview and generate at target resolution directly. Default false — two-phase (preview + high-res).'),
+      asFill: z.boolean().optional().describe('If true, apply the generated image directly as the frame\'s IMAGE fill instead of creating a child node. Use this when you want to replace the frame background without adding children. Default false.'),
     },
     async (params) => {
       // Fail fast if API key missing
       const apiKey = process.env.GEMINI_API_KEY;
+      process.stderr.write(`[Figmento ImageGen] GEMINI_API_KEY=${apiKey ? apiKey.slice(0, 8) + '...' : 'NOT SET'}\n`);
       if (!apiKey) {
         return {
           content: [{
@@ -459,7 +473,7 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
 
       if (params.awaitImage) {
         // ─── Legacy sequential mode: block until image is placed ───
-        const IMAGE_OUTPUT_DIR = process.env.IMAGE_OUTPUT_DIR ?? nodePath.join(process.cwd(), 'output');
+        const IMAGE_OUTPUT_DIR = process.env.IMAGE_OUTPUT_DIR || nodePath.join(process.cwd(), 'output');
         fs.mkdirSync(IMAGE_OUTPUT_DIR, { recursive: true });
 
         let imageBase64: string;
@@ -486,18 +500,29 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
           }
         }
 
-        const imageResult = await sendDesignCommand('create_image', {
-          imageData: imageBase64,
-          name: 'Background Image',
-          width: frame.width,
-          height: frame.height,
-          x: 0,
-          y: 0,
-          parentId: frame.frameId,
-          scaleMode: 'FILL',
-        }) as Record<string, unknown>;
+        let imageNodeId: string;
 
-        const imageNodeId = (imageResult['nodeId'] as string) ?? (imageResult['id'] as string);
+        if (params.asFill) {
+          // Apply directly as the frame's IMAGE fill (no child node)
+          await sendDesignCommand('apply_template_image', {
+            nodeId: frame.frameId,
+            imageData: imageBase64,
+            scaleMode: 'FILL',
+          });
+          imageNodeId = frame.frameId;
+        } else {
+          const imageResult = await sendDesignCommand('create_image', {
+            imageData: imageBase64,
+            name: 'Background Image',
+            width: frame.width,
+            height: frame.height,
+            x: 0,
+            y: 0,
+            parentId: frame.frameId,
+            scaleMode: 'FILL',
+          }) as Record<string, unknown>;
+          imageNodeId = (imageResult['nodeId'] as string) ?? (imageResult['id'] as string);
+        }
 
         return {
           content: [{
@@ -532,6 +557,7 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
         params.brief,
         skipPreview,
         referenceImages.length > 0 ? referenceImages : undefined,
+        params.asFill,
       ).catch((err) => {
         process.stderr.write(`[Figmento] Background image placement error: ${(err as Error).message}\n`);
       });

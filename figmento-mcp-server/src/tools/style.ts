@@ -1,5 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import * as fs from 'fs';
+import * as nodePath from 'path';
 
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
@@ -187,6 +189,45 @@ export function registerStyleTools(server: McpServer, sendDesignCommand: SendDes
     styleTextRangeSchema,
     async (params) => {
       const data = await sendDesignCommand('style_text_range', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // set_image_fill — set IMAGE fill on an existing node from a local file
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'set_image_fill',
+    'Set an IMAGE fill on an existing node from a local file path. Reads and base64-encodes the file server-side, then applies it as the node\'s fill. Use this to replace a frame\'s background with an image without creating a child node.',
+    {
+      nodeId: z.string().describe('Target node ID to apply the image fill to'),
+      filePath: z.string().describe('Absolute path to the image file (PNG, JPG, or WebP)'),
+      scaleMode: z.enum(['FILL', 'FIT', 'CROP', 'TILE']).optional().describe('Image scale mode (default: FILL)'),
+    },
+    async (params) => {
+      const resolvedPath = nodePath.resolve(params.filePath);
+
+      if (!fs.existsSync(resolvedPath)) {
+        throw new Error(`Image file not found: ${resolvedPath}`);
+      }
+
+      const buffer = fs.readFileSync(resolvedPath);
+      const ext = nodePath.extname(resolvedPath).toLowerCase();
+      const mimeMap: Record<string, string> = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+      };
+      const mime = mimeMap[ext] || 'image/png';
+      const base64 = `data:${mime};base64,${buffer.toString('base64')}`;
+
+      const data = await sendDesignCommand('apply_template_image', {
+        nodeId: params.nodeId,
+        imageData: base64,
+        scaleMode: params.scaleMode || 'FILL',
+      });
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
   );

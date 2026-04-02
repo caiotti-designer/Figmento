@@ -361,6 +361,12 @@ Use `clone_with_overrides` for repeated patterns like menu rows, card grids, fea
 **AI-generated image placement:**
 When placing AI-generated images, ALWAYS use `place_generated_image` with the file path from mcp-image output. NEVER read image files into base64 manually or pass base64 through bash — the strings are too large for the parameter system. The `place_generated_image` tool reads files server-side and handles all encoding internally. Use the `scaleMode` parameter to control fit: `FILL` (default, crops to fill), `FIT` (contains within bounds), `CROP`, or `TILE`.
 
+**Setting IMAGE fill on an existing node (replacing background):**
+Use `set_image_fill(nodeId, filePath, scaleMode?)` to apply an image directly as a node's fill — without creating a child element. This is the correct way to swap a frame's background image from a local file. The tool reads the file server-side and applies it as an IMAGE fill. Accepts PNG, JPG, or WebP.
+
+**Generating image directly as frame fill (no child node):**
+Use `generate_design_image(..., asFill=true)` to generate a Nano Banana 2 image and apply it directly as the target frame's IMAGE fill — no child rectangle created. This is ideal for replacing backgrounds on existing frames. Without `asFill`, the image is placed as a child node (legacy behavior).
+
 ### Image Generation Rules (Mandatory)
 
 Every design should include real images, not colored rectangles:
