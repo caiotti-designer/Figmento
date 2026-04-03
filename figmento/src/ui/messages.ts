@@ -8,11 +8,6 @@ export interface MessageCallbacks {
   onSelectedImage: (data: any) => void;
   onProgress: (msg: string, current: number, total: number) => void;
   onApiKeysLoaded: (keys: Record<string, string>, validated: Record<string, boolean>) => void;
-  onTemplateScanResult: (result: any, error?: string) => void;
-  onTemplateApplyResult: (success: boolean, slidesUpdated: number, errors?: string[]) => void;
-  onSlideStyleResult: (style: any, error?: string) => void;
-  onAddSlideComplete: () => void;
-  onAddSlideError: (error: string) => void;
   onCommandResult?: (response: Record<string, unknown>) => void;
   onSettingsLoaded?: (settings: Record<string, string>) => void;
   onMemoryLoaded?: (entries: Array<{ entry: string; timestamp: string }>) => void;
@@ -38,16 +33,6 @@ const handleFigmaMessage = (event: MessageEvent, callbacks: MessageCallbacks): v
     callbacks.onProgress(msg.message, msg.current, msg.total);
   } else if (msg.type === 'api-keys-loaded') {
     callbacks.onApiKeysLoaded(msg.keys || {}, msg.validated || {});
-  } else if (msg.type === 'template-scan-result') {
-    callbacks.onTemplateScanResult(msg.result, msg.error);
-  } else if (msg.type === 'template-apply-result') {
-    callbacks.onTemplateApplyResult(msg.success, msg.slidesUpdated, msg.errors);
-  } else if (msg.type === 'slide-style-result') {
-    callbacks.onSlideStyleResult(msg.style, msg.error);
-  } else if (msg.type === 'add-slide-complete') {
-    callbacks.onAddSlideComplete();
-  } else if (msg.type === 'add-slide-error') {
-    callbacks.onAddSlideError(msg.error);
   } else if (msg.type === 'command-result' && callbacks.onCommandResult) {
     callbacks.onCommandResult(msg.response);
   } else if (msg.type === 'settings-loaded' && callbacks.onSettingsLoaded) {

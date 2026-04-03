@@ -16,11 +16,6 @@ function createCallbacks(): MessageCallbacks & { [key: string]: jest.Mock } {
     onSelectedImage: jest.fn(),
     onProgress: jest.fn(),
     onApiKeysLoaded: jest.fn(),
-    onTemplateScanResult: jest.fn(),
-    onTemplateApplyResult: jest.fn(),
-    onSlideStyleResult: jest.fn(),
-    onAddSlideComplete: jest.fn(),
-    onAddSlideError: jest.fn(),
   };
 }
 
@@ -154,100 +149,6 @@ describe('message dispatching', () => {
     simulateMessage({ type: 'api-keys-loaded' });
 
     expect(callbacks.onApiKeysLoaded).toHaveBeenCalledWith({}, {});
-  });
-
-  // --- template-scan-result ---
-
-  test('dispatches template-scan-result to onTemplateScanResult', () => {
-    const result = { slides: [], placeholders: [] };
-    simulateMessage({
-      type: 'template-scan-result',
-      result,
-    });
-
-    expect(callbacks.onTemplateScanResult).toHaveBeenCalledTimes(1);
-    expect(callbacks.onTemplateScanResult).toHaveBeenCalledWith(result, undefined);
-  });
-
-  test('template-scan-result passes error when present', () => {
-    simulateMessage({
-      type: 'template-scan-result',
-      result: null,
-      error: 'No template found',
-    });
-
-    expect(callbacks.onTemplateScanResult).toHaveBeenCalledWith(null, 'No template found');
-  });
-
-  // --- template-apply-result ---
-
-  test('dispatches template-apply-result to onTemplateApplyResult', () => {
-    simulateMessage({
-      type: 'template-apply-result',
-      success: true,
-      slidesUpdated: 5,
-    });
-
-    expect(callbacks.onTemplateApplyResult).toHaveBeenCalledTimes(1);
-    expect(callbacks.onTemplateApplyResult).toHaveBeenCalledWith(true, 5, undefined);
-  });
-
-  test('template-apply-result passes errors array when present', () => {
-    simulateMessage({
-      type: 'template-apply-result',
-      success: false,
-      slidesUpdated: 2,
-      errors: ['Slide 3 failed', 'Slide 5 failed'],
-    });
-
-    expect(callbacks.onTemplateApplyResult).toHaveBeenCalledWith(
-      false,
-      2,
-      ['Slide 3 failed', 'Slide 5 failed']
-    );
-  });
-
-  // --- slide-style-result ---
-
-  test('dispatches slide-style-result to onSlideStyleResult', () => {
-    const style = { font: 'Inter', size: 24 };
-    simulateMessage({
-      type: 'slide-style-result',
-      style,
-    });
-
-    expect(callbacks.onSlideStyleResult).toHaveBeenCalledTimes(1);
-    expect(callbacks.onSlideStyleResult).toHaveBeenCalledWith(style, undefined);
-  });
-
-  test('slide-style-result passes error when present', () => {
-    simulateMessage({
-      type: 'slide-style-result',
-      style: null,
-      error: 'No slide selected',
-    });
-
-    expect(callbacks.onSlideStyleResult).toHaveBeenCalledWith(null, 'No slide selected');
-  });
-
-  // --- add-slide-complete ---
-
-  test('dispatches add-slide-complete to onAddSlideComplete', () => {
-    simulateMessage({ type: 'add-slide-complete' });
-
-    expect(callbacks.onAddSlideComplete).toHaveBeenCalledTimes(1);
-  });
-
-  // --- add-slide-error ---
-
-  test('dispatches add-slide-error to onAddSlideError', () => {
-    simulateMessage({
-      type: 'add-slide-error',
-      error: 'Failed to add slide',
-    });
-
-    expect(callbacks.onAddSlideError).toHaveBeenCalledTimes(1);
-    expect(callbacks.onAddSlideError).toHaveBeenCalledWith('Failed to add slide');
   });
 
   // --- unknown message type ---

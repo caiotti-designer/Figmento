@@ -600,12 +600,6 @@ function setupEventListeners(): void {
       }
     },
     onApiKeysLoaded: onApiKeysLoaded,
-    // CU-6: Removed template/presentation/slide handlers
-    onTemplateScanResult: () => {},
-    onTemplateApplyResult: () => {},
-    onSlideStyleResult: () => {},
-    onAddSlideComplete: () => {},
-    onAddSlideError: () => {},
     onCommandResult: (response: Record<string, unknown>) => {
       const cmdId = response.id as string;
       if (cmdId && cmdId.startsWith('chat-')) {

@@ -6,19 +6,6 @@ import {
   ColorTheme,
   COLOR_THEMES,
   FONT_OPTIONS,
-  ImageSlotReference,
-  TemplateScanResult,
-  PresentationFormat,
-  PRESENTATION_FORMATS,
-  DesignStylePreset,
-  PresentationContentType,
-  PageOrientation,
-  ExtractedSlideStyle,
-  CarouselConfig,
-  SubjectPosition,
-  HeroQuality,
-  HeroFormat,
-  HERO_FORMATS,
   DesignSystemCache,
 } from '../types';
 
@@ -290,59 +277,6 @@ export const designSettings = {
   customPrompt: '',
 };
 
-export const templateState = {
-  scanResult: null as TemplateScanResult | null,
-  imageSlots: [] as ImageSlotReference[],
-  abortController: null as AbortController | null,
-  imageStyle: '',
-};
-
-export const presentationState = {
-  format: PRESENTATION_FORMATS[0] as PresentationFormat,
-  orientation: 'landscape' as PageOrientation,
-  customWidth: 1920,
-  customHeight: 1080,
-  font: 'Inter',
-  colorTheme: null as ColorTheme | null,
-  customHex: '',
-  designStyle: 'auto' as DesignStylePreset,
-  contentType: 'auto' as PresentationContentType,
-  slideCount: 'auto' as number | 'auto',
-  showSlideNumbers: false,
-  isProcessing: false,
-  abortController: null as AbortController | null,
-  progressInterval: null as number | null,
-};
-
-export const addSlideState = {
-  extractedStyle: null as ExtractedSlideStyle | null,
-  isProcessing: false,
-};
-
-export const textLayoutState = {
-  isProcessing: false,
-  abortController: null as AbortController | null,
-  progressInterval: null as number | null,
-  currentLayoutPreset: 'auto' as string,
-  carouselConfig: { enabled: false, slideCount: 'auto', slideFormat: 'square' } as CarouselConfig,
-  imageGenEnabled: false,
-  imageGenModel: 'gemini-3.1-flash-image-preview' as string,
-  referenceImageRoles: {} as Record<number, string>,
-  customStyleEnabled: false,
-};
-
-export const heroState = {
-  subjects: [] as string[],
-  styleRef: null as string | null,
-  elements: [] as string[],
-  position: 'center' as SubjectPosition,
-  quality: '2k' as HeroQuality,
-  format: HERO_FORMATS[0] as HeroFormat,
-  scenePrompt: '',
-  isProcessing: false,
-  abortController: null as AbortController | null,
-  lastGeneratedImage: null as string | null,
-};
 
 // FN-6: Design System Discovery state
 export const designSystemState = {
