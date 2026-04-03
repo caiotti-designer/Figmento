@@ -72,6 +72,17 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
       break;
     }
 
+    // DX-1: Bridge channel persistence
+    case 'save-bridge-channel': {
+      await figma.clientStorage.setAsync('figmento-bridge-channel', (msg as any).channel);
+      break;
+    }
+    case 'load-bridge-channel': {
+      const savedChannel = await figma.clientStorage.getAsync('figmento-bridge-channel');
+      figma.ui.postMessage({ type: 'bridge-channel-loaded', channel: savedChannel || '' });
+      break;
+    }
+
     case 'create-design':
       try {
         figma.notify('Creating design...', { timeout: 2000 });

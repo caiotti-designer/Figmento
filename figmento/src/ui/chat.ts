@@ -24,7 +24,7 @@ import {
 import { LOCAL_TOOL_HANDLERS } from './local-intelligence';
 import { createBatchToolCallHandler } from './command-queue';
 import { designSystemState, getEffectiveDsCache } from './state';
-import { getBridgeChannelId, getBridgeConnected, sendBridgeMessage, setClaudeCodeResultHandler, setClaudeCodeProgressHandler } from './bridge';
+import { autoConnectBridge, getBridgeChannelId, getBridgeConnected, sendBridgeMessage, setClaudeCodeResultHandler, setClaudeCodeProgressHandler } from './bridge';
 import { renderDiffPanel } from './diff-panel';
 import { openSettings, closeSettings } from './settings';
 import type { CorrectionEntry, LearnedPreference } from '../types';
@@ -2155,7 +2155,12 @@ async function sendMessage() {
     // Claude Code: always routes through local relay WS
     if (useClaudeCode) {
       if (!bridgeConnected) {
-        throw new Error('Claude Code requires a local relay. Start with: `cd figmento-ws-relay && npm run dev`');
+        // DX-1: Try reconnecting — relay may have started after plugin opened
+        autoConnectBridge(chatSettings.chatRelayUrl);
+        await new Promise(r => setTimeout(r, 1500));
+        if (!getBridgeConnected()) {
+          throw new Error('Relay not reachable. Make sure Claude Code is running — the relay starts automatically with the MCP server.');
+        }
       }
       console.log('[Figmento Chat] → CLAUDE CODE path (WS)');
       await runClaudeCodeTurn(text, capturedAttachment, capturedAttachments);
@@ -2340,7 +2345,7 @@ async function runClaudeCodeTurn(text: string, attachment?: string | null, allAt
   });
 
   if (!sent) {
-    throw new Error('Claude Code requires a local relay. Start with: `cd figmento-ws-relay && npm run dev`');
+    throw new Error('Relay connection lost. Make sure Claude Code is running — the relay starts automatically with the MCP server.');
   }
 
   // Stream progress events — show tool execution in real-time instead of "Thinking..."

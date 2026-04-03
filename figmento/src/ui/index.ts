@@ -613,12 +613,13 @@ function setupEventListeners(): void {
     onSettingsLoaded: (settings: Record<string, string>) => {
       loadChatSettings(settings);
 
-      // Auto-connect bridge when relay mode is enabled (CR-3)
+      // Auto-connect bridge when relay mode is enabled (CR-3, DX-1)
       const cs = getChatSettings();
       const relayBar = document.getElementById('relay-status-bar');
       if (cs.chatRelayEnabled) {
         if (relayBar) relayBar.style.display = 'flex';
-        autoConnectBridge(cs.chatRelayUrl);
+        // DX-1 AC8: Pass stored channel so both sides agree without copy-paste
+        autoConnectBridge(cs.chatRelayUrl, (settings as any).bridgeChannel || undefined);
       } else {
         if (relayBar) relayBar.style.display = 'none';
       }

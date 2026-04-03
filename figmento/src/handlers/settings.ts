@@ -120,7 +120,9 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
 
         const chatRelayEnabled = (await figma.clientStorage.getAsync('figmento-chat-relay-enabled')) || '';
         const chatRelayUrl = (await figma.clientStorage.getAsync('figmento-chat-relay-url')) || '';
-        console.log('[Figmento Sandbox] get-settings relay:', { enabled: chatRelayEnabled, url: chatRelayUrl });
+        // DX-1: Load persisted bridge channel
+        const bridgeChannel = (await figma.clientStorage.getAsync('figmento-bridge-channel')) || '';
+        console.log('[Figmento Sandbox] get-settings relay:', { enabled: chatRelayEnabled, url: chatRelayUrl, bridgeChannel });
 
         figma.ui.postMessage({
           type: 'settings-loaded',
@@ -131,6 +133,7 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
             model: chatModel,
             chatRelayEnabled: chatRelayEnabled,
             chatRelayUrl: chatRelayUrl,
+            bridgeChannel: bridgeChannel,
           },
         });
       } catch (error) {

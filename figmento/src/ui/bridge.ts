@@ -5,6 +5,12 @@
  */
 
 // ═══════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════════
+
+const DEFAULT_CHANNEL = 'figmento-local';
+
+// ═══════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════
 
@@ -70,12 +76,14 @@ export function initBridge() {
 }
 
 /**
- * Auto-connect Bridge for chat relay mode (CR-3).
- * Called when chatRelayEnabled is true. Silently connects to the relay
- * with an auto-generated channel ID so the user doesn't need to click Connect.
+ * Auto-connect Bridge for chat relay mode (CR-3, DX-1).
+ * Called when chatRelayEnabled is true. Connects to the relay using a
+ * fixed channel (default: 'figmento-local') so both sides agree without copy-paste.
+ * @param relayUrl - Relay HTTP/WS URL
+ * @param channel - Optional channel override. Falls back to stored or default channel.
  */
-export function autoConnectBridge(relayUrl: string) {
-  console.log(`[Figmento Bridge] autoConnectBridge called: connected=${isBridgeConnected} wsState=${ws?.readyState} url=${relayUrl}`);
+export function autoConnectBridge(relayUrl: string, channel?: string) {
+  console.log(`[Figmento Bridge] autoConnectBridge called: connected=${isBridgeConnected} wsState=${ws?.readyState} url=${relayUrl} channel=${channel}`);
   // Already connected — just re-notify status (fixes stale "Relay: Off" label)
   if (isBridgeConnected && ws && ws.readyState === WebSocket.OPEN) {
     console.log('[Figmento Bridge] already connected -> re-notifying relay status');
@@ -93,7 +101,10 @@ export function autoConnectBridge(relayUrl: string) {
   else if (wsUrl.startsWith('http://')) wsUrl = 'ws://' + wsUrl.slice(7);
   if (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) wsUrl = 'wss://' + wsUrl;
 
-  bridgeChannelId = generateChannelId();
+  // DX-1 AC7/AC8: Use provided channel, or fall back to default
+  bridgeChannelId = channel || DEFAULT_CHANNEL;
+  // Persist channel to clientStorage for next session
+  postToSandbox({ type: 'save-bridge-channel', channel: bridgeChannelId });
   addBridgeLog(`[Auto] Connecting to ${wsUrl}...`, 'sys');
 
   // Update URL inputs for visibility
@@ -234,15 +245,6 @@ export function handleBridgeCommandResult(resp: Record<string, unknown>) {
 // ═══════════════════════════════════════════════════════════════
 // BRIDGE — INTERNALS
 // ═══════════════════════════════════════════════════════════════
-
-function generateChannelId(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let id = 'figmento-';
-  for (let i = 0; i < 6; i++) {
-    id += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return id;
-}
 
 /** Notify the external state change listener (Status Tab). */
 function notifyStateChange() {
@@ -395,7 +397,10 @@ function connectBridge(urlInputId: string) {
   const otherEl = $safe(otherInput) as HTMLInputElement | null;
   if (otherEl) otherEl.value = url;
 
-  bridgeChannelId = generateChannelId();
+  // AC10: Use current channel if already set (manual override), otherwise default
+  bridgeChannelId = bridgeChannelId || DEFAULT_CHANNEL;
+  // Persist manual channel choice
+  postToSandbox({ type: 'save-bridge-channel', channel: bridgeChannelId });
   addBridgeLog(`Connecting to ${url}...`, 'sys');
 
   try {
