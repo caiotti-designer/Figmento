@@ -103,7 +103,7 @@ export const createDesignSchema = {
 
 export const batchExecuteSchema = {
   commands: z.array(z.object({
-    action: z.string().describe('The Figma command action (e.g. create_frame, create_text, set_fill, clone_node, etc.)'),
+    action: z.string().describe('The Figma command action (e.g. create_frame, create_text, set_fill, clone_with_overrides, etc.)'),
     params: z.record(z.any()).describe('Parameters for the command. Use "$tempId" values to reference nodes created earlier in the batch.'),
     tempId: z.string().optional().describe('Optional identifier for this command\'s result. Other commands can reference the created nodeId as "$tempId".'),
   })).describe(`Array of commands to execute sequentially. Max ${MAX_BATCH_COMMANDS}.`),

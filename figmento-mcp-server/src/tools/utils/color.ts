@@ -30,7 +30,7 @@ export function rgbToHsl(r: number, g: number, b: number): { h: number; s: numbe
   return { h: h * 360, s, l };
 }
 
-export function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: number } {
+function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: number } {
   h = ((h % 360) + 360) % 360;
   h /= 360;
   if (s === 0) {
@@ -93,7 +93,7 @@ export function relativeLuminance(hex: string): number {
   return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
 }
 
-export function contrastRatio(fg: string, bg: string): number {
+function contrastRatio(fg: string, bg: string): number {
   const l1 = relativeLuminance(fg);
   const l2 = relativeLuminance(bg);
   const lighter = Math.max(l1, l2);

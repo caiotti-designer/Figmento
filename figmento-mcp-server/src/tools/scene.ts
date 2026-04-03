@@ -86,14 +86,6 @@ export const listAvailableFontsSchema = {
   limit: z.number().optional().describe('Maximum font families to return (default: 50)'),
 };
 
-export const cloneNodeSchema = {
-  nodeId: z.string().describe('Node ID to clone'),
-  offsetX: z.number().optional().describe('X offset from original position (default: 0)'),
-  offsetY: z.number().optional().describe('Y offset from original position (default: 0)'),
-  newName: z.string().optional().describe('New name for the cloned node'),
-  parentId: z.string().optional().describe('Parent frame to place clone into (default: same parent as original)'),
-};
-
 // ═══════════════════════════════════════════════════════════
 // Consolidated transform_node schema
 // ═══════════════════════════════════════════════════════════
@@ -225,16 +217,6 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
     groupNodesSchema,
     async (params) => {
       const data = await sendDesignCommand('group_nodes', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
-    }
-  );
-
-  server.tool(
-    'clone_node',
-    '[DEPRECATED — use clone_with_overrides] Clone an existing node. Returns the new node ID.',
-    cloneNodeSchema,
-    async (params) => {
-      const data = await sendDesignCommand('clone_node', params);
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
   );
