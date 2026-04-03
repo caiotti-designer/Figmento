@@ -3,7 +3,7 @@
  * Dynamic design intelligence from compiled knowledge (KI-2).
  *
  * Reference tables (palettes, fonts, sizes) removed in favor of
- * local intelligence tools (get_color_palette, get_font_pairing, get_size_preset).
+ * local intelligence tools (get_design_guidance).
  * buildSystemPrompt() injects brief-specific knowledge when a DesignBrief
  * is detected, and always-on refinement checks.
  */
@@ -310,7 +310,7 @@ You MUST use these exact hex values. No substitutions, no similar colors.
 |------|-----|----------|
 ${rows.join('\n')}
 
-- Use these EXACT hex values in every set_fill and create_text color parameter.
+- Use these EXACT hex values in every set_style(property="fill") and create_text color parameter.
 - Neutral/background colors (#000000, #FFFFFF, #F5F5F5) are allowed for contrast.
 - Any other color is a design error. If you need a shade, darken/lighten the DS color, don't invent new ones.`;
 
@@ -350,9 +350,9 @@ ${rows.join('\n')}
   // ── Behavioral instructions ──
   sections.push(
     `INSTRUCTIONS: Use the EXACT component names above with create_component — the system creates real component instances. ` +
-    `COLOR ENFORCEMENT: You MUST use ONLY the hex values from the color table above in set_fill, set_stroke, create_text(color), and create_frame(fillColor). ` +
+    `COLOR ENFORCEMENT: You MUST use ONLY the hex values from the color table above in set_style(property="fill"), set_style(property="stroke"), create_text(color), and create_frame(fillColor). ` +
     `Do NOT invent new colors or use "close" shades. Copy-paste the hex from the table. ` +
-    `When setting typography, prefer listed text style names with apply_text_style.`
+    `When setting typography, prefer listed text style names with apply_style(styleType="text").`
   );
 
   let block = `\n\n═══════════════════════════════════════════════════════════
@@ -401,21 +401,21 @@ If the response includes variables:
   → Use bind_variable for spacing values when corresponding spacing variables exist.
 
 If the response includes paint styles:
-  → Use apply_paint_style instead of set_fill for fills that match a style.
+  → Use apply_style(styleType="paint") instead of set_style(property="fill") for fills that match a style.
 
 If the response includes text styles:
-  → Use apply_text_style instead of manually setting fontSize/fontWeight.
+  → Use apply_style(styleType="text") instead of manually setting fontSize/fontWeight.
 
 If the file has no variables and no styles:
   → For new projects: offer to call create_figma_variables to set up a design system.
-  → For existing files with content: use set_fill/set_text normally (acceptable fallback).
+  → For existing files with content: use set_style/set_text normally (acceptable fallback).
 ${buildDesignSystemBlock(designSystem)}
 ## Design Workflow (follow for EVERY design request)
 1. Parse the request: identify format (Instagram post? Poster? Presentation?), mood/style, content, brand constraints.
 1b. Call read_figma_context to discover existing variables and styles. Use them instead of hardcoding values (see Figma-Native Workflow above).
-2. Call lookup_size(format) to get exact pixel dimensions. Never guess dimensions.
-3. Call lookup_palette(mood) to get the color palette. If a brand kit exists, use its colors instead.
-4. Call lookup_fonts(mood) to get the font pairing. Use the recommended heading/body weights.
+2. Call get_design_guidance(aspect="size", format) to get exact pixel dimensions. Never guess dimensions.
+3. Call get_design_guidance(aspect="color", mood) to get the color palette. If a brand kit exists, use its colors instead.
+4. Call get_design_guidance(aspect="font", mood) to get the font pairing. Use the recommended heading/body weights.
 5. Choose the type scale ratio:
    - minor_third (1.2) — documents, long reads, subtle hierarchy
    - major_third (1.25) — general purpose, balanced (DEFAULT)
@@ -432,10 +432,10 @@ DESIGN KNOWLEDGE TOOLS (call these instead of guessing)
 ═══════════════════════════════════════════════════════════
 
 Use these tools to get exact values — never hardcode or guess:
-- lookup_size(format) → exact pixel dimensions for any format (social, print, web, presentation)
-- lookup_palette(mood) → full color palette (primary, secondary, accent, background, text, muted)
-- lookup_fonts(mood) → font pairing with heading/body fonts and weights
-- lookup_blueprint(category, subcategory?, mood?) → layout blueprint with zones and anti-generic rules
+- get_design_guidance(aspect="size", format) → exact pixel dimensions for any format (social, print, web, presentation)
+- get_design_guidance(aspect="color", mood) → full color palette (primary, secondary, accent, background, text, muted)
+- get_design_guidance(aspect="font", mood) → font pairing with heading/body fonts and weights
+- get_design_guidance(aspect="layout", category, subcategory?, mood?) → layout blueprint with zones and anti-generic rules
 - suggest_font_pairing(font, mode) → ML-based font pairing from 802 Google Fonts. Use when user specifies ONE font and you need its best partner. mode: contrast (heading/body) | similar (harmony) | both
 - generate_accessible_palette(base_color) → WCAG-guaranteed color palette from any hex. Returns light + dark mode variants with named contrast ratios (subtle, muted, default=AA, emphasis=AAA, strong)
 - get_design_intelligence() → CALL THIS at the start of any design session for the full design playbook (taste rules, anti-patterns, scoring, workflow). Essential for top-tier output.

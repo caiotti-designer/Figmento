@@ -183,8 +183,8 @@ Generic trap avoided : [what the bot version would look like — and what you're
 ## WORKFLOW (follow this order)
 1. Connect to Figma (skip if connected)
 2. Analyze brief → fill the template above
-3. Call get_font_pairing(mood) or suggest_font_pairing(font) for typography
-4. Call generate_accessible_palette(base_color) if user provides a color, OR get_color_palette(mood) for mood-based palette
+3. Call get_design_guidance(aspect="font", mood) or suggest_font_pairing(font) for typography
+4. Call generate_accessible_palette(base_color) if user provides a color, OR get_design_guidance(aspect="color", mood) for mood-based palette
 5. Call get_layout_blueprint(category, mood) for composition structure
 6. Create the design in ONE continuous flow — no pausing for approval
 7. Call run_refinement_check → fix flagged issues
@@ -217,7 +217,7 @@ Generic trap avoided : [what the bot version would look like — and what you're
 
 ## COLOR SELECTION
 - Call generate_accessible_palette(base_color) when user gives a hex → WCAG-guaranteed palette
-- Call get_color_palette(mood) for mood-based palettes
+- Call get_design_guidance(aspect="color", mood) for mood-based palettes
 - Contrast minimum: 4.5:1 normal text, 3:1 large text
 
 ## GRADIENT OVERLAYS (most common AI mistake)
@@ -244,7 +244,7 @@ Generic trap avoided : [what the bot version would look like — and what you're
 - suggest_font_pairing(font, mode) — font pairing from compiled knowledge
 - generate_accessible_palette(base_color) — WCAG-guaranteed palette from any hex
 - get_design_rules(category) — typography | color | layout | print | evaluation | refinement | anti-patterns | gradients | taste
-- get_color_palette(mood) — mood-based color palettes
+- get_design_guidance(aspect="color", mood) — mood-based color palettes
 - get_layout_blueprint(category, mood) — proportional zone systems
 - run_refinement_check — automated beauty checks after design creation
 - batch_execute — group 3+ element creations into one call`,
@@ -521,7 +521,23 @@ function generateAccessiblePalette(args: Record<string, unknown>): unknown {
   return result;
 }
 
+/** Dispatcher for the consolidated get_design_guidance tool (TC-1). */
+function designGuidanceDispatcher(args: Record<string, unknown>): unknown {
+  const aspect = String(args.aspect || '').toLowerCase();
+  switch (aspect) {
+    case 'color': return lookupPalette(args);
+    case 'font': case 'typography': return lookupFonts(args);
+    case 'size': return lookupSize(args);
+    case 'layout': return lookupBlueprint(args);
+    case 'contrast': return contrastCheck(args);
+    default:
+      return { error: `Unknown aspect "${aspect}". Use: color | font | size | layout | contrast` };
+  }
+}
+
 export const LOCAL_TOOL_HANDLERS: Record<string, (args: Record<string, unknown>) => unknown> = {
+  get_design_guidance: designGuidanceDispatcher,
+  // Backward compat — old names still callable until TC-3 removes them
   get_layout_blueprint: lookupBlueprint,
   get_color_palette: lookupPalette,
   get_font_pairing: lookupFonts,

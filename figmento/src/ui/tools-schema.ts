@@ -61,10 +61,11 @@ const CHAT_EXCLUDED = new Set([
 
 /** Lookup tools — needed in plan phase, removed once design starts. */
 const LOOKUP_TOOLS = new Set([
+  'get_design_guidance',       // TC-1 consolidated name
   'get_layout_blueprint',
-  'get_color_palette',
-  'get_font_pairing',
-  'get_size_preset',
+  'get_color_palette',         // backward compat until TC-3
+  'get_font_pairing',         // backward compat until TC-3
+  'get_size_preset',           // backward compat until TC-3
 ]);
 
 /** Tools that signal we've entered the build phase. */
@@ -74,13 +75,15 @@ const BUILD_PHASE_TRIGGERS = new Set([
   'create_rectangle',
   'create_ellipse',
   'create_image',
-  'set_fill',
+  'set_style',                 // TC-1 consolidated name
+  'set_fill',                  // backward compat until TC-3
   'set_auto_layout',
 ]);
 
 /** Plan phase: lookups + basic creation + scene queries. */
 const PLAN_PHASE_TOOLS = new Set([
-  // Lookups
+  // Lookups (TC-1 consolidated + backward compat)
+  'get_design_guidance',
   'get_layout_blueprint', 'get_color_palette', 'get_font_pairing', 'get_size_preset',
   'get_contrast_check', 'get_design_rules',
   // Intelligence & pairing
@@ -90,8 +93,8 @@ const PLAN_PHASE_TOOLS = new Set([
   'scan_frame_structure', 'get_screenshot', 'read_figma_context',
   // Basic creation
   'create_frame', 'create_text', 'create_rectangle', 'create_ellipse',
-  // Essential styling
-  'set_fill',
+  // Essential styling (TC-1 consolidated + backward compat)
+  'set_style', 'set_fill',
   // Image + utility
   'create_image', 'generate_image', 'update_memory',
 ]);
@@ -105,9 +108,11 @@ const BUILD_PHASE_TOOLS = new Set([
   'create_icon',
   // Batch
   'batch_execute', 'clone_with_overrides',
-  // Styling
+  // Styling (TC-1 consolidated + backward compat until TC-3)
+  'set_style',
   'set_fill', 'set_stroke', 'set_effects', 'set_corner_radius', 'set_opacity', 'set_auto_layout',
-  // Scene management
+  // Scene management (TC-1 consolidated + backward compat until TC-3)
+  'transform_node',
   'move_node', 'resize_node', 'append_child', 'reorder_child', 'clone_node', 'delete_node',
   // Inspection
   'get_node_info', 'get_screenshot', 'scan_frame_structure',
@@ -115,8 +120,10 @@ const BUILD_PHASE_TOOLS = new Set([
   'generate_image', 'update_memory',
   // Quality
   'run_refinement_check',
-  // Figma native (variables, styles)
-  'read_figma_context', 'bind_variable', 'apply_paint_style', 'apply_text_style', 'apply_effect_style',
+  // Figma native (TC-1 consolidated + backward compat until TC-3)
+  'read_figma_context', 'bind_variable',
+  'apply_style',
+  'apply_paint_style', 'apply_text_style', 'apply_effect_style',
   'create_figma_variables',
 ]);
 
