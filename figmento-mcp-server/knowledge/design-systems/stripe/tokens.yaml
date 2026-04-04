@@ -1,50 +1,84 @@
 name: stripe
-created: '2026-02-26T02:41:01.630Z'
+created: '2026-04-04T00:00:00.000Z'
+source: VoltAgent/awesome-design-md — design-md/stripe/DESIGN.md
 preset_used: null
 mood:
-  - clean
-  - minimalist
-  - modern
-voice: The brand aesthetic is clean, modern, and minimalist, focusing on simplicity and functionality.
+  - premium
+  - technical
+  - luxurious
+voice: >-
+  Simultaneously technical and luxurious, precise and warm. A financial
+  institution redesigned by a world-class type foundry. Headlines whisper
+  authority through lightness, not weight.
 colors:
-  primary: '#4285f4'
-  primary_light: '#D3E2FC'
-  primary_dark: '#0B51C5'
-  secondary: '#ff6201'
-  accent: '#ed5153'
-  surface: '#FCFCFD'
-  background: '#F7F7F8'
-  border: '#FFFFFF'
-  on_primary: '#000000'
-  on_surface: '#151619'
-  on_surface_muted: '#6D7178'
-  success: '#16A34A'
-  warning: '#EAB308'
-  error: '#DC2626'
-  info: '#2563EB'
+  primary: '#533afd'
+  primary_light: '#b9b9f9'
+  primary_dark: '#2e2b8c'
+  secondary: '#ea2261'
+  accent: '#f96bee'
+  surface: '#ffffff'
+  background: '#ffffff'
+  border: '#e5edf5'
+  on_primary: '#ffffff'
+  on_surface: '#061b31'
+  on_surface_muted: '#64748d'
+  success: '#15be53'
+  warning: '#9b6829'
+  error: '#ea2261'
+  info: '#2874ad'
+  brand_dark: '#1c1e54'
+  dark_navy: '#0d253d'
+  label: '#273951'
+  success_bg: 'rgba(21,190,83,0.2)'
+  success_text: '#108c3d'
+  magenta_light: '#ffd7ef'
+  border_purple: '#b9b9f9'
+  border_soft_purple: '#d6d9fc'
+  border_dashed: '#362baa'
 typography:
   heading:
-    family: Inter
+    family: sohne-var
+    figma_fallback: DM Sans
+    fallback: SF Pro Display
     weights:
-      - 600
-      - 700
-      - 800
+      - 300
   body:
-    family: Inter
+    family: sohne-var
+    figma_fallback: DM Sans
+    fallback: SF Pro Display
     weights:
+      - 300
       - 400
+  mono:
+    family: SourceCodePro
+    figma_fallback: Source Code Pro
+    fallback: SFMono-Regular
+    weights:
       - 500
-      - 600
+      - 700
+  opentype_features:
+    - ss01
+  tabular_features:
+    - tnum
   scale:
-    display: 61
-    h1: 49
-    h2: 39
-    h3: 31
-    heading: 39
-    body_lg: 20
+    display: 56
+    h1: 48
+    h2: 32
+    h3: 26
+    heading: 22
+    body_lg: 18
     body: 16
-    body_sm: 13
-    caption: 10
+    body_sm: 14
+    caption: 13
+    micro: 10
+    nano: 8
+  letter_spacing:
+    display: '-1.4px'
+    h1: '-0.96px'
+    h2: '-0.64px'
+    h3: '-0.26px'
+    heading: '-0.22px'
+    body: normal
 spacing:
   unit: 8
   xs: 4
@@ -56,36 +90,68 @@ spacing:
   3xl: 64
 radius:
   none: 0
-  sm: 500
-  md: 999
-  lg: 1499
-  xl: 1998
+  sm: 4
+  md: 6
+  lg: 8
+  xl: 8
   full: 9999
 shadows:
   sm:
     x: 0
-    'y': 0
-    blur: 0
+    'y': 3
+    blur: 6
     spread: 0
-    color: '#4285f4'
-    opacity: 0
+    color: 'rgba(23,23,23,0.06)'
+    opacity: 1
   md:
     x: 0
-    'y': 0
-    blur: 0
+    'y': 15
+    blur: 35
     spread: 0
-    color: '#4285f4'
-    opacity: 0
+    color: 'rgba(23,23,23,0.08)'
+    opacity: 1
   lg:
     x: 0
-    'y': 0
-    blur: 0
-    spread: 0
-    color: '#4285f4'
-    opacity: 0
+    'y': 30
+    blur: 45
+    spread: -30
+    color: 'rgba(50,50,93,0.25)'
+    opacity: 1
+elevation:
+  flat:
+    shadow: none
+  ambient:
+    shadow: 'rgba(23,23,23,0.06) 0px 3px 6px'
+  standard:
+    shadow: 'rgba(23,23,23,0.08) 0px 15px 35px'
+  elevated:
+    shadow: 'rgba(50,50,93,0.25) 0px 30px 45px -30px, rgba(0,0,0,0.1) 0px 18px 36px -18px'
+  deep:
+    shadow: 'rgba(3,3,39,0.25) 0px 14px 21px -14px, rgba(0,0,0,0.1) 0px 8px 17px -8px'
+  ring:
+    shadow: '2px solid #533afd'
 gradients:
   enabled: true
-  direction: radial
+  direction: linear
   colors:
-    - '#FFFFFF'
-    - '#D3D3D3'
+    - '#533afd'
+    - '#f96bee'
+constraints:
+  do:
+    - Use sohne-var with "ss01" on every text element
+    - Use weight 300 for all headlines and body text
+    - Apply blue-tinted shadows (rgba(50,50,93,0.25))
+    - Use #061b31 for headings instead of #000000
+    - Keep border-radius 4px-8px
+    - Use "tnum" for tabular/financial numbers
+    - Layer shadows — blue-tinted far + neutral close
+    - Use #533afd purple as primary interactive/CTA color
+  dont:
+    - Never use weight 600-700 for sohne-var headlines
+    - Never use large border-radius (12px+, pill shapes)
+    - Never use neutral gray shadows — always blue-tint
+    - Never skip "ss01" on any sohne-var text
+    - Never use pure black (#000000) for headings
+    - Never use warm accents (orange, yellow) for interactive elements
+    - Never apply positive letter-spacing at display sizes
+    - Never use magenta/ruby accents for buttons or links

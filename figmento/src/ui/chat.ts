@@ -2155,11 +2155,11 @@ async function sendMessage() {
     // Claude Code: always routes through local relay WS
     if (useClaudeCode) {
       if (!bridgeConnected) {
-        // DX-1: Try reconnecting — relay may have started after plugin opened
-        autoConnectBridge(chatSettings.chatRelayUrl);
+        // DX-1: Try reconnecting — Claude Code always uses localhost relay
+        autoConnectBridge('http://localhost:3055');
         await new Promise(r => setTimeout(r, 1500));
         if (!getBridgeConnected()) {
-          throw new Error('Relay not reachable. Make sure Claude Code is running — the relay starts automatically with the MCP server.');
+          throw new Error('Relay not reachable. Run "npm run dev" in the Figmento project to start the relay.');
         }
       }
       console.log('[Figmento Chat] → CLAUDE CODE path (WS)');

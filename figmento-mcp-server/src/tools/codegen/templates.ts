@@ -5,6 +5,36 @@
 
 type Params = Record<string, unknown>;
 
+// ─── Font Fallback Map ──────────────────────────────────────
+// Proprietary/unavailable fonts → closest Google Font available in Figma.
+// Used when a design system specifies a custom font that isn't installed.
+const FONT_FALLBACK: Record<string, string> = {
+  // Stripe
+  'sohne-var': 'DM Sans',
+  'sohne': 'DM Sans',
+  'SourceCodePro': 'Source Code Pro',
+  // Linear
+  'Inter Variable': 'Inter',
+  'Berkeley Mono': 'JetBrains Mono',
+  // Claude / Anthropic
+  'Anthropic Serif': 'Source Serif 4',
+  'Anthropic Sans': 'DM Sans',
+  'Anthropic Mono': 'DM Mono',
+  // Figma
+  'figmaSans': 'Plus Jakarta Sans',
+  'figmaMono': 'JetBrains Mono',
+  // Notion
+  'NotionInter': 'Inter',
+  // Vercel
+  'Geist': 'Inter',
+  'Geist Mono': 'JetBrains Mono',
+};
+
+function resolveFontFamily(requested: string | undefined): string {
+  if (!requested) return 'Inter';
+  return FONT_FALLBACK[requested] || requested;
+}
+
 // ─── Canvas Templates ────────────────────────────────────────
 
 export function createFrame(p: Params, v: string, parentVar?: string): string {
@@ -48,7 +78,7 @@ export function createFrame(p: Params, v: string, parentVar?: string): string {
 }
 
 export function createText(p: Params, v: string, parentVar?: string): string {
-  const family = (p.fontFamily as string) || 'Inter';
+  const family = resolveFontFamily(p.fontFamily as string);
   const weight = (p.fontWeight as number) || 400;
   const text = (p.text || p.content || '') as string;
 
@@ -215,7 +245,7 @@ export function setAutoLayout(p: Params, v: string): string {
 }
 
 export function setText(p: Params, v: string): string {
-  const family = (p.fontFamily as string) || 'Inter';
+  const family = resolveFontFamily(p.fontFamily as string);
   const weight = (p.fontWeight as number) || 400;
   const lines = [
     `await figma.loadFontAsync({ family: ${JSON.stringify(family)}, style: getFontStyle(${weight}) });`,

@@ -232,7 +232,7 @@ type SendDesignCommand = (action: string, params: Record<string, unknown>) => Pr
 
 export const createFromTemplateSchema = {
   template: z.string().describe('Template name (e.g. "pitch_deck", "social_media_kit", "brand_stationery", "landing_page_full", "restaurant_menu")'),
-  system: z.string().describe('Design system name to use for tokens (e.g. "testbrand", "payflow")'),
+  system: z.string().describe('Design system name to use for tokens (e.g. "stripe", "linear", "claude")'),
   props: z.record(z.unknown()).optional().describe('Props to inject across all template frames'),
   startX: z.coerce.number().optional().describe('Starting X position for the first frame (default: 0)'),
   startY: z.coerce.number().optional().describe('Starting Y position for all frames (default: 0)'),

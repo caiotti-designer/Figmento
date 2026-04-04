@@ -6,7 +6,7 @@
 import { z } from 'zod';
 
 export const createDesignSystemSchema = {
-  name: z.string().describe('Design system name (lowercase, e.g. "payflow")'),
+  name: z.string().describe('Design system name (lowercase, e.g. "stripe")'),
   preset: z.string().optional().describe('Library preset: shadcn, material, minimal, luxury, or vibrant'),
   primary_color: z.string().optional().describe('Primary brand color hex (e.g. "#2563EB")'),
   secondary_color: z.string().optional().describe('Secondary color hex'),
@@ -33,7 +33,7 @@ export const deleteDesignSystemSchema = {
 };
 
 export const createComponentSchema = {
-  system: z.string().describe('Design system name (e.g. "payflow")'),
+  system: z.string().describe('Design system name (e.g. "stripe")'),
   component: z.string().describe('Component name: button, badge, card, divider, avatar'),
   variant: z.string().optional().describe('Component variant (e.g. "secondary", "ghost", "outlined")'),
   size: z.string().optional().describe('Size variant: sm, md, lg, xl'),
@@ -63,7 +63,7 @@ export const scanFrameStructureSchema = {
 };
 
 export const designSystemPreviewSchema = {
-  system: z.string().describe('Design system name (e.g. "testbrand")'),
+  system: z.string().describe('Design system name (e.g. "stripe")'),
   x: z.coerce.number().optional().describe('X position on canvas (default: 0)'),
   y: z.coerce.number().optional().describe('Y position on canvas (default: 0)'),
 };

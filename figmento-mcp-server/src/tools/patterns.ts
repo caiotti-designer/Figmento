@@ -116,7 +116,7 @@ export async function listPatternsHandler(_filter?: string) {
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
 export const createFromPatternSchema = {
-  system: z.string().describe('Design system name (e.g. "payflow")'),
+  system: z.string().describe('Design system name (e.g. "stripe")'),
   pattern: z.string().describe('Pattern name: hero_block, feature_grid, pricing_card, testimonial, contact_block, content_section, image_text_row, gallery, data_row, cta_banner'),
   format: z.string().describe('Target format name (e.g. "instagram_post", "landing_page", "business_card"). Used to look up the format category and apply format_adaptations.'),
   size_variant: z.string().optional().describe('Size variant key from the format\'s size_variants map (e.g. "portrait", "landscape", "square", "desktop", "mobile", "screen", "print_ready"). If omitted, uses the format\'s default_size.'),

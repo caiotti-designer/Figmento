@@ -95,7 +95,7 @@ export const createVariableCollectionsSchema = {
 };
 
 export const createVariablesFromDesignSystemSchema = {
-  designSystemName: z.string().describe('Name of the Figmento design system (e.g., "payflow", "stripe", "noir")'),
+  designSystemName: z.string().describe('Name of the Figmento design system (e.g., "stripe", "linear", "claude", "vercel", "figma", "notion")'),
 };
 
 // ═══════════════════════════════════════════════════════════

@@ -2,7 +2,7 @@
  * AUTO-GENERATED — DO NOT EDIT
  * Compiled from figmento-mcp-server/knowledge/ YAML files.
  * Run: npx tsx scripts/compile-knowledge.ts
- * Generated: 2026-04-01T21:25:00.516Z
+ * Generated: 2026-04-04T15:29:17.072Z
  */
 
 import type {
@@ -1955,4 +1955,4 @@ export const DESIGN_RULES: Record<string, unknown> = {
   }
 };
 
-export const KNOWLEDGE_VERSION: string = "67ed4b126991617c";
+export const KNOWLEDGE_VERSION: string = "7bed0b039e67c39f";
