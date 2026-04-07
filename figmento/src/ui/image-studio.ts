@@ -648,8 +648,8 @@ async function callGeminiDirect(
   resolution: string,
   apiKey: string,
 ): Promise<{ imageBase64: string; mimeType: string } | null> {
-  const model = 'gemini-3.1-flash-image-preview';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const geminiModel = 'gemini-3.1-flash-image-preview'; // TODO: accept from caller when Image Studio gets model selector
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
 
   // Build parts: reference images (labeled) + prompt text
   const parts: any[] = [];

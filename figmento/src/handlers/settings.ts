@@ -118,6 +118,7 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
         // Migration: check for old figmento-plugin/ flat keys
         await migrateOldSettings(keys);
 
+        const claudeCodeModel = (await figma.clientStorage.getAsync('figmento-chat-cc-model')) || '';
         const chatRelayEnabled = (await figma.clientStorage.getAsync('figmento-chat-relay-enabled')) || '';
         const chatRelayUrl = (await figma.clientStorage.getAsync('figmento-chat-relay-url')) || '';
         // DX-1: Load persisted bridge channel
@@ -131,6 +132,7 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
             geminiApiKey: keys['gemini'] || '',
             openaiApiKey: keys['openai'] || '',
             model: chatModel,
+            claudeCodeModel: claudeCodeModel,
             chatRelayEnabled: chatRelayEnabled,
             chatRelayUrl: chatRelayUrl,
             bridgeChannel: bridgeChannel,
@@ -160,6 +162,11 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
         // Store chat model preference separately
         if (s.model) {
           await figma.clientStorage.setAsync('figmento-chat-model', s.model);
+        }
+
+        // Store Claude Code sub-model preference
+        if (s.claudeCodeModel) {
+          await figma.clientStorage.setAsync('figmento-chat-cc-model', s.claudeCodeModel);
         }
 
         // Store relay settings

@@ -2,8 +2,51 @@ import { UIAnalysis, UIElement, HeroGeneratorInput } from '../types';
 import { apiState, imageGenState, screenshotState } from './state';
 
 // ═══════════════════════════════════════════════════════════════
-// IMAGE GENERATION (GEMINI)
+// IMAGE GENERATION (GEMINI + VENICE)
 // ═══════════════════════════════════════════════════════════════
+
+/** Returns true for Venice image models (require Venice API, not Gemini). */
+export function isVeniceImageModel(model: string): boolean {
+  return model.startsWith('grok-');
+}
+
+/**
+ * Generate an image via Venice's OpenAI-compatible images API.
+ * Returns a data URI or null on failure.
+ */
+async function generateWithVeniceImage(prompt: string, apiKey: string, model: string): Promise<string | null> {
+  try {
+    const response = await fetch('https://api.venice.ai/api/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        prompt,
+        n: 1,
+        response_format: 'b64_json',
+      }),
+      ...(apiState.abortController ? { signal: apiState.abortController.signal } : {}),
+    });
+
+    if (!response.ok) {
+      console.warn('Venice Image API error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const b64 = data?.data?.[0]?.b64_json;
+    if (!b64) return null;
+    return 'data:image/png;base64,' + b64;
+  } catch (error: any) {
+    if (error.name !== 'AbortError') {
+      console.warn('Venice image generation failed:', error);
+    }
+    return null;
+  }
+}
 
 export function collectImageElements(elements: UIElement[]): UIElement[] {
   const images: UIElement[] = [];
@@ -24,13 +67,16 @@ export function collectImageElements(elements: UIElement[]): UIElement[] {
   return images;
 }
 
-export function generateImageWithGemini(prompt: string, apiKey: string): Promise<string | null> {
-  return generateWithGeminiImage(prompt, apiKey);
+export function generateImageWithGemini(prompt: string, apiKey: string, model?: string, veniceApiKey?: string): Promise<string | null> {
+  if (model && isVeniceImageModel(model) && veniceApiKey) {
+    return generateWithVeniceImage(prompt, veniceApiKey, model);
+  }
+  return generateWithGeminiImage(prompt, apiKey, model);
 }
 
-export async function generateWithGeminiImage(prompt: string, apiKey: string): Promise<string | null> {
-  // Use Gemini 3.1 Flash Image Preview for image generation
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent';
+export async function generateWithGeminiImage(prompt: string, apiKey: string, model?: string): Promise<string | null> {
+  const geminiModel = model || 'gemini-3.1-flash-image-preview';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`;
 
   const fetchOptions: RequestInit = {
     method: 'POST',
@@ -164,9 +210,11 @@ export async function generateImagesForPlaceholders(
 export async function generateHeroImage(
   input: HeroGeneratorInput,
   apiKey: string,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  model?: string,
 ): Promise<string | null> {
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent';
+  const geminiModel = model || 'gemini-3.1-flash-image-preview';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`;
 
   // Build parts array with role-labeled images and prompt
   const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];

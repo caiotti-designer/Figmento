@@ -341,6 +341,7 @@ export class ClaudeCodeSessionManager {
     history: Array<{ role: string; content: string }>,
     memory: string[] | undefined,
     model?: string,
+    imageModel?: string,
     attachmentBase64?: string,
     fileAttachments?: Array<{ name: string; type: string; dataUri: string }>,
     onProgress?: ProgressCallback,
@@ -365,7 +366,7 @@ export class ClaudeCodeSessionManager {
     // Boot a fresh session if none exists
     if (!session) {
       console.log(`[Figmento Claude Code] Booting new session channel=${channel} model=${model ?? 'default'}`);
-      session = this.startSession(channel, history, memory, model);
+      session = this.startSession(channel, history, memory, model, imageModel);
     }
 
     // Stage turn context before pushing (drain loop reads these fields)
@@ -509,6 +510,7 @@ export class ClaudeCodeSessionManager {
     history: Array<{ role: string; content: string }>,
     memory: string[] | undefined,
     model?: string,
+    imageModel?: string,
   ): ClaudeCodeSession {
     const queue = new AsyncQueue<SDKUserMessage>();
     const abortController = new AbortController();
@@ -517,6 +519,11 @@ export class ClaudeCodeSessionManager {
     const lastUserMsg = [...history].reverse().find(m => m.role === 'user')?.content ?? '';
     const brief = detectBrief(lastUserMsg);
     let systemPrompt = buildSystemPrompt(brief, memory);
+
+    // Inject user's preferred image generation model so Claude Code passes it to generate_design_image
+    if (imageModel) {
+      systemPrompt += `\n\n## Image Generation Model\nThe user has selected "${imageModel}" as their preferred image generation model. When calling generate_design_image, ALWAYS pass model="${imageModel}" as a parameter.`;
+    }
 
     // Inject conversation history into system prompt so the SDK session
     // has full context even after a session restart (relay reboot, idle timeout).

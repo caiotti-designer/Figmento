@@ -154,12 +154,22 @@ interface DesignSettingsState {
 
 const DESIGN_SETTINGS_KEY = 'figmento-design-settings';
 
+const VALID_IMAGE_MODELS = ['gemini-3.1-flash-image-preview', 'gemini-3.1-pro-preview', 'grok-imagine-image-pro'];
+
 function loadDesignSettings(): DesignSettingsState {
+  const defaults: DesignSettingsState = { imageModel: 'gemini-3.1-flash-image-preview', imageQuality: '2k', imageStyle: 'auto', defaultFont: 'auto', brandColors: [], gridEnabled: true };
   try {
     const raw = localStorage.getItem(DESIGN_SETTINGS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw) as DesignSettingsState;
+      // Migrate stale image model values (nano-banana-2, gemini-imagen, dall-e-3)
+      if (!VALID_IMAGE_MODELS.includes(parsed.imageModel)) {
+        parsed.imageModel = defaults.imageModel;
+      }
+      return parsed;
+    }
   } catch { /* localStorage unavailable in Figma iframe */ }
-  return { imageModel: 'nano-banana-2', imageQuality: '2k', imageStyle: 'auto', defaultFont: 'auto', brandColors: [], gridEnabled: true };
+  return defaults;
 }
 
 function saveDesignSettings(s: DesignSettingsState): void {
@@ -1828,9 +1838,9 @@ function renderDesignDrawer(): void {
         <div class="drawer-section-title">Generation</div>
         <label class="drawer-label">Image Model</label>
         <select class="drawer-select" id="ds-image-model">
-          <option value="nano-banana-2">Nano Banana 2</option>
-          <option value="gemini-imagen">Gemini Imagen</option>
-          <option value="dall-e-3">DALL-E 3</option>
+          <option value="gemini-3.1-flash-image-preview">Gemini Flash (fast)</option>
+          <option value="gemini-3.1-pro-preview">Gemini Pro (quality)</option>
+          <option value="grok-imagine-image-pro">Grok Imagine Pro (Venice)</option>
         </select>
         <label class="drawer-label">Quality</label>
         <div class="drawer-radio-group" id="ds-quality">
@@ -2340,6 +2350,7 @@ async function runClaudeCodeTurn(text: string, attachment?: string | null, allAt
     history: claudeCodeHistory,
     memory: memoryEntries,
     model: chatSettings.claudeCodeModel || undefined,
+    imageModel: designSettings.imageModel || undefined,
     ...(attachment && { attachmentBase64: attachment }),
     ...(fileAttachments.length > 0 && { fileAttachments }),
   });
@@ -2745,39 +2756,54 @@ async function executeAnalyzeCanvasContext(args: Record<string, unknown>): Promi
 
 async function executeGenerateImage(input: Record<string, unknown>): Promise<ToolCallResult> {
   const prompt = input.prompt as string;
+  const imageModel = designSettings.imageModel || 'gemini-3.1-flash-image-preview';
+  const useVenice = imageModel.startsWith('grok-');
 
-  if (!chatSettings.geminiApiKey) {
+  if (useVenice && !chatSettings.veniceApiKey) {
+    appendToolAction('generate_image', 'No Venice API key set', true);
+    return { content: 'Venice API key not configured. Add it in Settings to use Grok Imagine.', is_error: true };
+  }
+  if (!useVenice && !chatSettings.geminiApiKey) {
     appendToolAction('generate_image', 'No Gemini API key set', true);
-    return {
-      content: 'Gemini API key not configured. Ask the user to add it in Settings.',
-      is_error: true,
-    };
+    return { content: 'Gemini API key not configured. Add it in Settings.', is_error: true };
   }
 
   try {
-    appendToolAction('generate_image', `Generating: "${prompt.substring(0, 60)}..."`);
+    appendToolAction('generate_image', `Generating (${imageModel}): "${prompt.substring(0, 50)}..."`);
 
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${chatSettings.geminiApiKey}`,
-      {
+    let base64: string;
+
+    if (useVenice) {
+      // Venice OpenAI-compatible images endpoint
+      const resp = await fetch('https://api.venice.ai/api/v1/images/generations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `Generate an image: ${prompt}` }] }],
-          generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
-        }),
-      }
-    );
-
-    if (!resp.ok) {
-      throw new Error(`Gemini API error ${resp.status}`);
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${chatSettings.veniceApiKey}` },
+        body: JSON.stringify({ model: imageModel, prompt, n: 1, response_format: 'b64_json' }),
+      });
+      if (!resp.ok) throw new Error(`Venice API error ${resp.status}`);
+      const veniceResult = await resp.json();
+      base64 = veniceResult?.data?.[0]?.b64_json;
+      if (!base64) throw new Error('No image returned from Venice');
+    } else {
+      // Gemini API
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${imageModel}:generateContent?key=${chatSettings.geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `Generate an image: ${prompt}` }] }],
+            generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+          }),
+        }
+      );
+      if (!resp.ok) throw new Error(`Gemini API error ${resp.status}`);
+      const result = await resp.json();
+      const parts = result.candidates?.[0]?.content?.parts || [];
+      const imgPart = parts.find((p: Record<string, unknown>) => p.inlineData);
+      base64 = imgPart?.inlineData?.data;
+      if (!base64) throw new Error('No image returned from Gemini');
     }
-
-    const result = await resp.json();
-    const parts = result.candidates?.[0]?.content?.parts || [];
-    const imgPart = parts.find((p: Record<string, unknown>) => p.inlineData);
-    const base64 = imgPart?.inlineData?.data;
-    if (!base64) throw new Error('No image returned from Gemini');
 
     const imageData = `data:image/png;base64,${base64}`;
     const createParams: Record<string, unknown> = {

@@ -131,12 +131,55 @@ function loadReferenceImage(filePath: string): ReferenceImage | null {
   }
 }
 
-// ─── Gemini API Call ───────────────────────────────────────────────────────────
+// ─── Image API Calls (Gemini + Venice) ───────────────────────────────────────
 
 interface CallGeminiOptions {
   aspectRatio?: string;
   imageSize?: string;
   referenceImages?: ReferenceImage[];
+  model?: string;
+}
+
+/** Returns true for Venice image models (use Venice API, not Gemini). */
+function isVeniceImageModel(model: string): boolean {
+  return model.startsWith('grok-');
+}
+
+/**
+ * Generate an image via Venice's OpenAI-compatible images API.
+ * Returns raw image buffer.
+ */
+async function callVeniceImage(
+  prompt: string,
+  apiKey: string,
+  model: string,
+): Promise<Buffer> {
+  const resp = await fetch('https://api.venice.ai/api/v1/images/generations', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      prompt,
+      n: 1,
+      response_format: 'b64_json',
+    }),
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text().catch(() => '');
+    throw new Error(`Venice Image API error ${resp.status}: ${errBody}`);
+  }
+
+  const data = await resp.json();
+  const b64 = (data as Record<string, unknown[]>)?.data?.[0] as Record<string, string> | undefined;
+  if (!b64?.b64_json) {
+    throw new Error('No image data in Venice response');
+  }
+
+  return Buffer.from(b64.b64_json, 'base64');
 }
 
 async function callGemini(
@@ -144,6 +187,15 @@ async function callGemini(
   apiKey: string,
   options?: CallGeminiOptions,
 ): Promise<Buffer> {
+  const geminiModel = options?.model || 'gemini-3.1-flash-image-preview';
+
+  // Route to Venice if model is a Venice image model
+  if (isVeniceImageModel(geminiModel)) {
+    const veniceKey = process.env.VENICE_API_KEY;
+    if (!veniceKey) throw new Error('VENICE_API_KEY not set in environment. Add it to .env to use Venice image models.');
+    return callVeniceImage(prompt, veniceKey, geminiModel);
+  }
+
   const ai = new GoogleGenAI({ apiKey });
 
   const imageConfig: Record<string, string> = {};
@@ -161,7 +213,7 @@ async function callGemini(
   parts.push({ text: prompt });
 
   const rawResponse = await ai.models.generateContent({
-    model: 'gemini-3.1-flash-image-preview',
+    model: geminiModel,
     contents: [{ parts }],
     config: {
       responseModalities: ['IMAGE'],
@@ -298,6 +350,7 @@ async function placeImageInBackground(
   skipPreview: boolean,
   referenceImages?: ReferenceImage[],
   asFill?: boolean,
+  imageModel?: string,
 ): Promise<void> {
   const IMAGE_OUTPUT_DIR = process.env.IMAGE_OUTPUT_DIR || nodePath.join(process.cwd(), 'output');
   fs.mkdirSync(IMAGE_OUTPUT_DIR, { recursive: true });
@@ -341,7 +394,7 @@ async function placeImageInBackground(
 
   // Helper: generate image and convert to base64
   async function generateAndEncode(size: string): Promise<string> {
-    const imageBuffer = await callGemini(geminiPrompt, apiKey, { aspectRatio, imageSize: size, referenceImages: referenceImages?.length ? referenceImages : undefined });
+    const imageBuffer = await callGemini(geminiPrompt, apiKey, { aspectRatio, imageSize: size, referenceImages: referenceImages?.length ? referenceImages : undefined, model: imageModel });
     const outPath = nodePath.join(IMAGE_OUTPUT_DIR, `figmento-generated-${Date.now()}.png`);
     fs.writeFileSync(outPath, imageBuffer);
     return `data:image/png;base64,${imageBuffer.toString('base64')}`;
@@ -420,19 +473,22 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
       frameId: z.string().optional().describe('Target frame nodeId. If omitted, auto-resolved from current Figma selection or a new frame is created using the format dimensions.'),
       name: z.string().optional().describe('Frame name when a new frame is created. Defaults to the brief truncated to 40 characters.'),
       referenceImagePath: z.string().optional().describe('Path to a reference image file (PNG, JPG, WEBP). The generated image will inherit the style, composition, and mood of this reference. Accepts absolute paths or paths within temp/imports/ or brand-assets/.'),
+      model: z.string().optional().describe('Image generation model. Gemini: "gemini-3.1-flash-image-preview" (fast, default), "gemini-3.1-pro-preview" (quality). Venice: "grok-imagine-image-pro". Venice models require VENICE_API_KEY in .env.'),
       awaitImage: z.boolean().optional().describe('If true, block until image is fully generated and placed (legacy sequential mode). Default false — returns frameId immediately.'),
       skipPreview: z.boolean().optional().describe('If true, skip the fast 512px preview and generate at target resolution directly. Default false — two-phase (preview + high-res).'),
       asFill: z.boolean().optional().describe('If true, apply the generated image directly as the frame\'s IMAGE fill instead of creating a child node. Use this when you want to replace the frame background without adding children. Default false.'),
     },
     async (params) => {
       // Fail fast if API key missing
-      const apiKey = process.env.GEMINI_API_KEY;
-      process.stderr.write(`[Figmento ImageGen] GEMINI_API_KEY=${apiKey ? apiKey.slice(0, 8) + '...' : 'NOT SET'}\n`);
+      const useVeniceModel = params.model && isVeniceImageModel(params.model);
+      const apiKey = useVeniceModel ? (process.env.VENICE_API_KEY || '') : (process.env.GEMINI_API_KEY || '');
+      const keyName = useVeniceModel ? 'VENICE_API_KEY' : 'GEMINI_API_KEY';
+      process.stderr.write(`[Figmento ImageGen] ${keyName}=${apiKey ? apiKey.slice(0, 8) + '...' : 'NOT SET'} model=${params.model || 'default'}\n`);
       if (!apiKey) {
         return {
           content: [{
             type: 'text' as const,
-            text: JSON.stringify({ error: 'GEMINI_API_KEY not set in environment. Add it to .env to use image generation.' }),
+            text: JSON.stringify({ error: `${keyName} not set in environment. Add it to .env to use image generation.` }),
           }],
           isError: true,
         };
@@ -480,7 +536,7 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
         let fallbackUsed = false;
 
         try {
-          const imageBuffer = await callGemini(geminiPrompt, apiKey, { aspectRatio, imageSize, referenceImages: referenceImages.length > 0 ? referenceImages : undefined });
+          const imageBuffer = await callGemini(geminiPrompt, apiKey, { aspectRatio, imageSize, referenceImages: referenceImages.length > 0 ? referenceImages : undefined, model: params.model });
           const outPath = nodePath.join(IMAGE_OUTPUT_DIR, `figmento-generated-${Date.now()}.png`);
           fs.writeFileSync(outPath, imageBuffer);
           imageBase64 = `data:image/png;base64,${imageBuffer.toString('base64')}`;
@@ -558,6 +614,7 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
         skipPreview,
         referenceImages.length > 0 ? referenceImages : undefined,
         params.asFill,
+        params.model,
       ).catch((err) => {
         process.stderr.write(`[Figmento] Background image placement error: ${(err as Error).message}\n`);
       });
