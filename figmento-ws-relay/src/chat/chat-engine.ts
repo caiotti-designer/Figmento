@@ -237,7 +237,9 @@ function convertSchemaToGemini(schema: Record<string, unknown>): Record<string, 
  */
 function buildGeminiGenerationConfig(model: string): Record<string, unknown> {
   const config: Record<string, unknown> = { maxOutputTokens: 8192 };
-  if (model.startsWith('gemini-3')) {
+  // Image-preview models don't support thinking config
+  const isImagePreview = model.includes('image');
+  if (!isImagePreview && model.startsWith('gemini-3')) {
     config.thinkingConfig = { thinkingLevel: 'LOW' };
   } else if (model.includes('2.5-pro') || model.includes('2.5-flash')) {
     config.thinkingConfig = { thinkingBudget: model.includes('pro') ? 128 : 0 };
