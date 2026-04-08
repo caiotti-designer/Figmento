@@ -34,7 +34,7 @@ import type { CorrectionEntry, LearnedPreference } from '../types';
 // ═══════════════════════════════════════════════════════════════
 
 /** Cloud relay URL — used as default for published plugin users. */
-export const CLOUD_RELAY_URL = 'https://figmento.fly.dev';
+export const CLOUD_RELAY_URL = 'https://figmento-ws-relay.fly.dev';
 /** Local relay URL — used for Claude Code mode and local development. */
 export const LOCAL_RELAY_URL = 'http://localhost:3055';
 

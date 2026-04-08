@@ -1,4 +1,4 @@
-app = 'figmento'
+app = 'figmento-ws-relay'
 primary_region = 'gru'
 
 [build]

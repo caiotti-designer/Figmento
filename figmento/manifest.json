@@ -17,8 +17,8 @@
       "https://fonts.gstatic.com",
       "https://figmento-production.up.railway.app",
       "wss://figmento-production.up.railway.app",
-      "https://figmento.fly.dev",
-      "wss://figmento.fly.dev",
+      "https://figmento-ws-relay.fly.dev",
+      "wss://figmento-ws-relay.fly.dev",
       "https://api.venice.ai"
     ],
     "devAllowedDomains": [
