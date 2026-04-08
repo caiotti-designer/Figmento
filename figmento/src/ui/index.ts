@@ -40,7 +40,7 @@ import { AIProvider } from '../types';
 import { apiState, imageGenState } from './state';
 import { addToQueue, startBatchProcessing, clearQueue, notifyDesignCreated } from './batch';
 import { initChat, resolveChatCommand, loadMemoryEntries, getChatSettings, restoreChatHistory } from './chat';
-import { initBridge, handleBridgeCommandResult, autoConnectBridge, getBridgeConnected, getBridgeChannelId, getBridgeCommandCount, getBridgeErrorCount, setOnBridgeStateChange } from './bridge';
+import { initBridge, handleBridgeCommandResult, autoConnectBridge, restoreBridgeRelayUrl, getBridgeConnected, getBridgeChannelId, getBridgeCommandCount, getBridgeErrorCount, setOnBridgeStateChange } from './bridge';
 import { initChatSettings, loadChatSettings } from './chat-settings';
 import { initPreferencesPanel, reloadPreferencesPanel } from './preferences-panel';
 import { designSystemState, statusTabState, dsToggleState, STORAGE_KEY_USE_DESIGN_SYSTEM } from './state';
@@ -613,6 +613,11 @@ function setupEventListeners(): void {
     onSettingsLoaded: (settings: Record<string, string>) => {
       loadChatSettings(settings);
 
+      // CLOUD-1: Restore saved bridge relay URL into dropdowns
+      if ((settings as any).bridgeRelayUrl) {
+        restoreBridgeRelayUrl((settings as any).bridgeRelayUrl);
+      }
+
       // Auto-connect bridge when relay mode is enabled (CR-3, DX-1)
       const cs = getChatSettings();
       const relayBar = document.getElementById('relay-status-bar');
@@ -620,7 +625,7 @@ function setupEventListeners(): void {
       // Claude Code mode always needs the local relay — auto-connect to localhost
       if (useClaudeCode || cs.chatRelayEnabled) {
         if (relayBar) relayBar.style.display = 'flex';
-        const relayUrl = useClaudeCode ? 'http://localhost:3055' : (cs.chatRelayUrl || 'https://figmento-relay.fly.dev');
+        const relayUrl = useClaudeCode ? 'http://localhost:3055' : (cs.chatRelayUrl || 'https://figmento-ws-relay.fly.dev');
         autoConnectBridge(relayUrl, (settings as any).bridgeChannel || undefined);
       } else {
         if (relayBar) relayBar.style.display = 'none';

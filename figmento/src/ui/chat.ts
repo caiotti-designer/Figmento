@@ -229,7 +229,7 @@ let chatSettings: ChatSettings = {
   geminiApiKey: '',
   openaiApiKey: '',
   veniceApiKey: '',
-  model: 'gemini-3.1-flash-image-preview',
+  model: 'gemini-3.1-flash',
   claudeCodeModel: 'claude-sonnet-4-6',
   chatRelayEnabled: true,
   chatRelayUrl: CLOUD_RELAY_URL,

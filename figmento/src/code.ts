@@ -82,6 +82,11 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
       figma.ui.postMessage({ type: 'bridge-channel-loaded', channel: savedChannel || '' });
       break;
     }
+    // CLOUD-1: Bridge relay URL persistence
+    case 'save-bridge-relay-url': {
+      await figma.clientStorage.setAsync('figmento-bridge-relay-url', (msg as any).url);
+      break;
+    }
 
     case 'create-design':
       try {

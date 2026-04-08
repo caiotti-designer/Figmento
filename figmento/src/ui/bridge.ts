@@ -9,6 +9,8 @@
 // ═══════════════════════════════════════════════════════════════
 
 const DEFAULT_CHANNEL = 'figmento-local';
+const CLOUD_RELAY_WS = 'wss://figmento-ws-relay.fly.dev';
+const LOCAL_RELAY_WS = 'ws://localhost:3055';
 
 // ═══════════════════════════════════════════════════════════════
 // STATE
@@ -73,6 +75,25 @@ export function initBridge() {
   // Settings Advanced section button
   const advBtn = $safe('bridge-adv-connect');
   if (advBtn) advBtn.addEventListener('click', toggleBridgeFromAdvanced);
+
+  // Sync dropdowns on change
+  const urlSelect = $safe('bridge-url') as HTMLSelectElement | null;
+  const advUrlSelect = $safe('bridge-adv-url') as HTMLSelectElement | null;
+  if (urlSelect) urlSelect.addEventListener('change', () => {
+    if (advUrlSelect) advUrlSelect.value = urlSelect.value;
+  });
+  if (advUrlSelect) advUrlSelect.addEventListener('change', () => {
+    if (urlSelect) urlSelect.value = advUrlSelect.value;
+  });
+}
+
+/** Restore saved relay URL into bridge dropdowns. Called when settings load. */
+export function restoreBridgeRelayUrl(savedUrl: string) {
+  if (!savedUrl) return;
+  const urlSelect = $safe('bridge-url') as HTMLSelectElement | null;
+  const advUrlSelect = $safe('bridge-adv-url') as HTMLSelectElement | null;
+  if (urlSelect) urlSelect.value = savedUrl;
+  if (advUrlSelect) advUrlSelect.value = savedUrl;
 }
 
 /**
@@ -107,11 +128,11 @@ export function autoConnectBridge(relayUrl: string, channel?: string) {
   postToSandbox({ type: 'save-bridge-channel', channel: bridgeChannelId });
   addBridgeLog(`[Auto] Connecting to ${wsUrl}...`, 'sys');
 
-  // Update URL inputs for visibility
-  const urlInput = $safe('bridge-url') as HTMLInputElement | null;
-  if (urlInput) urlInput.value = wsUrl;
-  const advUrlInput = $safe('bridge-adv-url') as HTMLInputElement | null;
-  if (advUrlInput) advUrlInput.value = wsUrl;
+  // Sync dropdown selections
+  const urlSelect = $safe('bridge-url') as HTMLSelectElement | null;
+  if (urlSelect) urlSelect.value = wsUrl;
+  const advUrlSelect = $safe('bridge-adv-url') as HTMLSelectElement | null;
+  if (advUrlSelect) advUrlSelect.value = wsUrl;
 
   notifyRelayStatus('connecting');
   notifyStateChange();
@@ -388,14 +409,17 @@ function toggleBridgeFromAdvanced() {
 }
 
 function connectBridge(urlInputId: string) {
-  const urlEl = $safe(urlInputId) as HTMLInputElement | null;
+  const urlEl = $safe(urlInputId) as HTMLSelectElement | null;
   const url = urlEl?.value.trim();
   if (!url) return;
 
-  // Sync URL inputs
+  // Sync both dropdowns
   const otherInput = urlInputId === 'bridge-url' ? 'bridge-adv-url' : 'bridge-url';
-  const otherEl = $safe(otherInput) as HTMLInputElement | null;
+  const otherEl = $safe(otherInput) as HTMLSelectElement | null;
   if (otherEl) otherEl.value = url;
+
+  // Persist relay choice
+  postToSandbox({ type: 'save-bridge-relay-url', url });
 
   // AC10: Use current channel if already set (manual override), otherwise default
   bridgeChannelId = bridgeChannelId || DEFAULT_CHANNEL;

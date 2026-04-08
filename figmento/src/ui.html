@@ -5015,7 +5015,10 @@
       <div class="bridge-section">
         <label class="bridge-section-label">WebSocket Server</label>
         <div class="bridge-input-row">
-          <input type="text" id="bridge-url" value="ws://localhost:3055" />
+          <select id="bridge-url" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-hover);color:var(--text-primary);font-size:var(--text-sm);">
+            <option value="wss://figmento-ws-relay.fly.dev">Cloud (figmento-ws-relay.fly.dev)</option>
+            <option value="ws://localhost:3055">Local (localhost:3055)</option>
+          </select>
           <button id="bridge-connect" class="bridge-btn">Connect</button>
         </div>
       </div>
@@ -5050,7 +5053,7 @@
           <label>Model</label>
           <select id="settings-model">
             <optgroup label="Google Gemini">
-              <option value="gemini-3.1-flash-image-preview">Gemini 3.1 Flash</option>
+              <option value="gemini-3.1-flash">Gemini 3.1 Flash</option>
               <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
             </optgroup>
             <optgroup label="Anthropic Claude">
@@ -5191,7 +5194,10 @@
             <div class="bridge-section">
               <label class="bridge-section-label">WebSocket Server</label>
               <div class="bridge-input-row">
-                <input type="text" id="bridge-adv-url" value="ws://localhost:3055" />
+                <select id="bridge-adv-url" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-hover);color:var(--text-primary);font-size:var(--text-sm);">
+                  <option value="wss://figmento-ws-relay.fly.dev">Cloud (figmento-ws-relay.fly.dev)</option>
+                  <option value="ws://localhost:3055">Local (localhost:3055)</option>
+                </select>
                 <button id="bridge-adv-connect" class="bridge-btn">Connect</button>
               </div>
             </div>
