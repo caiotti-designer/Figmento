@@ -1604,7 +1604,7 @@ async function sendToCanvas(imageBase64: string, mimeType: string, promptText: s
 
 function getRelayUrl(): string {
   const cs = getChatSettings();
-  return (cs.chatRelayUrl || 'http://localhost:3055').replace(/\/+$/, '');
+  return (cs.chatRelayUrl || 'https://figmento.fly.dev').replace(/\/+$/, '');
 }
 
 function getChannel(): string | null {

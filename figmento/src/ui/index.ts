@@ -620,7 +620,7 @@ function setupEventListeners(): void {
       // Claude Code mode always needs the local relay — auto-connect to localhost
       if (useClaudeCode || cs.chatRelayEnabled) {
         if (relayBar) relayBar.style.display = 'flex';
-        const relayUrl = useClaudeCode ? 'http://localhost:3055' : cs.chatRelayUrl;
+        const relayUrl = useClaudeCode ? 'http://localhost:3055' : (cs.chatRelayUrl || 'https://figmento-relay.fly.dev');
         autoConnectBridge(relayUrl, (settings as any).bridgeChannel || undefined);
       } else {
         if (relayBar) relayBar.style.display = 'none';

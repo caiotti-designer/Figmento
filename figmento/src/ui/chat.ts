@@ -30,6 +30,15 @@ import { openSettings, closeSettings } from './settings';
 import type { CorrectionEntry, LearnedPreference } from '../types';
 
 // ═══════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════════
+
+/** Cloud relay URL — used as default for published plugin users. */
+export const CLOUD_RELAY_URL = 'https://figmento.fly.dev';
+/** Local relay URL — used for Claude Code mode and local development. */
+export const LOCAL_RELAY_URL = 'http://localhost:3055';
+
+// ═══════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════
 
@@ -222,8 +231,8 @@ let chatSettings: ChatSettings = {
   veniceApiKey: '',
   model: 'gemini-3.1-flash-image-preview',
   claudeCodeModel: 'claude-sonnet-4-6',
-  chatRelayEnabled: false,
-  chatRelayUrl: 'http://localhost:3055',
+  chatRelayEnabled: true,
+  chatRelayUrl: CLOUD_RELAY_URL,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -2166,7 +2175,7 @@ async function sendMessage() {
     if (useClaudeCode) {
       if (!bridgeConnected) {
         // DX-1: Try reconnecting — Claude Code always uses localhost relay
-        autoConnectBridge('http://localhost:3055');
+        autoConnectBridge(LOCAL_RELAY_URL);
         await new Promise(r => setTimeout(r, 1500));
         if (!getBridgeConnected()) {
           throw new Error('Relay not reachable. Run "npm run dev" in the Figmento project to start the relay.');

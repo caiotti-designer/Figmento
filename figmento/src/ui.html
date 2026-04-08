@@ -5108,16 +5108,16 @@
         <h3>Relay Mode</h3>
         <div class="chat-settings-field">
           <label class="relay-toggle-label">
-            <input type="checkbox" id="settings-relay-toggle" />
-            <span>Route chat through server relay</span>
+            <input type="checkbox" id="settings-relay-toggle" checked />
+            <span>Route chat through cloud relay</span>
           </label>
-          <div class="hint">Eliminates rate limits and moves API keys server-side. Requires the relay server to be running.</div>
+          <div class="hint">Routes AI calls through the Figmento relay. API keys are sent per-request, never stored on the server.</div>
         </div>
         <div id="relay-settings-fields" style="display:none;">
           <div class="chat-settings-field">
             <label>Relay Server URL</label>
-            <input type="text" id="settings-relay-url" value="http://localhost:3055" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-hover);color:var(--text-primary);font-size:var(--text-sm);" />
-            <div class="hint">The local relay server endpoint.</div>
+            <input type="text" id="settings-relay-url" value="https://figmento.fly.dev" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-hover);color:var(--text-primary);font-size:var(--text-sm);" />
+            <div class="hint">Cloud relay (default) or local server for development.</div>
           </div>
         </div>
         <div id="api-key-relay-hint" class="hint" style="display:none;margin-top:8px;color:var(--text-tertiary);">

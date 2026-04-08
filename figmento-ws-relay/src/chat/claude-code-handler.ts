@@ -50,7 +50,7 @@ export interface ClaudeCodeTurnError {
  * Rejects claude-code-turn on cloud deployments to prevent SDK auth failures.
  */
 export function isLocalRelay(): boolean {
-  return !(process.env.RAILWAY_STATIC_URL || process.env.RENDER_EXTERNAL_HOSTNAME);
+  return !(process.env.RAILWAY_STATIC_URL || process.env.RENDER_EXTERNAL_HOSTNAME || process.env.FLY_APP_NAME);
 }
 
 // ═══════════════════════════════════════════════════════════════

@@ -160,7 +160,7 @@ function saveChatSettings() {
     veniceApiKey: ($('settings-venice-key') as HTMLInputElement).value.trim(),
     geminiApiKey: '',
     chatRelayEnabled: relayToggle ? relayToggle.checked : false,
-    chatRelayUrl: relayUrlInput ? relayUrlInput.value.trim() : 'http://localhost:3055',
+    chatRelayUrl: relayUrlInput ? relayUrlInput.value.trim() : chatSettings.chatRelayUrl,
   };
 
   if (useGemini) {

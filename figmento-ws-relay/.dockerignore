@@ -1,0 +1,12 @@
+node_modules
+dist
+output
+temp
+.git
+*.md
+railway.json
+railway.toml
+Procfile
+eslint.config.js
+.eslintrc*
+.prettierrc*
