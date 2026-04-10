@@ -118,6 +118,33 @@ export class FigmentoRelay {
       console.log(`[Figmento Relay] Server started on port ${config.port}`);
       console.log(`[Figmento Relay] Health check: http://localhost:${config.port}/health`);
     });
+
+    // DM-3: Start OAuth callback server on port 1455 (Codex CLI registered redirect_uri)
+    this.startOAuthCallbackServer();
+  }
+
+  /** DM-3: Dedicated HTTP server on port 1455 for Codex OAuth callback. */
+  private startOAuthCallbackServer(): void {
+    const oauthServer = createHttpServer(async (req, res) => {
+      if (req.url?.startsWith('/auth/callback')) {
+        const handled = await handleChatRequest(this, req, res);
+        if (handled) return;
+      }
+      res.writeHead(404);
+      res.end('Not found');
+    });
+
+    oauthServer.listen(1455, () => {
+      console.log(`[Figmento Relay] OAuth callback listening on http://localhost:1455/auth/callback`);
+    });
+
+    oauthServer.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        console.warn(`[Figmento Relay] Port 1455 in use — OAuth callback unavailable (another Codex instance running?)`);
+      } else {
+        console.error(`[Figmento Relay] OAuth callback server error:`, err.message);
+      }
+    });
   }
 
   private async handleHttpRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {

@@ -28,6 +28,25 @@ loadSavedApiKeys();
   }
 })();
 
+// Safety net: strip figma.mixed (Symbol) and other non-cloneable values
+// before postMessage to prevent "Cannot unwrap symbol" structured-clone errors.
+function sanitizeForClone(obj: unknown): unknown {
+  if (typeof obj === 'symbol') return undefined;
+  if (typeof obj === 'function') return undefined;
+  if (typeof obj === 'bigint') return Number(obj);
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeForClone);
+  const clean: Record<string, unknown> = {};
+  for (const key of Object.keys(obj as Record<string, unknown>)) {
+    const val = (obj as Record<string, unknown>)[key];
+    if (typeof val !== 'symbol' && typeof val !== 'function') {
+      clean[key] = sanitizeForClone(val);
+    }
+  }
+  return clean;
+}
+
 // Handle messages from UI
 figma.ui.onmessage = async function (msg: PluginMessage) {
   // Delegate to storage handlers (snapshots, corrections, preferences, learning config)
@@ -42,6 +61,15 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
         width: Math.round(n.width), height: Math.round(n.height),
       }));
       figma.ui.postMessage({ type: 'selection-changed', selection: sel });
+      break;
+    }
+
+    // DM-3: Open external URL in system browser (for OAuth flow)
+    case 'open-external': {
+      const url = (msg as any).url as string;
+      if (url && (url.startsWith('https://') || url.startsWith('http://'))) {
+        figma.openExternal(url);
+      }
       break;
     }
 
@@ -256,10 +284,10 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
       try {
         const cmd = (msg as any).command;
         const cmdResult = await executeCommand(cmd);
-        figma.ui.postMessage({
+        figma.ui.postMessage(sanitizeForClone({
           type: 'command-result',
           response: cmdResult,
-        });
+        }));
         // Auto-snapshot after successful canvas commands (fire-and-forget)
         if (cmdResult.success && SNAPSHOT_WORTHY_COMMANDS.has(cmd?.action)) {
           autoSnapshotAfterCommand(

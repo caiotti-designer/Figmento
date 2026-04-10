@@ -18,6 +18,7 @@ const rateLimits: Record<AIProvider, RateLimitInfo> = {
   claude: createEmptyInfo(),
   openai: createEmptyInfo(),
   gemini: createEmptyInfo(),
+  codex: createEmptyInfo(),
 };
 
 function createEmptyInfo(): RateLimitInfo {

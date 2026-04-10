@@ -28,6 +28,7 @@ import { autoConnectBridge, getBridgeChannelId, getBridgeConnected, sendBridgeMe
 import { renderDiffPanel } from './diff-panel';
 import { openSettings, closeSettings } from './settings';
 import type { CorrectionEntry, LearnedPreference } from '../types';
+import { isTokenExpiringSoon, refreshToken, CODEX_OAUTH_CONFIG, type OAuthToken } from './oauth-flow';
 
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -64,6 +65,7 @@ export interface ChatSettings {
   claudeCodeModel: string;
   chatRelayEnabled: boolean;
   chatRelayUrl: string;
+  codexToken?: import('./oauth-flow').OAuthToken;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -73,6 +75,7 @@ export interface ChatSettings {
 let conversationHistory: AnthropicMessage[] = [];
 let geminiHistory: GeminiContent[] = [];
 let openaiHistory: Array<Record<string, unknown>> = [];
+let codexHistory: Array<Record<string, unknown>> = [];
 let claudeCodeHistory: Array<{ role: string; content: string }> = [];
 let isProcessing = false;
 let chatCommandCounter = 0;
@@ -84,7 +87,7 @@ let currentBrief: DesignBrief | undefined;
 interface ChatSession {
   id: string;
   title: string;
-  provider: 'claude' | 'gemini' | 'openai' | 'venice' | 'claude-code';
+  provider: 'claude' | 'gemini' | 'openai' | 'venice' | 'claude-code' | 'codex';
   model: string;
   apiHistory: unknown[];
   displayLog: Array<{ role: 'user' | 'assistant'; html: string }>;
@@ -257,8 +260,13 @@ function isGeminiModel(model: string): boolean {
   return model.startsWith('gemini-');
 }
 
+function isCodexModel(model: string): boolean {
+  return model.includes('-codex');
+}
+
 function isOpenAIModel(model: string): boolean {
-  return model.startsWith('gpt-') || model.startsWith('o');
+  // DM-3: Exclude codex models — they match gpt-* but use a different provider
+  return !isCodexModel(model) && (model.startsWith('gpt-') || model.startsWith('o'));
 }
 
 function isVeniceModel(model: string): boolean {
@@ -276,6 +284,7 @@ function isClaudeCodeModel(model: string): boolean {
 function getActiveProvider(): ChatSession['provider'] {
   const m = chatSettings.model;
   if (isClaudeCodeModel(m)) return 'claude-code';
+  if (isCodexModel(m)) return 'codex';
   if (isGeminiModel(m)) return 'gemini';
   if (isOpenAIModel(m)) return 'openai';
   if (isVeniceModel(m)) return 'venice';
@@ -286,6 +295,7 @@ function getActiveHistory(): unknown[] {
   switch (getActiveProvider()) {
     case 'gemini': return geminiHistory;
     case 'openai': case 'venice': return openaiHistory;
+    case 'codex': return codexHistory;
     case 'claude-code': return claudeCodeHistory;
     default: return conversationHistory;
   }
@@ -353,6 +363,7 @@ function loadSession(session: ChatSession) {
   conversationHistory.length = 0;
   geminiHistory.length = 0;
   openaiHistory.length = 0;
+  codexHistory.length = 0;
   claudeCodeHistory.length = 0;
 
   // Restore API history
@@ -2085,10 +2096,12 @@ async function sendMessage() {
   const useOpenAI = isOpenAIModel(chatSettings.model);
   const useVenice = isVeniceModel(chatSettings.model);
   const useClaudeCode = isClaudeCodeModel(chatSettings.model);
+  const useCodex = isCodexModel(chatSettings.model);
 
   // API keys required for both relay mode (sent to server) and direct mode
   // Claude Code uses Max subscription — no API key needed
-  if (!useClaudeCode) {
+  // DM-3: Codex uses OAuth token — no API key needed
+  if (!useClaudeCode && !useCodex) {
     if (useGemini && !chatSettings.geminiApiKey) {
       appendChatBubble('assistant', '<span class="chat-error">Set your Gemini API key in Settings first.</span>');
       return;
@@ -2105,6 +2118,12 @@ async function sendMessage() {
       appendChatBubble('assistant', '<span class="chat-error">Set your Anthropic API key in Settings first.</span>');
       return;
     }
+  }
+
+  // DM-3: Codex requires OAuth token
+  if (useCodex && !chatSettings.codexToken?.access_token) {
+    appendChatBubble('assistant', '<span class="chat-error">Connect with ChatGPT in Settings first.</span>');
+    return;
   }
 
   // Capture and clear attachments before the API call
@@ -2174,7 +2193,6 @@ async function sendMessage() {
     // Claude Code: always routes through local relay WS
     if (useClaudeCode) {
       if (!bridgeConnected) {
-        // DX-1: Try reconnecting — Claude Code always uses localhost relay
         autoConnectBridge(LOCAL_RELAY_URL);
         await new Promise(r => setTimeout(r, 1500));
         if (!getBridgeConnected()) {
@@ -2183,6 +2201,17 @@ async function sendMessage() {
       }
       console.log('[Figmento Chat] → CLAUDE CODE path (WS)');
       await runClaudeCodeTurn(text, capturedAttachment, capturedAttachments);
+    // DM-3: Codex always routes through LOCAL relay (API is not browser-accessible)
+    } else if (useCodex) {
+      if (!bridgeConnected) {
+        autoConnectBridge(LOCAL_RELAY_URL);
+        await new Promise(r => setTimeout(r, 1500));
+        if (!getBridgeConnected()) {
+          throw new Error('Relay not reachable. Codex requires the relay. Start it with "npm start" in figmento-ws-relay/.');
+        }
+      }
+      console.log('[Figmento Chat] → CODEX path (relay)');
+      await runRelayTurn(text, useGemini, useOpenAI, useVenice, capturedAttachment, capturedAttachments);
     // Route through relay if enabled and bridge is connected
     } else if (relayEnabled && bridgeConnected) {
       console.log('[Figmento Chat] → RELAY path');
@@ -2255,14 +2284,36 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
   // IG-2: Snapshot current Figma selection (500ms timeout, graceful degradation)
   const selectionSnapshot = await getSelectionSnapshot();
 
-  const provider = useGemini ? 'gemini' : useOpenAI ? 'openai' : useVenice ? 'venice' : 'claude';
-  const apiKey = useGemini ? chatSettings.geminiApiKey
+  // DM-3: Codex uses OAuth token, separate from API key providers
+  const useCodex = isCodexModel(chatSettings.model);
+
+  // DM-3: Token refresh interceptor — refresh before expiry
+  if (useCodex && chatSettings.codexToken) {
+    if (isTokenExpiringSoon(chatSettings.codexToken)) {
+      try {
+        const refreshed = await refreshToken(CODEX_OAUTH_CONFIG, chatSettings.codexToken);
+        chatSettings.codexToken = refreshed;
+        postToSandbox({ type: 'save-codex-token', token: refreshed });
+      } catch (err) {
+        // Refresh failed — clear token and prompt re-auth
+        chatSettings.codexToken = undefined;
+        postToSandbox({ type: 'clear-codex-token' });
+        throw new Error('Your ChatGPT session expired. Please reconnect via Settings.');
+      }
+    }
+  }
+
+  const provider = useCodex ? 'codex' : useGemini ? 'gemini' : useOpenAI ? 'openai' : useVenice ? 'venice' : 'claude';
+  const apiKey = useCodex ? (chatSettings.codexToken?.access_token || '')
+    : useGemini ? chatSettings.geminiApiKey
     : useOpenAI ? chatSettings.openaiApiKey
     : useVenice ? chatSettings.veniceApiKey
     : chatSettings.anthropicApiKey;
-  const history = useGemini ? geminiHistory : useOpenAI ? openaiHistory : useVenice ? openaiHistory : conversationHistory;
+  const history = useCodex ? codexHistory : useGemini ? geminiHistory : useOpenAI ? openaiHistory : useVenice ? openaiHistory : conversationHistory;
 
-  const url = chatSettings.chatRelayUrl.replace(/\/+$/, '') + '/api/chat/turn';
+  // DM-3: Codex always uses local relay, regardless of saved relay URL
+  const relayBase = useCodex ? LOCAL_RELAY_URL : chatSettings.chatRelayUrl;
+  const url = relayBase.replace(/\/+$/, '') + '/api/chat/turn';
 
   // Collect non-image file attachments for server-side text extraction (PDFs, TXT, SVG)
   const fileAttachments = (allAttachments || [])
@@ -2292,6 +2343,12 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
   });
 
   if (!resp.ok) {
+    // DM-3: On 401 for codex, clear token and prompt re-auth
+    if (resp.status === 401 && useCodex) {
+      chatSettings.codexToken = undefined;
+      postToSandbox({ type: 'clear-codex-token' });
+      throw new Error('Your ChatGPT session expired. Please reconnect via Settings.');
+    }
     const errText = await resp.text();
     let errMsg: string;
     try {
@@ -2305,7 +2362,10 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
   const result = await resp.json();
 
   // Update conversation history from relay response
-  if (useGemini) {
+  if (useCodex) {
+    codexHistory.length = 0;
+    codexHistory.push(...(result.history || []));
+  } else if (useGemini) {
     geminiHistory.length = 0;
     geminiHistory.push(...(result.history || []));
   } else if (useOpenAI || useVenice) {

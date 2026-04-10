@@ -5070,6 +5070,10 @@
               <option value="deepseek-v3.2">DeepSeek V3.2</option>
               <option value="zai-org-glm-4-7">GLM 4.7</option>
             </optgroup>
+            <optgroup label="Codex (ChatGPT Subscription)">
+              <option value="gpt-5-codex">GPT-5 Codex</option>
+              <option value="gpt-5.2-codex">GPT-5.2 Codex</option>
+            </optgroup>
             <optgroup label="Claude Code (Local)">
               <option value="claude-code" selected>Claude Code (Max subscription)</option>
             </optgroup>
@@ -5093,6 +5097,25 @@
         <div id="key-venice-chat" class="chat-settings-field" style="display:none;">
           <label>Venice API Key</label>
           <input type="password" id="settings-venice-key" placeholder="Your Venice API key" />
+        </div>
+        <div id="codex-oauth-section" class="chat-settings-field" style="display:none;">
+          <div id="codex-oauth-disconnected">
+            <div class="hint" style="color:var(--accent);font-weight:500;padding:12px;background:var(--bg-hover);border-radius:8px;border:1px solid var(--border);margin-bottom:8px;">
+              Uses your ChatGPT Pro/Plus subscription — no API credits needed.
+            </div>
+            <button id="codex-oauth-connect" style="width:100%;padding:10px 16px;background:var(--accent);color:var(--bg-primary);border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:var(--text-sm);margin-bottom:8px;">Connect with ChatGPT</button>
+            <div id="codex-activation-section" style="display:none;margin-top:8px;">
+              <label>Paste Activation Code</label>
+              <input type="text" id="codex-activation-input" placeholder="Paste activation code from browser..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-hover);color:var(--text-primary);font-size:var(--text-sm);font-family:monospace;" />
+              <button id="codex-activate-btn" style="width:100%;padding:8px 16px;background:var(--accent);color:var(--bg-primary);border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:var(--text-sm);margin-top:6px;">Activate</button>
+            </div>
+          </div>
+          <div id="codex-oauth-connected" style="display:none;">
+            <div class="hint" style="color:#22c55e;font-weight:500;padding:12px;background:var(--bg-hover);border-radius:8px;border:1px solid #22c55e33;margin-bottom:8px;">
+              Connected via ChatGPT ✓
+            </div>
+            <button id="codex-oauth-disconnect" style="width:100%;padding:8px 16px;background:transparent;color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:var(--text-sm);">Disconnect</button>
+          </div>
         </div>
         <div id="claude-code-status" class="chat-settings-field" style="display:none;">
           <div class="hint" style="color:var(--accent);font-weight:500;padding:12px;background:var(--bg-hover);border-radius:8px;border:1px solid var(--border);margin-bottom:8px;">

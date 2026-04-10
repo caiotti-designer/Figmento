@@ -5,6 +5,7 @@ import type { PluginMessage, AIProvider } from '../types';
 // ── Storage keys ──────────────────────────────────────────────────────────────
 const API_KEYS_STORAGE_KEY = 'figmento-api-keys';
 const VALIDATION_STORAGE_KEY = 'figmento-validated';
+const CODEX_OAUTH_STORAGE_KEY = 'figmento-codex-oauth';
 
 // ── Helper functions ──────────────────────────────────────────────────────────
 
@@ -85,6 +86,29 @@ async function migrateOldSettings(keys: Record<string, string>) {
   }
 }
 
+// ── Codex OAuth Token Storage ─────────────────────────────────────────────────
+
+async function saveCodexToken(token: Record<string, unknown> | null) {
+  try {
+    if (token) {
+      await figma.clientStorage.setAsync(CODEX_OAUTH_STORAGE_KEY, token);
+    } else {
+      await figma.clientStorage.deleteAsync(CODEX_OAUTH_STORAGE_KEY);
+    }
+  } catch (error) {
+    console.error('Failed to save Codex OAuth token:', error);
+  }
+}
+
+async function loadCodexToken(): Promise<Record<string, unknown> | null> {
+  try {
+    return (await figma.clientStorage.getAsync(CODEX_OAUTH_STORAGE_KEY)) || null;
+  } catch (error) {
+    console.error('Failed to load Codex OAuth token:', error);
+    return null;
+  }
+}
+
 // ── Message Handler ───────────────────────────────────────────────────────────
 
 /**
@@ -125,6 +149,9 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
         const bridgeChannel = (await figma.clientStorage.getAsync('figmento-bridge-channel')) || '';
         // CLOUD-1: Load persisted bridge relay URL
         const bridgeRelayUrl = (await figma.clientStorage.getAsync('figmento-bridge-relay-url')) || '';
+        // DM-3: Load Codex OAuth token
+        const codexToken = await loadCodexToken();
+
         console.log('[Figmento Sandbox] get-settings relay:', { enabled: chatRelayEnabled, url: chatRelayUrl, bridgeChannel, bridgeRelayUrl });
 
         figma.ui.postMessage({
@@ -139,6 +166,7 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
             chatRelayUrl: chatRelayUrl,
             bridgeChannel: bridgeChannel,
             bridgeRelayUrl: bridgeRelayUrl,
+            codexToken: codexToken || null,
           },
         });
       } catch (error) {
@@ -180,6 +208,24 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
           await figma.clientStorage.setAsync('figmento-chat-relay-url', s.chatRelayUrl);
         }
       }
+      return true;
+    }
+
+    // ── Codex OAuth Token ────────────────────────────────────────
+    case 'save-codex-token': {
+      await saveCodexToken((msg as any).token || null);
+      return true;
+    }
+
+    case 'load-codex-token': {
+      const token = await loadCodexToken();
+      figma.ui.postMessage({ type: 'codex-token-loaded', token });
+      return true;
+    }
+
+    case 'clear-codex-token': {
+      await saveCodexToken(null);
+      figma.ui.postMessage({ type: 'codex-token-cleared' });
       return true;
     }
 

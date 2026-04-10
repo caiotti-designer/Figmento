@@ -161,7 +161,7 @@ export interface CommandResultMessage {
 // AI PROVIDER TYPES
 // ═══════════════════════════════════════════════════════════════
 
-export type AIProvider = 'claude' | 'openai' | 'gemini';
+export type AIProvider = 'claude' | 'openai' | 'gemini' | 'codex';
 
 export interface APIConfig {
   provider: AIProvider;
@@ -193,6 +193,12 @@ export const PROVIDERS: Record<AIProvider, ProviderConfig> = {
     placeholder: 'AIza...',
     docsUrl: 'https://aistudio.google.com/apikey',
     models: ['gemini-3-pro-preview'],
+  },
+  codex: {
+    name: 'Codex (ChatGPT)',
+    placeholder: 'OAuth — Connect with ChatGPT',
+    docsUrl: 'https://developers.openai.com/codex/auth',
+    models: ['gpt-5-codex', 'gpt-5.2-codex'],
   },
 };
 

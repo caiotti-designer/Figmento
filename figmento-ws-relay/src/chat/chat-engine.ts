@@ -52,7 +52,7 @@ export interface ChatTurnRequest {
   /** WS channel where the plugin sandbox is connected. */
   channel: string;
   /** AI provider. */
-  provider: 'claude' | 'gemini' | 'openai' | 'venice';
+  provider: 'claude' | 'gemini' | 'openai' | 'venice' | 'codex';
   /** API key for the selected provider. */
   apiKey: string;
   /** Model ID (e.g. 'claude-sonnet-4-20250514', 'gemini-2.0-flash'). */
@@ -391,6 +391,135 @@ async function callVeniceAPI(
   }
 
   return resp.json() as Promise<Record<string, unknown>>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CODEX / RESPONSES API
+// ═══════════════════════════════════════════════════════════════
+
+function convertSchemaToResponses(schema: Record<string, unknown>): Record<string, unknown> {
+  // Responses API with strict: true requires:
+  // - additionalProperties: false on every object
+  // - required must list ALL keys in properties
+  if (schema.oneOf) {
+    const options = schema.oneOf as Record<string, unknown>[];
+    if (options.length > 0) {
+      const flattened = convertSchemaToResponses(options[0]);
+      if (schema.description && !flattened.description) {
+        flattened.description = schema.description;
+      }
+      return flattened;
+    }
+  }
+  const result: Record<string, unknown> = {};
+  if (schema.type) result.type = schema.type;
+  if (schema.description) result.description = schema.description;
+  if (schema.enum) result.enum = schema.enum;
+  if (schema.properties) {
+    const props: Record<string, unknown> = {};
+    const allKeys: string[] = [];
+    for (const [key, value] of Object.entries(schema.properties as Record<string, unknown>)) {
+      props[key] = convertSchemaToResponses(value as Record<string, unknown>);
+      allKeys.push(key);
+    }
+    result.properties = props;
+    result.additionalProperties = false;
+    result.required = allKeys;
+  }
+  // strict mode: every type=object must have additionalProperties: false
+  if (result.type === 'object' && result.additionalProperties === undefined) {
+    result.additionalProperties = false;
+    if (!result.properties) {
+      result.properties = {};
+      result.required = [];
+    }
+  }
+  if (schema.items) result.items = convertSchemaToResponses(schema.items as Record<string, unknown>);
+  if (schema.minimum !== undefined) result.minimum = schema.minimum;
+  if (schema.maximum !== undefined) result.maximum = schema.maximum;
+  return result;
+}
+
+async function callCodexAPI(
+  input: Array<Record<string, unknown>>,
+  model: string,
+  oauthToken: string,
+  systemPrompt: string,
+  tools: ToolDefinition[],
+): Promise<Record<string, unknown>> {
+  const codexTools = tools.map(tool => ({
+    type: 'function',
+    name: tool.name,
+    description: tool.description,
+    parameters: convertSchemaToOpenAI(tool.input_schema),
+    strict: false,
+  }));
+
+  const resp = await fetch('https://chatgpt.com/backend-api/codex/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${oauthToken}`,
+    },
+    body: JSON.stringify({
+      model,
+      instructions: systemPrompt,
+      input,
+      tools: codexTools,
+      tool_choice: 'auto',
+      parallel_tool_calls: false,
+      stream: true,
+      store: false,
+    }),
+    signal: AbortSignal.timeout(60_000),
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`Codex API error ${resp.status}: ${errBody}`);
+  }
+
+  // Parse SSE stream — collect events and build final response
+  const rawText = await resp.text();
+  const lines = rawText.split('\n');
+
+  // Log ALL event types for debugging
+  const allEvents: Array<Record<string, unknown>> = [];
+  const outputItems: Array<Record<string, unknown>> = [];
+  let finalResponse: Record<string, unknown> | null = null;
+
+  for (const line of lines) {
+    if (!line.startsWith('data: ')) continue;
+    const data = line.slice(6).trim();
+    if (data === '[DONE]') break;
+    if (!data) continue;
+
+    try {
+      const event = JSON.parse(data);
+      allEvents.push(event);
+
+      // response.completed contains the full response
+      if (event.type === 'response.completed' && event.response) {
+        finalResponse = event.response;
+      }
+      // Collect output items as they arrive
+      if (event.type === 'response.output_item.done' && event.item) {
+        outputItems.push(event.item);
+      }
+    } catch {
+      // Skip malformed lines
+    }
+  }
+
+  // Prioritize collected output items — response.completed often has output: []
+  if (outputItems.length > 0) {
+    return { output: outputItems, status: 'completed' };
+  }
+  if (finalResponse && Array.isArray(finalResponse.output) && (finalResponse.output as unknown[]).length > 0) {
+    return finalResponse;
+  }
+
+  throw new Error('Empty response from Codex');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1844,6 +1973,126 @@ export async function handleChatTurn(
     };
   }
 
+  // ── Codex / Responses API ──
+  if (provider === 'codex') {
+    const codexInput = history as Array<Record<string, unknown>>;
+
+    // Handle image attachments
+    if (request.attachmentBase64) {
+      const base64 = request.attachmentBase64.replace(/^data:image\/\w+;base64,/, '');
+      const mimeMatch = request.attachmentBase64.match(/^data:(image\/\w+);base64,/);
+      const mimeType = mimeMatch?.[1] || 'image/png';
+      codexInput.push({
+        type: 'message', role: 'user',
+        content: [
+          { type: 'input_image', image_url: `data:${mimeType};base64,${base64}` },
+          { type: 'input_text', text: message },
+        ],
+      });
+    } else {
+      codexInput.push({ type: 'message', role: 'user', content: message });
+    }
+
+    let remaining = MAX_ITERATIONS;
+    while (remaining-- > 0) {
+      if (iterationsUsed > 0) await sleep(500);
+      iterationsUsed++;
+
+      const toolsForCall = resolveTools(iterationsUsed);
+      const response = await callWithRetry(() => callCodexAPI(codexInput, model, apiKey, systemPrompt, toolsForCall));
+
+      let output = response.output as Array<Record<string, unknown>> | undefined;
+
+      // Responses API may return text in a "text" field instead of output array
+      if ((!output || output.length === 0) && response.text) {
+        const textObj = response.text as Record<string, unknown>;
+        // text can be a string or an object like { format: {...}, content: "..." }
+        let textContent: string | undefined;
+        if (typeof response.text === 'string') {
+          textContent = response.text as string;
+        } else if (textObj && typeof textObj === 'object') {
+          // Check for nested content array or string
+          const content = textObj.content;
+          if (typeof content === 'string') {
+            textContent = content;
+          } else if (Array.isArray(content) && content.length > 0) {
+            textContent = content.map((c: Record<string, unknown>) => c.text || '').join('');
+          }
+        }
+        if (textContent) {
+          output = [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: textContent }] }];
+        }
+      }
+
+      if (!output || output.length === 0) {
+        throw new Error('Empty response from Codex');
+      }
+
+      // Process output items
+      let hasToolCalls = false;
+      for (const item of output) {
+        if (item.type === 'message') {
+          const content = item.content as Array<Record<string, unknown>> | string | undefined;
+          if (typeof content === 'string') {
+            textParts.push(content);
+          } else if (Array.isArray(content)) {
+            for (const part of content) {
+              if (part.type === 'output_text' || part.type === 'text') {
+                textParts.push(part.text as string);
+              }
+            }
+          }
+        } else if (item.type === 'function_call') {
+          hasToolCalls = true;
+          const fnName = item.name as string;
+          let args: Record<string, unknown>;
+          try { args = JSON.parse(item.arguments as string); } catch { args = {}; }
+
+          toolsUsed.add(fnName);
+          let result: ToolCallResult;
+          try {
+            result = await handleToolCall(fnName, args);
+          } catch (err) {
+            result = {
+              content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
+              is_error: true,
+            };
+          }
+          toolCallLog.push({ name: fnName, success: !result.is_error });
+
+          const trimmed = truncateForHistory(result.content, fnName);
+          // Responses API: include the function_call item, then its output
+          // call_id is the unique identifier the API uses to match call → output
+          const callId = (item.call_id || item.id) as string;
+          codexInput.push({
+            type: 'function_call',
+            id: item.id as string,
+            call_id: callId,
+            name: fnName,
+            arguments: item.arguments as string,
+          });
+          codexInput.push({
+            type: 'function_call_output',
+            call_id: callId,
+            output: result.is_error ? `Error: ${trimmed}` : trimmed,
+          });
+        }
+      }
+
+      if (!hasToolCalls) { completedCleanly = true; break; }
+    }
+
+    return {
+      history: codexInput,
+      text: textParts.join('\n'),
+      toolCalls: toolCallLog,
+      iterationsUsed,
+      completedCleanly,
+      newMemoryEntries,
+    };
+  }
+
+  // ── OpenAI / Venice ──
   if (provider === 'openai' || provider === 'venice') {
     const openaiHistory = history as Array<Record<string, unknown>>;
     if (request.attachmentBase64 && (model.startsWith('gpt-4') || model.includes('gpt-4o'))) {

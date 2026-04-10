@@ -76,7 +76,7 @@ function validateRequest(body: unknown): body is ChatTurnRequest {
 
   if (typeof req.message !== 'string' || !req.message.trim()) return false;
   if (typeof req.channel !== 'string' || !req.channel.trim()) return false;
-  if (!['claude', 'gemini', 'openai', 'venice'].includes(req.provider as string)) return false;
+  if (!['claude', 'gemini', 'openai', 'venice', 'codex'].includes(req.provider as string)) return false;
   if (typeof req.apiKey !== 'string' || !req.apiKey.trim()) return false;
   if (typeof req.model !== 'string' || !req.model.trim()) return false;
   if (!Array.isArray(req.history)) return false;
@@ -103,6 +103,11 @@ export async function handleChatRequest(
     });
     res.end();
     return true;
+  }
+
+  // ── DM-3: OAuth callback endpoint ──────────────────────────────────────────
+  if (req.method === 'GET' && (path === '/oauth/codex/callback' || path === '/auth/callback')) {
+    return handleOAuthCallback(req, res);
   }
 
   if (req.method !== 'POST' || (path !== '/api/chat/turn' && path !== '/chat/turn')) {
@@ -164,5 +169,77 @@ export async function handleChatRequest(
     sendError(req, res, 500, message);
   }
 
+  return true;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DM-3: OAuth Callback Handler
+// ═══════════════════════════════════════════════════════════════
+
+async function handleOAuthCallback(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+  const url = new URL(req.url!, `http://${req.headers.host}`);
+  const code = url.searchParams.get('code');
+  const error = url.searchParams.get('error');
+  const errorDesc = url.searchParams.get('error_description');
+
+  if (error) {
+    return serveCallbackPage(res, null, `Authorization denied: ${errorDesc || error}`);
+  }
+
+  if (!code) {
+    return serveCallbackPage(res, null, 'No authorization code received.');
+  }
+
+  // Pass the auth code back as the "activation code" — the plugin will exchange
+  // it using its stored PKCE verifier via the token endpoint.
+  const payload = Buffer.from(JSON.stringify({
+    authorization_code: code,
+    state: url.searchParams.get('state') || '',
+  })).toString('base64');
+
+  return serveCallbackPage(res, payload, null);
+}
+
+function serveCallbackPage(res: ServerResponse, activationCode: string | null, error: string | null): boolean {
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Figmento — ChatGPT Authorization</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0f; color: #e4e4e7; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+    .card { background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 48px; max-width: 480px; width: 100%; text-align: center; }
+    h1 { font-size: 24px; font-weight: 600; margin-bottom: 8px; }
+    .subtitle { color: #a1a1aa; margin-bottom: 32px; }
+    .code-box { background: #09090b; border: 1px solid #3f3f46; border-radius: 8px; padding: 16px; margin: 24px 0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; word-break: break-all; color: #a3e635; max-height: 120px; overflow-y: auto; user-select: all; }
+    .btn { display: inline-block; background: #a3e635; color: #09090b; border: none; border-radius: 8px; padding: 12px 32px; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .btn:hover { background: #bef264; }
+    .error { color: #ef4444; margin: 24px 0; }
+    .steps { text-align: left; margin-top: 24px; padding: 16px; background: #09090b; border-radius: 8px; font-size: 13px; color: #a1a1aa; }
+    .steps li { margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Figmento</h1>
+    <p class="subtitle">ChatGPT Authorization</p>
+    ${error ? `<p class="error">${error}</p><p style="color:#a1a1aa;font-size:13px;">Close this tab and try again from Figmento.</p>` : `
+    <p>Copy the activation code below and paste it into Figmento:</p>
+    <div class="code-box" id="code">${activationCode}</div>
+    <button class="btn" onclick="navigator.clipboard.writeText(document.getElementById('code').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Activation Code',2000)})">Copy Activation Code</button>
+    <ol class="steps">
+      <li>Copy the code above</li>
+      <li>Go back to Figma</li>
+      <li>Paste it in the "Activation Code" field</li>
+      <li>Click Activate</li>
+    </ol>`}
+  </div>
+</body>
+</html>`;
+
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(html);
   return true;
 }

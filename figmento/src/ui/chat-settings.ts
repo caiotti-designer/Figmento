@@ -5,6 +5,15 @@
 
 import { updateChatSettings, getChatSettings, ChatSettings } from './chat';
 import { autoConnectBridge as triggerAutoConnectBridge } from './bridge';
+import {
+  buildAuthorizationUrl,
+  savePkceSession,
+  loadPkceSession,
+  clearPkceSession,
+  exchangeCodeForToken,
+  CODEX_OAUTH_CONFIG,
+  type OAuthToken,
+} from './oauth-flow';
 
 // ═══════════════════════════════════════════════════════════════
 // DOM HELPERS
@@ -47,6 +56,20 @@ export function initChatSettings() {
     relayToggle.addEventListener('change', () => {
       updateRelaySettingsUI();
     });
+  }
+
+  // DM-3: Codex OAuth button wiring
+  const codexConnectBtn = document.getElementById('codex-oauth-connect');
+  if (codexConnectBtn) {
+    codexConnectBtn.addEventListener('click', handleCodexConnect);
+  }
+  const codexActivateBtn = document.getElementById('codex-activate-btn');
+  if (codexActivateBtn) {
+    codexActivateBtn.addEventListener('click', handleCodexActivate);
+  }
+  const codexDisconnectBtn = document.getElementById('codex-oauth-disconnect');
+  if (codexDisconnectBtn) {
+    codexDisconnectBtn.addEventListener('click', handleCodexDisconnect);
   }
 
   updateSettingsUI();
@@ -104,6 +127,13 @@ export function loadChatSettings(saved: Record<string, string>) {
     if (ccModel) ccModel.value = saved.claudeCodeModel;
   }
 
+  // DM-3: Load Codex OAuth token state
+  if (saved.codexToken) {
+    const token = saved.codexToken as unknown as OAuthToken;
+    s.codexToken = token;
+    updateCodexOAuthUI(true);
+  }
+
   updateChatSettings(s);
   updateSettingsUI();
   updateRelaySettingsUI();
@@ -123,25 +153,32 @@ export function loadLearningConfig(config: Record<string, unknown>): void {
 function updateSettingsUI() {
   const model = ($('settings-model') as HTMLSelectElement).value;
   const useGemini = model.startsWith('gemini-');
-  const useOpenAI = model.startsWith('gpt-') || model.startsWith('o');
+  // DM-3: Check codex BEFORE openai — gpt-5-codex matches both patterns
+  const useCodex = model.includes('-codex');
+  const useOpenAI = !useCodex && (model.startsWith('gpt-') || model.startsWith('o'));
   const useVenice = model.startsWith('qwen3-') || model.startsWith('zai-org-') || model.startsWith('deepseek-');
   const useClaudeCode = model === 'claude-code';
+  const useSpecial = useClaudeCode || useCodex;
 
-  // AC2: Hide ALL API key fields when Claude Code is selected
-  $('key-gemini-chat').style.display = (!useClaudeCode && useGemini) ? 'block' : 'none';
-  $('key-anthropic-chat').style.display = (!useClaudeCode && !useGemini && !useOpenAI && !useVenice) ? 'block' : 'none';
-  $('key-openai-chat').style.display = (!useClaudeCode && useOpenAI) ? 'block' : 'none';
-  $('key-venice-chat').style.display = (!useClaudeCode && useVenice) ? 'block' : 'none';
+  // Hide ALL API key fields for special providers (Claude Code, Codex OAuth)
+  $('key-gemini-chat').style.display = (!useSpecial && useGemini) ? 'block' : 'none';
+  $('key-anthropic-chat').style.display = (!useSpecial && !useGemini && !useOpenAI && !useVenice) ? 'block' : 'none';
+  $('key-openai-chat').style.display = (!useSpecial && useOpenAI) ? 'block' : 'none';
+  $('key-venice-chat').style.display = (!useSpecial && useVenice) ? 'block' : 'none';
 
   // Claude Code status message
   const ccStatus = document.getElementById('claude-code-status');
   if (ccStatus) ccStatus.style.display = useClaudeCode ? 'block' : 'none';
 
-  // Image gen: hidden for Claude Code (MCP server handles it), otherwise normal logic
+  // DM-3: Codex OAuth section
+  const codexSection = document.getElementById('codex-oauth-section');
+  if (codexSection) codexSection.style.display = useCodex ? 'block' : 'none';
+
+  // Image gen: hidden for Claude Code and Codex, otherwise normal logic
   const imageGenSection = document.getElementById('section-image-gen');
-  if (imageGenSection) imageGenSection.style.display = useClaudeCode ? 'none' : 'block';
-  $('image-gen-separate').style.display = (!useClaudeCode && !useGemini) ? 'block' : 'none';
-  $('image-gen-shared').style.display = (!useClaudeCode && useGemini) ? 'block' : 'none';
+  if (imageGenSection) imageGenSection.style.display = useSpecial ? 'none' : 'block';
+  $('image-gen-separate').style.display = (!useSpecial && !useGemini) ? 'block' : 'none';
+  $('image-gen-shared').style.display = (!useSpecial && useGemini) ? 'block' : 'none';
 }
 
 function saveChatSettings() {
@@ -227,4 +264,94 @@ function showSettingsStatus(text: string, isError: boolean) {
   el.className = 'settings-status ' + (isError ? 'error' : 'success');
   el.style.display = 'block';
   setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DM-3: CODEX OAUTH HANDLERS
+// ═══════════════════════════════════════════════════════════════
+
+function updateCodexOAuthUI(connected: boolean) {
+  const disconnected = document.getElementById('codex-oauth-disconnected');
+  const connectedEl = document.getElementById('codex-oauth-connected');
+  if (disconnected) disconnected.style.display = connected ? 'none' : 'block';
+  if (connectedEl) connectedEl.style.display = connected ? 'block' : 'none';
+  // Hide activation input when connected
+  const activationSection = document.getElementById('codex-activation-section');
+  if (activationSection && connected) activationSection.style.display = 'none';
+}
+
+async function handleCodexConnect() {
+  try {
+    const { url, verifier, state } = await buildAuthorizationUrl(CODEX_OAUTH_CONFIG);
+    savePkceSession(verifier, state);
+
+    // Show activation code input
+    const activationSection = document.getElementById('codex-activation-section');
+    if (activationSection) activationSection.style.display = 'block';
+
+    // Open browser for OAuth
+    postToSandbox({ type: 'open-external', url });
+
+    showSettingsStatus('Browser opened — complete login and paste the activation code.', false);
+  } catch (err) {
+    showSettingsStatus('Failed to start OAuth flow: ' + (err as Error).message, true);
+  }
+}
+
+async function handleCodexActivate() {
+  const input = document.getElementById('codex-activation-input') as HTMLInputElement;
+  const rawCode = input?.value?.trim();
+  if (!rawCode) {
+    showSettingsStatus('Please paste the activation code from the browser.', true);
+    return;
+  }
+
+  // Decode the activation code (base64 JSON with authorization_code)
+  let authCode: string;
+  try {
+    const decoded = JSON.parse(atob(rawCode));
+    authCode = decoded.authorization_code;
+    if (!authCode) throw new Error('No authorization_code');
+  } catch {
+    showSettingsStatus('Invalid activation code. Please try again.', true);
+    return;
+  }
+
+  // Retrieve stored PKCE verifier
+  const pkce = loadPkceSession();
+  if (!pkce) {
+    showSettingsStatus('PKCE session expired. Please click "Connect with ChatGPT" again.', true);
+    return;
+  }
+
+  // Exchange authorization code for access token
+  showSettingsStatus('Exchanging code for token...', false);
+  let token: OAuthToken;
+  try {
+    token = await exchangeCodeForToken(CODEX_OAUTH_CONFIG, authCode, pkce.verifier);
+  } catch (err) {
+    showSettingsStatus('Token exchange failed: ' + (err as Error).message, true);
+    return;
+  }
+
+  clearPkceSession();
+
+  // Save to clientStorage via sandbox
+  const s = getChatSettings();
+  s.codexToken = token;
+  updateChatSettings(s);
+  postToSandbox({ type: 'save-codex-token', token });
+
+  updateCodexOAuthUI(true);
+  input.value = '';
+  showSettingsStatus('Connected via ChatGPT ✓', false);
+}
+
+function handleCodexDisconnect() {
+  const s = getChatSettings();
+  s.codexToken = undefined;
+  updateChatSettings(s);
+  postToSandbox({ type: 'clear-codex-token' });
+  updateCodexOAuthUI(false);
+  showSettingsStatus('Disconnected from ChatGPT.', false);
 }

@@ -19,7 +19,9 @@
       "wss://figmento-production.up.railway.app",
       "https://figmento-ws-relay.fly.dev",
       "wss://figmento-ws-relay.fly.dev",
-      "https://api.venice.ai"
+      "https://api.venice.ai",
+      "https://chatgpt.com",
+      "https://auth.openai.com"
     ],
     "devAllowedDomains": [
       "http://localhost:3055",
