@@ -1,6 +1,6 @@
 # Story LC-4: Compare Snapshots & Save Corrections
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** High
 **Complexity:** M (Medium) — Wires diff calculator into sandbox, adds compare + save handlers
 **Epic:** LC — Learning & Corrections (Phase 4a)
@@ -156,3 +156,4 @@ This story does NOT add any UI. The handlers are called by LC-5 (the UI button s
 | 2026-03-12 | @sm (River) | Story drafted from PRD-004 Phase 4a. Compare + save handlers for plugin sandbox. |
 | 2026-03-12 | @po (Pax) | Validated: 8.5/10. No blocking issues. Status Draft → Ready. GO verdict. |
 | 2026-03-13 | @dev (Dex) | Implemented: compare-snapshot + save-corrections handlers added to code.ts; calculateDiff imported. Build clean, 371 tests pass. Status → Ready for Review. |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** 11/11 ACs verified. `compare-snapshot` at storage.ts:177, `save-corrections` at storage.ts:263. Max 200 correction entries enforced. Consumed snapshots deleted after save. Status: Ready for Review → Done. |

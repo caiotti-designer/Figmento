@@ -4,7 +4,7 @@
 |-------|-------|
 | **Story ID** | FN-2 |
 | **Epic** | FN — Figma Native Agent Migration |
-| **Status** | InProgress |
+| **Status** | Done |
 | **Author** | @sm (River) |
 | **Executor** | @dev (Dex) |
 | **Gate** | @qa |
@@ -392,3 +392,4 @@ frame.fills = [{ type: 'SOLID', color: { r: 0.1, g: 0.05, b: 0.04 } }]
 | 2026-03-24 | @sm (River) | Story drafted from Epic FN Phase 1. Full source material analysis of text-layout.ts, brief-detector.ts, system-prompt.ts, blueprint-loader.ts, reference-loader.ts, slide-utils.ts, compiled-knowledge.ts, and all 4 knowledge YAML files. Token budget concern flagged with recommendation. |
 | 2026-03-24 | @po (Pax) | **Validation: GO — 10/10.** Status Draft → Ready. All 10 checklist points PASS. Story is comprehensive with detailed brief detection tables, mood/palette/font mapping ACs, and a strong token budget measurement gate in the DoD. **Recommendations (non-blocking):** (1) AC13 end-to-end test would benefit from a minimum quality bar (e.g., "scores >=60 on self-evaluation checklist") to prevent trivially passing tests. (2) AC11 carousel documentation should note "summary reference only — full carousel orchestration skill is FN-3" to clarify the FN-2/FN-3 boundary. Cross-story validation with FN-3 confirmed no scope gaps. |
 | 2026-03-24 | @dev (Dex) | **Implementation: skill file created.** Status Ready → InProgress. Created `skills/figmento-text-to-layout.md` with full brief parsing pipeline (28 format patterns, 12 mood patterns, multi-section detection), all 12 mood-to-palette and mood-to-font mappings inlined, 11 blueprint zone structures across 5 categories, complete design rules (typography hierarchy, layout/8px grid, overlay/gradient direction table, 8 taste rules, anti-AI markers, quality scoring), carousel workflow summary, Design Brief Analysis template, 6 `use_figma` code examples (hex-to-RGB, root frame, text+font loading, auto-layout, gradient overlay, button), and 16-point self-evaluation checklist. All ACs checked except AC13 (end-to-end test requires live Figma MCP). Skill follows FN-1 structure exactly. AC11 carousel section includes FN-3 boundary note per @po recommendation. |
+| 2026-04-12 | @pm (Morgan) | **AC13 live test PASS.** Test 2 (Maison Levain, Instagram 1080×1350, warm-cozy editorial) executed per `docs/qa/fn-phase1-live-test-plan.md`. Checklist: 12/14 effective. Quality: 8.05/10. Initial run surfaced 2 plugin gaps → fixed by FN-P4-1. Re-run post-FN-P4-1: 15/15 batch succeeded on first try, warm orange wash + dark base + frame gradient all visible, Playfair Display 148px hero headline lands the editorial intent. All 15 ACs satisfied. Status: InProgress → Done. |

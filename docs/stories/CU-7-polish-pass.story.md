@@ -1,7 +1,7 @@
 # CU-7: Polish Pass & Keyboard Shortcuts
 
 **Epic:** CU — Chat-First Tool Unification
-**Status:** InProgress
+**Status:** Done
 **Sprint:** 3
 **Effort:** S (Small)
 **Owner:** @dev
@@ -68,3 +68,4 @@ Final polish sprint for the unified chat interface. Add keyboard shortcuts for p
 |------|--------|--------|
 | 2026-03-17 | @pm | Story created |
 | 2026-03-17 | @po | Validation: Added Risks section, shortcut conflict fallbacks in AC1, debounce note |
+| 2026-04-11 | @qa (Quinn) | **QA Gate: PASS.** 8/8 ACs verified. Keyboard shortcuts, animations, selection-aware hints, placeholder rotation confirmed. Status: InProgress → Done. |

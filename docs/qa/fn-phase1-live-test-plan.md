@@ -417,9 +417,9 @@ Use this template to record results for each test:
 | Test | Skill | Checklist Score | Quality Score | Verdict | Notes |
 |------|-------|----------------|---------------|---------|-------|
 | 1 | FN-1 Screenshot-to-Layout | ≥12/16 | ≥7/10 | **PASS** | Strong typography/spacing decisions. Self-eval loop triggered autonomous refinement. Gap: no image gen (expected — skill is text/layout only). Skill path produced better design taste than plugin baseline. |
-| 2 | FN-2 Text-to-Layout | /16 | /10 | Pending | |
-| 3 | FN-3 Carousel | /16 | /10 | Pending | |
-| 4 | FN-4 Ad Analyzer | /16 | /10 | Pending | |
+| 2 | FN-2 Text-to-Layout | 12/14 | 8.05/10 | **PASS** | Maison Levain autumn menu — warm-cozy mood correctly detected, Playfair Display + Fira Sans pairing, 148px editorial headline, asymmetric left-aligned layout. **Re-verified post-FN-P4-1 (2026-04-12):** rebuilt from scratch with `set_style` gradient + `create_rectangle` fillColor in first batch — 15/15 succeeded, warm wash + dark base + frame gradient all visible. Warm editorial tone now lands as intended. |
+| 3 | FN-3 Carousel | 12/13 | 8.65/10 | **PASS** | Synkra "5 Signs" carousel — 5 slides, 46 commands, zero errors. Perfect cross-slide consistency (8/8 rows). Tech-modern dark aesthetic with giant numeric pagination (320px "5" cover, 160px content numbers). Repetitive structure exposed FN-3's strength: consistency enforcement is natural when all slides share the same skeleton. |
+| 4 | FN-4 Ad Analyzer | 12/13 | 8.05/10 | **PASS** | ALVES Estofados "Sofá Veneza Cama" — real-world bad ad input. 3 distinct variants produced: A (Urgency/dark/giant price + WhatsApp CTA), B (Editorial/warm/Playfair "Veneza."), C (Layout-Only — same copy verbatim, fixed hierarchy, price now hero). **Re-verified post-FN-P4-1 (2026-04-12):** rebuilt Variant A from scratch with hero image + warm sale wash `create_rectangle({fillColor})` calls — 16/16 succeeded, both rectangles rendered with correct fills on first batch. Red sale wash now visibly lands the urgency intent. A/B test strategy + Variant C ROI story included in report. |
 
 ---
 

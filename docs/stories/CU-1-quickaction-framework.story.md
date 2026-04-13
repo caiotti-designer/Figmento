@@ -1,7 +1,7 @@
 # CU-1: QuickAction Framework & Dropdown
 
 **Epic:** CU — Chat-First Tool Unification
-**Status:** InProgress
+**Status:** Done
 **Sprint:** 1
 **Effort:** M (Medium)
 **Owner:** @dev
@@ -71,3 +71,4 @@ This is the **foundation** for CU-2 and CU-3 — it provides the framework, not 
 |------|--------|--------|
 | 2026-03-17 | @pm | Story created |
 | 2026-03-17 | @po | Validation: Added AC11 (processing guard), Risks section |
+| 2026-04-11 | @qa (Quinn) | **QA Gate: PASS.** 11/11 ACs verified. QuickAction interface, registry, card renderer confirmed in chat.ts:125-1651. Status: InProgress → Done. |

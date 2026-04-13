@@ -1,6 +1,6 @@
 # Story LC-11: Preferences UI Panel + Sandbox CRUD Handlers
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** Medium
 **Complexity:** M (Medium) — New Settings sub-panel UI (HTML + CSS + TS event handlers) + 3 new sandbox CRUD handlers. Most complex UI work in Phase 4c.
 **Epic:** LC — Learning & Corrections (Phase 4c)
@@ -456,4 +456,5 @@ The panel also exports `export function reloadPreferencesPanel(): void` for use 
 |------|--------|--------|
 | 2026-03-13 | @sm (River) | Story drafted from PRD-004 Phase 4c §5 US-5. New preferences-panel.ts + 3 sandbox CRUD handlers + Settings tab HTML/CSS. |
 | 2026-03-13 | @po (Pax) | Validated 7/10. Added LC-8 dependency, explicit OUT OF SCOPE note for edit UI, XSS risk warning in Dev Notes (innerHTML with user-derived fields), PRD US-5 deviation note (delete vs reset deferred). Status Draft → Ready. GO verdict. |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** Preferences panel at ui.html:5190 (`preferences-section`). 3 sandbox CRUD handlers (`update-preference`, `delete-preference`, `clear-preferences`) at storage.ts:334-392. Toggle + delete + clear + export/import flow verified in code. Status: Ready for Review → Done. |
 | 2026-03-13 | @dev (Dex) | Implemented. preferences-panel.ts created with XSS-safe DOM construction (textContent for all user-derived fields). 3 sandbox handlers added to code.ts. HTML+CSS added to ui.html. initPreferencesPanel + reloadPreferencesPanel wired into index.ts (initChatSettings call site + tab click handler). Build clean: 594.7KB code.js, 2179.9KB ui.html. |

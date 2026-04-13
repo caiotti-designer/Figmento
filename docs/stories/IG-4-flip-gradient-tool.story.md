@@ -1,6 +1,6 @@
 # Story IG-4: flip_gradient Tool
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** High (P1)
 **Complexity:** S (2 points) — 4 files, no new APIs, plugin command + relay + MCP registration
 **Epic:** IG — Image Generation Pipeline
@@ -282,3 +282,4 @@ cd figmento-mcp-server && npm run build
 | 2026-03-14 | @sm (River) | Story drafted from @pm analysis. Architecture confirmed via codebase exploration: command-router.ts → canvas-style.ts pattern, FOLLOW_UP_TOOLS placement in chat-tools.ts |
 | 2026-03-14 | @po (Pax) | Validation 10/10 → GO. Story complete as drafted — no fixes required. Status Draft → Ready |
 | 2026-03-14 | @dev (Dex) | Implemented all 4 phases. 4-file change. Note: FOLLOW_UP_TOOLS set doesn't exist in chat-tools.ts — flip_gradient placed in BUILD_PHASE_TOOLS (correct equivalent for post-creation refinement). All 3 builds clean. Status → Ready for Review |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** All DoD items verified. `handleFlipGradient` at canvas-style.ts:214, command-router + queue wiring confirmed. **Note:** AC checkboxes were never updated by dev (process gap) but code matches all 7 ACs. Status: Ready for Review → Done. |

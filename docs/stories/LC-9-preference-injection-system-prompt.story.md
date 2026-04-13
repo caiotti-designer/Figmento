@@ -1,6 +1,6 @@
 # Story LC-9: Preference Injection into System Prompt
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** High
 **Complexity:** M (Medium) — Two system-prompt.ts files + one relay interface change + plugin chat.ts wiring. No new sandbox handlers (get-preferences already exists from LC-7).
 **Epic:** LC — Learning & Corrections (Phase 4c)
@@ -228,3 +228,4 @@ interface LearnedPreference {
 | 2026-03-13 | @sm (River) | Story drafted from PRD-004 Phase 4c. Preference injection into both system-prompt.ts files + relay ChatTurnRequest + plugin chat.ts wiring. |
 | 2026-03-13 | @po (Pax) | Validated 7/10. Added AC12 (injection order), AC13 (CC path unaffected), latency risk note in Dev Notes. Status Draft → Ready. GO verdict. |
 | 2026-03-13 | @dev (Dex) | Implemented all 4 phases. Brief injection order changed to memory→preferences→brief in both buildSystemPrompt() functions (AC12). learnedPreferences wired into runRelayTurn() + all 3 direct loops. All builds pass clean. Status → Ready for Review. |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** 13/13 ACs verified. `buildPreferencesBlock` at system-prompt.ts:16, `preferences?` param at :377. Relay mirror confirmed in figmento-ws-relay/src/chat/system-prompt.ts + chat-engine.ts. Injection order memory→preferences→brief preserved. Status: Ready for Review → Done. |

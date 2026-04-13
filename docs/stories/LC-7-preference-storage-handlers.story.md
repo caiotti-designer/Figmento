@@ -1,6 +1,6 @@
 # Story LC-7: Preference Storage Handlers in Plugin Sandbox
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** High
 **Complexity:** M (Medium) — 5 new message handlers in code.ts following established IIFE pattern; no new UI
 **Epic:** LC — Learning & Corrections (Phase 4b)
@@ -225,3 +225,4 @@ This story adds 5 new message handlers to `code.ts`. They wire the aggregation e
 | 2026-03-13 | @sm (River) | Story drafted from PRD-004 Phase 4b. Sandbox layer — 5 preference/config handlers following LC-2/LC-4 patterns. |
 | 2026-03-13 | @po (Pax) | Validated: 9/10. Fixed: AC1 wording clarified — confirmed filter is applied inside aggregateCorrections(), not by the handler. Status Draft → Ready. GO verdict. |
 | 2026-03-13 | @dev (Dex) | Implemented: PREFERENCES_STORAGE_KEY, MAX_PREFERENCES, LEARNING_CONFIG_STORAGE_KEY, DEFAULT_LEARNING_CONFIG constants added. aggregateCorrections + LearnedPreference + LearningConfig imported. 5 handlers added (aggregate-preferences, get-preferences, save-preferences, get-learning-config, save-learning-config). compare-snapshot echoes source field. Also updated save-corrections to use CORRECTIONS_STORAGE_KEY constant. Build clean, 396 tests pass. Status → Ready for Review. |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** 10/10 ACs verified. All 5 handlers confirmed in storage.ts:294-413. Max 50 preferences FIFO eviction enforced. Default config returns on unset key. Status: Ready for Review → Done. |

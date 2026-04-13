@@ -1,7 +1,7 @@
 # CU-5: Chat Prompt Templates (Replace Killed Tools)
 
 **Epic:** CU — Chat-First Tool Unification
-**Status:** InProgress
+**Status:** Done
 **Sprint:** 2
 **Effort:** S (Small)
 **Owner:** @dev
@@ -71,3 +71,4 @@ Replace the 4 killed design tools (Text to Layout, Template Fill, Text to Presen
 |------|--------|--------|
 | 2026-03-17 | @pm | Story created |
 | 2026-03-17 | @po | Validation: Added AC11 (selection check for template fill), Risks section |
+| 2026-04-11 | @qa (Quinn) | **QA Gate: PASS.** 11/11 ACs verified. 4 prompt templates replace killed tools. Welcome screen + "+" dropdown integration confirmed. Status: InProgress → Done. |

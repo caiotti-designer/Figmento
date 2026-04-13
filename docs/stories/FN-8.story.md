@@ -4,7 +4,7 @@
 |-------|-------|
 | **Story ID** | FN-8 |
 | **Epic** | FN — Figma Native Agent Migration |
-| **Status** | InProgress |
+| **Status** | Done |
 | **Author** | @sm (River) |
 | **Executor** | @dev (Dex) |
 | **Gate** | @qa |
@@ -230,6 +230,18 @@ Each handler calls the binder *after* setting the raw value, so the raw value is
 
 ---
 
+## QA Results
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| AC verification (8/8 code ACs) | PASS | `matchColorVariable`, `matchFloatVariable`, `tryBindFillVariable`, `tryBindSpacingVariables`, `tryBindTextVariables` verified at variable-binder.ts:145/201/266/315/366 |
+| AC9 (manual variable panel test) | PASS | Live test on Gartni: colors bound to Primary & Accent DS variables (epic changelog 2026-03-24) |
+| Color distance algorithm | PASS | RGB Euclidean distance < 15 threshold in code |
+| Semantic name filtering | PASS | Collection-aware preference + `SPACING_SEMANTIC_NAMES` filter verified |
+| **Gate verdict** | **PASS** | 9/9 ACs satisfied including live test binding evidence |
+
+---
+
 ## Change Log
 
 | Date | Author | Change |
@@ -237,3 +249,4 @@ Each handler calls the binder *after* setting the raw value, so the raw value is
 | 2026-03-24 | @sm (River) | Story drafted from Epic FN Phase 2. Source analysis of canvas-query.ts (handleReadFigmaContext, set_fill handlers), color-utils.ts (hex/rgb conversions), types.ts (DesignSystemCache), and system-prompt.ts (Figma-Native Workflow section). Figma Plugin API setBoundVariable documentation reviewed for correct API signatures. |
 | 2026-03-24 | @po (Pax) | **Validated: GO (10/10).** Recommendation: resolve dual API signature in AC2a/AC2b during implementation — pick canonical `setBoundVariable` form and remove the other. Status Draft -> Ready. |
 | 2026-03-24 | @dev (Dex) | **Implementation complete.** Created `variable-binder.ts` with `matchColorVariable()` (exact hex + proximity < 15), `matchFloatVariable()` (exact + 10% tolerance), and three binding helpers. Enhanced `handleSetFill` (canvas-style.ts), `handleSetAutoLayout` (canvas-style.ts), and `handleCreateText` (canvas-create.ts) with auto-binding after raw value is set. Used `figma.variables.setBoundVariableForPaint()` for fill binding and `node.setBoundVariable()` for spacing/fontSize. Collection-aware preference, semantic name filtering, `autoBindVariables` opt-out param, and global setting via clientStorage all implemented. Added `colorDistance()` to core color-utils. Build passes. Status Ready -> InProgress. |
+| 2026-04-11 | @qa (Quinn) | **QA Gate: PASS.** 8 code ACs verified against source. AC9 satisfied by live test (Gartni: Primary & Accent colors bound to DS variables). Status: InProgress → Done. |

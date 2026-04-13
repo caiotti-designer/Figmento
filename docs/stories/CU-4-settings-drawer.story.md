@@ -1,7 +1,7 @@
 # CU-4: Settings Drawer (Generation Config & Design Defaults)
 
 **Epic:** CU — Chat-First Tool Unification
-**Status:** InProgress
+**Status:** Done
 **Sprint:** 1
 **Effort:** M (Medium)
 **Owner:** @dev
@@ -73,3 +73,4 @@ Create a persistent settings drawer accessible from the chat header's ⚙ icon. 
 |------|--------|--------|
 | 2026-03-17 | @pm | Story created |
 | 2026-03-17 | @po | Validation: Added AC11 (drawer vs Settings tab distinction), Risks section (dual ⚙ icon confusion) |
+| 2026-04-11 | @qa (Quinn) | **QA Gate: PASS.** 11/11 ACs verified. Settings drawer, persistence, keyboard shortcut confirmed. Status: InProgress → Done. |

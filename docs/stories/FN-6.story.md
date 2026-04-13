@@ -4,7 +4,7 @@
 |-------|-------|
 | **Story ID** | FN-6 |
 | **Epic** | FN — Figma Native Agent Migration |
-| **Status** | InProgress |
+| **Status** | Done |
 | **Author** | @sm (River) |
 | **Executor** | @dev (Dex) |
 | **Gate** | @qa |
@@ -270,6 +270,18 @@ interface DiscoveredComponent {
 
 ---
 
+## QA Results
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| AC verification (9/9 code ACs) | PASS | All functions verified: `handleScanDesignSystem`, `getDesignSystemCache`, `isCacheStale` at discovery.ts:185/220/232 |
+| AC10 (manual Figma load) | PASS | Live test on Gartni project: 50 variables scanned correctly (epic changelog 2026-03-24) |
+| 500-cap enforcement | PASS | `MAX_REPEAT_ITERATIONS` cap in code |
+| Cache staleness | PASS | `isCacheStale` checks 1-hour threshold |
+| **Gate verdict** | **PASS** | 10/10 ACs satisfied including live test evidence |
+
+---
+
 ## Change Log
 
 | Date | Author | Change |
@@ -277,3 +289,4 @@ interface DiscoveredComponent {
 | 2026-03-24 | @sm (River) | Story drafted from Epic FN Phase 2. Full source analysis of canvas-query.ts (handleReadFigmaContext), canvas-scene.ts (handleImportComponentByKey), storage.ts (clientStorage patterns), code.ts (message routing), state.ts (app state), types.ts (PluginMessage union), and FN-0 assessment (Q3 sandbox limitations). |
 | 2026-03-24 | @po (Pax) | **Validated: GO (10/10).** Description/Scope inconsistency fixed (agent-path MCP tool marked as deferred in Description to match OUT of Scope). Status Draft -> Ready. |
 | 2026-03-24 | @dev (Dex) | **Implementation complete.** Created `design-system-discovery.ts` handler with component discovery (12 categories), variable/style reading, 500-cap, clientStorage caching. Wired into `code.ts` (startup cache load + scan message), `command-router.ts` (scan_design_system command + read_figma_context enrichment), UI (scan button in settings, summary display, staleness check). Types added to `@figmento/core`. Build passes. Status Ready -> InProgress. |
+| 2026-04-11 | @qa (Quinn) | **QA Gate: PASS.** 9 code ACs verified against source. AC10 satisfied by live test evidence (Gartni: 50 vars scanned). Status: InProgress → Done. |

@@ -1,6 +1,6 @@
 # Story LC-6: Preference Types & Aggregation Engine
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** High
 **Complexity:** M (Medium) — Pure types + pure function with grouping/direction/confidence logic; no UI, no sandbox integration
 **Epic:** LC — Learning & Corrections (Phase 4b)
@@ -186,3 +186,4 @@ The aggregation logic is the most complex piece of Phase 4b. Building it as pure
 | 2026-03-13 | @sm (River) | Story drafted from PRD-004 Phase 4b. Leaf node — preference types + pure aggregation engine. Mirrors LC-1 pattern. |
 | 2026-03-13 | @po (Pax) | Validated: 9/10. Fixed: added longest-run edge case to Task 4 test list. Status Draft → Ready. GO verdict. |
 | 2026-03-13 | @dev (Dex) | Implemented: ConfidenceLevel + LearnedPreference types added to packages/figmento-core/src/types.ts. correction-aggregator.ts created with CONFIDENCE_THRESHOLDS, getConfidenceLevel, describePreference, aggregateCorrections. 25 unit tests written (correction-aggregator.test.ts), all pass. Build clean, 396 tests pass. Status → Ready for Review. |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** 15/15 ACs verified. `aggregateCorrections`, `CONFIDENCE_THRESHOLDS`, `getConfidenceLevel`, `describePreference` confirmed in correction-aggregator.ts. Types at packages/figmento-core/src/types.ts:855-872. 25 unit tests cover all confidence tiers + deduplication + direction consistency. Status: Ready for Review → Done. |

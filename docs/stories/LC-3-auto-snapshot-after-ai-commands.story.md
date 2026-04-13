@@ -1,6 +1,6 @@
 # Story LC-3: Auto-Snapshot After AI Commands
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** High
 **Complexity:** S (Small) — Hook into existing command router, call snapshot function on success
 **Epic:** LC — Learning & Corrections (Phase 4a)
@@ -154,3 +154,4 @@ Given any node, walk up via `node.parent` until reaching a top-level frame (pare
 | 2026-03-12 | @sm (River) | Story drafted from PRD-004 Phase 4a. Auto-snapshot hook into command pipeline. |
 | 2026-03-12 | @po (Pax) | Validated: 8.5/10. No blocking issues. Status Draft → Ready. GO verdict. |
 | 2026-03-13 | @dev (Dex) | Implemented: findRootFrame + autoSnapshotAfterCommand + SNAPSHOT_WORTHY_COMMANDS + debounce map added to code.ts. Post-command hook wired. Build clean, 371 tests pass. Status → Ready for Review. |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** 10/10 ACs verified. Post-command hook at code.ts:292, `SNAPSHOT_WORTHY_COMMANDS` set, `findRootFrame` helper, debounce map all confirmed. Fire-and-forget pattern prevents blocking. Status: Ready for Review → Done. |

@@ -1,6 +1,6 @@
 # Story IG-2: Chat Mode Selection Snapshot
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** Medium (P2)
 **Complexity:** S (2 points) — 3 files, no new APIs, pure plumbing + context injection
 **Epic:** IG — Image Generation Pipeline
@@ -278,3 +278,4 @@ Both must complete without errors.
 | 2026-03-14 | @sm (River) | Story drafted from IG-1 Out of Scope section + architecture exploration |
 | 2026-03-14 | @po (Pax) | Validation 9.5/10 → GO. Fixed: "4 files" → "3 files" (chat-endpoint.ts is verify-only). Status Draft → Ready |
 | 2026-03-14 | @dev (Dex) | Implemented all 3 phases. Handler in storage.ts (not code.ts — actual location). Plugin + relay builds clean. Status → Ready for Review |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** All 5 DoD items verified ([x]). `currentSelection` confirmed in chat.ts + storage.ts (plugin) and chat-tools.ts + chat-engine.ts (relay). **Note:** AC checkboxes were never updated by dev (process gap) but code matches all 6 ACs. Status: Ready for Review → Done. |

@@ -4,7 +4,7 @@
 |-------|-------|
 | **Story ID** | FN-9 |
 | **Epic** | FN — Figma Native Agent Migration |
-| **Status** | InProgress |
+| **Status** | Done |
 | **Author** | @sm (River) |
 | **Executor** | @dev (Dex) |
 | **Gate** | @qa |
@@ -248,6 +248,18 @@ Well within the 500-token budget. Files with very large design systems will be t
 
 ---
 
+## QA Results
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| AC verification (9/9 code ACs) | PASS | `buildDesignSystemBlock` at system-prompt.ts:218, `buildSystemPrompt` accepts `designSystem?` param at :378, injection at :412 |
+| AC10 (manual prompt inspection) | PASS | Live test on Gartni: AI referenced actual variable names in design decisions (epic changelog 2026-03-24) |
+| Token budget (AC6) | PASS | 2000-char hard cap enforced in `buildDesignSystemBlock` |
+| All callers updated (AC7) | PASS | 7 call sites updated: chat.ts (3), text-layout.ts (2), screenshot.ts (1), presentation.ts (1) |
+| **Gate verdict** | **PASS** | 10/10 ACs satisfied including live test prompt evidence |
+
+---
+
 ## Change Log
 
 | Date | Author | Change |
@@ -255,3 +267,4 @@ Well within the 500-token budget. Files with very large design systems will be t
 | 2026-03-24 | @sm (River) | Story drafted from Epic FN Phase 2. Source analysis of system-prompt.ts (buildSystemPrompt structure, injection points, brief injection pattern), all mode files (chat.ts, text-layout.ts, screenshot.ts, presentation.ts) for call site identification, and state.ts for app state integration. Token budget estimated at ~410 tokens for a typical design system. |
 | 2026-03-24 | @po (Pax) | **Validated: GO (10/10).** No blocking issues. Status Draft -> Ready. |
 | 2026-03-24 | @dev (Dex) | Implemented FN-9: added `buildDesignSystemBlock()` to system-prompt.ts with component grouping (priority-sorted categories, variant info), color variable listing (semantic-first), text style summary, behavioral instructions, and 2000-char hard cap. Updated all 7 `buildSystemPrompt()` call sites across chat.ts (3), text-layout.ts (2), screenshot.ts (1), presentation.ts (1). Build passes. Status Ready -> InProgress. |
+| 2026-04-11 | @qa (Quinn) | **QA Gate: PASS.** 9 code ACs verified against source. AC10 satisfied by live test (Gartni: AI used variable names in decisions). Status: InProgress → Done. |

@@ -1,6 +1,6 @@
 # Story LC-5: "Learn from My Edits" Button & Diff Summary UI
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** High
 **Complexity:** M (Medium) — UI button + diff summary rendering + confirm/dismiss flow + postMessage integration
 **Epic:** LC — Learning & Corrections (Phase 4a)
@@ -188,3 +188,4 @@ This story adds the user-facing layer of Phase 4a:
 | 2026-03-12 | @sm (River) | Story drafted from PRD-004 Phase 4a. UI layer — button, diff panel, confirm flow. |
 | 2026-03-12 | @po (Pax) | Validated: 8/10. No blocking issues. Status Draft → Ready. GO verdict. |
 | 2026-03-13 | @dev (Dex) | Implemented: button HTML+CSS in ui.html, diff-panel.ts created, handleLearnFromEdits + updateLearnButtonState + setLearnButtonEnabled + handleSnapshotCompared + handleCorrectionsSaved added to chat.ts, message listeners wired in initChat(). Build clean, 371 tests pass. Status → Ready for Review. |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** 14/14 ACs verified. `diff-panel.ts` created, learn button in ui.html, message listeners for snapshot-compared/corrections-saved/snapshots-cleared/snapshot-status wired. Phase 4a foundation complete. Status: Ready for Review → Done. |

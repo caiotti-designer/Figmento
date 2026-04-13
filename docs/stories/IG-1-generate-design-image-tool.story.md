@@ -1,6 +1,6 @@
 # Story IG-1: generate_design_image — Image-First Design Tool
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** High (P1)
 **Complexity:** M (3 points) — New MCP tool module, Gemini API integration, frame context resolution
 **Epic:** IG — Image Generation Pipeline
@@ -310,3 +310,4 @@ In `.claude/CLAUDE.md`, find the `### Standard Design Workflow` section and repl
 | 2026-03-14 | @sm (River) | Story drafted from @architect + @pm design session |
 | 2026-03-14 | @po (Pax) | Validation 7.5/10 → CONDITIONAL GO. Added: Business Value, Out of Scope, Risks sections. Fixed critical Dev Note re: get_design_guidance not callable via sendDesignCommand. Added AC11 (fallbackUsed). Status Draft → Ready |
 | 2026-03-14 | @dev (Dex) | Implemented all 4 phases. Created image-gen.ts (~210 lines), registered in server.ts, added @google/genai ^1.42.0, updated CLAUDE.md 6-step workflow. Build clean 151ms. Status → Ready for Review |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** 11/11 ACs verified (all checked). `generate_design_image` registered at image-gen.ts:466 via `registerImageGenTools`. Status: Ready for Review → Done. |

@@ -4,7 +4,7 @@
 |-------|-------|
 | **Story ID** | FN-5 |
 | **Epic** | FN — Figma Native Agent Migration |
-| **Status** | Ready |
+| **Status** | Done |
 | **Author** | @pm (Morgan) |
 | **Executor** | @qa + @devops |
 | **Gate** | @pm |
@@ -75,3 +75,4 @@ This is the final story before Epic FN active phases close.
 |------|--------|--------|
 | 2026-03-24 | @pm (Morgan) | Story drafted. Bundled FN-2/FN-3/FN-4 live tests with Community publishing into a single sprint. FN-1 already passed. |
 | 2026-03-24 | @qa | AC6 review: All 4 skills reviewed for Community publishing quality. **Issues found and fixed:** (1) FN-2 line 392 referenced "FN-3" internal story ID — replaced with skill name. (2) FN-4 line 190 referenced "FN-1 skill" — removed internal cross-reference. (3) FN-4 line 9 referenced "mcp-image" internal tool — replaced with generic "DALL-E, Midjourney, or similar". (4) FN-4 image placement code example had dead/confusing line — cleaned up. **No issues found:** FN-1 (screenshot-to-layout) and FN-3 (carousel) are clean. All 4 skills pass 9-point Community quality checklist. Token estimates: FN-1 ~4.6K, FN-2 ~5.9K, FN-3 ~5.1K, FN-4 ~3.8K — all well under 15K limit. |
+| 2026-04-12 | @pm (Morgan) | **Phase 1 live test session COMPLETE.** All 4 tests executed per `docs/qa/fn-phase1-live-test-plan.md`. **Results:** Test 1 (FN-1 Screenshot, prior session) PASS ≥12/16, ≥7/10. Test 2 (FN-2 Maison Levain) PASS 12/14, 8.05/10. Test 3 (FN-3 Synkra carousel) PASS 12/13, **8.65/10 highest score**. Test 4 (FN-4 ALVES ad, real-world input) PASS 12/13, 8.05/10. **Plugin gaps discovered and resolved via FN-P4-1** (2 surgical fixes in canvas-create.ts + canvas-batch.ts, all Tests 2/4 re-verified post-fix with zero workarounds). Learnings captured in `docs/qa/fn-phase1-live-test-learnings.md` (1 CRITICAL + 5 HIGH + 4 MEDIUM + 3 LOW + 5 POSITIVE). All 4 skills validated and ready for Figma Community publishing. Token budgets all within limit. Status: Ready → Done. |

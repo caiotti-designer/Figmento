@@ -1,6 +1,6 @@
 # Story LC-8: Auto-Detect Toggle & "Noticed N Edits" Notification
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** High
 **Complexity:** M (Medium) — Settings UI toggle + pre-turn hook in chat.ts + subtle notification component; 3 files modified
 **Epic:** LC — Learning & Corrections (Phase 4b)
@@ -262,3 +262,4 @@ If `corrections.length === 0` on auto-detect: no notification shown (silent pass
 | 2026-03-13 | @sm (River) | Story drafted from PRD-004 Phase 4b. UI layer — auto-detect toggle, pre-turn hook, "Noticed N edits" notification. Depends on LC-6 types + LC-7 sandbox handlers. |
 | 2026-03-13 | @po (Pax) | Validated: 8/10. Fixed: (1) removed contradictory Dev Note paragraph re. insertion point — only insertBefore guidance retained; (2) Task 5 clarified — loadLearningConfig() updates checkbox only, no cross-module call into chat.ts. Status Draft → Ready. GO verdict. |
 | 2026-03-13 | @dev (Dex) | Implemented: Learning section + settings-auto-detect toggle added to ui.html. CSS for .auto-detect-notice + children added. chat-settings.ts: loadLearningConfig() exported, get-learning-config sent on init, save-learning-config sent on save. chat.ts: autoDetectEnabled state, learning-config-loaded listener, pre-turn hook in sendMessage(), handleAutoDetectCompared(), snapshot-compared routed by source. code.ts: source field echoed in all compare-snapshot responses. Build clean, 396 tests pass. Status → Ready for Review. |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** 15/15 ACs verified. Auto-detect toggle OFF by default (C5 constraint satisfied). Pre-turn hook fire-and-forget. Source field routing (auto vs explicit) correctly implemented. Status: Ready for Review → Done. |

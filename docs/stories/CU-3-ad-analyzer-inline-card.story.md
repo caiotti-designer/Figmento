@@ -1,7 +1,7 @@
 # CU-3: Ad Analyzer Inline Card
 
 **Epic:** CU — Chat-First Tool Unification
-**Status:** InProgress
+**Status:** Done
 **Sprint:** 1
 **Effort:** M (Medium)
 **Owner:** @dev
@@ -71,3 +71,4 @@ Implement the Ad Analyzer as a QuickAction inline card in chat. The card collect
 |------|--------|--------|
 | 2026-03-17 | @pm | Story created |
 | 2026-03-17 | @po | Validation: Added AC11 (Bridge error state), AC12 (channel fallback), CU-4 soft dependency, Risks section |
+| 2026-04-11 | @qa (Quinn) | **QA Gate: PASS.** 12/12 ACs verified. `ad-analyzer` registered at chat.ts:2004. Bridge integration, error handling, fallback chain confirmed. Status: InProgress → Done. |

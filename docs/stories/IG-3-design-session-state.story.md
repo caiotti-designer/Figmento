@@ -1,6 +1,6 @@
 # Story IG-3: Design Session State
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** High (P1)
 **Complexity:** M (3 points) — 1 file, no new APIs, but 5 impl phases: recursive layer builder + TTL session map + tool-result capture + turn-start injection + channel cleanup
 **Epic:** IG — Image Generation Pipeline
@@ -344,3 +344,4 @@ Must complete without errors.
 | 2026-03-14 | @sm (River) | Story drafted from @pm analysis of chat follow-up context amnesia |
 | 2026-03-14 | @po (Pax) | Validation 9/10 → GO. Fixed: S → M complexity (5 impl phases). Added cold-cache risk (turn 1 always pays discovery cost). Status Draft → Ready |
 | 2026-03-14 | @dev (Dex) | Implemented all 5 phases. Single file change: chat-engine.ts. Counter-object pattern for 50-node cap (avoids closure mutation). Build clean. Status → Ready for Review |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** All DoD items verified. `designSessions` Map at chat-engine.ts:213, session injection at :1411-1929, channel cleanup confirmed. **Note:** AC checkboxes were never updated by dev (process gap) but code matches all 8 ACs. Status: Ready for Review → Done. |

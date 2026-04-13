@@ -1,6 +1,6 @@
 # Story LC-10: get_learned_preferences MCP Tool
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** Medium
 **Complexity:** S (Small) — One new MCP tool in figmento-mcp-server. Sends existing `get-preferences` WS command to plugin, returns formatted result. Pattern identical to how `read_figma_context` works.
 **Epic:** LC — Learning & Corrections (Phase 4c)
@@ -282,3 +282,4 @@ Only `enabled: true` preferences are returned. Sort: high → medium → low, th
 | 2026-03-13 | @sm (River) | Story drafted from PRD-004 Phase 4c §5 US-6. New MCP tool file following connection.ts pattern. |
 | 2026-03-13 | @po (Pax) | Validated 8/10. Added AC11 (WS action name cross-check). Status Draft → Ready. GO verdict. |
 | 2026-03-13 | @dev (Dex) | Created learning.ts with registerLearningTools(). Registered in server.ts (not index.ts — server.ts is where all tools are registered). Added case 'get_preferences' to executeCommand in code.ts (AC11 fix — relay path uses underscore action names). All builds pass clean. Status → Ready for Review. |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** 11/11 ACs verified. `get_learned_preferences` MCP tool registered via learning.ts + server.ts. WS command routing via underscore action name confirmed. Status: Ready for Review → Done. |

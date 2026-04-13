@@ -1,7 +1,7 @@
 # CU-6: Remove Legacy Flows & HTML Cleanup
 
 **Epic:** CU — Chat-First Tool Unification
-**Status:** InProgress
+**Status:** Done
 **Sprint:** 2
 **Effort:** L (Large)
 **Owner:** @dev
@@ -95,3 +95,4 @@ Remove the 6 Design Tool flow wizards, the mode selector grid, the `#tab-modes` 
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-03-17 | @pm | Story created |
+| 2026-04-11 | @qa (Quinn) | **QA Gate: PASS.** 11/11 ACs verified. 4 modules deleted (text-layout.ts, template.ts, presentation.ts, hero-generator.ts confirmed missing via glob). ~6483 lines removed. Build passes. Status: InProgress → Done. |

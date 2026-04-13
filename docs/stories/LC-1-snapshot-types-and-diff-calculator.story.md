@@ -1,6 +1,6 @@
 # Story LC-1: Snapshot Types & Diff Calculator
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** High
 **Complexity:** M (Medium) — Pure types + pure function with threshold table; no UI, no sandbox integration
 **Epic:** LC — Learning & Corrections (Phase 4a)
@@ -148,3 +148,4 @@ The diff calculator is the most logic-dense piece in Phase 4a. Building it first
 | 2026-03-12 | @sm (River) | Story drafted from PRD-004 Phase 4a. Leaf node — types + pure diff calculator. |
 | 2026-03-12 | @po (Pax) | Validated: 8/10. Fixed AC1 checkbox [x]→[ ]. Status Draft → Ready. GO verdict. |
 | 2026-03-13 | @dev (Dex) | Implemented: 5 types added to core, diff-calculator.ts created, 70 tests pass, build clean. Status → Ready for Review. |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** 13/13 ACs verified. `calculateDiff`, `DELTA_THRESHOLDS`, `inferContext`, `categorizeProperty` confirmed in diff-calculator.ts:16-201. 70 unit tests + 371 integration tests passing. Status: Ready for Review → Done. |

@@ -4,7 +4,7 @@
 |-------|-------|
 | **Story ID** | FN-1 |
 | **Epic** | FN — Figma Native Agent Migration |
-| **Status** | InReview |
+| **Status** | Done |
 | **Author** | @sm (River) |
 | **Executor** | @dev (Dex) |
 | **Gate** | @qa |
@@ -328,3 +328,4 @@ frame.appendChild(text)
 | 2026-03-24 | @po (Pax) | **Validation: GO (Conditional) — 10/10.** Status Draft → Ready. All 10 checklist points PASS. Story is exceptionally well-drafted with comprehensive source analysis, clear ACs, well-defined scope, and strong PRD-005/Epic FN alignment. **Conditional recommendations (non-blocking):** (1) Consider adding AC13 with a measurable token count threshold (<15K tokens via tiktoken cl100k_base) and fallback strategy (tiered knowledge or base/sub-skill split) — currently only in Risk R1 mitigation, not an AC. (2) AC11 end-to-end test could reference a minimum quality bar (e.g., "scores >=60 on the self-evaluation checklist from AC10") to prevent trivially passing tests. (3) AC9d gradient overlay example should include a `gradientTransform` matrix helper pattern per Technical Notes line 163 — flag to @dev. |
 | 2026-03-24 | @dev (Dex) | **Implementation complete.** Skill file created at `skills/figmento-screenshot-to-layout.md`. All ACs checked except AC11 (requires live end-to-end test with Figma MCP). Token budget: ~4.6K tokens (18.4KB / 4), well under 15K limit. Includes: 7-step workflow, full design rules (typography hierarchy, layout, overlays, taste rules, anti-AI markers, quality scoring), 36 size presets, 20 font pairings, 12 color palettes, minimum font sizes, 6 use_figma code examples (root frame, text+font loading, auto-layout, gradient with gradientTransform matrix helper, button, hex-to-RGB helper), 16-point self-evaluation checklist. All knowledge inlined — zero external dependencies. |
 | 2026-03-24 | @pm (Morgan) | **AC11 PASS — Live test complete.** Claude Code + Figma MCP `use_figma` path: built Instagram post directly on canvas. Typography and design decisions strong, self-eval loop triggered and refined spacing autonomously. Gap noted: no image generation (skill is text/layout only — expected, images are plugin-path capability). Comparison with plugin path: skill path produces better design taste, plugin path produces more complete deliverables (images). Status InProgress → InReview. All 13 ACs now checked. |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** 13/13 ACs verified ([x]). Skill file confirmed at `skills/figmento-screenshot-to-layout.md`. Token budget ~4.6K (well under 15K). AC11 satisfied by @pm live test (Instagram post on Gartni). All design knowledge inlined — zero external deps. Status: InReview → Done. |

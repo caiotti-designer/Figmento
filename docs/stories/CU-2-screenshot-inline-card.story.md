@@ -1,7 +1,7 @@
 # CU-2: Screenshot to Layout Inline Card
 
 **Epic:** CU — Chat-First Tool Unification
-**Status:** InProgress
+**Status:** Done
 **Sprint:** 1
 **Effort:** M (Medium)
 **Owner:** @dev
@@ -68,3 +68,4 @@ Implement the Screenshot to Layout tool as a QuickAction inline card in chat. Th
 |------|--------|--------|
 | 2026-03-17 | @pm | Story created |
 | 2026-03-17 | @po | Validation: Added AC10 (size limit), Risks section (crop extraction compat) |
+| 2026-04-11 | @qa (Quinn) | **QA Gate: PASS.** 10/10 ACs verified. `screenshot-to-layout` registered at chat.ts:1981. Crop modal, format selector, prompt builder confirmed. Status: InProgress → Done. |

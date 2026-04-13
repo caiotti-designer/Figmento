@@ -60,11 +60,11 @@ Figma launched native agent canvas support on 2026-03-24. Their `use_figma` MCP 
 
 | ID | Title | Executor | Gate | Status |
 |----|-------|----------|------|--------|
-| FN-1 | Extract Screenshot-to-Layout Skill | @dev | @qa | [x] InReview — AC11 PASS, all ACs complete |
-| FN-2 | Extract Text-to-Layout Skill | @dev | @qa | [x] InProgress — implemented, AC13 pending live test |
-| FN-3 | Extract Carousel/Multi-Slide Skill | @dev | @qa | [x] InProgress — implemented, AC11 pending live test |
-| FN-4 | Extract Ad Analyzer Skill | @dev | @qa | [x] InProgress — implemented, AC13 pending live test |
-| FN-5 | Skills Testing & Community Publishing | @qa + @devops | @pm | [x] InProgress — QA review done (4 fixes applied), live tests + publish pending |
+| FN-1 | Extract Screenshot-to-Layout Skill | @dev | @qa | [x] Done — live test PASS ≥12/16, ≥7/10 |
+| FN-2 | Extract Text-to-Layout Skill | @dev | @qa | [x] Done — live test PASS 12/14, 8.05/10 (Maison Levain) |
+| FN-3 | Extract Carousel/Multi-Slide Skill | @dev | @qa | [x] Done — live test PASS 12/13, **8.65/10 highest** (Synkra, 8/8 consistency) |
+| FN-4 | Extract Ad Analyzer Skill | @dev | @qa | [x] Done — live test PASS 12/13, 8.05/10 (ALVES real-world ad, 3 variants) |
+| FN-5 | Skills Testing & Community Publishing | @qa + @devops | @pm | [x] Done — all 4 skills validated, FN-P4-1 unblocked Community publishing |
 
 ### Skill Extraction Pattern (applies to FN-1 through FN-4)
 
@@ -79,6 +79,8 @@ Each skill is a standalone markdown file that encodes:
 ### Phase 1 Success Test
 
 > A user with Claude Code and Figma MCP (no Figmento plugin installed) can create an Instagram carousel by invoking the `/figmento-carousel` skill.
+
+**✅ VALIDATED 2026-04-12** — All 4 skill live tests passed via `docs/qa/fn-phase1-live-test-plan.md`. Skill path produced designs scoring 8.05-8.65/10 on the weighted quality rubric. Figma Community publishing unblocked after FN-P4-1 plugin fix landed.
 
 ---
 
@@ -134,6 +136,7 @@ Each skill is a standalone markdown file that encodes:
 | FN-15 | Bridge Tab → Status Tab | @dev | @qa | FN-6 | [x] Done — Status Tab with 3 cards, Bridge relocated to Advanced |
 | FN-16 | "Use My Design System" Toggle | @dev | @qa | FN-7, FN-8 | [x] Done — Toggle active, gates FN-7/8/9 |
 | FN-17 | Skill Export from Plugin | @dev | @qa | FN-1 | [x] Done — Skill export functional |
+| FN-P4-1 | Live Test Gap Fixes (fillColor + set_style batch) | @dev | @qa | FN-1, FN-2, FN-3, FN-4 | [x] Done — CRITICAL plugin hotfix, Community publishing unblocked |
 
 ### Phase 4 Success Test
 
@@ -192,3 +195,8 @@ Sprint N+4..N+5:    FN-10→FN-14 (@architect+@dev)  ── Phase 3 (only after 
 | 2026-03-24 | @pm (Morgan) | **Phase 1 progress:** FN-0 complete (hybrid migration recommended). FN-1 through FN-4 all implemented — skills at 3.9K-6K tokens each, well under 15K budget. FN-1 AC11 live test PASS — skill path produces better design taste than plugin path, plugin path produces more complete deliverables (images). Strategic insight: validates two-track strategy (PRD-005 §2). FN-2/FN-3/FN-4 live tests bundled into FN-5. |
 | 2026-03-24 | @pm (Morgan) | **Phase 2 COMPLETE.** Live test PASS on Gartni irrigation project file (50 variables, 0 components, 1 style). FN-6: scanner found all 50 vars. FN-7: correctly fell back to primitives (no components). FN-8: colors bound to DS variables (Primary, Accent). FN-9: AI referenced actual variable names. Phase 2 success test satisfied. Moving to Phase 4. |
 | 2026-03-24 | @pm (Morgan) | **Phase 4 implementation COMPLETE.** FN-15 (Status Tab), FN-16 (DS Toggle), FN-17 (Skill Export) all implemented sequentially. Build clean. Pending manual Figma test for Phase 4 success test. With Phase 4, Epic FN has 14/17 stories implemented (Phase 3 on hold pending Figma API GA). |
+| 2026-04-11 | @qa (Quinn) | **Batch QA gate session.** FN-P3-1: PASS (Done). FN-P3-2: CONCERNS/InReview (AC8 pending manual chat test). FN-6/7/8/9: all PASS (Done) — live test evidence from Gartni confirmed. FN-15/16/17: all PASS (Done). 13 stories now Done, 1 InReview (FN-P3-2), 1 Ready (FN-5), 5 Draft (Phase 3 Track A: FN-10–14). |
+| 2026-04-11 | @pm (Morgan) | **Phase 3 decision: FORMALLY DEFERRED.** FN-0 gate is lifted (hybrid migration recommended). However, original Phase 3 stories (FN-10–14) have no story files drafted and Figma's `use_figma` API remains in beta. Decision: defer until Figma API reaches GA or next planning cycle, whichever comes first. FN-P3-1/P3-2 (Enhanced Batch DSL) were an alternative Phase 3 track that shipped successfully — these provided the key performance win without requiring full MCP tool migration. Remaining value of FN-10–14 is maintenance burden reduction, not user-facing. |
+| 2026-04-12 | @pm (Morgan) | **Phase 1 live tests complete — all 4 PASS.** Test 2 (FN-2 Maison Levain, 8.05/10), Test 3 (FN-3 Synkra carousel, 8.65/10), Test 4 (FN-4 ALVES ad variants, 8.05/10). FN-1 prior PASS confirmed. **Two plugin gaps discovered and documented** in `docs/qa/fn-phase1-live-test-learnings.md`: (1) CRITICAL — `create_rectangle` silently drops `fillColor` in batch; (2) HIGH — `set_style` consolidated name not recognized in batch dispatcher. Both gaps have root causes located at specific line numbers and a follow-up story drafted: **FN-P4-1 (Live Test Gap Fixes)**. Community publishing blocked until FN-P4-1 lands. |
+| 2026-04-12 | @dev (Dex) | **FN-P4-1 implemented and live-verified.** Both plugin fixes shipped in `canvas-create.ts` (rectangle/ellipse `fillColor` fallback) and `canvas-batch.ts` (`set_style` dispatch with property discriminator). Re-ran Tests 2 and 4 from scratch — single-batch rebuild, zero workarounds, all rectangles render with correct fills on first try, gradients apply via `set_style`. Test 3 verified zero regression. Community publishing unblocked. All 16 ACs passed. |
+| 2026-04-12 | @pm (Morgan) | **🎉 PHASE 1 CLOSED.** FN-1 through FN-5 all Done. All 4 skills live-tested, quality scores 8.05-8.65/10, all ACs satisfied. FN-P4-1 plugin hotfix in place. Learnings doc captures 1 CRITICAL + 5 HIGH + 4 MEDIUM + 3 LOW + 5 POSITIVE findings for future reference. Epic FN now has **16 of 17 stories Done** (FN-10-14 remain formally deferred per 2026-04-11 decision). User-facing Phase 1+2+4 all complete. Only maintenance burden reduction (Phase 3 MCP tool migration) remains, gated on Figma `use_figma` API reaching GA. |

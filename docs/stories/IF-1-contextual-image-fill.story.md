@@ -1,6 +1,6 @@
 # Story IF-1: Contextual Image Fill — Smart Image Generation for Existing Layouts
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** High (P1)
 **Complexity:** L (8 points) — New orchestration tool, Vision analysis, multi-image generation, intelligent frame detection
 **Epic:** IF — Contextual Image Fill
@@ -460,3 +460,4 @@ or similar — use fill_contextual_images with the current selection. Analyze th
 | 2026-03-19 | @pm (Morgan) | Story drafted from user feedback on image fill workflow gaps |
 | 2026-03-19 | @po (Pax) | Validation 7.5/10 → CONDITIONAL GO. Fixed: executor assignment format (quality_gate → @architect), committed to Gemini Flash only (removed Claude Sonnet ambiguity), added Testing section with unit test expectations, added CodeRabbit skip notice. Status Draft → Ready |
 | 2026-03-19 | @dev (Dex) | Implemented all 6 tasks (YOLO mode). Created image-fill.ts (~380 lines) with 4-phase pipeline. Added chat-engine composite handler (~150 lines). Both builds clean. Status Ready → Ready for Review |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** `fill_contextual_images` MCP tool at image-fill.ts:432, 4-phase pipeline (CONTEXT/DISCOVER/GENERATE/PLACE) + chat-engine composite handler confirmed. **Note:** AC checkboxes were never updated by dev (process gap) but code matches all 13 ACs. Status: Ready for Review → Done. |

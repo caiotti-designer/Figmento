@@ -1,6 +1,6 @@
 # Story AE-2: Remove Mandatory Quality Gate from CLAUDE.md
 
-**Status:** InProgress
+**Status:** Done
 **Priority:** High (P1)
 **Complexity:** XS (1 point) — Text removal + minor rewrite in CLAUDE.md
 **Epic:** AE — Auto-Evaluation
@@ -87,3 +87,4 @@ The **Self-Evaluation Checklist** (16 points) can be reduced to reference the au
 |------|--------|--------|
 | 2026-03-14 | @pm (Morgan) | Story created from @architect sprint assessment |
 | 2026-03-14 | @pm (Morgan) | Applied @po validation fix: corrected self-evaluation point mapping to match actual refinement engine checks (7 points, not 8). Status Draft → Ready |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** 5/5 ACs verified. Committed in `bfb36ed` (TC-4 + AE-2 — update CLAUDE.md tool references + remove mandatory quality gate). Status: InProgress → Done. |

@@ -4,7 +4,7 @@
 |-------|-------|
 | **Story ID** | FN-P3-1 |
 | **Epic** | FN — Figma Native Agent Migration |
-| **Status** | InProgress |
+| **Status** | Done |
 | **Author** | @sm (River) |
 | **Executor** | @dev (Dex) |
 | **Gate** | @qa |
@@ -220,6 +220,19 @@ The key concern is that `tempIdMap` changes from `Map<string, string>` to `Map<s
 
 ---
 
+## QA Results
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| AC verification (13/13) | PASS | All ACs verified against source code in `canvas-batch.ts` and `temp-id-resolver.ts` |
+| Security caps | PASS | 50 iter / 200 expanded / 30s timeout / 5-depth — all enforced in code |
+| Backward compat | PASS | `$name` without dot resolves to `result.nodeId` — zero regression |
+| Error isolation | PASS | Per-command try/catch, partial results returned on timeout |
+| Type safety | PASS | `TempIdMap` type exported, `DSLCommand` union type covers all constructs |
+| **Gate verdict** | **PASS** | 13/13 ACs, 6/6 DoD, no issues found |
+
+---
+
 ## Change Log
 
 | Date | Author | Change |
@@ -227,3 +240,4 @@ The key concern is that `tempIdMap` changes from `Map<string, string>` to `Map<s
 | 2026-03-25 | @sm (River) | Story drafted from FN-P3 feasibility spike (Path A). Analyzed existing `canvas-batch.ts` handler (sequential execution, tempId capture, $ref resolution), `temp-id-resolver.ts` (string-only $ref, nested object/array support), and `command-router.ts` (40+ actions dispatched via switch). Three constructs scoped: repeat, conditional, property access. Security caps defined: 50 iter, 200 expanded, 30s timeout. |
 | 2026-03-25 | @po (Pax) | **Validated: GO (10/10).** All 10 criteria pass. Verified stories match existing codebase (canvas-batch.ts Map<string, string> on line 35, nodeId-only storage on line 44, temp-id-resolver.ts string-only $ref). Security caps in ACs (not just notes). Backward compat for $name→nodeId in AC5/AC6. tempIdResolutions format change documented. Note: AC1 checkbox pre-checked — reset to [ ] before dev. Status: Draft → Ready. |
 | 2026-03-25 | @dev (Dex) | **Implementation complete (AC1-AC13).** Modified `temp-id-resolver.ts`: changed map type to `Map<string, Record<string, unknown>>`, added `$name.property` dot-access resolution, exported `TempIdMap` type. Modified `canvas-batch.ts`: added repeat construct with `${i}` arithmetic interpolation, conditional construct with `exists($name)`, full-result tempIdMap storage, security caps (50 iter / 200 expanded / 30s timeout / 5-level nesting), `expandedTotal` in summary, `timedOut` flag. Backward compat preserved: `$name` alone resolves to `result.nodeId`. Plugin builds cleanly. Status: Ready → InProgress. |
+| 2026-04-11 | @qa (Quinn) | **QA Gate: PASS.** 13/13 ACs verified against code. All security caps match spec. Backward compat confirmed. No issues found. Status: InProgress → Done. |

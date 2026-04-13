@@ -1,6 +1,6 @@
 # Story LC-2: Snapshot Capture & Storage in Plugin Sandbox
 
-**Status:** Ready for Review
+**Status:** Done
 **Priority:** High
 **Complexity:** M (Medium) — 3 new message handlers in code.ts + clientStorage persistence + expiry logic
 **Epic:** LC — Learning & Corrections (Phase 4a)
@@ -163,3 +163,4 @@ The sandbox reads Figma node properties and converts them to the `NodeSnapshot` 
 | 2026-03-12 | @sm (River) | Story drafted from PRD-004 Phase 4a. Snapshot infrastructure for plugin sandbox. |
 | 2026-03-12 | @po (Pax) | Validated: 8/10. No blocking issues. Status Draft → Ready. GO verdict. |
 | 2026-03-13 | @dev (Dex) | Implemented: snapshot-serializer.ts created, take-snapshot + get-snapshot-status handlers + currentpagechange listener added to code.ts. Build clean, 371 tests pass. Status → Ready for Review. |
+| 2026-04-12 | @qa (Quinn) | **QA Gate: PASS.** 12/12 ACs verified. `serializeFrame`, `take-snapshot` handler, `SNAPSHOT_TTL_MS=10min`, `MAX_SNAPSHOTS=10` all confirmed in code. Depth-1 capture + FIFO eviction + page-change clear correctly implemented. Status: Ready for Review → Done. |
