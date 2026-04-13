@@ -3,12 +3,8 @@ import { z } from 'zod';
 
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
-export const scanTemplateSchema = {
-  nodeId: z.string().optional().describe('Frame nodeId to scan. If omitted, scans the current Figma selection.'),
-};
-
 export const applyTemplateTextSchema = {
-  nodeId: z.string().describe('The text placeholder node ID (from scan_template results)'),
+  nodeId: z.string().describe('The text placeholder node ID (from scan_frame_structure results)'),
   content: z.string().describe('New text content to set'),
   fontSize: z.number().optional().describe('Override font size in pixels'),
   color: z.string().optional().describe('Override text color as hex'),
@@ -17,7 +13,7 @@ export const applyTemplateTextSchema = {
 };
 
 export const applyTemplateImageSchema = {
-  nodeId: z.string().describe('The image placeholder node ID (from scan_template results)'),
+  nodeId: z.string().describe('The image placeholder node ID (from scan_frame_structure results)'),
   imageData: z.string().describe('Base64 image data (with or without data: prefix)'),
   scaleMode: z.enum(['FILL', 'FIT', 'CROP', 'TILE']).optional().describe('Image scale mode (default: FILL)'),
 };
@@ -41,20 +37,6 @@ export const createPresentationSchema = {
 };
 
 export function registerTemplateTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
-
-  // ═══════════════════════════════════════════════════════════
-  // S-17: scan_template
-  // ═══════════════════════════════════════════════════════════
-
-  server.tool(
-    'scan_template',
-    '[DEPRECATED — use scan_frame_structure] Scan a frame for "#"-prefixed template placeholders.',
-    scanTemplateSchema,
-    async (params) => {
-      const data = await sendDesignCommand('scan_template', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
-    }
-  );
 
   // ═══════════════════════════════════════════════════════════
   // S-18: apply_template_text

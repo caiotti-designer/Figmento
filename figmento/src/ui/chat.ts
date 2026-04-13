@@ -234,7 +234,7 @@ let chatSettings: ChatSettings = {
   veniceApiKey: '',
   model: 'gemini-3.1-flash',
   claudeCodeModel: 'claude-sonnet-4-6',
-  chatRelayEnabled: true,
+  chatRelayEnabled: false,
   chatRelayUrl: CLOUD_RELAY_URL,
 };
 

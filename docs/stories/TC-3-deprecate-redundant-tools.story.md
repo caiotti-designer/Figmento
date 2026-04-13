@@ -1,6 +1,6 @@
 # Story TC-3: Remove Deprecated `scan_template` MCP Tool
 
-**Status:** Ready
+**Status:** Done
 **Priority:** Low (P3)
 **Complexity:** XS (1 point) — Single tool deregistration + description fixup
 **Epic:** FIS — Figmento Improvement Sprint (Sprint B housekeeping)
@@ -102,3 +102,4 @@ Since `scan_frame_structure` is the functional replacement, the deprecated `scan
 |------|--------|--------|
 | 2026-03-14 | @pm (Morgan) | Story created from @architect sprint assessment — bundled 3 tool removals + 23 aliases |
 | 2026-04-13 | @po (Pax) | **Validation NO-GO → re-scoped.** Audit found 75% of original scope already shipped: `clone_node` removed in `7cb7e92`, TC-1/TC-2 aliases removed per CLAUDE.md, `get_refinement_rules` not found in code. Only `scan_template` removal remains. Story rewritten with XS scope (1 pt) targeting single-tool deregistration + 2 description fixups. Status: Draft → Ready (6 ACs). |
+| 2026-04-13 | @dev (Dex) | **Implemented.** Removed `scan_template` tool registration block + `scanTemplateSchema` from `figmento-mcp-server/src/tools/template.ts`. Updated `applyTemplateTextSchema.nodeId` and `applyTemplateImageSchema.nodeId` descriptions to reference `scan_frame_structure` instead. Plugin-side handler in `canvas-query.ts` left in place per Dev Notes. Status: Ready → Done. |

@@ -1,8 +1,10 @@
 # DM-1 — Direct Mode Standalone (No Relay, No WebSocket, No Railway)
 
-## Status: Partially Done (audit 2026-04-13 — needs re-scope)
+## Status: Done (2026-04-13)
 
-> **@po audit note:** Bridge has been relocated to a collapsed "Advanced" section in Settings (via FN-15 at `ui.html:4525,4641-4651`) — that part of DM-1 is shipped. **Remaining work:** flip the default `chatRelayEnabled` from `true` to `false` (`figmento/src/ui/chat.ts:237`). This is a 1-line change. Consider re-scoping to DM-1b "Flip relay default to false" and marking DM-1 as Done (the "move to Advanced" portion) or folding the remainder into a Sprint N+1 housekeeping story.
+> **Completion trail:**
+> - **"Move relay to Advanced" portion** shipped via FN-15 on 2026-03-24 (`ui.html:4525,4641-4651` — Bridge section is now a collapsed `<details>` in Settings Advanced).
+> - **"Flip default to false" portion** shipped 2026-04-13 via 1-line change at `figmento/src/ui/chat.ts:237` (`chatRelayEnabled: true` → `false`). Fresh plugin installs now start in direct mode.
 
 ## Story
 **As a** Figmento user,
