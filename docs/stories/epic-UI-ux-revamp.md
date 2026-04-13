@@ -1,6 +1,6 @@
 # Epic UI: Plugin UX/UI Revamp
 
-**Status:** Draft
+**Status:** Done — All 3 stories shipped (UI-1, UI-2, UI-3)
 **Priority:** Critical (P0)
 **Owner:** @pm (Morgan) + @ux-design-expert (Uma)
 **Target:** Figmento Plugin v2.0

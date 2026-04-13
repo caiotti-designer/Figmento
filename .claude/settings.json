@@ -1,5 +1,10 @@
 {
   "language": "english",
+  "permissions": {
+    "allow": [
+      "mcp__figmento__*"
+    ]
+  },
   "deniedMcpServers": [
     {
       "serverName": "pencil"

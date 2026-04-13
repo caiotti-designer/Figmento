@@ -6,7 +6,7 @@
 | **Type** | Untracked dev work — retroactive documentation |
 | **Author** | @dev (direct implementation, no story) |
 | **Logged by** | @qa (Quinn) — flagged during 2026-04-12 batch QA session |
-| **Status** | Uncommitted in working tree |
+| **Status** | Shipped — committed in `088df66` (2026-04-12) |
 | **Risk** | LOW — additive changes + bug fixes |
 | **Branch** | feat/ad-analyzer-bridge-chat-core |
 

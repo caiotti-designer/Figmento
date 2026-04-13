@@ -9,7 +9,7 @@
 | **Owner** | @pm (Morgan) |
 | **Architect** | @architect (Aria) |
 | **PRD** | [PRD-005](../../docs/prd/PRD-005-figma-native-agent-migration.md) |
-| **Status** | Draft |
+| **Status** | Phase 1+2+4 Done (15 stories) — Phase 3 Deferred (awaiting Figma `use_figma` API GA) |
 | **Created** | 2026-03-24 |
 | **Milestone** | M8 — Platform Evolution |
 | **Depends On** | Architecture v2.0 (unified plugin — complete) |

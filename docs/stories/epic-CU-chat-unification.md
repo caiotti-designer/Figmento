@@ -1,6 +1,6 @@
 # Epic CU: Chat-First Tool Unification
 
-**Status:** Draft
+**Status:** Done — All 7 stories shipped (CU-1..7)
 **Priority:** High (P1)
 **Owner:** @pm (Morgan)
 **Architect:** @architect (Aria)
