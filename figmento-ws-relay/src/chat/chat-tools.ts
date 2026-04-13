@@ -86,6 +86,7 @@ const PLAN_PHASE_TOOLS = new Set([
   'set_fill',
   'create_image', 'generate_image', 'fill_contextual_images', 'update_memory',
   'reorder_child',
+  'rename_node', 'delete_node',
   'batch_execute', 'create_design',
   'analyze_brief', 'generate_design_system_in_figma',
   'create_component_node', 'convert_to_component', 'combine_as_variants', 'set_reactions',

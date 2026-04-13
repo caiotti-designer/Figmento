@@ -95,6 +95,8 @@ const PLAN_PHASE_TOOLS = new Set([
   'create_frame', 'create_text', 'create_rectangle', 'create_ellipse',
   // Essential styling (TC-1 consolidated + backward compat)
   'set_style', 'set_fill',
+  // Scene edits on existing nodes (safe in plan phase — no creation)
+  'rename_node', 'delete_node',
   // Image + utility
   'create_image', 'generate_image', 'update_memory',
 ]);
@@ -114,6 +116,7 @@ const BUILD_PHASE_TOOLS = new Set([
   // Scene management (TC-1 consolidated + backward compat until TC-3)
   'transform_node',
   'move_node', 'resize_node', 'append_child', 'reorder_child', 'clone_node', 'delete_node',
+  'rename_node',
   // Inspection
   'get_node_info', 'get_screenshot', 'scan_frame_structure',
   // Image + utility

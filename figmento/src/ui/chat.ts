@@ -301,15 +301,81 @@ function getActiveHistory(): unknown[] {
   }
 }
 
-function stripBase64FromMessages(messages: unknown[]): unknown[] {
-  const json = JSON.stringify(messages, (_key, value) => {
-    if (typeof value === 'string') {
-      if (value.startsWith('data:image/')) return '[image stripped]';
-      if (value.length > 50000) return '[large content stripped]';
+/**
+ * Image parts are expensive to persist and provider APIs reject truncated
+ * base64 on replay. Before save/restore, replace every image-bearing block
+ * with a plain text stub. The sanitizer is provider-aware because each SDK
+ * uses a different content shape.
+ *
+ * Idempotent: already-stubbed parts stay as text stubs, and legacy sessions
+ * whose base64 was replaced in-place with "[large content stripped]" by the
+ * old generic stripper are detected by their shape (inlineData / image_url /
+ * image block) and cleaned up on load.
+ */
+const IMAGE_STUB_TEXT = '[image from earlier turn — not persisted]';
+
+function sanitizeGeminiHistory(history: GeminiContent[]): GeminiContent[] {
+  return history.map(msg => ({
+    role: msg.role,
+    parts: (msg.parts || []).map(part => {
+      if (part && typeof part === 'object' && 'inlineData' in part) {
+        return { text: IMAGE_STUB_TEXT };
+      }
+      return part;
+    }),
+  }));
+}
+
+function sanitizeOpenAIHistory(
+  history: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  return history.map(msg => {
+    const copy = { ...msg };
+    const content = copy.content;
+    if (Array.isArray(content)) {
+      copy.content = content.map((item: unknown) => {
+        if (item && typeof item === 'object' && (item as Record<string, unknown>).type === 'image_url') {
+          return { type: 'text', text: IMAGE_STUB_TEXT };
+        }
+        return item;
+      });
     }
-    return value;
+    return copy;
   });
-  return JSON.parse(json);
+}
+
+function sanitizeAnthropicHistory(history: AnthropicMessage[]): AnthropicMessage[] {
+  return history.map(msg => {
+    if (typeof msg.content === 'string') return { ...msg };
+    const blocks = msg.content as unknown as Array<Record<string, unknown>>;
+    return {
+      role: msg.role,
+      content: blocks.map(block => {
+        if (block && typeof block === 'object' && block.type === 'image') {
+          return { type: 'text', text: IMAGE_STUB_TEXT };
+        }
+        return block;
+      }) as unknown as string,
+    };
+  });
+}
+
+function sanitizeHistoryForProvider(
+  history: unknown[],
+  provider: ChatSession['provider'],
+): unknown[] {
+  switch (provider) {
+    case 'gemini':
+      return sanitizeGeminiHistory(history as GeminiContent[]);
+    case 'openai':
+    case 'venice':
+    case 'codex':
+      return sanitizeOpenAIHistory(history as Array<Record<string, unknown>>);
+    case 'claude-code':
+      return history.map(m => ({ ...(m as Record<string, unknown>) }));
+    default:
+      return sanitizeAnthropicHistory(history as AnthropicMessage[]);
+  }
 }
 
 function collectDisplayLog(): ChatSession['displayLog'] {
@@ -333,12 +399,13 @@ function saveChatHistory() {
   tmp.innerHTML = titleHtml;
   const title = (tmp.textContent || 'Untitled').slice(0, 80);
 
+  const provider = getActiveProvider();
   const session: ChatSession = {
     id: activeSessionId || `s_${Date.now()}`,
     title,
-    provider: getActiveProvider(),
+    provider,
     model: chatSettings.model,
-    apiHistory: stripBase64FromMessages(history).slice(-50),
+    apiHistory: sanitizeHistoryForProvider(history, provider).slice(-50),
     displayLog,
     savedAt: Date.now(),
   };
@@ -366,19 +433,22 @@ function loadSession(session: ChatSession) {
   codexHistory.length = 0;
   claudeCodeHistory.length = 0;
 
-  // Restore API history
+  // Restore API history — sanitize defensively so legacy sessions whose
+  // image parts were corrupted by the old generic stripper don't blow up
+  // the next API call with base64 decode errors.
+  const clean = sanitizeHistoryForProvider(session.apiHistory as unknown[], session.provider);
   switch (session.provider) {
     case 'gemini':
-      geminiHistory.push(...(session.apiHistory as GeminiContent[]));
+      geminiHistory.push(...(clean as GeminiContent[]));
       break;
     case 'openai': case 'venice':
-      openaiHistory.push(...(session.apiHistory as Array<Record<string, unknown>>));
+      openaiHistory.push(...(clean as Array<Record<string, unknown>>));
       break;
     case 'claude-code':
-      claudeCodeHistory.push(...(session.apiHistory as Array<{ role: string; content: string }>));
+      claudeCodeHistory.push(...(clean as Array<{ role: string; content: string }>));
       break;
     default:
-      conversationHistory.push(...(session.apiHistory as AnthropicMessage[]));
+      conversationHistory.push(...(clean as AnthropicMessage[]));
   }
 
   // Re-render display log
