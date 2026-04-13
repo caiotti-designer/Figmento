@@ -35,7 +35,7 @@ Each learning has a **severity**, **category**, and **proposed action**. Items m
 
 ---
 
-### Learning 2.2 — Text nodes overflow without explicit `width` in non-auto-layout parents [HIGH — Skill Refinement]
+### Learning 2.2 — Text nodes overflow without explicit `width` in non-auto-layout parents [HIGH — Skill Refinement] ✅ **RESOLVED BY SKILL REFINEMENTS (2026-04-12)**
 
 **Observed:** First attempt at the Maison Levain headline wrapped vertically letter-by-letter because `create_text` was called without a `width` parameter inside a `layoutMode: NONE` root frame. Result: "Autumn Has Arrived" rendered as a single-column vertical stack overflowing 1000+ pixels below the frame.
 
@@ -74,7 +74,7 @@ The FN-2 skill's code examples show both patterns but doesn't call out this gotc
 
 ---
 
-### Learning 2.5 — Warm-cozy palette flipped to moody variant was the right creative call [POSITIVE]
+### Learning 2.5 — Warm-cozy palette flipped to moody variant was the right creative call [POSITIVE] ✅ **CAPTURED IN SKILL REFINEMENTS (2026-04-12) — "Mood Variants (Dark Override)" section added to FN-2**
 
 **Observed:** The skill maps `warm-cozy` to a light palette (#FFF8F0 background). For this brief, I flipped to a dark editorial variant (#2C1810 background with warm accent wash) because "premium food magazine editorial" called for dark depth, not bright cafe vibes. Result: the final design reads as editorial/premium, not generic bakery Instagram.
 
@@ -118,7 +118,7 @@ mcp__figmento__batch_execute commands=[{action:"set_style",...}]
 
 ## Test 3 — FN-3 Carousel/Multi-Slide (2026-04-12)
 
-### Learning 3.1 — Repetitive batch patterns expose an IDEAL use case for the `repeat` DSL construct [HIGH — Skill Refinement + Plugin Opportunity]
+### Learning 3.1 — Repetitive batch patterns expose an IDEAL use case for the `repeat` DSL construct [HIGH — Skill Refinement + Plugin Opportunity] ✅ **RESOLVED BY SKILL REFINEMENTS (2026-04-12)**
 
 **Observed:** I built 5 slides by manually duplicating the same 8-9 commands per slide (pagination, brand mark, slide number, sign label, headline, body, handle, accent stripe). That's ~45 commands for 5 slides. Each slide differed only in: position, slide number, content strings. The Enhanced Batch DSL (`repeat` construct from FN-P3-1) is literally designed for this — but the FN-3 skill doesn't mention it.
 
@@ -157,7 +157,7 @@ mcp__figmento__batch_execute commands=[{action:"set_style",...}]
 
 ---
 
-### Learning 3.3 — Cross-slide consistency requires external state tracking [MEDIUM — Skill Refinement]
+### Learning 3.3 — Cross-slide consistency requires external state tracking [MEDIUM — Skill Refinement] ✅ **RESOLVED BY SKILL REFINEMENTS (2026-04-12)**
 
 **Observed:** The FN-3 skill says "Record these values. You will reuse them on every subsequent slide" but doesn't tell the LLM *how* to record them when operating in a stateless batch context. I ended up literally copying the hex values into every slide by hand.
 
@@ -182,7 +182,7 @@ Then say: "Before each slide, re-read the DESIGN SYSTEM LOCK. Every value must m
 
 ---
 
-### Learning 3.4 — Slide number + label pattern is more memorable than any blueprint [POSITIVE + Pattern Discovery]
+### Learning 3.4 — Slide number + label pattern is more memorable than any blueprint [POSITIVE + Pattern Discovery] ✅ **CAPTURED IN SKILL REFINEMENTS (2026-04-12)**
 
 **Observed:** The most successful design decision was using a giant slide number ("01", "02", "03") as the dominant visual element on content slides, paired with a small "— SIGN N°0X" kicker in a warning-orange accent. This broke the "every content slide looks the same" problem without breaking consistency.
 
@@ -255,7 +255,7 @@ Then say: "Before each slide, re-read the DESIGN SYSTEM LOCK. Every value must m
 
 ---
 
-### Learning 4.2 — Nested auto-layout frames with explicit `width` bleeding past parent bounds [HIGH — Skill Refinement + Plugin Behavior]
+### Learning 4.2 — Nested auto-layout frames with explicit `width` bleeding past parent bounds [HIGH — Skill Refinement + Plugin Behavior] ✅ **RESOLVED BY SKILL REFINEMENTS (2026-04-12)**
 
 **Observed:** In the first attempt at Variant C, I placed a `PRICE_ROW` auto-layout frame with `width: 960` as a child of the root frame. Inside it, I put a `PRICE_BLOCK` (vertical stack with price text) and a `DISCOUNT_BADGE` (circular pill) with `itemSpacing: 20`. The resulting row bled off the right edge of the 1080px parent frame because the intrinsic width of the two children + gap exceeded 960px.
 
@@ -286,7 +286,7 @@ Then say: "Before each slide, re-read the DESIGN SYSTEM LOCK. Every value must m
 
 ---
 
-### Learning 4.4 — Variant C "layout-only" is the most commercially valuable output [POSITIVE + Pattern Discovery]
+### Learning 4.4 — Variant C "layout-only" is the most commercially valuable output [POSITIVE + Pattern Discovery] ✅ **RESOLVED BY SKILL REFINEMENTS (2026-04-12) — Variant C elevated to REQUIRED anchor in FN-4 Phase 4**
 
 **Observed:** The three variants produce different business value:
 - **A (Urgency)** — highest predicted CTR, but the client has to accept a completely new creative direction
@@ -360,10 +360,64 @@ These sub-grid values are legitimate for small components where 8px would break 
 
 ### Top 3 Actions Before Community Publishing
 
-1. **[CRITICAL]** Fix `create_rectangle` batch fill gap in Figmento plugin. Story target: canvas-create.ts handler audit. Without this fix, every ad/card design needs double commands.
-2. **[HIGH]** Fix `set_style` batch dispatch for granular action names (or consolidate batch names to match MCP surface). Affects all gradient work.
-3. **[HIGH]** Integrate FN-P3-1 `repeat` DSL construct into FN-3 skill. Halves carousel/presentation command counts.
+1. ~~**[CRITICAL]** Fix `create_rectangle` batch fill gap~~ ✅ **DONE via FN-P4-1 (2026-04-12)**
+2. ~~**[HIGH]** Fix `set_style` batch dispatch~~ ✅ **DONE via FN-P4-1 (2026-04-12)**
+3. ~~**[HIGH]** Integrate FN-P3-1 `repeat` DSL construct into FN-3 skill~~ ✅ **DONE via skill refinements (2026-04-12)**
 
-Once those three land, re-run smoke tests on the 3 affected tests (2, 3, 4) to verify the workarounds aren't needed and the skills produce clean output on first batch.
+All three pre-publishing actions are complete.
+
+---
+
+## Skill Refinements — QA Gate Review (2026-04-13)
+
+**Reviewer:** @qa (Quinn)
+**Scope:** 4 skill files + learnings doc resolution markers
+
+### Verification Results
+
+| Check | Result |
+|-------|--------|
+| Text Wrapping Rule (FN-1/2/3/4) | PASS — technically accurate, correct API usage |
+| Gradient Shape Requirement (FN-1/2/3/4) | PASS — matches `handleSetFill` contract |
+| Nested Auto-Layout Overflow (FN-1/2/3/4) | PASS — correct diagnostic formula |
+| Design System Lock template (FN-3) | PASS — addresses Learning 3.3 stateless-LLM root cause |
+| Repeat DSL Construct (FN-3) | PASS — matches FN-P3-1 implementation, limits correct |
+| Numeric Anchor Pattern (FN-3) | PASS (with minor cosmetic note) |
+| Variant C elevation (FN-4 Phase 4) | PASS — no AC breaks, order C → A → B with priority labels |
+| Learnings doc resolution markers | PASS — 7 markers match verified changes |
+| Token budgets | PASS — all within ceilings (FN-4 tightest at 4.7K/6K) |
+
+### Issues Found
+
+| # | Severity | File | Summary |
+|---|----------|------|---------|
+| 1 | HIGH | FN-4 Phase 5 | Phase 5 A/B Test Recommendation contradicts new Phase 4 variant priority. Budget still gives C the LEAST weight (20%) despite C being the new REQUIRED anchor. Creates whiplash for users reading end-to-end. |
+| 2 | CONCERNS | FN-2 Mood Variants | Example introduces `#2C1810` and falsely calls it "the same hex values, repurposed" — but `#2C1810` is not in the warm-cozy palette row. The palette has `#3E2723` as text color. |
+| 3 | LOW | FN-3 Numeric Anchor | ASCII diagram doesn't label which slides it depicts (cosmetic). |
+
+### Gate Decision (Round 1): **CONCERNS**
+
+Community publishing recommended **after** Issues #1 and #2 are fixed. Issue #3 is optional.
+
+**Recommended @dev fix actions:**
+1. Rewrite FN-4 Phase 5 A/B Test Recommendation to prioritize Original vs C as the primary test, with C receiving >=50% budget. Elevate the "Variant C ROI Story" section as the primary report line, not a subsidiary footnote.
+2. Replace the wrong hex in FN-2 Mood Variants example with values actually present in the warm-cozy palette row (background: `#3E2723`, text: `#FFF8F0`, accent: unchanged).
+
+Estimated fix time: <10 minutes combined.
+
+### Gate Decision (Round 2, 2026-04-13): **PASS** ✅
+
+**All 3 issues closed.** @dev applied the two required fixes (#1 Phase 5 rewrite, #2 hex correction) and also fixed the optional Issue #3 (diagram caption).
+
+**Re-review verification:**
+- **Issue #1:** FN-4 Phase 5 now has Variant C ROI Story as PRIMARY DELIVERABLE REPORT at position 2 (after Original Ad Analysis, before Variant Summaries). A/B Test Recommendation restructured: Primary=Original vs C, Secondary=C vs A (conditional), Tertiary=A vs B (conditional). Budget: 50% Primary / 30% Secondary / 20% Tertiary. Explicit rationale: "C always runs first because it's the required anchor." Full alignment with Phase 4's "C is REQUIRED" framing. ✅
+- **Issue #2:** FN-2 Mood Variants example corrected. All 4 hex values (`#3E2723`, `#FFF8F0`, `#C2590A`, `#E8A87C`) verified present in the warm-cozy palette row (line 152). Closing statement "All values come from the existing warm-cozy palette row" is factually accurate. Bonus: Dex included both primary and accent hexes (`#C2590A` / `#E8A87C`), a stronger example than the original recommendation. ✅
+- **Issue #3:** FN-3 Numeric Anchor Pattern diagram has explicit caption ("content slides 2-4 of a 5-slide '5 Signs...' carousel"), pagination numbers corrected from `01/05`/`02/05`/`03/05` to `02/05`/`03/05`/`04/05` (now consistent with the caption), AND a bonus "two-number pattern" explanation that clarifies why each slide shows both a deck-position number and a content-list number. This went beyond the minimum fix and produced a better-than-original result. ✅
+
+**Regression check:** Zero regressions. All 8 round-1 refinements still intact. Token budgets clean across all 4 skills (FN-4 tightest at ~4.85K/6K, 1.15K headroom).
+
+**Community publishing status:** Nothing blocks publishing on the skill-refinement side. All 9 actionable learnings from the FN Phase 1 live test session are now resolved (2 via FN-P4-1 plugin fix, 7 via skill refinements across 2 QA rounds).
+
+**Gated by:** @qa (Quinn) on 2026-04-13. Skills ready for @devops push.
 
 ---

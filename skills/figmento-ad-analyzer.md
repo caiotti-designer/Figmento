@@ -50,16 +50,34 @@ Prompt pattern: `"The EXACT same [product] from the reference image — same sha
 - **Image B:** Environment matching Variant B mood (e.g., bright airy space, natural light)
 - **Image C:** New clean environment — NEVER reuse the original image (it has baked-in text overlays)
 
-### Phase 4 — Build 3 Ad Variants in Figma
+### Phase 4 — Build Ad Variants in Figma
 
-Create 3 frames side-by-side (200px gap between each). Each follows the nested auto-layout structure below.
+Create variants as side-by-side frames (200px gap between each) using the nested auto-layout structure below. **Variant C is the required anchor; A and B are creative exploration.**
 
-**Variant strategy:**
-- **A — Creative reinterpretation:** New headline/copy, new AI image, bold visual direction (e.g., luxury dark editorial)
-- **B — Alternative creative direction:** New headline/copy, new AI image, DIFFERENT mood/palette/fonts from A (e.g., fresh Scandinavian)
-- **C — Layout-only redesign:** Original ad copy VERBATIM + new generated image. Proves layout alone outperforms the original.
+**Variant priority:**
 
-A and B must differ in: mood, palette, font pairing, and image environment. C uses verbatim copy — zero text changes.
+#### Variant C — Layout-Only (REQUIRED — build this first)
+
+This is the primary deliverable. Original ad copy **VERBATIM** (every word, every bullet, every price, every CTA label exactly as in the source), plus a new generated image that replaces the original (which has baked-in text).
+
+**Why C is the anchor:** It's the ROI argument. The client cannot dismiss it with "but that's not our copy" — every word is theirs. If C outperforms the original in A/B testing, the only variable that changed was hierarchy, proving the original ad's problem was never the message. This is the strongest commercial proof the skill can deliver.
+
+**What changes in C:** visual hierarchy, typography scale, color contrast, CTA prominence, spacing rhythm, image (new generated environment). **What does not change:** copy, brand voice, price points, CTA wording.
+
+#### Variant A — Creative Direction 1 (RECOMMENDED)
+
+Optional creative exploration. New headline/copy, new AI image, bold visual direction (e.g., luxury dark editorial, urgency/sale-first, premium minimal). Build after C is established so the client has the layout-only baseline to compare against.
+
+#### Variant B — Creative Direction 2 (OPTIONAL)
+
+Optional second creative direction for maximum creative range. Must differ from A in mood, palette, font pairing, AND image environment. Use when the client wants to see multiple stretch directions, not required for every engagement.
+
+---
+
+**Variant differentiation rules:**
+- A and B must differ from each other in: mood, palette, font pairing, image environment
+- C uses verbatim copy — zero text changes from the original ad
+- All 3 variants use the same nested auto-layout structure below
 
 ### Phase 5 — Evaluate & Report
 
@@ -69,17 +87,28 @@ Produce a design report covering:
 ## Original Ad Analysis
 [What failed / what worked table from Phase 2]
 
+## Variant C ROI Story (PRIMARY DELIVERABLE REPORT)
+
+What changed vs original: hierarchy, text zone, real CTA, color, contrast,
+spacing. Same copy, same brand, same product photo concept.
+
+If C outperforms original by even 20%, layout investment pays for the entire
+catalog. This is the strongest commercial proof the skill delivers.
+
 ## Variant Summaries
 Per variant: aesthetic direction, fonts, headline, hero image, contrast ratio, target audience, key decision, memorable element
 
 ## A/B Test Recommendation
-- First test: A vs B (isolates emotional direction)
-- Second test: Winner vs C (isolates layout effect)
-- Budget: 40% A / 40% B / 20% C
 
-## Variant C ROI Story
-What changed vs original (hierarchy, text zone, real CTA, color, contrast, spacing).
-If C outperforms original by even 50%, layout investment pays for the entire catalog.
+- **Primary test:** Original vs C (isolates layout effect — proves the thesis
+  that hierarchy alone drives outcomes)
+- **Secondary test (if A delivered):** C vs A (isolates creative direction
+  effect after C establishes the baseline)
+- **Tertiary test (if both A and B delivered):** A vs B (compares creative
+  directions against each other)
+- **Budget:** 50% Primary / 30% Secondary / 20% Tertiary
+- **Rationale:** C always runs first because it's the required anchor.
+  A and B test against C after C has established the baseline improvement.
 ```
 
 ---
@@ -341,6 +370,54 @@ heroImg.fills = [{
 // Fix z-order: move hero image behind overlay (index 1, after background)
 root.insertChild(1, heroImg);
 ```
+
+---
+
+## Common Gotchas & Patterns
+
+### Text Wrapping Rule
+
+Ads place text at absolute coordinates inside a `layoutMode: "NONE"` root frame. In this case, **always set `width` explicitly** on the text node. The Figma Plugin API defaults to `textAutoResize: "WIDTH_AND_HEIGHT"`, which auto-sizes the text width to fit content — long headlines render as a single ultra-narrow column overflowing vertically.
+
+```javascript
+// ✅ RIGHT — for absolute-positioned text, set width + textAutoResize = "HEIGHT"
+headline.textAutoResize = "HEIGHT";
+headline.resize(960, headline.height);
+headline.characters = "Sofá Veneza Cama";
+```
+
+Content frames wrapped in auto-layout (per the nested structure above) don't need this — the parent constrains width automatically.
+
+### Gradient Shape Requirement
+
+When applying the content-aware overlay gradient (Critical Rule #3), the gradient parameters must be **nested inside a paint object in the `fills` array**:
+
+```javascript
+// ✅ RIGHT — gradient as a Paint in the fills array
+overlay.fills = [{
+  type: "GRADIENT_LINEAR",
+  gradientTransform: gradientTransform("top-bottom"),
+  gradientStops: [
+    { position: 0,   color: { ...bgColor, a: 0 } },
+    { position: 0.4, color: { ...bgColor, a: 1 } }
+  ]
+}];
+
+// ❌ WRONG — top-level gradient params silently no-op, overlay renders transparent
+overlay.gradientStops = [...];  // nothing happens
+```
+
+### Nested Auto-Layout Overflow
+
+Pricing blocks, comparison layouts, and CTA + badge rows often hit this gotcha. A parent row with a fixed `width` + children using `layoutSizingHorizontal: "HUG"` can silently overflow the parent if the sum of children widths + gaps exceeds the declared width. The row's declared width becomes visual-only — no clipping.
+
+Before nesting pricing row + discount badge, CTA + installment note, or any horizontal composition:
+
+1. Measure: does `Σ(children widths) + (N-1) × itemSpacing` fit inside the parent width?
+2. If yes → proceed with nested auto-layout.
+3. If no → shrink a child, shrink spacing, or drop the row and use absolute positioning on both children.
+
+Particularly common with Sale Badge Overlay and Product Hero Pricing blueprints — the discount badge is intrinsically sized (HUG) and will push past the price column if the math doesn't fit.
 
 ---
 

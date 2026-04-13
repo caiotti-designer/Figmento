@@ -418,6 +418,49 @@ node.fills = [{ type: 'SOLID', color: hexToRgb("#1E3A5F") }];
 
 ---
 
+## Common Gotchas & Patterns
+
+### Text Wrapping Rule
+
+When recreating screenshot text at absolute coordinates inside a `layoutMode: "NONE"` parent, **always set `width` explicitly** on the text node. The Figma Plugin API defaults to `textAutoResize: "WIDTH_AND_HEIGHT"`, which auto-sizes the text width to fit content. On long strings this causes text to render as a single ultra-narrow column overflowing vertically instead of wrapping.
+
+```javascript
+// ✅ RIGHT — set width + textAutoResize = "HEIGHT" for wrap
+headline.textAutoResize = "HEIGHT";
+headline.resize(960, headline.height);
+headline.characters = "Modern design for modern teams";
+```
+
+Alternative: put the text inside an auto-layout container, which constrains width automatically.
+
+### Gradient Shape Requirement
+
+When recreating a gradient fill from the screenshot, the gradient parameters must be **nested inside a paint object in the `fills` array**:
+
+```javascript
+// ✅ RIGHT — gradient as a Paint in the fills array
+node.fills = [{
+  type: "GRADIENT_LINEAR",
+  gradientTransform: [[0,1,0],[1,0,0]],  // top-bottom
+  gradientStops: [
+    { position: 0, color: { r: 0.12, g: 0.23, b: 0.37, a: 1 } },
+    { position: 1, color: { r: 0.04, g: 0.06, b: 0.12, a: 1 } }
+  ]
+}];
+```
+
+Top-level gradient params silently no-op.
+
+### Nested Auto-Layout Overflow
+
+A parent auto-layout row with a fixed `width` + children using `layoutSizingHorizontal: "HUG"` can silently overflow the parent if the sum of children widths + gaps exceeds the declared width. Particularly common with pricing card grids from SaaS screenshots. Before nesting:
+
+1. Measure: does `Σ(children widths) + (N-1) × itemSpacing` fit inside the parent width?
+2. If yes → proceed with nested auto-layout.
+3. If no → shrink a child, shrink spacing, or drop the row and use absolute positioning.
+
+---
+
 ## Self-Evaluation Checklist
 
 After completing the design, verify each point:

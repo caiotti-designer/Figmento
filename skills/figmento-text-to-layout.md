@@ -520,6 +520,61 @@ container.appendChild(button);
 
 ---
 
+## Common Gotchas & Patterns
+
+### Text Wrapping Rule
+
+When placing text at absolute coordinates inside a `layoutMode: "NONE"` parent, **always set `width` explicitly** on the text node. The Figma Plugin API defaults to `textAutoResize: "WIDTH_AND_HEIGHT"`, which auto-sizes the text width to fit content. On long strings, this causes the text to render as a single ultra-narrow column overflowing vertically instead of wrapping.
+
+```javascript
+// ❌ WRONG — wraps letter-by-letter vertically on long strings
+const headline = figma.createText();
+headline.characters = "Autumn Has Arrived";  // renders vertically
+headline.x = 60; headline.y = 320;
+
+// ✅ RIGHT — set width + textAutoResize = "HEIGHT" for wrap
+headline.textAutoResize = "HEIGHT";
+headline.resize(960, headline.height);
+headline.characters = "Autumn Has Arrived";
+```
+
+Alternative: put the text inside an auto-layout container, which constrains width automatically.
+
+### Gradient Shape Requirement
+
+When applying a gradient via `node.fills`, the gradient parameters must be **nested inside a paint object**, not at the top level:
+
+```javascript
+// ✅ RIGHT — gradient as a Paint in the fills array
+node.fills = [{
+  type: "GRADIENT_LINEAR",
+  gradientTransform: gradientTransform("top-bottom"),
+  gradientStops: [
+    { position: 0, color: { r: 0.04, g: 0.04, b: 0.06, a: 0 } },
+    { position: 1, color: { r: 0.04, g: 0.04, b: 0.06, a: 1 } }
+  ]
+}];
+
+// ❌ WRONG — top-level gradient params silently no-op
+node.gradientStops = [...];  // nothing happens
+```
+
+### Nested Auto-Layout Overflow
+
+A parent auto-layout row with a fixed `width` + children using `layoutSizingHorizontal: "HUG"` can silently overflow the parent if the sum of children widths + gaps exceeds the declared width. Before nesting:
+
+1. Measure: does `Σ(children widths) + (N-1) × itemSpacing` fit inside the parent width?
+2. If yes → proceed with nested auto-layout.
+3. If no → either shrink a child, shrink spacing, or drop the row and use absolute positioning.
+
+### Mood Variants (Dark Override)
+
+The Mood-to-Palette table defaults to light variants for most moods. For editorial/premium/evening contexts, the **warm-cozy, minimal-clean, and sunset-energy** moods work equally well as dark variants — invert the background and text values, keep the accent. Example: warm-cozy dark uses `#3E2723` as background (the original text color), `#FFF8F0` as text (the original background), and `#C2590A` / `#E8A87C` as accents (unchanged). All values come from the existing warm-cozy palette row.
+
+When the brief says "premium", "editorial", "moody", or "magazine", flip to dark even if the mood keyword alone would pick light.
+
+---
+
 ## Self-Evaluation Checklist
 
 After completing the design, verify each point:

@@ -39,16 +39,27 @@ await figma.loadFontAsync({ family: "Inter", style: "Regular" });
 await figma.loadFontAsync({ family: "Inter", style: "Bold" });
 ```
 
-### Step 4 — Create Slide 1 (Establish the Design System)
+### Step 4 — Create Slide 1 AND Write the Design System Lock
 
-Create the first slide (cover/title). This slide **defines** the design system for the entire deck:
+Create the first slide (cover/title). This slide **defines** the design system for the entire deck.
 
-- **Background color** — the fill color of the root frame
-- **Accent color** — the first non-neutral, non-black/white color you apply
-- **Font family** — the heading and body fonts you choose
-- **Spacing rhythm** — margins, padding, item spacing
+**Before creating slide 1, write out this Design System Lock block in your response.** It acts as a re-readable contract — reference it every time you build a subsequent slide. This is more reliable than "remember these values" because LLMs don't have persistent scratch state between tool calls.
 
-Record these values. You will reuse them on every subsequent slide.
+```
+DESIGN SYSTEM LOCK
+──────────────────
+Dimensions    : [width × height, e.g. 1080×1080]
+Background    : [hex, e.g. #0D1117]
+Accent        : [hex, e.g. #58A6FF]
+Heading font  : [family + weight + sizes, e.g. Inter Bold 62px (content), 128px (cover/CTA)]
+Body font     : [family + weight + size, e.g. Inter Regular 22px]
+Margins       : [px, e.g. 80px all sides]
+Safe zones    : [top/bottom px, e.g. 80px]
+Continuity    : [the visual element that repeats on every slide — brand bar, accent stripe, pagination block]
+Slide x-gap   : [px gap between slides on canvas, e.g. 40]
+```
+
+**Rule:** Before creating slide N, re-read the Design System Lock. Every value on slide N must match the lock or the carousel will drift.
 
 ### Step 5 — Create Slides 2 through N (Enforce Consistency)
 
@@ -81,6 +92,96 @@ After every 3 slides (and after the final slide), verify:
 - Visual continuity element (brand bar, accent line, or motif) appears on every slide
 
 Fix any drift before proceeding.
+
+---
+
+## Batch Efficiency with Repeat Construct
+
+When using the Figmento plugin via `batch_execute`, the Enhanced Batch DSL includes a `repeat` construct that can generate slides 2..N from a template in a single batch instead of manually duplicating commands. This halves the command count for a typical 5-slide carousel (~45 commands → ~20).
+
+The `repeat` construct supports `${i}` interpolation in string values and positional params, so you can template the per-slide differences:
+
+```javascript
+// Single batch that creates slides 2, 3, 4 (same layout, different x, slide number, content)
+{
+  commands: [
+    // Slide 1 (cover) — explicit
+    { action: "create_frame", params: { name: "Cover", width: 1080, height: 1080, x: 0, fillColor: "#0D1117" }, tempId: "slide_cover" },
+
+    // Slides 2-4 (content) — one repeat construct
+    {
+      action: "repeat",
+      count: 3,
+      template: {
+        action: "create_frame",
+        params: {
+          name: "Content Slide ${i + 2}",
+          width: 1080,
+          height: 1080,
+          x: "${(i + 1) * 1120}",  // 1080 + 40 gap
+          fillColor: "#0D1117"
+        },
+        tempId: "slide_${i}"
+      }
+    },
+
+    // Slide 5 (CTA) — explicit again
+    { action: "create_frame", params: { name: "CTA", width: 1080, height: 1080, x: 4480, fillColor: "#0D1117" }, tempId: "slide_cta" }
+  ]
+}
+```
+
+**When to use `repeat`:**
+- **Good for:** Content slides 2..N-1 of a list-based carousel (same layout, different number/title/body)
+- **Bad for:** The cover and CTA slides (usually have unique structure — keep them explicit)
+
+**Limits:**
+- Max 50 iterations per `repeat` construct
+- Max 200 total expanded commands per batch
+- Only `${i}` + simple arithmetic (`${i * N}`, `${i + N}`, `${i - N}`, `${i * N + M}`)
+
+**Note:** This only works via the Figmento plugin's `batch_execute` tool. Pure `use_figma` sessions with direct Plugin API access write regular JavaScript loops instead — both achieve the same result.
+
+---
+
+## Visual Continuity Patterns
+
+The continuity element in your Design System Lock determines how cohesive the carousel feels. The most successful patterns from real tests:
+
+### Numeric Anchor Pattern
+
+Use a giant slide number (100-320px) as the dominant visual element on content slides, paired with a small label in an accent color. Creates a repeating rhythm that feels intentional rather than repetitive.
+
+*Example: content slides 2-4 of a 5-slide "5 Signs..." carousel. (Slide 1 is the cover, slide 5 is the CTA.)*
+
+```
+┌─────────────────────────┐  ┌─────────────────────────┐  ┌─────────────────────────┐
+│ SYNKRA           02/05  │  │ SYNKRA           03/05  │  │ SYNKRA           04/05  │
+│                         │  │                         │  │                         │
+│ — SIGN N°01             │  │ — SIGN N°02             │  │ — SIGN N°03             │
+│                         │  │                         │  │                         │
+│  01                     │  │  02                     │  │  03                     │
+│  [huge number, 160px]   │  │                         │  │                         │
+│                         │  │                         │  │                         │
+│  Your devs rebuild      │  │  Design reviews take    │  │  New hires take 3       │
+│  the same button 5      │  │  longer than the        │  │  months to ship...      │
+│  different ways.        │  │  design itself.         │  │                         │
+└─────────────────────────┘  └─────────────────────────┘  └─────────────────────────┘
+```
+
+Note the two-number pattern on each slide: the pagination in the top-right shows the slide's position in the deck (02/05), while the giant number in the body shows the position in the content list (01, 02, 03). They increment independently.
+
+**Good for:** List-based carousels ("5 signs...", "7 tips...", "3 mistakes...")
+**Bad for:** Narrative carousels ("our story", "how we started") — the numbers feel mechanical
+**Key constraint:** The big number must be positioned at the **same x, y on every content slide**. Inconsistent placement breaks the rhythm and makes the carousel feel like 5 unrelated designs.
+
+### Brand Stripe Pattern
+
+A thin horizontal accent stripe at a consistent y-coordinate on every slide (typically y = height - 80 to height - 90). Quiet but unmistakable when you swipe through the deck.
+
+### Pagination Block Pattern
+
+Top-right or top-left corner gets a consistent block showing `0X/0N`. Works best in a muted color on the first N-1 slides and the accent color on the final slide (to signal "you're at the end").
 
 ---
 
@@ -515,6 +616,49 @@ Rules: 2 stops only. Gradient color MUST match the section background. Minimum o
 ### WCAG Contrast
 
 Normal text: 4.5:1 minimum. Large text (>=18px): 3:1 minimum.
+
+---
+
+## Common Gotchas & Patterns
+
+### Text Wrapping Rule
+
+When placing text at absolute coordinates inside a `layoutMode: "NONE"` parent, **always set `width` explicitly** on the text node. The Figma Plugin API defaults to `textAutoResize: "WIDTH_AND_HEIGHT"`, which auto-sizes the text width to fit content. On long strings this causes text to render as a single ultra-narrow column overflowing vertically instead of wrapping.
+
+```javascript
+// ✅ RIGHT — set width + textAutoResize = "HEIGHT" for wrap
+headline.textAutoResize = "HEIGHT";
+headline.resize(960, headline.height);
+headline.characters = "5 Signs Your Startup Needs a Design System";
+```
+
+Alternative: put the text inside an auto-layout container, which constrains width automatically.
+
+### Gradient Shape Requirement
+
+When applying a gradient via `node.fills`, the gradient parameters must be **nested inside a paint object**, not at the top level:
+
+```javascript
+// ✅ RIGHT — gradient as a Paint in the fills array
+node.fills = [{
+  type: "GRADIENT_LINEAR",
+  gradientTransform: gradientTransform("top-bottom"),
+  gradientStops: [
+    { position: 0, color: { r: 0.05, g: 0.07, b: 0.09, a: 0 } },
+    { position: 1, color: { r: 0.05, g: 0.07, b: 0.09, a: 1 } }
+  ]
+}];
+```
+
+Top-level gradient params silently no-op. Tech-modern flat aesthetics avoid this entirely by using solid fills + layered opacity rectangles.
+
+### Nested Auto-Layout Overflow
+
+A parent auto-layout row with a fixed `width` + children using `layoutSizingHorizontal: "HUG"` can silently overflow the parent if the sum of children widths + gaps exceeds the declared width. Before nesting pagination, brand marks, or indicator blocks:
+
+1. Measure: does `Σ(children widths) + (N-1) × itemSpacing` fit inside the parent width?
+2. If yes → proceed with nested auto-layout.
+3. If no → either shrink a child, shrink spacing, or drop the row and use absolute positioning.
 
 ---
 
