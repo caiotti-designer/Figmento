@@ -1,6 +1,6 @@
 # Story MF-3: Expand File Type Support (PDF, TXT, SVG-as-Doc)
 
-**Status:** Ready
+**Status:** Done (retroactive — @po audit 2026-04-13)
 **Priority:** High (P1)
 **Complexity:** S (3 points) — 2 files modify (ui.html, chat.ts)
 **Epic:** MF — Multi-File Import Pipeline
@@ -152,3 +152,4 @@ quality_gate_tools: ["esbuild", "manual Figma plugin test"]
 |------|--------|--------|
 | 2026-03-17 | @pm (Morgan) | Initial draft |
 | 2026-03-17 | @po (Pax) | Validation GO (10/10). Status Draft → Ready |
+| 2026-04-13 | @po (Pax) | **Retroactive Done.** Audit confirms `accept=".png,.jpg,.jpeg,.webp,.svg,.pdf,.txt"` in `figmento/src/ui.html:4824` and validTypes includes `application/pdf` + `text/plain` in `chat.ts:1196`. Status: Ready → Done. |

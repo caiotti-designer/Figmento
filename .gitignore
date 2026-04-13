@@ -40,7 +40,10 @@ Thumbs.db
 # Misc agent/tool artifacts
 .aios-core/local/
 .claude/settings.local.json
+.claude/test-settings.json
+.claude/projects/
 .aios/install-log.txt
+.aios/project-status.yaml
 nul
 
 # Editor state

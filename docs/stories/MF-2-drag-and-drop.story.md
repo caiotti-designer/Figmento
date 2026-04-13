@@ -1,6 +1,6 @@
 # Story MF-2: Drag & Drop Zone on Chat Area
 
-**Status:** Ready
+**Status:** Done (retroactive — @po audit 2026-04-13)
 **Priority:** High (P1)
 **Complexity:** S (3 points) — 2 files modify (ui.html, chat.ts)
 **Epic:** MF — Multi-File Import Pipeline
@@ -149,3 +149,4 @@ Overlay: semi-transparent accent background with dashed border, centered icon + 
 |------|--------|--------|
 | 2026-03-17 | @pm (Morgan) | Initial draft |
 | 2026-03-17 | @po (Pax) | Validation GO (10/10). Status Draft → Ready |
+| 2026-04-13 | @po (Pax) | **Retroactive Done.** Audit confirms MF-2 drag & drop zone handler in `figmento/src/ui/chat.ts:1582`. Status: Ready → Done. |

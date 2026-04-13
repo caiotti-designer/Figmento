@@ -1,6 +1,6 @@
 # Epic MF: Multi-File Import Pipeline
 
-**Status:** Draft
+**Status:** Done — All 5 stories shipped (retroactive — @po audit 2026-04-13)
 **Priority:** Critical (P0)
 **Owner:** @pm (Morgan)
 **Target:** Figmento Plugin v2.1
@@ -59,3 +59,4 @@ The plugin currently supports single-image upload only (paste or file picker). D
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-03-17 | @pm (Morgan) | Epic created from file handling gap analysis |
+| 2026-04-13 | @po (Pax) | **Epic Done (retroactive).** Audit confirms all 5 MF stories shipped via in-code markers: MF-1 (multi-file queue) at `chat.ts:100-114`; MF-2 (drag & drop) at `chat.ts:1582`; MF-3 (PDF/TXT filters) at `ui.html:4824` + `chat.ts:1196`; MF-4 (`buildClientFileContext`) at `chat.ts:2208`; MF-5 (selection context) at `chat.ts:1568-2232`. Status: Draft → Done. |

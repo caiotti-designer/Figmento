@@ -1,6 +1,6 @@
 # Story CS-1: Extract Utils from code.ts
 
-**Status:** Draft
+**Status:** Done (retroactive — @po audit 2026-04-13)
 **Priority:** Medium (P2)
 **Complexity:** S (2 points) — Pure function extraction, zero behavioral change
 **Epic:** CS — Code Split (Plugin Modularization)
@@ -104,3 +104,4 @@ import { classifyError } from './utils/error-classifier';
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-03-14 | @pm (Morgan) | Story created from @architect sprint assessment |
+| 2026-04-13 | @po (Pax) | **Retroactive Done.** Audit confirms all 4 files exist in `figmento/src/utils/` (`error-classifier.ts`, `progress.ts`, `node-utils.ts`, `temp-id-resolver.ts`). Work shipped by @dev outside story workflow. Status: Draft → Done. |

@@ -1,6 +1,6 @@
 # Story AE-1: Auto-Evaluate After batch_execute and create_design
 
-**Status:** Ready
+**Status:** Done (retroactive — @po audit 2026-04-13)
 **Priority:** High (P1)
 **Complexity:** M (3 points) — MCP server postamble hook, no plugin changes, performance-sensitive
 **Epic:** AE — Auto-Evaluation
@@ -202,3 +202,4 @@ Build MCP content array:
 |------|--------|--------|
 | 2026-03-14 | @pm (Morgan) | Story created from @architect sprint assessment |
 | 2026-03-14 | @pm (Morgan) | Applied @po clarifications: explicit create_design nodeId path in Phase 4, AC9 measurement method in Dev Notes. Status Draft → Ready |
+| 2026-04-13 | @po (Pax) | **Retroactive Done.** Audit confirms `autoEvaluate` param in `figmento-mcp-server/src/tools/batch.ts` for both `create_design` (line 287) and `batch_execute` (line 324) with skip logic for batches <5 commands. Status: Ready → Done. |

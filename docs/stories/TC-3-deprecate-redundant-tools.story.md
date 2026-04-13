@@ -1,11 +1,18 @@
-# Story TC-3: Deprecate clone_node, scan_template, get_refinement_rules
+# Story TC-3: Remove Deprecated `scan_template` MCP Tool
 
-**Status:** Draft
-**Priority:** Medium (P2)
-**Complexity:** S (2 points) — Merge 3 tools into their more capable counterparts, remove aliases from TC-1/TC-2
-**Epic:** TC — Tool Consolidation Sprint
-**Depends on:** TC-1, TC-2
+**Status:** Ready
+**Priority:** Low (P3)
+**Complexity:** XS (1 point) — Single tool deregistration + description fixup
+**Epic:** FIS — Figmento Improvement Sprint (Sprint B housekeeping)
+**Depends on:** None
 **PRD:** Architecture Audit 2026-03-14 (Item 1)
+
+> **History:** TC-3 originally bundled removal of `clone_node`, `scan_template`, `get_refinement_rules`, and 23 TC-1/TC-2 aliases. All work except the `scan_template` removal was shipped silently by @dev between 2026-03-14 and 2026-04-13:
+> - `clone_node` removed in commit `7cb7e92` (chore: MCP cleanup)
+> - TC-1/TC-2 aliases removed per CLAUDE.md "Old tool names have been fully removed"
+> - `get_refinement_rules` not found in any tool file — likely never registered or already removed
+>
+> @po audit on 2026-04-13 re-scoped this story to only the remaining work.
 
 ---
 
@@ -13,7 +20,7 @@
 
 ```yaml
 executor: @dev (Dex)
-quality_gate: npm run build clean + deprecated tools removed from registration + replacement tools handle all use cases
+quality_gate: npm run build clean (figmento-mcp-server) + scan_template no longer in tool registration + scan_frame_structure still works as the replacement
 ```
 
 ---
@@ -21,54 +28,55 @@ quality_gate: npm run build clean + deprecated tools removed from registration +
 ## Story
 
 **As a** Figmento maintainer,
-**I want** redundant tools removed from the MCP tool registry,
-**so that** the tool count stays low and Claude doesn't have overlapping options.
+**I want** the `scan_template` MCP tool removed from the registry,
+**so that** it stops appearing in Claude's tool list and the deprecation (marked since the tool was introduced) is finalized.
 
 ---
 
 ## Description
 
-### Deprecation Map
+`figmento-mcp-server/src/tools/template.ts` currently registers `scan_template` with the description:
 
-| Tool to Remove | Replacement | Rationale |
-|----------------|-------------|-----------|
-| `clone_node` | `clone_with_overrides` (N=1, no overrides = same behavior) | `clone_with_overrides` is strictly more capable |
-| `scan_template` (MCP) | Fold into `apply_template_text` as internal step | `scan_template` is always called immediately before `apply_template_text` — make scan automatic |
-| `get_refinement_rules` | Fold into `run_refinement_check` response | Rules are only useful alongside check results — return them together |
+```
+'[DEPRECATED — use scan_frame_structure] Scan a frame for "#"-prefixed template placeholders.'
+```
 
-### Also: Remove TC-1/TC-2 Aliases
+Since `scan_frame_structure` is the functional replacement, the deprecated `scan_template` registration should be removed entirely. Two small follow-ups:
 
-The 23 backward-compatible aliases registered in TC-1 and TC-2 have served their 1-sprint purpose. Remove them:
-- 15 aliases from TC-1 (set_fill, set_stroke, set_effects, set_corner_radius, set_opacity, move_node, resize_node, apply_paint_style, apply_text_style, apply_effect_style, get_size_preset, get_font_pairing, get_type_scale, get_color_palette, get_spacing_scale, get_layout_guide)
-- 8 aliases from TC-2 (list_layout_blueprints, list_reference_categories, list_patterns, list_templates, list_icons, list_formats, list_components, list_design_systems)
+1. Update the parameter descriptions on `apply_template_text` and `apply_template_image` — they currently say "from scan_template results" and should say "from scan_frame_structure results".
+2. The plugin-side action handler (`scan_template` case in `canvas-query.ts`) can stay for now — it's referenced internally by older designs in the wild. Only the MCP tool registration is removed.
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] AC1: `clone_node` tool removed — `clone_with_overrides` with `count: 1` and no overrides produces same result
-- [ ] AC2: `scan_template` MCP tool removed — `apply_template_text` internally scans before applying (returns scan results if no content provided)
-- [ ] AC3: `get_refinement_rules` tool removed — `run_refinement_check` response includes `rules` field with the refinement rules
-- [ ] AC4: All 23 TC-1/TC-2 aliases removed from tool registration
-- [ ] AC5: `npm run build` clean
-- [ ] AC6: CLAUDE.md updated to remove any references to the 3 deprecated tools
+- [ ] **AC1:** The `scan_template` MCP tool registration is removed from `figmento-mcp-server/src/tools/template.ts` (delete the `server.tool('scan_template', ...)` block and its schema).
+- [ ] **AC2:** `scanTemplateSchema` export is removed if no other tool imports it.
+- [ ] **AC3:** `applyTemplateTextSchema.nodeId` description is updated: `'(from scan_template results)'` → `'(from scan_frame_structure results)'`.
+- [ ] **AC4:** `applyTemplateImageSchema.nodeId` description is updated: same fix.
+- [ ] **AC5:** `npm run build` is clean in `figmento-mcp-server/`.
+- [ ] **AC6:** After rebuild, the MCP tool list no longer contains `scan_template`, and `scan_frame_structure` still functions.
 
 ---
 
-## Tasks
+## Scope
 
-1. **Remove `clone_node`** from `scene.ts` — no replacement code needed, `clone_with_overrides` already exists
-2. **Merge `scan_template` into `apply_template_text`** — add optional `scanOnly: boolean` param. If true or no content provided, return scan results without applying
-3. **Merge `get_refinement_rules` into `run_refinement_check`** — add `rules` field to refinement response from `refinement.ts`
-4. **Remove all 23 aliases** from style.ts, scene.ts, figma-native.ts, intelligence.ts, and the 8 list tool source files
-5. **Update CLAUDE.md** to remove references to deprecated tools
+### IN
+- `figmento-mcp-server/src/tools/template.ts` — remove `scan_template` tool block and schema
+- Parameter description fixups on `apply_template_text` and `apply_template_image`
+
+### OUT
+- Plugin-side action handler (`scan_template` case in `canvas-query.ts`) — leave in place
+- Documentation updates — CLAUDE.md doesn't reference `scan_template` directly
+- Migration helpers — `scan_frame_structure` has been available for months
 
 ---
 
 ## Dev Notes
 
-- **`clone_with_overrides` with `count: 1` and empty `overrides`** should behave identically to `clone_node(nodeId, offsetX, offsetY, newName, parentId)`. Verify the param mapping works: `clone_with_overrides({ nodeId, count: 1, offsetX, offsetY, overrides: [] })`.
-- **`scan_template` on the plugin side** (`handleScanTemplateCmd`) stays — it's still called as an action string. Only the MCP tool registration is removed.
+- `scan_frame_structure` is already in `canvas-query.ts` and is the recommended replacement (it scans structurally, not just by `#` prefix — a superset).
+- The `scan_template` plugin-side handler can be kept indefinitely; removing only the MCP tool means Claude Code sessions never see it in the tool list.
+- This is the final item from the original Sprint B tool-consolidation work.
 
 ---
 
@@ -76,30 +84,15 @@ The 23 backward-compatible aliases registered in TC-1 and TC-2 have served their
 
 | File | Action | Notes |
 |------|--------|-------|
-| `figmento-mcp-server/src/tools/scene.ts` | MODIFY | Remove `clone_node` tool + TC-1 aliases |
-| `figmento-mcp-server/src/tools/template.ts` | MODIFY | Remove `scan_template` tool, add `scanOnly` to `apply_template_text` |
-| `figmento-mcp-server/src/tools/refinement.ts` | MODIFY | Remove `get_refinement_rules` tool, add `rules` to `run_refinement_check` response |
-| `figmento-mcp-server/src/tools/style.ts` | MODIFY | Remove TC-1 aliases |
-| `figmento-mcp-server/src/tools/figma-native.ts` | MODIFY | Remove TC-1 aliases |
-| `figmento-mcp-server/src/tools/intelligence.ts` | MODIFY | Remove TC-1 aliases |
-| `figmento-mcp-server/src/tools/layouts.ts` | MODIFY | Remove TC-2 alias |
-| `figmento-mcp-server/src/tools/references.ts` | MODIFY | Remove TC-2 alias |
-| `figmento-mcp-server/src/tools/patterns.ts` | MODIFY | Remove TC-2 alias |
-| `figmento-mcp-server/src/tools/ds-templates.ts` | MODIFY | Remove TC-2 alias |
-| `figmento-mcp-server/src/tools/icons.ts` | MODIFY | Remove TC-2 alias |
-| `figmento-mcp-server/src/tools/design-system/ds-formats.ts` | MODIFY | Remove TC-2 alias |
-| `figmento-mcp-server/src/tools/design-system/ds-components.ts` | MODIFY | Remove TC-2 alias |
-| `figmento-mcp-server/src/tools/design-system/ds-crud.ts` | MODIFY | Remove TC-2 alias |
-| `.claude/CLAUDE.md` | MODIFY | Remove references to deprecated tools |
+| `figmento-mcp-server/src/tools/template.ts` | MODIFY | Remove `scan_template` tool block + schema; fix 2 parameter descriptions |
 
 ---
 
 ## Definition of Done
 
 - [ ] `npm run build` clean
-- [ ] `npm test` passes
-- [ ] 26 fewer tools registered (3 deprecated + 23 aliases)
-- [ ] `clone_with_overrides` covers all `clone_node` use cases
+- [ ] `scan_template` not in MCP tool list after rebuild
+- [ ] `apply_template_text` and `apply_template_image` work unchanged
 
 ---
 
@@ -107,4 +100,5 @@ The 23 backward-compatible aliases registered in TC-1 and TC-2 have served their
 
 | Date | Author | Change |
 |------|--------|--------|
-| 2026-03-14 | @pm (Morgan) | Story created from @architect sprint assessment |
+| 2026-03-14 | @pm (Morgan) | Story created from @architect sprint assessment — bundled 3 tool removals + 23 aliases |
+| 2026-04-13 | @po (Pax) | **Validation NO-GO → re-scoped.** Audit found 75% of original scope already shipped: `clone_node` removed in `7cb7e92`, TC-1/TC-2 aliases removed per CLAUDE.md, `get_refinement_rules` not found in code. Only `scan_template` removal remains. Story rewritten with XS scope (1 pt) targeting single-tool deregistration + 2 description fixups. Status: Draft → Ready (6 ACs). |

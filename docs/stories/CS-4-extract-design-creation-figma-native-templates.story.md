@@ -1,6 +1,6 @@
 # Story CS-4: Extract Design Creation + Figma Native + Templates from code.ts
 
-**Status:** Draft
+**Status:** Done (retroactive — @po audit 2026-04-13)
 **Priority:** Medium (P2)
 **Complexity:** S (2 points) — Final cleanup extraction, small modules
 **Epic:** CS — Code Split (Plugin Modularization)
@@ -164,3 +164,4 @@ figma.on('currentpagechange', () => { ... });
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-03-14 | @pm (Morgan) | Story created from @architect sprint assessment |
+| 2026-04-13 | @po (Pax) | **Retroactive Done.** Audit confirms `code.ts` is 494 lines (target <700), `handlers/design-create.ts` and `handlers/templates.ts` exist. Work shipped by @dev outside story workflow. Status: Draft → Done. |

@@ -1,6 +1,6 @@
 # Story MF-1: Multi-File Attachment Queue
 
-**Status:** Ready
+**Status:** Done (retroactive — @po audit 2026-04-13)
 **Priority:** Critical (P0)
 **Complexity:** M (5 points) — 2 files modify (ui.html, chat.ts)
 **Epic:** MF — Multi-File Import Pipeline
@@ -169,3 +169,4 @@ quality_gate_tools: ["esbuild", "manual Figma plugin test"]
 |------|--------|--------|
 | 2026-03-17 | @pm (Morgan) | Initial draft |
 | 2026-03-17 | @po (Pax) | Validation GO (10/10). Status Draft → Ready |
+| 2026-04-13 | @po (Pax) | **Retroactive Done.** Audit confirms `pendingAttachments` array + `AttachmentFile[]` type + MF-1 comment in `figmento/src/ui/chat.ts:100-114`. Legacy `pendingAttachment` kept as shim. Status: Ready → Done. |

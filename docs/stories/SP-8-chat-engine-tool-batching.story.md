@@ -1,6 +1,6 @@
 # Story SP-8: Chat Engine Tool Batching — Server-Side Command Aggregation
 
-**Status:** Draft
+**Status:** Ready
 **Priority:** High (P1)
 **Complexity:** L
 **Epic:** SP — Speed & Performance
@@ -155,3 +155,4 @@ Proposed:
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-03-21 | @pm | Story created from performance analysis |
+| 2026-04-13 | @po (Pax) | **Validation GO — 9/10.** Perf gap quantified (16x → target 2x), dependency detection heuristic explicit, 7 testable ACs, explicit IN/OUT scope, risks with mitigations. Minor: DoD merged into ACs. Status: Draft → Ready. |

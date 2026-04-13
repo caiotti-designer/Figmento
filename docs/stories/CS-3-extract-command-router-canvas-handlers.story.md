@@ -1,6 +1,6 @@
 # Story CS-3: Extract Command Router + Canvas Handlers from code.ts
 
-**Status:** Draft
+**Status:** Done (retroactive — @po audit 2026-04-13)
 **Priority:** Medium (P2)
 **Complexity:** M (5 points) — 29 command handlers + router switch, largest extraction
 **Epic:** CS — Code Split (Plugin Modularization)
@@ -202,3 +202,4 @@ For each handler file:
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-03-14 | @pm (Morgan) | Story created from @architect sprint assessment |
+| 2026-04-13 | @po (Pax) | **Retroactive Done.** Audit confirms `figmento/src/handlers/command-router.ts` + `canvas-create.ts` + `canvas-style.ts` + `canvas-scene.ts` + `canvas-query.ts` + `canvas-batch.ts` all exist. Work shipped by @dev outside story workflow. Status: Draft → Done. |

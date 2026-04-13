@@ -1,6 +1,6 @@
 # Story MF-4: Auto-Analysis Orchestrator
 
-**Status:** Ready
+**Status:** Done (retroactive — @po audit 2026-04-13)
 **Priority:** High (P1)
 **Complexity:** L (8 points) — 3 files modify (chat.ts, system-prompt.ts, chat-engine.ts or claude-code-handler.ts)
 **Epic:** MF — Multi-File Import Pipeline
@@ -195,3 +195,4 @@ Ready to design. What format would you like?
 |------|--------|--------|
 | 2026-03-17 | @pm (Morgan) | Initial draft |
 | 2026-03-17 | @po (Pax) | Validation GO (10/10). Status Draft → Ready |
+| 2026-04-13 | @po (Pax) | **Retroactive Done.** Audit confirms `buildClientFileContext` + MF-4 file analysis instructions in `figmento/src/ui/chat.ts:2208`. Client-side PDF/TXT/SVG extraction works for all providers. Status: Ready → Done. |

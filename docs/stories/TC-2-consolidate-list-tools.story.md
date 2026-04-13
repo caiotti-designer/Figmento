@@ -1,6 +1,6 @@
 # Story TC-2: Consolidate 8 list_* Tools → list_resources(type)
 
-**Status:** Ready
+**Status:** Done (retroactive — @po audit 2026-04-13)
 **Priority:** High (P1)
 **Complexity:** S (3 points) — Straightforward merge of 8 tools with identical return patterns
 **Epic:** TC — Tool Consolidation Sprint
@@ -117,3 +117,4 @@ Create a new file `figmento-mcp-server/src/tools/resources.ts` that imports the 
 |------|--------|--------|
 | 2026-03-14 | @pm (Morgan) | Story created from @architect sprint assessment |
 | 2026-03-14 | @pm (Morgan) | Applied @po validation fixes: fixed server.ts path, documented system→filter mapping for list_components. Status Draft → Ready |
+| 2026-04-13 | @po (Pax) | **Retroactive Done.** Audit confirms `list_resources` registered at `figmento-mcp-server/src/tools/resources.ts:33`. All 8 list_* aliases removed. Status: Ready → Done. |

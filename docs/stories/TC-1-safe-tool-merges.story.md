@@ -1,6 +1,6 @@
 # Story TC-1: Tool Consolidation — 4 Safe Merges
 
-**Status:** Ready
+**Status:** Done (retroactive — @po audit 2026-04-13)
 **Priority:** High (P1)
 **Complexity:** M (5 points) — 4 schema merges in MCP server tool files, no plugin changes, no relay changes
 **Epic:** TC — Tool Consolidation Sprint
@@ -163,3 +163,4 @@ For each of the 16 old tool names, register a thin alias:
 |------|--------|--------|
 | 2026-03-14 | @pm (Morgan) | Story created from @architect sprint assessment |
 | 2026-03-14 | @pm (Morgan) | Applied @po validation fixes: added Out of Scope for 4 unmerged intelligence tools, added AC2b dual-action failure behavior, corrected alias count 15 → 16. Status Draft → Ready |
+| 2026-04-13 | @po (Pax) | **Retroactive Done.** Audit confirms `set_style`, `transform_node`, `apply_style`, `get_design_guidance` all registered in MCP server (`style.ts:153`, `scene.ts:177`, `figma-native.ts:165`, `intelligence.ts:316`). Aliases removed per CLAUDE.md "Old tool names have been fully removed". Status: Ready → Done. |

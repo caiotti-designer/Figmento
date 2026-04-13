@@ -1,6 +1,6 @@
 # Story CS-2: Extract Storage + Settings Handlers from code.ts
 
-**Status:** Draft
+**Status:** Done (retroactive — @po audit 2026-04-13)
 **Priority:** Medium (P2)
 **Complexity:** M (3 points) — 17 message handlers with storage access patterns
 **Epic:** CS — Code Split (Plugin Modularization)
@@ -143,3 +143,4 @@ figma.ui.onmessage = async (msg) => {
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-03-14 | @pm (Morgan) | Story created from @architect sprint assessment |
+| 2026-04-13 | @po (Pax) | **Retroactive Done.** Audit confirms `figmento/src/handlers/storage.ts` and `handlers/settings.ts` exist. Work shipped by @dev outside story workflow. Status: Draft → Done. |

@@ -1,6 +1,6 @@
 # Story MF-5: Selection Context in Chat
 
-**Status:** Ready
+**Status:** Done (retroactive — @po audit 2026-04-13)
 **Priority:** High (P1)
 **Complexity:** M (5 points) — 3 files modify (chat.ts, ui.html, code.ts)
 **Epic:** MF — Multi-File Import Pipeline
@@ -207,3 +207,4 @@ When a message is sent with selection context, show a badge on the user bubble:
 |------|--------|--------|
 | 2026-03-17 | @pm (Morgan) | Initial draft from user request |
 | 2026-03-17 | @po (Pax) | Validation GO (10/10). Status Draft → Ready |
+| 2026-04-13 | @po (Pax) | **Retroactive Done.** Audit confirms `capturedSelection` + `[FIGMA SELECTION CONTEXT]` injection in `figmento/src/ui/chat.ts:2204-2232`. Selection badge + listener present. Status: Ready → Done. |

@@ -1,7 +1,7 @@
 # MA-1: Custom OpenAI-Compatible Provider — Model-Agnostic Chat
 
 **Epic:** MA — Model-Agnostic Chat Support
-**Status:** Draft
+**Status:** Ready
 **Priority:** P3 (Low)
 **Effort:** S (3pt)
 **Owner:** @dev
@@ -160,3 +160,4 @@ interface ChatTurnRequest {
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-04-03 | @pm (Morgan) | Story created — Draft |
+| 2026-04-13 | @po (Pax) | **Validation GO — 9.5/10.** Clear ACs, explicit IN/OUT, risks with mitigations, Ollama smoke test in AC7, graceful degradation for non-tool-use models in AC8, no-regression guard in AC9. Known compatible endpoints documented. Status: Draft → Ready. |
