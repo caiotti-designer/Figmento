@@ -62,9 +62,8 @@ const cornerRadiusSchema = {
 // PHASE-BASED TOOL FILTERING
 // ═══════════════════════════════════════════════════════════════
 
-const CHAT_EXCLUDED = new Set([
-  'export_node',
-  'create_design',
+const CHAT_EXCLUDED = new Set<string>([
+  // No exclusions — all tools available via phase filtering
 ]);
 
 const BUILD_PHASE_TRIGGERS = new Set([
@@ -82,21 +81,27 @@ const PLAN_PHASE_TOOLS = new Set([
   'lookup_blueprint', 'lookup_palette', 'lookup_fonts', 'lookup_size',
   'get_contrast_check', 'get_design_rules',
   'get_selection', 'get_page_nodes', 'get_node_info', 'analyze_canvas_context',
-  'scan_frame_structure', 'get_screenshot', 'read_figma_context',
+  'scan_frame_structure', 'get_screenshot', 'read_figma_context', 'find_nodes',
   'create_frame', 'create_text', 'create_rectangle', 'create_ellipse',
   'set_fill',
   'create_image', 'generate_image', 'fill_contextual_images', 'update_memory',
   'reorder_child',
+  'batch_execute', 'create_design',
   'analyze_brief', 'generate_design_system_in_figma',
   'create_component_node', 'convert_to_component', 'combine_as_variants', 'set_reactions',
 ]);
 
 const BUILD_PHASE_TOOLS = new Set([
   'create_frame', 'create_text', 'create_rectangle', 'create_ellipse', 'create_image',
-  'create_icon',
+  'create_icon', 'create_vector',
   'set_fill', 'set_stroke', 'set_effects', 'set_corner_radius', 'set_opacity', 'set_auto_layout',
+  'set_text', 'style_text_range',
   'move_node', 'resize_node', 'append_child', 'reorder_child', 'clone_node', 'delete_node',
-  'get_node_info', 'get_screenshot', 'scan_frame_structure',
+  'rename_node', 'group_nodes', 'find_nodes',
+  'clone_with_overrides',
+  'get_node_info', 'get_page_nodes', 'get_selection', 'get_screenshot', 'scan_frame_structure',
+  'export_node',
+  'batch_execute', 'create_design',
   'generate_image', 'fill_contextual_images', 'update_memory',
   'flip_gradient',
   'run_refinement_check',
@@ -104,6 +109,9 @@ const BUILD_PHASE_TOOLS = new Set([
   'create_figma_variables',
   'analyze_brief', 'generate_design_system_in_figma',
   'create_variable_collections', 'create_text_styles', 'create_ds_components',
+  // Lookups — available in build phase too for mid-design decisions
+  'lookup_blueprint', 'lookup_palette', 'lookup_fonts', 'lookup_size',
+  'get_contrast_check', 'get_design_rules',
   // IC: Interactive Components
   'create_component_node', 'convert_to_component', 'combine_as_variants',
   'create_instance', 'detach_instance', 'set_reactions', 'get_reactions',
@@ -983,6 +991,163 @@ export const FIGMENTO_TOOLS: ToolDefinition[] = [
       type: 'object',
       properties: {
         nodeId: { type: 'string', description: 'Node ID to read interactions from' },
+      },
+      required: ['nodeId'],
+    },
+  },
+
+  // ── Batch & Composite Operations ──
+  {
+    name: 'batch_execute',
+    description: 'Execute multiple commands in a single call (up to 50). Use tempId to reference nodes created earlier in the batch via "$tempId". This is the PRIMARY way to create complex designs efficiently — bundle all element creation, styling, and layout into one call.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        commands: {
+          type: 'array',
+          description: 'Array of commands to execute sequentially',
+          items: {
+            type: 'object',
+            properties: {
+              action: { type: 'string', description: 'Tool/command name (e.g. create_frame, create_text, set_fill)' },
+              params: { type: 'object', description: 'Parameters for the command' },
+              tempId: { type: 'string', description: 'Optional temp ID to reference this node later via $tempId' },
+            },
+            required: ['action', 'params'],
+          },
+        },
+      },
+      required: ['commands'],
+    },
+  },
+  {
+    name: 'create_design',
+    description: 'Create a complete design from a UIAnalysis JSON structure in one call. Handles frames, text, images, icons, and nested children. Use for simple/standard designs; use batch_execute for complex designs with precise control.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        width: { type: 'number', description: 'Root frame width' },
+        height: { type: 'number', description: 'Root frame height' },
+        backgroundColor: { type: 'string', description: 'Root frame background color (hex)' },
+        elements: {
+          type: 'array',
+          description: 'Array of UIElement objects defining the design tree',
+          items: { type: 'object' },
+        },
+      },
+      required: ['width', 'height', 'elements'],
+    },
+  },
+  {
+    name: 'clone_with_overrides',
+    description: 'Clone a node N times with positional offsets and child text/color/font overrides. Ideal for repeating patterns (menu rows, card grids, feature lists). Each clone can override named children.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'Source node to clone' },
+        count: { type: 'number', description: 'Number of clones to create' },
+        offsetX: { type: 'number', description: 'X offset between clones (default: 0)' },
+        offsetY: { type: 'number', description: 'Y offset between clones (default: 0)' },
+        overrides: {
+          type: 'array',
+          description: 'Per-clone overrides array (index matches clone index)',
+          items: {
+            type: 'object',
+            description: 'Map of child name → override values ({ text?, color?, fontFamily?, fontSize?, fontWeight? })',
+          },
+        },
+      },
+      required: ['nodeId', 'count'],
+    },
+  },
+
+  // ── Text & Content ──
+  {
+    name: 'set_text',
+    description: 'Set the text content of an existing text node. Use this to update text without recreating the node.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'Text node ID' },
+        content: { type: 'string', description: 'New text content' },
+        fontSize: { type: 'number', description: 'Optional: change font size' },
+        fontWeight: { type: 'number', description: 'Optional: change font weight (400 or 700 only)' },
+        fontFamily: { type: 'string', description: 'Optional: change font family' },
+        color: { type: 'string', description: 'Optional: change text color (hex)' },
+        textAlign: { type: 'string', enum: ['LEFT', 'CENTER', 'RIGHT'] },
+        lineHeight: { type: 'number', description: 'Line height in pixels' },
+        letterSpacing: { type: 'number', description: 'Letter spacing in pixels' },
+      },
+      required: ['nodeId', 'content'],
+    },
+  },
+  {
+    name: 'style_text_range',
+    description: 'Apply styles (bold, color, size) to a specific range of characters in a text node.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'Text node ID' },
+        start: { type: 'number', description: 'Start character index' },
+        end: { type: 'number', description: 'End character index' },
+        fontSize: { type: 'number' },
+        fontWeight: { type: 'number' },
+        fontFamily: { type: 'string' },
+        color: { type: 'string', description: 'Hex color' },
+        italic: { type: 'boolean' },
+        underline: { type: 'boolean' },
+        strikethrough: { type: 'boolean' },
+      },
+      required: ['nodeId', 'start', 'end'],
+    },
+  },
+
+  // ── Search & Query ──
+  {
+    name: 'find_nodes',
+    description: 'Search for nodes by name, type, or other criteria. Returns matching node IDs and basic info.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Name pattern to search (partial match)' },
+        type: { type: 'string', description: 'Node type filter (FRAME, TEXT, RECTANGLE, ELLIPSE, GROUP, COMPONENT, INSTANCE)' },
+        parentId: { type: 'string', description: 'Search only within this parent node' },
+      },
+    },
+  },
+
+  // ── Vectors ──
+  {
+    name: 'create_vector',
+    description: 'Create a vector shape from SVG path data.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Vector name' },
+        svgPaths: { type: 'array', items: { type: 'string' }, description: 'Array of SVG path d-attribute strings' },
+        width: { type: 'number' },
+        height: { type: 'number' },
+        x: { type: 'number' },
+        y: { type: 'number' },
+        parentId: { type: 'string' },
+        fills: { type: 'array', items: fillSchema },
+        strokeWeight: { type: 'number' },
+        strokeColor: { type: 'string', description: 'Stroke hex color' },
+      },
+      required: ['name', 'svgPaths'],
+    },
+  },
+
+  // ── Export ──
+  {
+    name: 'export_node',
+    description: 'Export a node as PNG/SVG/PDF. Returns base64 image data. Use for self-evaluation screenshots or when user requests export.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'Node to export' },
+        format: { type: 'string', enum: ['PNG', 'SVG', 'PDF'], description: 'Export format (default: PNG)' },
+        scale: { type: 'number', description: 'Scale multiplier (default: 1)' },
       },
       required: ['nodeId'],
     },

@@ -183,10 +183,10 @@ export const PROVIDERS: Record<AIProvider, ProviderConfig> = {
     models: ['claude-sonnet-4-20250514'],
   },
   openai: {
-    name: 'GPT-4 Vision (OpenAI)',
+    name: 'OpenAI',
     placeholder: 'sk-...',
     docsUrl: 'https://platform.openai.com/api-keys',
-    models: ['gpt-4o'],
+    models: ['gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano'],
   },
   gemini: {
     name: 'Gemini (Google)',
@@ -198,7 +198,7 @@ export const PROVIDERS: Record<AIProvider, ProviderConfig> = {
     name: 'Codex (ChatGPT)',
     placeholder: 'OAuth — Connect with ChatGPT',
     docsUrl: 'https://developers.openai.com/codex/auth',
-    models: ['gpt-5-codex', 'gpt-5.2-codex'],
+    models: ['gpt-5.4-codex', 'gpt-5.4-mini-codex', 'gpt-5.3-codex'],
   },
 };
 

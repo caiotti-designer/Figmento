@@ -286,6 +286,9 @@ export async function handleCreateText(params: Record<string, unknown>): Promise
 }
 
 export async function handleCreateRectangle(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const rectFills: UIElement['fills'] = params.fills as UIElement['fills'] | undefined
+    ?? (params.fillColor ? [{ type: 'SOLID' as const, color: params.fillColor as string }] : undefined);
+
   const element: UIElement = {
     id: 'rect',
     type: 'rectangle',
@@ -294,7 +297,7 @@ export async function handleCreateRectangle(params: Record<string, unknown>): Pr
     height: (params.height as number) || 100,
     x: params.x as number | undefined,
     y: params.y as number | undefined,
-    fills: params.fills as UIElement['fills'] | undefined,
+    fills: rectFills,
     stroke: params.stroke as UIElement['stroke'] | undefined,
     cornerRadius: params.cornerRadius as UIElement['cornerRadius'] | undefined,
     children: [],
@@ -310,6 +313,9 @@ export async function handleCreateRectangle(params: Record<string, unknown>): Pr
 }
 
 export async function handleCreateEllipse(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const ellipseFills: UIElement['fills'] = params.fills as UIElement['fills'] | undefined
+    ?? (params.fillColor ? [{ type: 'SOLID' as const, color: params.fillColor as string }] : undefined);
+
   const element: UIElement = {
     id: 'ellipse',
     type: 'ellipse',
@@ -318,7 +324,7 @@ export async function handleCreateEllipse(params: Record<string, unknown>): Prom
     height: (params.height as number) || 100,
     x: params.x as number | undefined,
     y: params.y as number | undefined,
-    fills: params.fills as UIElement['fills'] | undefined,
+    fills: ellipseFills,
     children: [],
   };
 

@@ -450,6 +450,38 @@ export class ClaudeCodeSessionManager {
       clearTimeout(turnTimer);
       clearInterval(staleChecker);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+
+      // Auto-recovery: orphaned tool_use blocks corrupt the session.
+      // Destroy and retry once with a fresh session.
+      const isOrphanedToolUse = errorMessage.includes('tool_use ids were found without tool_result');
+      if (isOrphanedToolUse) {
+        console.log(`[Figmento Claude Code] Orphaned tool_use detected channel=${channel} — destroying session and retrying`);
+        this.destroy(channel);
+
+        // Retry with a fresh session — pass history so context is preserved in system prompt
+        const freshSession = this.startSession(channel, history, memory, model, imageModel);
+        freshSession.inFlight = true;
+        freshSession.turnMessage = message;
+        freshSession.turnHistory = history;
+        freshSession.lastActivity = Date.now();
+        freshSession.onProgress = onProgress || null;
+
+        const retryPromise = new Promise<ClaudeCodeTurnResult>((resolve, reject) => {
+          freshSession.pendingTurn = { resolve, reject };
+        });
+
+        freshSession.queue.push(makeUserMessage(message, '', attachmentBase64, fileAttachments));
+        console.log(`[Figmento Claude Code] Retry pushed channel=${channel} (fresh session)`);
+
+        try {
+          const retryResult = await retryPromise;
+          return retryResult;
+        } catch (retryErr) {
+          const retryMsg = retryErr instanceof Error ? retryErr.message : 'Unknown error on retry';
+          return { type: 'claude-code-turn-result', channel, error: retryMsg };
+        }
+      }
+
       return { type: 'claude-code-turn-result', channel, error: errorMessage };
     }
   }
@@ -617,7 +649,7 @@ export class ClaudeCodeSessionManager {
         'mcp__figmento__create_figma_variables',
         'mcp__figmento__create_variable_collections',
         'mcp__figmento__create_ds_components',
-        'mcp__figmento__create_text_styles',
+        // create_text_styles — unblocked for direct use (DS pipeline + manual)
         'mcp__figmento__create_variables_from_design_system',
 
         // Interactive components — entire module unused

@@ -152,9 +152,10 @@ export async function handleScanFrameStructure(params: Record<string, unknown>):
     if (!Array.isArray(strokes) || strokes.length === 0) return null;
     const first = strokes[0];
     if (first.type === 'SOLID') {
+      const sw = ('strokeWeight' in n) ? (n as GeometryMixin).strokeWeight : 1;
       return {
         color: rgbToHex(first.color),
-        weight: ('strokeWeight' in n) ? (n as GeometryMixin).strokeWeight as number : 1,
+        weight: sw === figma.mixed ? 1 : sw as number,
       };
     }
     return null;

@@ -11,6 +11,9 @@ import {
   loadPkceSession,
   clearPkceSession,
   exchangeCodeForToken,
+  refreshToken,
+  isTokenExpired,
+  isTokenExpiringSoon,
   CODEX_OAUTH_CONFIG,
   type OAuthToken,
 } from './oauth-flow';
@@ -132,6 +135,34 @@ export function loadChatSettings(saved: Record<string, string>) {
     const token = saved.codexToken as unknown as OAuthToken;
     s.codexToken = token;
     updateCodexOAuthUI(true);
+
+    // Proactive: validate/refresh token in background on load
+    (async () => {
+      try {
+        if (isTokenExpired(token) || isTokenExpiringSoon(token)) {
+          if (token.refresh_token) {
+            const refreshed = await refreshToken(CODEX_OAUTH_CONFIG, token);
+            const latest = getChatSettings();
+            latest.codexToken = refreshed;
+            updateChatSettings(latest);
+            postToSandbox({ type: 'save-codex-token', token: refreshed });
+          } else {
+            const latest = getChatSettings();
+            latest.codexToken = undefined;
+            updateChatSettings(latest);
+            postToSandbox({ type: 'clear-codex-token' });
+            updateCodexOAuthUI(false);
+          }
+        }
+      } catch {
+        // Refresh failed — clear token, show disconnected
+        const latest = getChatSettings();
+        latest.codexToken = undefined;
+        updateChatSettings(latest);
+        postToSandbox({ type: 'clear-codex-token' });
+        updateCodexOAuthUI(false);
+      }
+    })();
   }
 
   updateChatSettings(s);

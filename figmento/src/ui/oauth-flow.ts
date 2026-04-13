@@ -256,7 +256,7 @@ export async function validateCodexToken(accessToken: string): Promise<boolean> 
         'Authorization': `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-        model: 'gpt-5-codex',
+        model: 'gpt-5.4',
         instructions: 'Respond with OK',
         input: [{ type: 'message', role: 'user', content: 'ping' }],
         tools: [],

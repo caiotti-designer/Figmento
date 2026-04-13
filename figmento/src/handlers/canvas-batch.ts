@@ -10,7 +10,7 @@ import type { TempIdMap } from '../utils/temp-id-resolver';
 import { handleCreateFrame, handleCreateText, handleCreateRectangle, handleCreateEllipse, handleCreateImage, handleCreateIcon, handleCreateVector } from './canvas-create';
 import { handleSetFill, handleSetStroke, handleSetEffects, handleSetCornerRadius, handleSetOpacity, handleSetAutoLayout, handleSetText, handleStyleTextRange } from './canvas-style';
 import { handleDeleteNode, handleMoveNode, handleResizeNode, handleRenameNode, handleAppendChild, handleReorderChild, handleCloneNode, handleCloneWithOverrides, handleGroupNodes, handleGetSelection, handleGetNodeInfo, handleGetPageNodes, handleFindNodes, handleListAvailableFonts, handleBooleanOperation, handleFlattenNodes, handleImportComponentByKey, handleImportStyleByKey } from './canvas-scene';
-import { handleExportNode, handleGetScreenshot, handleReadFigmaContext, handleBindVariable, handleApplyPaintStyle, handleApplyTextStyle, handleApplyEffectStyle, handleCreateFigmaVariables, handleExportAsSvg, handleSetConstraints } from './canvas-query';
+import { handleExportNode, handleGetScreenshot, handleReadFigmaContext, handleBindVariable, handleApplyPaintStyle, handleApplyTextStyle, handleApplyEffectStyle, handleCreateFigmaVariables, handleCreateVariableCollections, handleCreateTextStyles, handleCreateDSComponents, handleScanFrameStructure, handleExportAsSvg, handleSetConstraints } from './canvas-query';
 import { getDesignSystemCache } from './design-system-discovery';
 import { tryComponentInstance, isComponentMatchableFrame } from './component-matcher';
 import { tryBindFillVariable, tryBindSpacingVariables, tryBindTextVariables } from './variable-binder';
@@ -467,6 +467,23 @@ export async function executeSingleAction(action: string, params: Record<string,
     case 'set_effects': return await handleSetEffects(params);
     case 'set_corner_radius': return await handleSetCornerRadius(params);
     case 'set_opacity': return await handleSetOpacity(params);
+    case 'set_style': {
+      // TC-1: Consolidated style tool — routes to the appropriate granular handler
+      // based on `property` discriminator. Matches the MCP surface where Claude Code
+      // sees a single `set_style` tool. FN-P4-1 added this case.
+      const property = params.property as string;
+      switch (property) {
+        case 'fill': return await handleSetFill(params);
+        case 'stroke': return await handleSetStroke(params);
+        case 'effects': return await handleSetEffects(params);
+        case 'cornerRadius': return await handleSetCornerRadius(params);
+        case 'opacity': return await handleSetOpacity(params);
+        default:
+          throw new Error(
+            `set_style requires a 'property' parameter: fill | stroke | effects | cornerRadius | opacity (got: ${property || 'undefined'})`
+          );
+      }
+    }
     case 'set_auto_layout': return await handleSetAutoLayout(params);
     case 'delete_node': return await handleDeleteNode(params);
     case 'move_node': return await handleMoveNode(params);
@@ -501,6 +518,10 @@ export async function executeSingleAction(action: string, params: Record<string,
     case 'apply_text_style': return await handleApplyTextStyle(params);
     case 'apply_effect_style': return await handleApplyEffectStyle(params);
     case 'create_figma_variables': return await handleCreateFigmaVariables(params);
+    case 'create_variable_collections': return await handleCreateVariableCollections(params);
+    case 'create_text_styles': return await handleCreateTextStyles(params);
+    case 'create_ds_components': return await handleCreateDSComponents(params);
+    case 'scan_frame_structure': return await handleScanFrameStructure(params);
     case 'run_refinement_check': return await runRefinementCheck(String(params.nodeId));
     // IC-1/2/3: Component actions
     case 'create_component_node': return await handleCreateComponent(params);

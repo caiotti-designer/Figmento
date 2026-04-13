@@ -2287,15 +2287,22 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
   // DM-3: Codex uses OAuth token, separate from API key providers
   const useCodex = isCodexModel(chatSettings.model);
 
-  // DM-3: Token refresh interceptor — refresh before expiry
+  // DM-3: Token refresh interceptor — refresh before expiry (with retry)
   if (useCodex && chatSettings.codexToken) {
     if (isTokenExpiringSoon(chatSettings.codexToken)) {
-      try {
-        const refreshed = await refreshToken(CODEX_OAUTH_CONFIG, chatSettings.codexToken);
-        chatSettings.codexToken = refreshed;
-        postToSandbox({ type: 'save-codex-token', token: refreshed });
-      } catch (err) {
-        // Refresh failed — clear token and prompt re-auth
+      let refreshed = false;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const newToken = await refreshToken(CODEX_OAUTH_CONFIG, chatSettings.codexToken);
+          chatSettings.codexToken = newToken;
+          postToSandbox({ type: 'save-codex-token', token: newToken });
+          refreshed = true;
+          break;
+        } catch {
+          if (attempt === 0) await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+      if (!refreshed) {
         chatSettings.codexToken = undefined;
         postToSandbox({ type: 'clear-codex-token' });
         throw new Error('Your ChatGPT session expired. Please reconnect via Settings.');

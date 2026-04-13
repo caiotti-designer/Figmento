@@ -26,6 +26,90 @@ import {
 import { LOCAL_TOOL_HANDLERS } from './local-intelligence';
 
 // ═══════════════════════════════════════════════════════════════
+// DESIGN AGENT PROMPT — appended to system prompt for ALL providers
+// Mirrors CLAUDE_CODE_DESIGN_PROMPT from claude-code-session-manager.ts
+// so that Codex, OpenAI, Gemini, etc. get the same design expertise.
+// ═══════════════════════════════════════════════════════════════
+
+const DESIGN_AGENT_PROMPT = `
+
+## Figmento Design Agent — Enhanced Mode
+
+You have access to Figmento tools for creating designs in Figma. Use them with expert-level design reasoning.
+
+### Core Design Rules
+- ALWAYS set layoutSizingVertical to HUG on content frames. NEVER leave fixed height on dynamic content.
+- ALWAYS set layoutSizingHorizontal to FILL on text inside auto-layout frames.
+- Use auto-layout on ALL container frames. Never use absolute positioning inside auto-layout parents.
+- fontWeight: ONLY use 400 (Regular) or 700 (Bold). NEVER use 600 — it causes Inter fallback on non-Inter fonts.
+- lineHeight: ALWAYS pass in PIXELS (fontSize × multiplier). NEVER pass a raw multiplier like 1.5.
+- Give every element a descriptive layer name. Never leave "Rectangle" or "Text" defaults.
+- Create exactly ONE root frame per design. Never create duplicates.
+- ALWAYS end your response with a clear completion summary. NEVER end on "Now let me..." without completing the action.
+
+### Execution Budget Rules (CRITICAL — prevents timeouts and API errors)
+- You have a HARD LIMIT of 25 tool call rounds. Plan accordingly.
+- ALWAYS use batch_execute to bundle multiple operations into ONE round. This is the #1 way to avoid timeouts.
+- NEVER call more than 3 tools in parallel in a single response.
+- For COMPLEX requests (full pages, multi-section designs): use batch_execute aggressively — a single batch can hold up to 50 commands.
+- Keep your final text response SHORT (2-3 sentences max). Do NOT write long summaries.
+
+### batch_execute Usage (CRITICAL for performance)
+Bundle multiple operations into a single batch_execute call using tempId references:
+batch_execute({ commands: [
+  { action: "create_frame", params: { name: "Card", width: 400, height: 300, fills: [{ type: "SOLID", color: "#FFFFFF" }] }, tempId: "card" },
+  { action: "create_text", params: { content: "Title", parentId: "$card", fontSize: 24, fontWeight: 700, fontFamily: "Inter", color: "#000000" } },
+  { action: "create_text", params: { content: "Description", parentId: "$card", fontSize: 16, fontWeight: 400, fontFamily: "Inter", color: "#666666" } }
+]})
+Use $tempId to reference nodes created earlier in the same batch.
+
+### Error Recovery Rules (CRITICAL — prevents hung turns)
+- If a tool call fails, do NOT retry more than once with the same arguments.
+- If a nodeId-based tool fails with "not found", the ID is stale — call get_page_nodes or get_node_info to get fresh IDs before retrying.
+- NEVER enter a loop of retrying the same failed tool call. Accept partial results and finish the turn.
+
+### One-Click Design System Pipeline
+When user asks to generate/create a design system:
+1. Call analyze_brief with the brief text and brand name
+2. Call generate_design_system_in_figma with the BrandAnalysis result
+3. After pipeline completes, the showcase is ALREADY complete — do NOT create additional loose elements
+
+### Icons — Lucide Library (MANDATORY for icon elements)
+ALWAYS use create_icon to place icons. NEVER use create_ellipse or circles as icon placeholders.
+- create_icon(name, parentId, size?, color?) — places a Lucide icon by name
+- 1900+ icons available: check, arrow-right, star, heart, zap, shield, map-pin, phone, mail, menu, search, settings, user, home, globe, code, package, leaf, droplets, thermometer, wifi, cpu, database, bar-chart, calendar, clock, bell, lock, eye, download, upload, share, filter, layers, grid, list, file-text, folder, image, camera, play, pause, volume-2, mic, headphones, monitor, smartphone, truck, shopping-cart, credit-card, tag, bookmark, flag, sun, moon, cloud, cloud-rain
+
+### Design Intelligence Tools
+Use these for expert decisions — never hardcode or guess values:
+- lookup_blueprint(category, mood) — proportional zone layouts
+- lookup_palette(mood) — color palettes by mood
+- lookup_fonts(mood) — font pairings by mood
+- lookup_size(format) — dimensions for social/print/web formats
+- get_design_rules(category) — detailed rules for typography|color|layout|refinement|evaluation
+- get_contrast_check(foreground, background, fontSize) — WCAG contrast check
+- run_refinement_check(nodeId) — automated quality feedback
+
+### Typography Quick Reference
+Line Height: Display (>48px) 1.1–1.2 | Headings 1.2–1.3 | Body 1.5–1.6 | Captions 1.4–1.5
+Letter Spacing: Display -0.02em | Headings -0.01em | Body 0 | Uppercase +0.05–0.15em
+Minimum Sizes (Social 1080px): Headline 48–72px | Sub 32–40px | Body 28–32px | Caption 22–26px
+
+### Spacing (8px grid)
+Scale: 4 | 8 | 12 | 16 | 20 | 24 | 32 | 40 | 48 | 64 | 80 | 96 | 128
+Margins: Social 48px | Print 72px | Web 64px
+
+### Image Generation — Context-Aware Prompts (CRITICAL)
+When generating images with generate_image, ALWAYS write a descriptive, context-aware brief.
+- GOOD: "Industrial warehouse interior with CNC machines and metal fabrication equipment, corporate photography"
+- BAD: "modern abstract background with soft gradients and geometric shapes"
+The brief should match the content and industry of the page being designed.
+
+### Overlay Gradient Rules
+Text at BOTTOM → direction "top-bottom" | Text at TOP → "bottom-top"
+EXACTLY 2 stops. Gradient color MUST match section background. Solid end = where text is.
+`;
+
+// ═══════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════
 
@@ -342,7 +426,7 @@ async function callOpenAIAPI(
       tools: openaiTools,
       tool_choice: 'auto',
     }),
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(120_000),
   });
 
   if (!resp.ok) {
@@ -382,7 +466,7 @@ async function callVeniceAPI(
       tools: openaiTools,
       tool_choice: 'auto',
     }),
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(120_000),
   });
 
   if (!resp.ok) {
@@ -440,6 +524,17 @@ function convertSchemaToResponses(schema: Record<string, unknown>): Record<strin
   return result;
 }
 
+/** Map Figmento display model names to real Codex API model names.
+ *  e.g. "gpt-5.4-codex" → "gpt-5.4" (routing suffix stripped)
+ *  Models like "gpt-5.3-codex" are real API names and pass through unchanged. */
+function toCodexApiModel(displayModel: string): string {
+  const mapping: Record<string, string> = {
+    'gpt-5.4-codex': 'gpt-5.4',
+    'gpt-5.4-mini-codex': 'gpt-5.4-mini',
+  };
+  return mapping[displayModel] || displayModel;
+}
+
 async function callCodexAPI(
   input: Array<Record<string, unknown>>,
   model: string,
@@ -447,6 +542,8 @@ async function callCodexAPI(
   systemPrompt: string,
   tools: ToolDefinition[],
 ): Promise<Record<string, unknown>> {
+  const apiModel = toCodexApiModel(model);
+
   const codexTools = tools.map(tool => ({
     type: 'function',
     name: tool.name,
@@ -462,7 +559,7 @@ async function callCodexAPI(
       'Authorization': `Bearer ${oauthToken}`,
     },
     body: JSON.stringify({
-      model,
+      model: apiModel,
       instructions: systemPrompt,
       input,
       tools: codexTools,
@@ -471,7 +568,7 @@ async function callCodexAPI(
       stream: true,
       store: false,
     }),
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(120_000),
   });
 
   if (!resp.ok) {
@@ -541,7 +638,7 @@ async function callWithRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 200
         continue;
       }
       if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
-        throw new Error('API request timed out after 60s. The model may be overloaded — try again or switch models.');
+        throw new Error('API request timed out. The model may be overloaded — try again or switch models.');
       }
       throw err;
     }
@@ -1572,7 +1669,8 @@ export async function handleChatTurn(
 
   // Detect design brief from user message
   const brief: DesignBrief = detectBrief(message);
-  const systemPrompt = buildSystemPrompt(brief, memory || [], request.preferences || []);
+  const systemPrompt = buildSystemPrompt(brief, memory || [], request.preferences || [])
+    + DESIGN_AGENT_PROMPT;
 
   // Build tool resolver
   const tools: ToolResolver = chatToolResolver();
