@@ -31,6 +31,25 @@ export const CODEX_OAUTH_CONFIG: OAuthProviderConfig = {
   scopes: 'openid profile email offline_access',
 };
 
+// DM-2: Anthropic OAuth. Blocked on two externals:
+//   1. Figmento OAuth app registered at console.anthropic.com
+//   2. Static callback page hosted at a stable URL (Cloudflare Pages / Vercel)
+// Both are project-owner setup steps — the code scaffolding below is ready to
+// activate the moment those exist. Set clientId + callbackUrl to the registered
+// app values and the existing flow (buildAuthorizationUrl, exchangeCodeForToken,
+// refreshToken) works unchanged.
+export const ANTHROPIC_OAUTH_CONFIG: OAuthProviderConfig = {
+  clientId: 'TODO_FIGMENTO_ANTHROPIC_CLIENT_ID',
+  authEndpoint: 'https://claude.ai/oauth/authorize',
+  tokenEndpoint: 'https://claude.ai/oauth/token',
+  callbackUrl: 'https://figmento.app/oauth/callback',
+  scopes: 'api',
+};
+
+export function isAnthropicOAuthConfigured(): boolean {
+  return ANTHROPIC_OAUTH_CONFIG.clientId !== 'TODO_FIGMENTO_ANTHROPIC_CLIENT_ID';
+}
+
 const REFRESH_WINDOW_MS = 300_000; // 5 minutes
 
 // ── PKCE Utilities ───────────────────────────────────────────────────────────
@@ -245,6 +264,21 @@ export function isTokenExpired(token: OAuthToken): boolean {
 }
 
 // ── Token Validation ─────────────────────────────────────────────────────────
+
+export async function validateAnthropicToken(accessToken: string): Promise<boolean> {
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/models', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
 
 export async function validateCodexToken(accessToken: string): Promise<boolean> {
   try {

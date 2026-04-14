@@ -65,8 +65,13 @@ export interface ToolCallResult {
 export interface ToolUseLoopOptions {
   /** Which AI provider to call. */
   provider: 'claude' | 'gemini' | 'openai' | 'venice';
-  /** Provider API key. */
+  /** Provider API key. Ignored for 'claude' when oauthToken is present (DM-2). */
   apiKey: string;
+  /**
+   * DM-2: Optional OAuth access_token for Claude. When present, sent as
+   * `Authorization: Bearer <token>` instead of x-api-key. Ignored by other providers.
+   */
+  oauthToken?: string;
   /** Model ID. */
   model: string;
   /** Full system prompt string. */
@@ -354,12 +359,19 @@ async function callAnthropicAPI(
   apiKey: string,
   systemPrompt: string,
   tools: ToolDefinition[],
+  oauthToken?: string,
 ): Promise<AnthropicAPIResponse> {
+  // DM-2: When an OAuth access_token is present, send it as a Bearer header
+  // and skip x-api-key. Falls back to API key header otherwise.
+  const authHeaders: Record<string, string> = oauthToken
+    ? { 'Authorization': `Bearer ${oauthToken}` }
+    : { 'x-api-key': apiKey };
+
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': apiKey,
+      ...authHeaders,
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true',
     },
@@ -510,6 +522,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
   const {
     provider,
     apiKey,
+    oauthToken,
     model,
     systemPrompt,
     tools,
@@ -735,7 +748,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
     while (remaining-- > 0) {
       if (iterationsUsed > 0) await sleep(500);
       iterationsUsed++;
-      const response = await callWithRetry(() => callAnthropicAPI(history, model, apiKey, systemPrompt, resolveTools()));
+      const response = await callWithRetry(() => callAnthropicAPI(history, model, apiKey, systemPrompt, resolveTools(), oauthToken));
 
       const textParts: string[] = [];
       const toolUses: ContentBlock[] = [];

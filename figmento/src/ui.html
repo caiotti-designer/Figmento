@@ -5104,6 +5104,26 @@
           <label>Anthropic API Key</label>
           <input type="password" id="settings-api-key" placeholder="sk-ant-..." />
           <div class="hint">Get one at console.anthropic.com</div>
+          <!-- DM-2: Connect-with-Claude section, hidden until ANTHROPIC_OAUTH_CONFIG is activated -->
+          <div id="anthropic-oauth-section" style="display:none; margin-top:12px;">
+            <div id="anthropic-oauth-disconnected">
+              <div class="hint" style="color:var(--accent);font-weight:500;padding:12px;background:var(--bg-hover);border-radius:8px;border:1px solid var(--border);margin-bottom:8px;">
+                Or connect with your Claude.ai account — no API key needed.
+              </div>
+              <button id="anthropic-oauth-connect" style="width:100%;padding:10px 16px;background:var(--accent);color:var(--bg-primary);border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:var(--text-sm);margin-bottom:8px;">Connect with Claude</button>
+              <div id="anthropic-activation-section" style="display:none;margin-top:8px;">
+                <label>Paste Activation Code</label>
+                <input type="text" id="anthropic-activation-input" placeholder="Paste activation code from browser..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-hover);color:var(--text-primary);font-size:var(--text-sm);font-family:monospace;" />
+                <button id="anthropic-activate-btn" style="width:100%;padding:8px 16px;background:var(--accent);color:var(--bg-primary);border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:var(--text-sm);margin-top:6px;">Activate</button>
+              </div>
+            </div>
+            <div id="anthropic-oauth-connected" style="display:none;">
+              <div class="hint" style="color:#22c55e;font-weight:500;padding:12px;background:var(--bg-hover);border-radius:8px;border:1px solid #22c55e33;margin-bottom:8px;">
+                Connected via Claude.ai ✓
+              </div>
+              <button id="anthropic-oauth-disconnect" style="width:100%;padding:8px 16px;background:transparent;color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:var(--text-sm);">Disconnect</button>
+            </div>
+          </div>
         </div>
         <div id="key-openai-chat" class="chat-settings-field" style="display:none;">
           <label>OpenAI API Key</label>

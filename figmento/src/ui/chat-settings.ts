@@ -15,6 +15,10 @@ import {
   isTokenExpired,
   isTokenExpiringSoon,
   CODEX_OAUTH_CONFIG,
+  ANTHROPIC_OAUTH_CONFIG,
+  isAnthropicOAuthConfigured,
+  decodeActivationCode,
+  validateAnthropicToken,
   type OAuthToken,
 } from './oauth-flow';
 
@@ -73,6 +77,19 @@ export function initChatSettings() {
   const codexDisconnectBtn = document.getElementById('codex-oauth-disconnect');
   if (codexDisconnectBtn) {
     codexDisconnectBtn.addEventListener('click', handleCodexDisconnect);
+  }
+
+  // DM-2: Anthropic OAuth button wiring — visible only when OAuth app is registered
+  const anthropicSection = document.getElementById('anthropic-oauth-section');
+  if (anthropicSection && isAnthropicOAuthConfigured()) {
+    anthropicSection.style.display = 'block';
+    document.getElementById('anthropic-oauth-connect')?.addEventListener('click', handleAnthropicConnect);
+    document.getElementById('anthropic-activate-btn')?.addEventListener('click', handleAnthropicActivate);
+    document.getElementById('anthropic-oauth-disconnect')?.addEventListener('click', handleAnthropicDisconnect);
+    // Reflect current token state
+    if (getChatSettings().anthropicToken) {
+      updateAnthropicOAuthUI(true);
+    }
   }
 
   updateSettingsUI();
@@ -145,6 +162,13 @@ export function loadChatSettings(saved: Record<string, string>) {
     s.claudeCodeModel = saved.claudeCodeModel;
     const ccModel = document.getElementById('settings-cc-model') as HTMLSelectElement;
     if (ccModel) ccModel.value = saved.claudeCodeModel;
+  }
+
+  // DM-2: Load Anthropic OAuth token state (scaffolded — activation pending
+  // Anthropic OAuth app registration + hosted callback page)
+  if (saved.anthropicToken) {
+    const token = saved.anthropicToken as unknown as OAuthToken;
+    s.anthropicToken = token;
   }
 
   // DM-3: Load Codex OAuth token state
@@ -422,4 +446,78 @@ function handleCodexDisconnect() {
   postToSandbox({ type: 'clear-codex-token' });
   updateCodexOAuthUI(false);
   showSettingsStatus('Disconnected from ChatGPT.', false);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DM-2: ANTHROPIC OAUTH HANDLERS
+// ═══════════════════════════════════════════════════════════════
+// All three handlers mirror the Codex pattern exactly. They will no-op at
+// runtime until ANTHROPIC_OAUTH_CONFIG is activated (see oauth-flow.ts).
+// The UI gates visibility on isAnthropicOAuthConfigured() so nothing is
+// surfaced to end users until the prerequisite OAuth app is registered.
+
+function updateAnthropicOAuthUI(connected: boolean) {
+  const disconnected = document.getElementById('anthropic-oauth-disconnected');
+  const connectedEl = document.getElementById('anthropic-oauth-connected');
+  if (disconnected) disconnected.style.display = connected ? 'none' : 'block';
+  if (connectedEl) connectedEl.style.display = connected ? 'block' : 'none';
+  const activationSection = document.getElementById('anthropic-activation-section');
+  if (activationSection && connected) activationSection.style.display = 'none';
+}
+
+async function handleAnthropicConnect() {
+  try {
+    const { url, verifier, state } = await buildAuthorizationUrl(ANTHROPIC_OAUTH_CONFIG);
+    savePkceSession(verifier, state);
+    const activationSection = document.getElementById('anthropic-activation-section');
+    if (activationSection) activationSection.style.display = 'block';
+    postToSandbox({ type: 'open-external', url });
+    showSettingsStatus('Browser opened — complete login and paste the activation code.', false);
+  } catch (err) {
+    showSettingsStatus('Failed to start OAuth flow: ' + (err as Error).message, true);
+  }
+}
+
+async function handleAnthropicActivate() {
+  const input = document.getElementById('anthropic-activation-input') as HTMLInputElement;
+  const rawCode = input?.value?.trim();
+  if (!rawCode) {
+    showSettingsStatus('Please paste the activation code from the browser.', true);
+    return;
+  }
+
+  // The Anthropic callback page encodes the token as base64(JSON) — same shape
+  // as the Codex flow. decodeActivationCode handles both.
+  const decoded = decodeActivationCode(rawCode);
+  if (!decoded) {
+    showSettingsStatus('Invalid activation code. Please try again.', true);
+    return;
+  }
+
+  // Validate against api.anthropic.com/v1/models before accepting
+  showSettingsStatus('Validating token...', false);
+  const valid = await validateAnthropicToken(decoded.access_token);
+  if (!valid) {
+    showSettingsStatus('Token validation failed. Please reconnect.', true);
+    return;
+  }
+
+  clearPkceSession();
+  const s = getChatSettings();
+  s.anthropicToken = decoded;
+  updateChatSettings(s);
+  postToSandbox({ type: 'save-anthropic-token', token: decoded });
+
+  updateAnthropicOAuthUI(true);
+  input.value = '';
+  showSettingsStatus('Connected via Claude.ai ✓', false);
+}
+
+function handleAnthropicDisconnect() {
+  const s = getChatSettings();
+  s.anthropicToken = undefined;
+  updateChatSettings(s);
+  postToSandbox({ type: 'clear-anthropic-token' });
+  updateAnthropicOAuthUI(false);
+  showSettingsStatus('Disconnected from Claude.ai.', false);
 }

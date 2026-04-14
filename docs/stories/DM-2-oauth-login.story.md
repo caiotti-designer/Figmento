@@ -1,6 +1,13 @@
 # DM-2 — OAuth Login (Connect with Claude, No API Key Required)
 
-## Status: Ready
+## Status: Scaffolded — pending external OAuth app registration
+
+> **Activation prerequisites (blocking, external to code):**
+> 1. Figmento registered as OAuth 2.0 app at `console.anthropic.com` → obtain `client_id`
+> 2. Static callback page hosted at a stable URL (Cloudflare Pages / Vercel / GitHub Pages) that exchanges the authorization code for a token and displays it as a base64(JSON) activation code
+> 3. Update `ANTHROPIC_OAUTH_CONFIG.clientId` and `ANTHROPIC_OAUTH_CONFIG.callbackUrl` in `figmento/src/ui/oauth-flow.ts` with the real values
+>
+> Once those are in place, the UI section auto-appears (gated on `isAnthropicOAuthConfigured()`), handlers trigger the standard PKCE flow, and direct-mode Claude calls switch from `x-api-key` to `Authorization: Bearer`. No further code changes required.
 
 ## Story
 **As a** Figmento user,
@@ -258,3 +265,9 @@ _Updated as implementation progresses_
 - [ ] "Connected ✓" indicator visible in settings
 - [ ] API key option still available as fallback
 - [ ] No relay, WebSocket, or Railway involved in any step
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+| 2026-04-14 | @dev (Dex) | **Scaffolding landed.** Implemented everything the story asks for except the two external prerequisites: `ANTHROPIC_OAUTH_CONFIG` in `oauth-flow.ts` (placeholder `clientId`), `isAnthropicOAuthConfigured()` runtime gate, `validateAnthropicToken()` against `https://api.anthropic.com/v1/models`, ChatSettings.anthropicToken field, sandbox persistence (`figmento-anthropic-oauth-token` clientStorage key + `save-anthropic-token` / `clear-anthropic-token` handlers), chat-settings.ts handlers (`handleAnthropicConnect/Activate/Disconnect` + `updateAnthropicOAuthUI`), UI section in `ui.html` (gated on `isAnthropicOAuthConfigured()`), sendMessage validation accepts OAuth token as auth source for Claude, and `callAnthropicAPI` in `tool-use-loop.ts` switches to `Authorization: Bearer` when `oauthToken` is present. Builds clean, 388/388 tests pass. Zero user-visible changes right now (UI is invisible until the OAuth app is registered), zero regressions. Activation = edit 2 strings in `ANTHROPIC_OAUTH_CONFIG` + deploy callback page. Status: Ready → Scaffolded. |

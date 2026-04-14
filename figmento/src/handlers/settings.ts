@@ -151,6 +151,9 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
         const bridgeRelayUrl = (await figma.clientStorage.getAsync('figmento-bridge-relay-url')) || '';
         // DM-3: Load Codex OAuth token
         const codexToken = await loadCodexToken();
+        // DM-2: Load Anthropic OAuth token (scaffolded; currently not
+        // populated until ANTHROPIC_OAUTH_CONFIG is activated)
+        const anthropicToken = (await figma.clientStorage.getAsync('figmento-anthropic-oauth-token')) || null;
         // MA-1: Load custom OpenAI-compatible provider config
         const customBaseUrl = (await figma.clientStorage.getAsync('figmento-chat-custom-base-url')) || '';
         const customModel = (await figma.clientStorage.getAsync('figmento-chat-custom-model')) || '';
@@ -171,6 +174,7 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
             bridgeChannel: bridgeChannel,
             bridgeRelayUrl: bridgeRelayUrl,
             codexToken: codexToken || null,
+            anthropicToken: anthropicToken,
             customBaseUrl: customBaseUrl,
             customModel: customModel,
             customApiKey: customApiKey,
@@ -244,6 +248,23 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
     case 'clear-codex-token': {
       await saveCodexToken(null);
       figma.ui.postMessage({ type: 'codex-token-cleared' });
+      return true;
+    }
+
+    // ── DM-2: Anthropic OAuth Token ──────────────────────────────
+    case 'save-anthropic-token': {
+      const token = (msg as any).token || null;
+      if (token) {
+        await figma.clientStorage.setAsync('figmento-anthropic-oauth-token', token);
+      } else {
+        await figma.clientStorage.deleteAsync('figmento-anthropic-oauth-token');
+      }
+      return true;
+    }
+
+    case 'clear-anthropic-token': {
+      await figma.clientStorage.deleteAsync('figmento-anthropic-oauth-token');
+      figma.ui.postMessage({ type: 'anthropic-token-cleared' });
       return true;
     }
 

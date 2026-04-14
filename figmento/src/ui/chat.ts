@@ -66,6 +66,9 @@ export interface ChatSettings {
   chatRelayEnabled: boolean;
   chatRelayUrl: string;
   codexToken?: import('./oauth-flow').OAuthToken;
+  // DM-2: Anthropic OAuth token — when present, used instead of anthropicApiKey
+  // for direct Claude API calls. Gated on ANTHROPIC_OAUTH_CONFIG being activated.
+  anthropicToken?: import('./oauth-flow').OAuthToken;
   // MA-1: Custom OpenAI-compatible provider (Ollama, LM Studio, OpenRouter, etc.)
   customBaseUrl?: string;   // e.g. "http://localhost:11434/v1"
   customModel?: string;     // e.g. "gemma3:4b"
@@ -2211,8 +2214,10 @@ async function sendMessage() {
       appendChatBubble('assistant', '<span class="chat-error">Set your Venice API key in Settings first.</span>');
       return;
     }
-    if (!useGemini && !useOpenAI && !useVenice && !chatSettings.anthropicApiKey) {
-      appendChatBubble('assistant', '<span class="chat-error">Set your Anthropic API key in Settings first.</span>');
+    if (!useGemini && !useOpenAI && !useVenice && !chatSettings.anthropicApiKey && !chatSettings.anthropicToken?.access_token) {
+      // DM-2: accept OAuth token as a valid auth source for Anthropic — the user
+      // connected via "Connect with Claude" instead of pasting an API key.
+      appendChatBubble('assistant', '<span class="chat-error">Set your Anthropic API key in Settings first (or connect with Claude via OAuth).</span>');
       return;
     }
   }
@@ -2698,9 +2703,12 @@ function buildBatchToolCallHandler() {
 }
 
 async function runAnthropicLoop(): Promise<void> {
+  // DM-2: prefer OAuth token over API key when present
+  const oauthToken = chatSettings.anthropicToken?.access_token;
   await runToolUseLoop({
     provider: 'claude',
     apiKey: chatSettings.anthropicApiKey,
+    oauthToken,
     model: chatSettings.model,
     systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences, getEffectiveDsCache()),
     tools: chatToolResolver(),
