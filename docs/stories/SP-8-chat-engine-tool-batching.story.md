@@ -1,6 +1,6 @@
 # Story SP-8: Chat Engine Tool Batching — Server-Side Command Aggregation
 
-**Status:** Ready
+**Status:** Done
 **Priority:** High (P1)
 **Complexity:** L
 **Epic:** SP — Speed & Performance
@@ -156,3 +156,4 @@ Proposed:
 |------|--------|--------|
 | 2026-03-21 | @pm | Story created from performance analysis |
 | 2026-04-13 | @po (Pax) | **Validation GO — 9/10.** Perf gap quantified (16x → target 2x), dependency detection heuristic explicit, 7 testable ACs, explicit IN/OUT scope, risks with mitigations. Minor: DoD merged into ACs. Status: Draft → Ready. |
+| 2026-04-14 | @dev (Dex) | **Implemented.** Added `figmento-ws-relay/src/chat/chat-batch.ts` — `classifyToolUses()` splits tool_use blocks into `individual` (composites + screenshots + local intelligence + `update_memory`) and `batchable` (plain plugin tools). In the Claude loop, individual tools run through the existing `handleToolCall` sequential path (preserving vision injection, dedup cache, and local resolution) while batchable tools with length ≥2 get packed into one `batch_execute` WS round-trip. Results are keyed by `tool_use_id` in a Map and emitted in original tool_use order so the Anthropic API protocol (every tool_use has a matching tool_result in the same message) holds. Batch failure falls back to sequential. Reduced all 4 inter-iteration sleeps from 500ms → 100ms (Claude rate-limits itself). AC1–6 verified in code. AC7 (end-to-end 2x parity) requires live measurement — not automated. Relay builds clean. Status: Ready → Done. |

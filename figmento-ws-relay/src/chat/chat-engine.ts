@@ -24,6 +24,12 @@ import {
   LOCAL_TOOL_NAMES,
 } from './chat-tools';
 import { LOCAL_TOOL_HANDLERS } from './local-intelligence';
+import {
+  classifyToolUses,
+  assembleBatch,
+  MIN_BATCH_SIZE,
+  type BatchExecuteResponse,
+} from './chat-batch';
 
 // ═══════════════════════════════════════════════════════════════
 // DESIGN AGENT PROMPT — appended to system prompt for ALL providers
@@ -2001,7 +2007,7 @@ export async function handleChatTurn(
 
     let remaining = MAX_ITERATIONS;
     while (remaining-- > 0) {
-      if (iterationsUsed > 0) await sleep(500);
+      if (iterationsUsed > 0) await sleep(100); // SP-8: reduced from 500ms — Anthropic rate-limits itself, not us
       iterationsUsed++;
 
       const response = await callWithRetry(() => callGeminiAPI(geminiHistory, model, apiKey, systemPrompt, resolveTools(iterationsUsed)));
@@ -2101,7 +2107,7 @@ export async function handleChatTurn(
 
     let remaining = MAX_ITERATIONS;
     while (remaining-- > 0) {
-      if (iterationsUsed > 0) await sleep(500);
+      if (iterationsUsed > 0) await sleep(100); // SP-8: reduced from 500ms — Anthropic rate-limits itself, not us
       iterationsUsed++;
 
       const toolsForCall = resolveTools(iterationsUsed);
@@ -2225,7 +2231,7 @@ export async function handleChatTurn(
     const providerLabel = provider === 'venice' ? 'Venice' : provider === 'custom' ? 'Custom' : 'OpenAI';
     let remaining = MAX_ITERATIONS;
     while (remaining-- > 0) {
-      if (iterationsUsed > 0) await sleep(500);
+      if (iterationsUsed > 0) await sleep(100); // SP-8: reduced from 500ms — Anthropic rate-limits itself, not us
       iterationsUsed++;
 
       const response = await callWithRetry(() => callFn(openaiHistory, model, apiKey, systemPrompt, resolveTools(iterationsUsed)));
@@ -2296,7 +2302,7 @@ export async function handleChatTurn(
 
   let remaining = MAX_ITERATIONS;
   while (remaining-- > 0) {
-    if (iterationsUsed > 0) await sleep(500);
+    if (iterationsUsed > 0) await sleep(100); // SP-8: reduced from 500ms — Anthropic rate-limits itself, not us
     iterationsUsed++;
 
     const response = await callWithRetry(() => callAnthropicAPI(claudeHistory, model, apiKey, systemPrompt, resolveTools(iterationsUsed)));
@@ -2317,15 +2323,26 @@ export async function handleChatTurn(
 
     claudeHistory.push({ role: 'assistant', content: response.content });
 
-    const toolResults: ContentBlock[] = [];
+    // SP-8: Classify tool uses into individual (composites/locals/screenshots)
+    // and batchable (plain plugin tools). Individual tools run sequentially
+    // through handleToolCall so they retain vision injection, dedup, and local
+    // resolution. Batchable tools (2+) get packed into one batch_execute call.
+    const { individual, batchable } = classifyToolUses(
+      toolUses.map(t => ({ id: t.id, name: t.name!, input: t.input })),
+    );
+
+    // Keep results keyed by tool_use_id so we can emit them in the original
+    // tool_use order (important for API protocol correctness).
+    const resultsByToolUseId = new Map<string, ContentBlock>();
     let screenshotInjectedThisIteration = false;
-    for (const toolUse of toolUses) {
+
+    // ── Individual path (existing logic, unchanged behavior) ──
+    for (const toolUse of individual) {
       toolsUsed.add(toolUse.name!);
       let result: ToolCallResult;
       try {
         result = await handleToolCall(toolUse.name!, toolUse.input || {});
       } catch (err) {
-        // Always produce a tool_result — an orphaned tool_use breaks the API protocol
         result = {
           content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
           is_error: true,
@@ -2333,11 +2350,10 @@ export async function handleChatTurn(
       }
       toolCallLog.push({ name: toolUse.name!, success: !result.is_error });
 
-      // Limit to 1 screenshot per iteration to prevent token bloat (~20K+ tokens each)
       if (result.visionImage && !result.is_error && !screenshotInjectedThisIteration) {
         screenshotInjectedThisIteration = true;
         const base64 = result.visionImage.replace(/^data:image\/\w+;base64,/, '');
-        toolResults.push({
+        resultsByToolUseId.set(toolUse.id!, {
           type: 'tool_result',
           tool_use_id: toolUse.id,
           content: [
@@ -2346,7 +2362,7 @@ export async function handleChatTurn(
           ] as unknown as string,
         });
       } else {
-        toolResults.push({
+        resultsByToolUseId.set(toolUse.id!, {
           type: 'tool_result',
           tool_use_id: toolUse.id,
           content: truncateForHistory(result.content, toolUse.name!),
@@ -2354,6 +2370,84 @@ export async function handleChatTurn(
         });
       }
     }
+
+    // ── Batch path — 2+ plain plugin tools go in one WS round-trip ──
+    if (batchable.length >= MIN_BATCH_SIZE) {
+      const commands = assembleBatch(batchable);
+      try {
+        const batchRaw = await sendToPlugin('batch_execute', { commands });
+        const batchData = batchRaw as unknown as BatchExecuteResponse;
+        const batchResults = batchData.results || [];
+        for (let i = 0; i < batchable.length; i++) {
+          const tu = batchable[i];
+          const r = batchResults[i];
+          toolsUsed.add(tu.name);
+          const ok = r && r.success;
+          toolCallLog.push({ name: tu.name, success: !!ok });
+          const contentStr = ok
+            ? JSON.stringify(stripBase64FromResult(r.data || {}))
+            : `Tool execution failed: ${r?.error || 'batch entry missing'}`;
+          resultsByToolUseId.set(tu.id!, {
+            type: 'tool_result',
+            tool_use_id: tu.id,
+            content: truncateForHistory(contentStr, tu.name),
+            ...(!ok && { is_error: true }),
+          });
+        }
+      } catch (err) {
+        // Batch call itself failed (network, timeout, etc.) — fall back to
+        // the sequential path for this group so we still produce tool_results
+        // for every tool_use_id. Orphaned tool_use blocks break the API protocol.
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        console.warn(`[Figmento Chat] batch_execute failed, falling back sequentially: ${msg}`);
+        for (const tu of batchable) {
+          toolsUsed.add(tu.name);
+          let result: ToolCallResult;
+          try {
+            result = await handleToolCall(tu.name, tu.input || {});
+          } catch (inner) {
+            result = {
+              content: `Tool execution failed: ${inner instanceof Error ? inner.message : String(inner)}`,
+              is_error: true,
+            };
+          }
+          toolCallLog.push({ name: tu.name, success: !result.is_error });
+          resultsByToolUseId.set(tu.id!, {
+            type: 'tool_result',
+            tool_use_id: tu.id,
+            content: truncateForHistory(result.content, tu.name),
+            ...(result.is_error && { is_error: true }),
+          });
+        }
+      }
+    } else if (batchable.length === 1) {
+      // Single plain plugin tool — no batching benefit, use the sequential path
+      // so handleToolCall can still hit the dedup cache and tempId interpolation.
+      const tu = batchable[0];
+      toolsUsed.add(tu.name);
+      let result: ToolCallResult;
+      try {
+        result = await handleToolCall(tu.name, tu.input || {});
+      } catch (err) {
+        result = {
+          content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
+          is_error: true,
+        };
+      }
+      toolCallLog.push({ name: tu.name, success: !result.is_error });
+      resultsByToolUseId.set(tu.id!, {
+        type: 'tool_result',
+        tool_use_id: tu.id,
+        content: truncateForHistory(result.content, tu.name),
+        ...(result.is_error && { is_error: true }),
+      });
+    }
+
+    // Emit tool_results in the original tool_use order so Anthropic's protocol
+    // (every tool_use gets a matching tool_result in the same message) holds.
+    const toolResults: ContentBlock[] = toolUses
+      .map(tu => resultsByToolUseId.get(tu.id!))
+      .filter((r): r is ContentBlock => r !== undefined);
     claudeHistory.push({ role: 'user', content: toolResults });
   }
 
