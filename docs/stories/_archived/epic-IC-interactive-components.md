@@ -9,7 +9,7 @@
 | **Owner** | @pm (Morgan) |
 | **Architect** | @architect (Aria) |
 | **PRD** | [PRD-007](../prd/PRD-007-interactive-components.md) |
-| **Status** | Ready |
+| **Status** | Done — all 12 stories shipped (IC-1..12 archived) |
 | **Created** | 2026-03-26 |
 | **Milestone** | M10 — Component Intelligence |
 | **Depends On** | Epic FN Phase 2 (DS awareness) — complete |

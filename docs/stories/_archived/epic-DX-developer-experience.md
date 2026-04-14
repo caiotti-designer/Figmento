@@ -1,6 +1,6 @@
 # Epic DX — Developer Experience & Zero-Friction Onboarding
 
-**Status:** Active
+**Status:** Done — DX-1 shipped (epic is a bucket for future DX work)
 **Goal:** Eliminate manual setup steps so that using Figmento feels instant — open the plugin, start designing.
 
 ---
