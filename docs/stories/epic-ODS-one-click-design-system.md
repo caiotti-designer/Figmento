@@ -9,7 +9,7 @@
 | **Owner** | @pm (Morgan) |
 | **Architect** | @architect (Aria) |
 | **PRD** | [PRD-006](../prd/PRD-006-one-click-design-system.md) |
-| **Status** | Ready |
+| **Status** | Phase A+B Done — Phase C (project persistence) not drafted |
 | **Created** | 2026-03-25 |
 | **Milestone** | M9 — Designer Productivity |
 | **Depends On** | Epic FN Phase 2 (DS awareness, variable binding, color snapping) — complete |
