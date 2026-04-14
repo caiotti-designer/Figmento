@@ -1,6 +1,6 @@
 # Story SU-2.2: Generator Script + Prebuild Hook
 
-**Status:** Ready
+**Status:** Done (retroactive — @po audit 2026-04-14)
 **Priority:** High
 **Complexity:** M (Medium — ~120 LOC generator script + ~40 LOC refactor of tools-schema.ts, 1 new dependency)
 **Epic:** Schema Unification
@@ -345,3 +345,4 @@ figmento/src/ui/tools-schema.generated.ts
 | Date | Author | Change |
 |---|---|---|
 | 2026-03-07 | @sm (River) | Story created. Generator script at repo root `scripts/`, zod-to-json-schema in both packages, prebuild hook in figmento/package.json. Key risk: Zod instance alignment for zod-to-json-schema instanceof check. 35 MCP tools generated; 2 plugin-only kept manual. |
+| 2026-04-14 | @po (Pax) | **Retroactive Done.** Audit confirms full implementation was shipped silently: `scripts/generate-tool-schemas.ts` exists (213 lines), `figmento/src/ui/tools-schema.generated.ts` exists and is gitignored, `prebuild` hook in `figmento/package.json` runs the generator, `tools-schema.ts` imports `GENERATED_TOOLS` and assembles `FIGMENTO_TOOLS` as `[...GENERATED_TOOLS, ...PLUGIN_ONLY_TOOLS]`, `zod-to-json-schema` is a devDep in both packages. Build clean, tests pass (388/388). Generator writes 40 tools per run (2 whitelist entries missing — `clone_node` removed in `7cb7e92`, `get_design_rules` is plugin-only). Zod instance alignment works correctly in practice. Status: Ready → Done. |

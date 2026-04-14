@@ -1,0 +1,337 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`FIGMENTO_TOOLS structural fingerprint matches snapshot 1`] = `
+[
+  {
+    "name": "create_frame",
+    "propCount": 20,
+    "required": [
+      "width",
+      "height",
+    ],
+  },
+  {
+    "name": "create_text",
+    "propCount": 21,
+    "required": [
+      "text",
+    ],
+  },
+  {
+    "name": "create_rectangle",
+    "propCount": 9,
+    "required": [
+      "width",
+      "height",
+    ],
+  },
+  {
+    "name": "create_ellipse",
+    "propCount": 7,
+    "required": [
+      "width",
+      "height",
+    ],
+  },
+  {
+    "name": "create_image",
+    "propCount": 9,
+    "required": [
+      "imageData",
+    ],
+  },
+  {
+    "name": "set_fill",
+    "propCount": 4,
+    "required": [
+      "nodeId",
+    ],
+  },
+  {
+    "name": "set_stroke",
+    "propCount": 3,
+    "required": [
+      "nodeId",
+    ],
+  },
+  {
+    "name": "set_effects",
+    "propCount": 2,
+    "required": [
+      "nodeId",
+      "effects",
+    ],
+  },
+  {
+    "name": "set_corner_radius",
+    "propCount": 2,
+    "required": [
+      "nodeId",
+      "radius",
+    ],
+  },
+  {
+    "name": "set_opacity",
+    "propCount": 2,
+    "required": [
+      "nodeId",
+      "opacity",
+    ],
+  },
+  {
+    "name": "set_auto_layout",
+    "propCount": 11,
+    "required": [
+      "nodeId",
+      "layoutMode",
+    ],
+  },
+  {
+    "name": "get_selection",
+    "propCount": 0,
+    "required": [],
+  },
+  {
+    "name": "get_screenshot",
+    "propCount": 2,
+    "required": [
+      "nodeId",
+    ],
+  },
+  {
+    "name": "export_node",
+    "propCount": 3,
+    "required": [
+      "nodeId",
+    ],
+  },
+  {
+    "name": "get_node_info",
+    "propCount": 1,
+    "required": [
+      "nodeId",
+    ],
+  },
+  {
+    "name": "get_page_nodes",
+    "propCount": 0,
+    "required": [],
+  },
+  {
+    "name": "delete_node",
+    "propCount": 1,
+    "required": [
+      "nodeId",
+    ],
+  },
+  {
+    "name": "move_node",
+    "propCount": 3,
+    "required": [
+      "nodeId",
+    ],
+  },
+  {
+    "name": "resize_node",
+    "propCount": 3,
+    "required": [
+      "nodeId",
+    ],
+  },
+  {
+    "name": "rename_node",
+    "propCount": 2,
+    "required": [
+      "nodeId",
+      "name",
+    ],
+  },
+  {
+    "name": "append_child",
+    "propCount": 2,
+    "required": [
+      "parentId",
+      "childId",
+    ],
+  },
+  {
+    "name": "reorder_child",
+    "propCount": 3,
+    "required": [
+      "parentId",
+      "childId",
+    ],
+  },
+  {
+    "name": "group_nodes",
+    "propCount": 2,
+    "required": [
+      "nodeIds",
+    ],
+  },
+  {
+    "name": "create_design",
+    "propCount": 3,
+    "required": [
+      "design",
+    ],
+  },
+  {
+    "name": "scan_frame_structure",
+    "propCount": 3,
+    "required": [
+      "nodeId",
+    ],
+  },
+  {
+    "name": "create_icon",
+    "propCount": 7,
+    "required": [
+      "name",
+    ],
+  },
+  {
+    "name": "batch_execute",
+    "propCount": 3,
+    "required": [
+      "commands",
+    ],
+  },
+  {
+    "name": "clone_with_overrides",
+    "propCount": 2,
+    "required": [
+      "nodeId",
+      "copies",
+    ],
+  },
+  {
+    "name": "read_figma_context",
+    "propCount": 0,
+    "required": [],
+  },
+  {
+    "name": "bind_variable",
+    "propCount": 3,
+    "required": [
+      "nodeId",
+      "variableId",
+      "field",
+    ],
+  },
+  {
+    "name": "apply_paint_style",
+    "propCount": 2,
+    "required": [
+      "nodeId",
+      "styleId",
+    ],
+  },
+  {
+    "name": "apply_text_style",
+    "propCount": 2,
+    "required": [
+      "nodeId",
+      "styleId",
+    ],
+  },
+  {
+    "name": "apply_effect_style",
+    "propCount": 2,
+    "required": [
+      "nodeId",
+      "styleId",
+    ],
+  },
+  {
+    "name": "run_refinement_check",
+    "propCount": 1,
+    "required": [
+      "nodeId",
+    ],
+  },
+  {
+    "name": "create_figma_variables",
+    "propCount": 2,
+    "required": [
+      "collectionName",
+      "variables",
+    ],
+  },
+  {
+    "name": "get_layout_blueprint",
+    "propCount": 3,
+    "required": [
+      "category",
+    ],
+  },
+  {
+    "name": "get_color_palette",
+    "propCount": 2,
+    "required": [],
+  },
+  {
+    "name": "get_font_pairing",
+    "propCount": 2,
+    "required": [],
+  },
+  {
+    "name": "get_size_preset",
+    "propCount": 3,
+    "required": [],
+  },
+  {
+    "name": "get_contrast_check",
+    "propCount": 2,
+    "required": [
+      "foreground",
+      "background",
+    ],
+  },
+  {
+    "name": "get_design_intelligence",
+    "propCount": 0,
+    "required": [],
+  },
+  {
+    "name": "suggest_font_pairing",
+    "propCount": 3,
+    "required": [
+      "font",
+    ],
+  },
+  {
+    "name": "generate_accessible_palette",
+    "propCount": 3,
+    "required": [
+      "base_color",
+    ],
+  },
+  {
+    "name": "get_design_rules",
+    "propCount": 1,
+    "required": [
+      "category",
+    ],
+  },
+  {
+    "name": "analyze_canvas_context",
+    "propCount": 1,
+    "required": [],
+  },
+  {
+    "name": "update_memory",
+    "propCount": 1,
+    "required": [
+      "entry",
+    ],
+  },
+  {
+    "name": "generate_image",
+    "propCount": 7,
+    "required": [
+      "prompt",
+    ],
+  },
+]
+`;

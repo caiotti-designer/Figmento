@@ -36,6 +36,8 @@ Thumbs.db
 *.AppImage
 *.deb
 *.snap
+# ...but commit Jest snapshot baselines under figmento/src/ (regression guards)
+!figmento/src/**/*.snap
 
 # Misc agent/tool artifacts
 .aios-core/local/

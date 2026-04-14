@@ -1,6 +1,6 @@
 # Story SU-2.3: Snapshot Test for Generated Tool Schemas
 
-**Status:** Ready
+**Status:** Done (retroactive — @po audit 2026-04-14)
 **Priority:** Medium
 **Complexity:** S (Small — ~70 LOC new test file, no production code changes)
 **Epic:** Schema Unification
@@ -251,3 +251,4 @@ These functions convert a `ToolDefinition[]` to provider-specific formats (Gemin
 | Date | Author | Change |
 |---|---|---|
 | 2026-03-07 | @sm (River) | Story created. Structural snapshot (name + required + propCount per tool) + smoke tests for Gemini/OpenAI conversion functions. Gated on SU-2.2 complete. Key note: pretest hook needed because tools-schema.generated.ts is gitignored. |
+| 2026-04-14 | @po (Pax) | **Retroactive Done + test updated.** Audit confirms `figmento/src/ui/__tests__/tools-schema.test.ts` exists with structural fingerprint snapshot + create_frame spot check + convertSchemaToGemini/OpenAI smoke tests. `__snapshots__/tools-schema.test.ts.snap` is committed. `pretest` hook runs the generator before tests. After SU-2.1 added 9 new schemas to the generated file, the existing hardcoded `toHaveLength(38)` assertion became stale — updated to `toHaveLength(47)` (40 generated + 7 plugin-only) and regenerated the snapshot. All 388 tests pass. Status: Ready → Done. |
