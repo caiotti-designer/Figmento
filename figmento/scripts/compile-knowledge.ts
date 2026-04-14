@@ -376,11 +376,14 @@ function main() {
   const versionHash = hashFiles(allYamlPaths);
 
   // Generate TypeScript output
+  // Note: no Generated timestamp — the versionHash below is derived from YAML content
+  // and changes only when the inputs change. Keeping the output deterministic means the
+  // tracked copy in figmento-ws-relay/src/knowledge/ (used as the Fly.io deploy fallback)
+  // doesn't churn on every build.
   const output = `/**
  * AUTO-GENERATED — DO NOT EDIT
  * Compiled from figmento-mcp-server/knowledge/ YAML files.
  * Run: npx tsx scripts/compile-knowledge.ts
- * Generated: ${new Date().toISOString()}
  */
 
 import type {
