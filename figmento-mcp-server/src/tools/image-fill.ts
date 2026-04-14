@@ -425,20 +425,24 @@ async function generateAndPlaceImage(
   return result;
 }
 
+// ─── Schema ────────────────────────────────────────────────────────────────────
+
+export const fillContextualImagesSchema = {
+  sectionId: z.string().optional().describe('Frame ID of the section to fill. If omitted, uses current Figma selection.'),
+  targetNodeIds: z.array(z.string()).optional().describe('Explicit list of node IDs to fill (overrides auto-discovery heuristic).'),
+  context: z.string().optional().describe('Extra context to supplement auto-detection (e.g. "industrial cleaning equipment company"). Does NOT replace auto-analysis.'),
+  style: z.string().optional().describe('Image style override: "photographic" (default), "illustration", "3d-render", "watercolor", "minimal".'),
+  maxImages: z.number().optional().describe('Override budget cap (default 6, max 8).'),
+  skipAnalysis: z.boolean().optional().describe('Skip page analysis if context is fully provided manually via the context param.'),
+};
+
 // ─── Tool Registration ──────────────────────────────────────────────────────────
 
 export function registerImageFillTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'fill_contextual_images',
     'Auto-fill empty image slots in a section with AI-generated images. Analyzes page context and nearby text to build prompts. Max 6 images per call.',
-    {
-      sectionId: z.string().optional().describe('Frame ID of the section to fill. If omitted, uses current Figma selection.'),
-      targetNodeIds: z.array(z.string()).optional().describe('Explicit list of node IDs to fill (overrides auto-discovery heuristic).'),
-      context: z.string().optional().describe('Extra context to supplement auto-detection (e.g. "industrial cleaning equipment company"). Does NOT replace auto-analysis.'),
-      style: z.string().optional().describe('Image style override: "photographic" (default), "illustration", "3d-render", "watercolor", "minimal".'),
-      maxImages: z.number().optional().describe('Override budget cap (default 6, max 8).'),
-      skipAnalysis: z.boolean().optional().describe('Skip page analysis if context is fully provided manually via the context param.'),
-    },
+    fillContextualImagesSchema,
     async (params) => {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {

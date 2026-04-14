@@ -459,25 +459,29 @@ async function placeImageInBackground(
   }
 }
 
+// ─── Schema ────────────────────────────────────────────────────────────────────
+
+export const generateDesignImageSchema = {
+  brief: z.string().describe('Design brief describing the image subject and style (e.g. "hippie coffee shop warm earthy vintage")'),
+  format: z.string().optional().describe('Format preset: instagram_portrait, story, tiktok, pinterest, instagram_square, facebook_post, hero, landing_hero, landscape, youtube_thumbnail, facebook_cover, twitter_header, linkedin_banner. Determines frame dimensions and default text zone.'),
+  mood: z.string().optional().describe('Mood or atmosphere hint appended to the Gemini prompt (e.g. "earthy", "luxury", "playful", "dark cinematic")'),
+  textZone: z.string().optional().describe('Override composition text zone: bottom-40%, bottom-35%, bottom-30%, bottom-25%, or left-40%'),
+  frameId: z.string().optional().describe('Target frame nodeId. If omitted, auto-resolved from current Figma selection or a new frame is created using the format dimensions.'),
+  name: z.string().optional().describe('Frame name when a new frame is created. Defaults to the brief truncated to 40 characters.'),
+  referenceImagePath: z.string().optional().describe('Path to a reference image file (PNG, JPG, WEBP). The generated image will inherit the style, composition, and mood of this reference. Accepts absolute paths or paths within temp/imports/ or brand-assets/.'),
+  model: z.string().optional().describe('Image generation model. Gemini: "gemini-3.1-flash-image-preview" (fast, default), "gemini-3.1-pro-preview" (quality). Venice: "grok-imagine-image-pro". Venice models require VENICE_API_KEY in .env.'),
+  awaitImage: z.boolean().optional().describe('If true, block until image is fully generated and placed (legacy sequential mode). Default false — returns frameId immediately.'),
+  skipPreview: z.boolean().optional().describe('If true, skip the fast 512px preview and generate at target resolution directly. Default false — two-phase (preview + high-res).'),
+  asFill: z.boolean().optional().describe('If true, apply the generated image directly as the frame\'s IMAGE fill instead of creating a child node. Use this when you want to replace the frame background without adding children. Default false.'),
+};
+
 // ─── Tool Registration ─────────────────────────────────────────────────────────
 
 export function registerImageGenTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'generate_design_image',
     'Generate a background image with Gemini and place it in a Figma frame. Returns frameId immediately while image generates in background. Use awaitImage=true to block until placed.',
-    {
-      brief: z.string().describe('Design brief describing the image subject and style (e.g. "hippie coffee shop warm earthy vintage")'),
-      format: z.string().optional().describe('Format preset: instagram_portrait, story, tiktok, pinterest, instagram_square, facebook_post, hero, landing_hero, landscape, youtube_thumbnail, facebook_cover, twitter_header, linkedin_banner. Determines frame dimensions and default text zone.'),
-      mood: z.string().optional().describe('Mood or atmosphere hint appended to the Gemini prompt (e.g. "earthy", "luxury", "playful", "dark cinematic")'),
-      textZone: z.string().optional().describe('Override composition text zone: bottom-40%, bottom-35%, bottom-30%, bottom-25%, or left-40%'),
-      frameId: z.string().optional().describe('Target frame nodeId. If omitted, auto-resolved from current Figma selection or a new frame is created using the format dimensions.'),
-      name: z.string().optional().describe('Frame name when a new frame is created. Defaults to the brief truncated to 40 characters.'),
-      referenceImagePath: z.string().optional().describe('Path to a reference image file (PNG, JPG, WEBP). The generated image will inherit the style, composition, and mood of this reference. Accepts absolute paths or paths within temp/imports/ or brand-assets/.'),
-      model: z.string().optional().describe('Image generation model. Gemini: "gemini-3.1-flash-image-preview" (fast, default), "gemini-3.1-pro-preview" (quality). Venice: "grok-imagine-image-pro". Venice models require VENICE_API_KEY in .env.'),
-      awaitImage: z.boolean().optional().describe('If true, block until image is fully generated and placed (legacy sequential mode). Default false — returns frameId immediately.'),
-      skipPreview: z.boolean().optional().describe('If true, skip the fast 512px preview and generate at target resolution directly. Default false — two-phase (preview + high-res).'),
-      asFill: z.boolean().optional().describe('If true, apply the generated image directly as the frame\'s IMAGE fill instead of creating a child node. Use this when you want to replace the frame background without adding children. Default false.'),
-    },
+    generateDesignImageSchema,
     async (params) => {
       // Fail fast if API key missing
       const useVeniceModel = params.model && isVeniceImageModel(params.model);

@@ -1,6 +1,6 @@
 # Story SU-2.1: Extract Zod Schemas as Named Exports
 
-**Status:** Ready
+**Status:** Done
 **Priority:** High
 **Complexity:** M (Medium — mechanical refactor across 17 files, ~140 LOC net, no logic changes)
 **Epic:** Schema Unification
@@ -212,3 +212,4 @@ All 17 files must be updated. For tools with empty schemas (`{}`), still extract
 | Date | Author | Change |
 |---|---|---|
 | 2026-03-07 | @sm (River) | Story created. Mechanical schema extraction across 17 tool files — prerequisite for SU-2.2 generator. No logic changes. MCP server build gate. |
+| 2026-04-14 | @dev (Dex) | **Implemented.** Story assumed 17 files but there are 26 tool files in `figmento-mcp-server/src/tools/`. Audit revealed that 18 of 26 files had already been refactored to named schema exports as part of silent @dev work (same pattern documented in project memory). Remaining 8 files completed in this pass: `brief-analysis.ts` + `ds-pipeline.ts` (export-keyword additions on existing consts), `resources.ts`, `orchestration.ts` (2 tools), `image-gen.ts`, `image-fill.ts` (schema extractions), `file-storage.ts` (7 tools — largest extraction). `template.ts` was already done via TC-3 the previous day. MCP server builds clean. Zero remaining inline schemas in `server.tool()` calls. Status: Ready → Done. |

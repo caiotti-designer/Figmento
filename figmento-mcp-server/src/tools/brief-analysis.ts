@@ -13,7 +13,7 @@ import { assembleBrandAnalysis, validateBrandAnalysis } from './brief-analysis-c
 export { generateColorScale, generateNeutralScale, assembleBrandAnalysis, validateBrandAnalysis } from './brief-analysis-core';
 
 // Schema uses z.string() (not z.optional()) to avoid TS2589 — see MEMORY.md
-const analyzeBriefSchema = {
+export const analyzeBriefSchema = {
   pdfBase64: z.string().describe('PDF file as base64 data URI. Optional — omit if providing pdfText or briefText.'),
   pdfText: z.string().describe('Extracted text content from PDF (alternative to pdfBase64). Optional.'),
   logoBase64: z.string().describe('Logo image as base64 data URI. Optional.'),

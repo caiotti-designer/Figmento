@@ -187,7 +187,7 @@ export function assembleComponentConfig(
 // ═══════════════════════════════════════════════════════════════
 
 // Schema uses z.any() for the BrandAnalysis to avoid TS2589 — validated at runtime
-const generateDSSchema = {
+export const generateDSSchema = {
   brandAnalysis: z.any().describe('Full BrandAnalysis JSON from analyze_brief tool. Contains colors, typography, spacing, radius, and brand identity.'),
 };
 

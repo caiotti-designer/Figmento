@@ -27,6 +27,25 @@ const VARIATION_MODIFIERS = [
   'same subject and product, bird\'s eye view, geometric arrangement',
 ];
 
+// ─── Schemas ────────────────────────────────────────────────────────────────────
+
+export const designFromReferenceSchema = {
+  referenceImagePath: z.string().describe('Absolute path to the reference image (from store_temp_file)'),
+  brief: z.string().describe('Design brief describing the desired output'),
+  format: z.string().optional().describe('Format preset (e.g., "instagram_portrait", "hero"). Defaults to "instagram_square".'),
+  brandKit: z.string().optional().describe('Brand kit name to load colors/fonts from'),
+  outputMode: z.enum(['execute', 'codegen']).optional().describe('Output mode: "execute" (default) or "codegen" for use_figma JavaScript'),
+};
+
+export const generateAdVariationsSchema = {
+  referenceImagePath: z.string().describe('Absolute path to the reference ad image'),
+  count: z.number().int().min(1).max(6).optional().describe('Number of variations to generate (default 4, max 6)'),
+  format: z.string().optional().describe('Format preset (default "instagram_square")'),
+  prompt: z.string().optional().describe('Additional prompt guidance for variations'),
+  brandKit: z.string().optional().describe('Brand kit name for brand-consistent overlays'),
+  outputMode: z.enum(['execute', 'codegen']).optional().describe('Output mode: "execute" (default) or "codegen" for use_figma JavaScript'),
+};
+
 // ─── Tool Registration ──────────────────────────────────────────────────────────
 
 export function registerOrchestrationTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
@@ -38,13 +57,7 @@ export function registerOrchestrationTools(server: McpServer, sendDesignCommand:
   server.tool(
     'design_from_reference',
     'Orchestrated workflow: analyze reference image, match layout blueprint, generate design. Returns frameId + analysis for adding content.',
-    {
-      referenceImagePath: z.string().describe('Absolute path to the reference image (from store_temp_file)'),
-      brief: z.string().describe('Design brief describing the desired output'),
-      format: z.string().optional().describe('Format preset (e.g., "instagram_portrait", "hero"). Defaults to "instagram_square".'),
-      brandKit: z.string().optional().describe('Brand kit name to load colors/fonts from'),
-      outputMode: z.enum(['execute', 'codegen']).optional().describe('Output mode: "execute" (default) or "codegen" for use_figma JavaScript'),
-    },
+    designFromReferenceSchema,
     async (params) => {
       const format = params.format || 'instagram_square';
 
@@ -182,14 +195,7 @@ export function registerOrchestrationTools(server: McpServer, sendDesignCommand:
   server.tool(
     'generate_ad_variations',
     'Generate multiple ad variations from a reference image. Creates N frames with varied compositions, offset 200px apart.',
-    {
-      referenceImagePath: z.string().describe('Absolute path to the reference ad image'),
-      count: z.number().int().min(1).max(6).optional().describe('Number of variations to generate (default 4, max 6)'),
-      format: z.string().optional().describe('Format preset (default "instagram_square")'),
-      prompt: z.string().optional().describe('Additional prompt guidance for variations'),
-      brandKit: z.string().optional().describe('Brand kit name for brand-consistent overlays'),
-      outputMode: z.enum(['execute', 'codegen']).optional().describe('Output mode: "execute" (default) or "codegen" for use_figma JavaScript'),
-    },
+    generateAdVariationsSchema,
     async (params) => {
       const count = Math.min(params.count ?? 4, 6);
       const format = params.format || 'instagram_square';

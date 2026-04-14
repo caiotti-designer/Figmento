@@ -91,6 +91,46 @@ export function cleanupOldTempFiles(): void {
   }
 }
 
+// ─── Schemas ────────────────────────────────────────────────────────────────────
+
+export const storeTempFileSchema = {
+  data: z.string().describe('Base64 data URI (e.g., "data:image/png;base64,iVBOR...")'),
+  filename: z.string().describe('Original filename with extension (e.g., "logo.png", "hero-ref.jpg")'),
+  sessionId: z.string().describe('Session identifier (channel ID or UUID). Used to group files per session.'),
+};
+
+export const listTempFilesSchema = {
+  sessionId: z.string().describe('Session identifier to list files for'),
+};
+
+export const saveBrandAssetsSchema = {
+  name: z.string().describe('Brand asset collection name (e.g., "my-company"). Lowercase, alphanumeric + hyphens.'),
+  description: z.string().describe('Short description of the asset collection'),
+  filePaths: z.array(z.string()).describe('Array of absolute file paths to save (from store_temp_file output)'),
+};
+
+export const loadBrandAssetsSchema = {
+  name: z.string().describe('Brand asset collection name'),
+};
+
+export const listBrandAssetsSchema = {};
+
+export const placeBrandAssetSchema = {
+  source: z.string().describe('"temp" for temp storage or "saved" for persistent brand assets'),
+  sessionId: z.string().optional().describe('Session ID (required when source="temp")'),
+  assetName: z.string().optional().describe('Brand asset collection name (required when source="saved")'),
+  filename: z.string().describe('Filename to place (e.g., "logo.png")'),
+  parentId: z.string().describe('Figma frame nodeId to place the asset in'),
+  x: z.number().optional().describe('X position within parent (default 0)'),
+  y: z.number().optional().describe('Y position within parent (default 0)'),
+  width: z.number().optional().describe('Width in pixels (default 200)'),
+  height: z.number().optional().describe('Height in pixels (default 200)'),
+};
+
+export const importPdfSchema = {
+  filePath: z.string().describe('Absolute path to the PDF file (from store_temp_file output)'),
+};
+
 // ─── Tool Registration ──────────────────────────────────────────────────────────
 
 export function registerFileStorageTools(server: McpServer, sendDesignCommand?: SendDesignCommand): void {
@@ -99,11 +139,7 @@ export function registerFileStorageTools(server: McpServer, sendDesignCommand?: 
   server.tool(
     'store_temp_file',
     'Store a file (base64 data URI) in temporary session storage. Returns the absolute file path for use by other tools (analyze_reference, place_generated_image, etc.).',
-    {
-      data: z.string().describe('Base64 data URI (e.g., "data:image/png;base64,iVBOR...")'),
-      filename: z.string().describe('Original filename with extension (e.g., "logo.png", "hero-ref.jpg")'),
-      sessionId: z.string().describe('Session identifier (channel ID or UUID). Used to group files per session.'),
-    },
+    storeTempFileSchema,
     async (params) => {
       // Sanitize inputs
       const sessionId = sanitizeSessionId(params.sessionId);
@@ -154,9 +190,7 @@ export function registerFileStorageTools(server: McpServer, sendDesignCommand?: 
   server.tool(
     'list_temp_files',
     'List all temporarily stored files for a session. Returns file paths and metadata.',
-    {
-      sessionId: z.string().describe('Session identifier to list files for'),
-    },
+    listTempFilesSchema,
     async (params) => {
       const sessionId = sanitizeSessionId(params.sessionId);
       const sessionDir = nodePath.join(getTempDir(), sessionId);
@@ -194,11 +228,7 @@ export function registerFileStorageTools(server: McpServer, sendDesignCommand?: 
   server.tool(
     'save_brand_assets',
     'Save files as a persistent brand asset collection. Copies from temp storage to brand-assets/{name}/.',
-    {
-      name: z.string().describe('Brand asset collection name (e.g., "my-company"). Lowercase, alphanumeric + hyphens.'),
-      description: z.string().describe('Short description of the asset collection'),
-      filePaths: z.array(z.string()).describe('Array of absolute file paths to save (from store_temp_file output)'),
-    },
+    saveBrandAssetsSchema,
     async (params) => {
       const name = sanitizeAssetName(params.name);
       if (!name) {
@@ -253,9 +283,7 @@ export function registerFileStorageTools(server: McpServer, sendDesignCommand?: 
   server.tool(
     'load_brand_assets',
     'Load a saved brand asset collection by name. Returns the manifest and absolute file paths.',
-    {
-      name: z.string().describe('Brand asset collection name'),
-    },
+    loadBrandAssetsSchema,
     async (params) => {
       const name = sanitizeAssetName(params.name);
       const manifestPath = nodePath.join(getBrandAssetsDir(), name, 'manifest.yaml');
@@ -277,7 +305,7 @@ export function registerFileStorageTools(server: McpServer, sendDesignCommand?: 
   server.tool(
     'list_brand_assets',
     'List all saved brand asset collections with their names and descriptions.',
-    {},
+    listBrandAssetsSchema,
     async () => {
       const baseDir = getBrandAssetsDir();
       if (!fs.existsSync(baseDir)) {
@@ -307,17 +335,7 @@ export function registerFileStorageTools(server: McpServer, sendDesignCommand?: 
     server.tool(
       'place_brand_asset',
       'Place a brand asset from temp or saved storage into a Figma frame.',
-      {
-        source: z.string().describe('"temp" for temp storage or "saved" for persistent brand assets'),
-        sessionId: z.string().optional().describe('Session ID (required when source="temp")'),
-        assetName: z.string().optional().describe('Brand asset collection name (required when source="saved")'),
-        filename: z.string().describe('Filename to place (e.g., "logo.png")'),
-        parentId: z.string().describe('Figma frame nodeId to place the asset in'),
-        x: z.number().optional().describe('X position within parent (default 0)'),
-        y: z.number().optional().describe('Y position within parent (default 0)'),
-        width: z.number().optional().describe('Width in pixels (default 200)'),
-        height: z.number().optional().describe('Height in pixels (default 200)'),
-      },
+      placeBrandAssetSchema,
       async (params) => {
         // Resolve file path based on source
         let filePath: string;
@@ -380,9 +398,7 @@ export function registerFileStorageTools(server: McpServer, sendDesignCommand?: 
   server.tool(
     'import_pdf',
     'Extract text and brand context (colors, fonts) from a PDF file.',
-    {
-      filePath: z.string().describe('Absolute path to the PDF file (from store_temp_file output)'),
-    },
+    importPdfSchema,
     async (params) => {
       if (!fs.existsSync(params.filePath)) {
         return { content: [{ type: 'text' as const, text: JSON.stringify({ error: 'PDF file not found' }) }], isError: true };
