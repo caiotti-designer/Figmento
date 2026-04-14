@@ -76,8 +76,12 @@ function validateRequest(body: unknown): body is ChatTurnRequest {
 
   if (typeof req.message !== 'string' || !req.message.trim()) return false;
   if (typeof req.channel !== 'string' || !req.channel.trim()) return false;
-  if (!['claude', 'gemini', 'openai', 'venice', 'codex'].includes(req.provider as string)) return false;
-  if (typeof req.apiKey !== 'string' || !req.apiKey.trim()) return false;
+  if (!['claude', 'gemini', 'openai', 'venice', 'codex', 'custom'].includes(req.provider as string)) return false;
+  // MA-1: custom provider allows empty apiKey (local models like Ollama don't need auth).
+  // All other providers still require a non-empty apiKey. baseUrl must be a non-empty string when provider === 'custom'.
+  if (typeof req.apiKey !== 'string') return false;
+  if (req.provider !== 'custom' && !(req.apiKey as string).trim()) return false;
+  if (req.provider === 'custom' && (typeof req.baseUrl !== 'string' || !(req.baseUrl as string).trim())) return false;
   if (typeof req.model !== 'string' || !req.model.trim()) return false;
   if (!Array.isArray(req.history)) return false;
 

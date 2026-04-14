@@ -136,11 +136,13 @@ export interface ChatTurnRequest {
   /** WS channel where the plugin sandbox is connected. */
   channel: string;
   /** AI provider. */
-  provider: 'claude' | 'gemini' | 'openai' | 'venice' | 'codex';
-  /** API key for the selected provider. */
+  provider: 'claude' | 'gemini' | 'openai' | 'venice' | 'codex' | 'custom';
+  /** API key for the selected provider. Empty string allowed for 'custom' with local models. */
   apiKey: string;
   /** Model ID (e.g. 'claude-sonnet-4-20250514', 'gemini-2.0-flash'). */
   model: string;
+  /** Base URL for 'custom' OpenAI-compatible providers (e.g. 'http://localhost:11434/v1'). Ignored for other providers. */
+  baseUrl?: string;
   /** Conversation history (provider-specific format). */
   history: unknown[];
   /** Persistent memory entries from previous sessions. */
@@ -403,6 +405,7 @@ async function callOpenAIAPI(
   apiKey: string,
   systemPrompt: string,
   tools: ToolDefinition[],
+  baseUrl?: string,
 ): Promise<Record<string, unknown>> {
   const openaiTools = tools.map(tool => ({
     type: 'function',
@@ -413,12 +416,17 @@ async function callOpenAIAPI(
     },
   }));
 
-  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+  // MA-1: baseUrl is optional. Default to OpenAI. Trim trailing slash to be forgiving
+  // when users paste "http://localhost:11434/v1/" or just "http://localhost:11434/v1".
+  const normalizedBase = (baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '');
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  // Local models (Ollama, LM Studio, vLLM) don't require auth. Skip the header when empty
+  // so servers that reject unexpected Authorization headers still work.
+  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+  const resp = await fetch(`${normalizedBase}/chat/completions`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
+    headers,
     body: JSON.stringify({
       model,
       max_tokens: 8192,
@@ -431,7 +439,7 @@ async function callOpenAIAPI(
 
   if (!resp.ok) {
     const errBody = await resp.text();
-    throw new Error(`OpenAI API error ${resp.status}: ${errBody}`);
+    throw new Error(`OpenAI-compatible API error ${resp.status} at ${normalizedBase}: ${errBody}`);
   }
 
   return resp.json() as Promise<Record<string, unknown>>;
@@ -2190,8 +2198,8 @@ export async function handleChatTurn(
     };
   }
 
-  // ── OpenAI / Venice ──
-  if (provider === 'openai' || provider === 'venice') {
+  // ── OpenAI / Venice / Custom (OpenAI-compatible) ──
+  if (provider === 'openai' || provider === 'venice' || provider === 'custom') {
     const openaiHistory = history as Array<Record<string, unknown>>;
     if (request.attachmentBase64 && (model.startsWith('gpt-4') || model.includes('gpt-4o'))) {
       openaiHistory.push({
@@ -2205,7 +2213,16 @@ export async function handleChatTurn(
       openaiHistory.push({ role: 'user', content: message });
     }
 
-    const callFn = provider === 'venice' ? callVeniceAPI : callOpenAIAPI;
+    // MA-1: custom provider routes through callOpenAIAPI with request.baseUrl.
+    // Venice keeps its own dedicated caller (hardcoded Venice URL).
+    const callFn = provider === 'venice'
+      ? callVeniceAPI
+      : provider === 'custom'
+        ? (h: Array<Record<string, unknown>>, m: string, k: string, sp: string, t: ToolDefinition[]) =>
+            callOpenAIAPI(h, m, k, sp, t, request.baseUrl)
+        : callOpenAIAPI;
+
+    const providerLabel = provider === 'venice' ? 'Venice' : provider === 'custom' ? 'Custom' : 'OpenAI';
     let remaining = MAX_ITERATIONS;
     while (remaining-- > 0) {
       if (iterationsUsed > 0) await sleep(500);
@@ -2214,7 +2231,7 @@ export async function handleChatTurn(
       const response = await callWithRetry(() => callFn(openaiHistory, model, apiKey, systemPrompt, resolveTools(iterationsUsed)));
       const choices = response.choices as Array<Record<string, unknown>> | undefined;
       const choice = choices?.[0];
-      if (!choice?.message) throw new Error(`Empty response from ${provider === 'venice' ? 'Venice' : 'OpenAI'}`);
+      if (!choice?.message) throw new Error(`Empty response from ${providerLabel}`);
 
       const msg = choice.message as Record<string, unknown>;
       if (msg.content) textParts.push(msg.content as string);

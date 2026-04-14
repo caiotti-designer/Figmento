@@ -113,6 +113,23 @@ export function loadChatSettings(saved: Record<string, string>) {
     ($('settings-venice-key') as HTMLInputElement).value = saved.veniceApiKey;
   }
 
+  // MA-1: Custom OpenAI-compatible provider
+  if (saved.customBaseUrl) {
+    s.customBaseUrl = saved.customBaseUrl;
+    const input = document.getElementById('settings-custom-base-url') as HTMLInputElement | null;
+    if (input) input.value = saved.customBaseUrl;
+  }
+  if (saved.customModel) {
+    s.customModel = saved.customModel;
+    const input = document.getElementById('settings-custom-model') as HTMLInputElement | null;
+    if (input) input.value = saved.customModel;
+  }
+  if (saved.customApiKey) {
+    s.customApiKey = saved.customApiKey;
+    const input = document.getElementById('settings-custom-api-key') as HTMLInputElement | null;
+    if (input) input.value = saved.customApiKey;
+  }
+
   // Relay settings
   if (saved.chatRelayEnabled !== undefined) {
     s.chatRelayEnabled = saved.chatRelayEnabled === 'true';
@@ -186,16 +203,21 @@ function updateSettingsUI() {
   const useGemini = model.startsWith('gemini-');
   // DM-3: Check codex BEFORE openai — gpt-5-codex matches both patterns
   const useCodex = model.includes('-codex');
-  const useOpenAI = !useCodex && (model.startsWith('gpt-') || model.startsWith('o'));
+  const useCustom = model === 'custom'; // MA-1
+  const useOpenAI = !useCodex && !useCustom && (model.startsWith('gpt-') || model.startsWith('o'));
   const useVenice = model.startsWith('qwen3-') || model.startsWith('zai-org-') || model.startsWith('deepseek-');
   const useClaudeCode = model === 'claude-code';
-  const useSpecial = useClaudeCode || useCodex;
+  const useSpecial = useClaudeCode || useCodex || useCustom;
 
-  // Hide ALL API key fields for special providers (Claude Code, Codex OAuth)
+  // Hide ALL API key fields for special providers (Claude Code, Codex OAuth, Custom)
   $('key-gemini-chat').style.display = (!useSpecial && useGemini) ? 'block' : 'none';
   $('key-anthropic-chat').style.display = (!useSpecial && !useGemini && !useOpenAI && !useVenice) ? 'block' : 'none';
   $('key-openai-chat').style.display = (!useSpecial && useOpenAI) ? 'block' : 'none';
   $('key-venice-chat').style.display = (!useSpecial && useVenice) ? 'block' : 'none';
+
+  // MA-1: Custom provider fields
+  const customSection = document.getElementById('key-custom-chat');
+  if (customSection) customSection.style.display = useCustom ? 'block' : 'none';
 
   // Claude Code status message
   const ccStatus = document.getElementById('claude-code-status');
@@ -205,7 +227,7 @@ function updateSettingsUI() {
   const codexSection = document.getElementById('codex-oauth-section');
   if (codexSection) codexSection.style.display = useCodex ? 'block' : 'none';
 
-  // Image gen: hidden for Claude Code and Codex, otherwise normal logic
+  // Image gen: hidden for Claude Code, Codex, and Custom; otherwise normal logic
   const imageGenSection = document.getElementById('section-image-gen');
   if (imageGenSection) imageGenSection.style.display = useSpecial ? 'none' : 'block';
   $('image-gen-separate').style.display = (!useSpecial && !useGemini) ? 'block' : 'none';
@@ -220,6 +242,14 @@ function saveChatSettings() {
   const relayUrlInput = $('settings-relay-url') as HTMLInputElement;
 
   const ccModelSelect = document.getElementById('settings-cc-model') as HTMLSelectElement;
+
+  // MA-1: Custom provider fields — trim trailing slash on baseUrl to be forgiving
+  const customBaseUrlRaw = (document.getElementById('settings-custom-base-url') as HTMLInputElement | null)?.value.trim() || '';
+  const customBaseUrl = customBaseUrlRaw.replace(/\/+$/, '');
+  const customModel = (document.getElementById('settings-custom-model') as HTMLInputElement | null)?.value.trim() || '';
+  const customApiKey = (document.getElementById('settings-custom-api-key') as HTMLInputElement | null)?.value.trim() || '';
+
+  const currentSettings = getChatSettings();
   const s: ChatSettings = {
     model,
     claudeCodeModel: ccModelSelect ? ccModelSelect.value : 'claude-sonnet-4-6',
@@ -228,7 +258,10 @@ function saveChatSettings() {
     veniceApiKey: ($('settings-venice-key') as HTMLInputElement).value.trim(),
     geminiApiKey: '',
     chatRelayEnabled: relayToggle ? relayToggle.checked : false,
-    chatRelayUrl: relayUrlInput ? relayUrlInput.value.trim() : chatSettings.chatRelayUrl,
+    chatRelayUrl: relayUrlInput ? relayUrlInput.value.trim() : currentSettings.chatRelayUrl,
+    customBaseUrl: customBaseUrl || undefined,
+    customModel: customModel || undefined,
+    customApiKey: customApiKey || undefined,
   };
 
   if (useGemini) {
@@ -253,6 +286,10 @@ function saveChatSettings() {
       veniceApiKey: s.veniceApiKey,
       chatRelayEnabled: String(s.chatRelayEnabled),
       chatRelayUrl: s.chatRelayUrl,
+      // MA-1: persist custom provider config (optional fields)
+      customBaseUrl: s.customBaseUrl || '',
+      customModel: s.customModel || '',
+      customApiKey: s.customApiKey || '',
     },
   });
 

@@ -151,6 +151,10 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
         const bridgeRelayUrl = (await figma.clientStorage.getAsync('figmento-bridge-relay-url')) || '';
         // DM-3: Load Codex OAuth token
         const codexToken = await loadCodexToken();
+        // MA-1: Load custom OpenAI-compatible provider config
+        const customBaseUrl = (await figma.clientStorage.getAsync('figmento-chat-custom-base-url')) || '';
+        const customModel = (await figma.clientStorage.getAsync('figmento-chat-custom-model')) || '';
+        const customApiKey = (await figma.clientStorage.getAsync('figmento-chat-custom-api-key')) || '';
 
         console.log('[Figmento Sandbox] get-settings relay:', { enabled: chatRelayEnabled, url: chatRelayUrl, bridgeChannel, bridgeRelayUrl });
 
@@ -167,6 +171,9 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
             bridgeChannel: bridgeChannel,
             bridgeRelayUrl: bridgeRelayUrl,
             codexToken: codexToken || null,
+            customBaseUrl: customBaseUrl,
+            customModel: customModel,
+            customApiKey: customApiKey,
           },
         });
       } catch (error) {
@@ -206,6 +213,17 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
         }
         if (s.chatRelayUrl) {
           await figma.clientStorage.setAsync('figmento-chat-relay-url', s.chatRelayUrl);
+        }
+
+        // MA-1: Persist custom OpenAI-compatible provider config (empty string = clear)
+        if (s.customBaseUrl !== undefined) {
+          await figma.clientStorage.setAsync('figmento-chat-custom-base-url', s.customBaseUrl);
+        }
+        if (s.customModel !== undefined) {
+          await figma.clientStorage.setAsync('figmento-chat-custom-model', s.customModel);
+        }
+        if (s.customApiKey !== undefined) {
+          await figma.clientStorage.setAsync('figmento-chat-custom-api-key', s.customApiKey);
         }
       }
       return true;

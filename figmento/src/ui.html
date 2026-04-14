@@ -5079,7 +5079,21 @@
             <optgroup label="Claude Code (Local)">
               <option value="claude-code" selected>Claude Code (Max subscription)</option>
             </optgroup>
+            <optgroup label="Custom (OpenAI-compatible)">
+              <option value="custom">Custom Endpoint (Ollama, LM Studio, OpenRouter...)</option>
+            </optgroup>
           </select>
+        </div>
+        <div id="key-custom-chat" class="chat-settings-field" style="display:none;">
+          <label>Custom Base URL</label>
+          <input type="text" id="settings-custom-base-url" placeholder="http://localhost:11434/v1" />
+          <div class="hint">OpenAI-compatible endpoint. Examples: <code>http://localhost:11434/v1</code> (Ollama), <code>http://localhost:1234/v1</code> (LM Studio), <code>https://openrouter.ai/api/v1</code> (OpenRouter).</div>
+          <label style="margin-top:8px;">Model Name</label>
+          <input type="text" id="settings-custom-model" placeholder="gemma3:4b" />
+          <div class="hint">The exact model identifier the endpoint expects (e.g. <code>gemma3:4b</code>, <code>llama3.2</code>, <code>mistral-7b-instruct</code>).</div>
+          <label style="margin-top:8px;">API Key (optional)</label>
+          <input type="password" id="settings-custom-api-key" placeholder="Leave empty for local models" />
+          <div class="hint">Leave empty for local models (Ollama, LM Studio). Required for OpenRouter, Together AI, etc. Requires the WS relay (Settings → Advanced → Bridge).</div>
         </div>
         <div id="key-gemini-chat" class="chat-settings-field">
           <label>Google Gemini API Key</label>

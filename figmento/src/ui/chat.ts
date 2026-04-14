@@ -66,6 +66,10 @@ export interface ChatSettings {
   chatRelayEnabled: boolean;
   chatRelayUrl: string;
   codexToken?: import('./oauth-flow').OAuthToken;
+  // MA-1: Custom OpenAI-compatible provider (Ollama, LM Studio, OpenRouter, etc.)
+  customBaseUrl?: string;   // e.g. "http://localhost:11434/v1"
+  customModel?: string;     // e.g. "gemma3:4b"
+  customApiKey?: string;    // optional — empty for local models
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -87,7 +91,7 @@ let currentBrief: DesignBrief | undefined;
 interface ChatSession {
   id: string;
   title: string;
-  provider: 'claude' | 'gemini' | 'openai' | 'venice' | 'claude-code' | 'codex';
+  provider: 'claude' | 'gemini' | 'openai' | 'venice' | 'claude-code' | 'codex' | 'custom';
   model: string;
   apiHistory: unknown[];
   displayLog: Array<{ role: 'user' | 'assistant'; html: string }>;
@@ -277,6 +281,12 @@ function isClaudeCodeModel(model: string): boolean {
   return model === 'claude-code';
 }
 
+// MA-1: Custom OpenAI-compatible provider. The dropdown value "custom" is a sentinel
+// — the actual model name sent to the API comes from chatSettings.customModel.
+function isCustomModel(model: string): boolean {
+  return model === 'custom';
+}
+
 // ═══════════════════════════════════════════════════════════════
 // CHAT SESSIONS PERSISTENCE
 // ═══════════════════════════════════════════════════════════════
@@ -285,6 +295,7 @@ function getActiveProvider(): ChatSession['provider'] {
   const m = chatSettings.model;
   if (isClaudeCodeModel(m)) return 'claude-code';
   if (isCodexModel(m)) return 'codex';
+  if (isCustomModel(m)) return 'custom';
   if (isGeminiModel(m)) return 'gemini';
   if (isOpenAIModel(m)) return 'openai';
   if (isVeniceModel(m)) return 'venice';
@@ -294,7 +305,7 @@ function getActiveProvider(): ChatSession['provider'] {
 function getActiveHistory(): unknown[] {
   switch (getActiveProvider()) {
     case 'gemini': return geminiHistory;
-    case 'openai': case 'venice': return openaiHistory;
+    case 'openai': case 'venice': case 'custom': return openaiHistory;
     case 'codex': return codexHistory;
     case 'claude-code': return claudeCodeHistory;
     default: return conversationHistory;
@@ -370,6 +381,7 @@ function sanitizeHistoryForProvider(
     case 'openai':
     case 'venice':
     case 'codex':
+    case 'custom':
       return sanitizeOpenAIHistory(history as Array<Record<string, unknown>>);
     case 'claude-code':
       return history.map(m => ({ ...(m as Record<string, unknown>) }));
@@ -441,7 +453,7 @@ function loadSession(session: ChatSession) {
     case 'gemini':
       geminiHistory.push(...(clean as GeminiContent[]));
       break;
-    case 'openai': case 'venice':
+    case 'openai': case 'venice': case 'custom':
       openaiHistory.push(...(clean as Array<Record<string, unknown>>));
       break;
     case 'claude-code':
@@ -2167,11 +2179,26 @@ async function sendMessage() {
   const useVenice = isVeniceModel(chatSettings.model);
   const useClaudeCode = isClaudeCodeModel(chatSettings.model);
   const useCodex = isCodexModel(chatSettings.model);
+  const useCustom = isCustomModel(chatSettings.model);
 
   // API keys required for both relay mode (sent to server) and direct mode
   // Claude Code uses Max subscription — no API key needed
   // DM-3: Codex uses OAuth token — no API key needed
-  if (!useClaudeCode && !useCodex) {
+  // MA-1: Custom provider requires baseUrl + model name; apiKey is optional (local models)
+  if (useCustom) {
+    if (!chatSettings.customBaseUrl) {
+      appendChatBubble('assistant', '<span class="chat-error">Set a Custom Base URL in Settings first (e.g. http://localhost:11434/v1).</span>');
+      return;
+    }
+    if (!chatSettings.customModel) {
+      appendChatBubble('assistant', '<span class="chat-error">Set a Custom Model name in Settings first (e.g. gemma3:4b).</span>');
+      return;
+    }
+    if (!chatSettings.chatRelayEnabled) {
+      appendChatBubble('assistant', '<span class="chat-error">Custom providers require the WS relay. Enable it in Settings → Advanced → Bridge.</span>');
+      return;
+    }
+  } else if (!useClaudeCode && !useCodex) {
     if (useGemini && !chatSettings.geminiApiKey) {
       appendChatBubble('assistant', '<span class="chat-error">Set your Gemini API key in Settings first.</span>');
       return;
@@ -2282,6 +2309,18 @@ async function sendMessage() {
       }
       console.log('[Figmento Chat] → CODEX path (relay)');
       await runRelayTurn(text, useGemini, useOpenAI, useVenice, capturedAttachment, capturedAttachments);
+    // MA-1: Custom provider always routes through relay (Node.js fetch — no CORS issues
+    // with local servers like Ollama, unlike browser iframe fetch).
+    } else if (useCustom) {
+      if (!bridgeConnected) {
+        autoConnectBridge(chatSettings.chatRelayUrl);
+        await new Promise(r => setTimeout(r, 1500));
+        if (!getBridgeConnected()) {
+          throw new Error('Relay not reachable. Custom providers require the relay — start it with "npm run dev" in figmento-ws-relay/.');
+        }
+      }
+      console.log('[Figmento Chat] → CUSTOM path (relay)');
+      await runRelayTurn(text, useGemini, useOpenAI, useVenice, capturedAttachment, capturedAttachments, true);
     // Route through relay if enabled and bridge is connected
     } else if (relayEnabled && bridgeConnected) {
       console.log('[Figmento Chat] → RELAY path');
@@ -2342,7 +2381,7 @@ function updateRelayStatus(state: RelayConnectionState) {
 // CHAT — RELAY TURN (POST /chat/turn)
 // ═══════════════════════════════════════════════════════════════
 
-async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean, useVenice: boolean, attachment: string | null, allAttachments?: AttachmentFile[]): Promise<void> {
+async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean, useVenice: boolean, attachment: string | null, allAttachments?: AttachmentFile[], useCustom: boolean = false): Promise<void> {
   const channelId = getBridgeChannelId();
   if (!channelId) {
     throw new Error('Bridge channel not available. Falling back to direct API.');
@@ -2380,13 +2419,20 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
     }
   }
 
-  const provider = useCodex ? 'codex' : useGemini ? 'gemini' : useOpenAI ? 'openai' : useVenice ? 'venice' : 'claude';
-  const apiKey = useCodex ? (chatSettings.codexToken?.access_token || '')
+  // MA-1: custom provider routes through OpenAI-compatible endpoint with user-supplied baseUrl.
+  const provider = useCustom ? 'custom' : useCodex ? 'codex' : useGemini ? 'gemini' : useOpenAI ? 'openai' : useVenice ? 'venice' : 'claude';
+  const apiKey = useCustom ? (chatSettings.customApiKey || '')
+    : useCodex ? (chatSettings.codexToken?.access_token || '')
     : useGemini ? chatSettings.geminiApiKey
     : useOpenAI ? chatSettings.openaiApiKey
     : useVenice ? chatSettings.veniceApiKey
     : chatSettings.anthropicApiKey;
-  const history = useCodex ? codexHistory : useGemini ? geminiHistory : useOpenAI ? openaiHistory : useVenice ? openaiHistory : conversationHistory;
+  const history = useCustom ? openaiHistory
+    : useCodex ? codexHistory
+    : useGemini ? geminiHistory
+    : useOpenAI ? openaiHistory
+    : useVenice ? openaiHistory
+    : conversationHistory;
 
   // DM-3: Codex always uses local relay, regardless of saved relay URL
   const relayBase = useCodex ? LOCAL_RELAY_URL : chatSettings.chatRelayUrl;
@@ -2402,11 +2448,13 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
     channel: channelId,
     provider,
     apiKey,
-    model: chatSettings.model,
+    // MA-1: for custom provider, send the user's customModel name instead of the dropdown sentinel "custom".
+    model: useCustom ? (chatSettings.customModel || '') : chatSettings.model,
     history,
     memory: memoryEntries,
     preferences: learnedPreferences,
     geminiApiKey: chatSettings.geminiApiKey || undefined,
+    ...(useCustom && chatSettings.customBaseUrl ? { baseUrl: chatSettings.customBaseUrl } : {}),
     ...(attachment && { attachmentBase64: attachment }),
     ...(fileAttachments.length > 0 && { fileAttachments }),
     ...(selectionSnapshot.length > 0 && { currentSelection: selectionSnapshot }),

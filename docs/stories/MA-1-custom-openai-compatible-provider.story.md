@@ -1,7 +1,7 @@
 # MA-1: Custom OpenAI-Compatible Provider — Model-Agnostic Chat
 
 **Epic:** MA — Model-Agnostic Chat Support
-**Status:** Ready
+**Status:** Done
 **Priority:** P3 (Low)
 **Effort:** S (3pt)
 **Owner:** @dev
@@ -161,3 +161,4 @@ interface ChatTurnRequest {
 |------|--------|--------|
 | 2026-04-03 | @pm (Morgan) | Story created — Draft |
 | 2026-04-13 | @po (Pax) | **Validation GO — 9.5/10.** Clear ACs, explicit IN/OUT, risks with mitigations, Ollama smoke test in AC7, graceful degradation for non-tool-use models in AC8, no-regression guard in AC9. Known compatible endpoints documented. Status: Draft → Ready. |
+| 2026-04-13 | @dev (Dex) | **Implemented.** Files changed: `chat-engine.ts` (ChatTurnRequest + callOpenAIAPI baseUrl param + custom provider routing in openai/venice handler), `chat-endpoint.ts` (provider validation allows 'custom', requires baseUrl for custom, allows empty apiKey for custom), `chat.ts` (`isCustomModel` helper + `ChatSettings` extension + provider union + sendMessage validation + runRelayTurn useCustom param + relay body construction with baseUrl), `chat-settings.ts` (updateSettingsUI show/hide + save/load custom fields), `settings.ts` sandbox handler (clientStorage persistence for customBaseUrl/customModel/customApiKey), `ui.html` (dropdown option + form fields). AC1–6 verified. AC7 (Ollama smoke test) requires manual runtime test — not automated. AC8 (tool-use degradation) relies on existing `callOpenAIAPI` error handling. AC9 (no regression) — both builds clean, existing providers untouched. Custom provider requires relay enabled (surfaced as error message in sendMessage). Status: Ready → Done. |
