@@ -1,6 +1,6 @@
 # Figmento — Project Status (Agent Quick-Reference)
 
-> **Last synced:** 2026-04-14 — @po audit + full Done-story archive pass
+> **Last synced:** 2026-04-15 — **DMD-1 DONE** (10/10 ACs accepted by @po, 20/20 validation exercises PASS, zero schema bugs). DMD-2/3/4 unblocked for parallel drafting
 > **Purpose:** Single source of truth for "what's active, what's parked, what's shipped"
 > so any agent (@pm, @po, @sm, @dev, @qa, @architect) can orient in one read.
 > **Update this file** whenever a story lands, gets blocked, or changes priority.
@@ -9,12 +9,13 @@
 
 ## TL;DR
 
-- **Zero Ready/Draft stories** — active backlog is empty.
+- **Zero active stories.** `DMD-1` shipped Done 2026-04-15 (10/10 ACs accepted by @po, 20 validation exercises PASS, zero schema bugs). DMD-1 is a candidate for archival after Phase A ships; keeping it in `docs/stories/` for now as a reference for @sm drafting DMD-2/3/4.
+- **One Draft epic — active, Phase A Story 1/5 complete.** `epic-DMD` (DESIGN.md pipeline). Phase A = 5 stories (**DMD-1 Done**, DMD-2..5 unblocked for @sm drafting), Phase B = 2 stories (DMD-6..7 not yet drafted). Epic amended 2026-04-15 to expand fenced-block languages 4→9 after @architect's audit findings.
 - **One Scaffolded story** — `DM-2` (Anthropic OAuth) waiting on external prereqs.
-- **5 epics still active** — all parked on strategic decisions or external blockers, not execution work.
-- **75 story files + 8 fully-Done epics** archived to `_archived/` in this pass.
+- **6 epics active** — DMD is executing; the other 5 are parked on strategic decisions or external blockers.
+- **75 story files + 8 fully-Done epics** archived to `_archived/`.
 
-If you're an agent looking for "what to work on next" — there is nothing in the queue.
+If you're an agent looking for "what to work on next" — `DMD-1` is **Done**. Next action: @sm `*draft` for **DMD-2 (parser), DMD-3 (validator), and DMD-4 (exporter)** — they share the same contract ([`design-md.schema.json`](../../figmento-mcp-server/schemas/design-md.schema.json) + 3 reference samples) and can be drafted in parallel.
 If you want to unblock something, see `## Parked / On-Standby` below for external blockers.
 
 ---
@@ -23,6 +24,7 @@ If you want to unblock something, see `## Parked / On-Standby` below for externa
 
 | Story | Status | Blocker | Owner |
 |---|---|---|---|
+| [DMD-1 — DESIGN.md Schema Specification](DMD-1-schema-specification.story.md) | **Done** | All 10 ACs accepted by @po 2026-04-15. Unblocks DMD-2/3/4. Archival candidate after Phase A ships. | @architect (executor), @po (accepted) |
 | [DM-2 — Anthropic OAuth](DM-2-oauth-login.story.md) | **Scaffolded** | External (OAuth app registration + callback page hosting) | @dev |
 
 **DM-2 activation requires:**
@@ -36,10 +38,11 @@ Code scaffold is complete: types, storage, validation, Bearer-auth routing in `c
 
 ## Active Epics (docs/stories/epic-*.md)
 
-All 5 remaining active epics are **parked on strategic decisions or external blockers**, not execution work.
+One epic is **executable** (epic-DMD, top of queue). The other 5 are **parked on strategic decisions or external blockers**.
 
 | Epic | State | Why it's still active |
 |---|---|---|
+| [epic-DMD — DESIGN.md Pipeline](epic-DMD-design-markdown.md) | **Active, Phase A Story 1/5 Done** | DMD-1 shipped 2026-04-15 (spec + JSON Schema + 3 reference samples, all 10 ACs PASS). Phase A stories remaining: DMD-2 (parser), DMD-3 (validator), DMD-4 (exporter), DMD-5 (re-seed validation gate). DMD-2/3/4 can be drafted in parallel; DMD-5 blocked on DMD-2 + DMD-4. Phase B (DMD-6..7) not yet drafted. Parser decision locked to `marked@^12`. Complementary to epic-ODS — ODS takes PDF briefs, DMD takes markdown DS files. |
 | [epic-DQ — Design Quality](epic-DQ-design-quality.md) | Draft, 0 child stories | Strategic bucket — 15 stories across 4 phases are notional, never drafted. Awaiting priority decision before @sm expands. |
 | [epic-FN — Figma Native Agent Migration](epic-FN-figma-native-integration.md) | Phase 1+2+4 Done, **Phase 3 Deferred** | Phase 3 (FN-10..14 MCP server migration) depends on Figma's `use_figma` API reaching GA. Not actionable until Figma ships. |
 | [epic-KI — Knowledge Injection](epic-KI-knowledge-injection.md) | Phases 1-3 Done, **KI-4 Superseded by AE-1** | Kept active for historical reference — phases 1-3 document what's in the bundled compiled-knowledge pipeline. KI-4 was closed because AE-1 auto-evaluation made the refinement-prompt injection redundant. |
@@ -47,6 +50,7 @@ All 5 remaining active epics are **parked on strategic decisions or external blo
 | [epic-ODS — One-Click Design System](epic-ODS-one-click-design-system.md) | Phase A+B Done, **Phase C not drafted** | Phase A+B (brief analysis → DS generation pipeline) shipped. Phase C (project persistence — ODS-8/9/10/11) is nice-to-have but never drafted into stories. |
 
 ### Strategic epics summary
+- **epic-DMD** is the active queue — Phase A Story 1/5 (DMD-1) shipped; next action is @sm `*draft` for DMD-2/3/4 in parallel.
 - **epic-DQ** + **epic-MQ** are naked buckets (no child stories drafted). @pm decision needed before investing @sm time.
 - **epic-FN** is fully blocked on Figma's API GA — no action possible.
 - **epic-KI** is effectively Done (via AE-1 supersession) but kept for historical context.
@@ -120,7 +124,7 @@ Files under [_archived/](_archived/) are **historical**. Don't edit them except 
 
 - **Starting a session?** Read this first to know the current state without re-auditing.
 - **Reporting to Caio?** Verify every claim here against code before quoting — statuses rot. Run a grep for AC markers if in doubt.
-- **Planning next work?** The active queue is DM-2 (scaffolded-external-blocker) only. If more work lands, update the tables above.
+- **Planning next work?** `DMD-1` is **Done**. Next action: @sm `*draft` for **DMD-2, DMD-3, and DMD-4** — they all share the same contract ([`design-md.schema.json`](../../figmento-mcp-server/schemas/design-md.schema.json) + reference samples) and can be drafted in parallel. DMD-2 is the parser (consumes `scripts/validate-design-md-sample.js` as reference implementation per spec §12.5). DMD-3 is the standalone validator (zero side effects). DMD-4 is the exporter (must guarantee byte-identical round-trip against the 3 samples). DM-2 (Anthropic OAuth) remains Scaffolded-external-blocker.
 - **Archiving a new Done story?** `git mv` the file to `_archived/`, add a line under the appropriate prefix above, update "Last synced" date at top.
 - **Spotting drift?** If you find an active story that's actually shipped, don't re-implement — mark it Done (retroactive) with a change log entry pointing at the shipped code, then archive it.
 - **Keep STATUS.md current.** The single worst failure mode of this file is silent drift. Update the "Last synced" date every time you touch it.
