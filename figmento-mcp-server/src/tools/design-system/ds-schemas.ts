@@ -88,3 +88,9 @@ export const brandConsistencyCheckSchema = {
   nodeId2: z.string().optional().describe('Second frame nodeId to compare (optional — cross-frame consistency check)'),
   system: z.string().describe('Design system name to compare against'),
 };
+
+// DMD-3: validate_design_md — zero side effects (no file writes, no Figma calls)
+export const validateDesignMdSchema = {
+  path: z.string().optional().describe('Path to a DESIGN.md file to validate. Provide either `path` OR `content` (not both).'),
+  content: z.string().optional().describe('Inline DESIGN.md markdown text to validate. Provide either `path` OR `content` (not both).'),
+};

@@ -10,8 +10,10 @@ import * as nodePath from 'path';
 import { hexToHsl, hslToHex, lighten, darken, rotateHue, desaturate, bestTextColor, hexToRgb, rgbToHsl, relativeLuminance } from '../utils/color';
 import { getDesignSystemsDir } from '../utils/knowledge-paths';
 import { getByDotPath, setByDotPath } from '../utils/tokens';
-import { generateDesignSystemFromUrlSchema, refineDesignSystemSchema } from './ds-schemas';
+import { generateDesignSystemFromUrlSchema, refineDesignSystemSchema, validateDesignMdSchema } from './ds-schemas';
 import { generateTokens, listAvailableSystems } from './ds-crud';
+import { parseDesignMd } from './ds-md-parser';
+import { validateDesignMdIR } from './ds-md-validator';
 import type { DesignTokens, PresetDefaults, ExtractedDesignTokens, VisionExtraction, HybridMergeResult, SendDesignCommand } from './ds-types';
 
 // ═══════════════════════════════════════════════════════════
@@ -732,6 +734,80 @@ export function registerExtractionTools(
               ? `${changeCount} token(s) updated. Call design_system_preview to see the result visually.`
               : 'No changes were needed — the system already matched your inputs.',
           }, null, 2),
+        }],
+      };
+    }
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // DMD-3: validate_design_md — zero-side-effect validator
+  // Parses a DESIGN.md file (or inline content) and returns a structured
+  // report of issues. Does NOT write files or call any Figma tool.
+  // See: docs/stories/DMD-3-validate-design-md.story.md
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'validate_design_md',
+    'Validate a DESIGN.md file against the Figmento schema (docs/architecture/DESIGN-MD-SPEC.md). ZERO SIDE EFFECTS — does not write files or call any Figma tool. Returns a verdict (PASS/CONCERNS/FAIL) plus a structured list of issues with severity, category, message, and suggestion. Use this for the edit-validate-fix authoring loop before committing a DESIGN.md via import_design_system_from_md.',
+    validateDesignMdSchema,
+    async (params: { path?: string; content?: string }) => {
+      let markdown: string;
+
+      if (params.path) {
+        try {
+          markdown = fs.readFileSync(params.path, 'utf-8');
+        } catch (err) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify({
+                verdict: 'FAIL',
+                issues: [{
+                  severity: 'CRITICAL',
+                  category: 'structure',
+                  message: `Could not read file at ${params.path}: ${(err as Error).message}`,
+                }],
+              }, null, 2),
+            }],
+          };
+        }
+      } else if (params.content !== undefined) {
+        markdown = params.content;
+      } else {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              verdict: 'FAIL',
+              issues: [{
+                severity: 'CRITICAL',
+                category: 'structure',
+                message: 'Must provide either `path` or `content` input',
+              }],
+            }, null, 2),
+          }],
+        };
+      }
+
+      let report;
+      try {
+        const ir = parseDesignMd(markdown);
+        report = validateDesignMdIR(ir);
+      } catch (err) {
+        report = {
+          verdict: 'FAIL',
+          issues: [{
+            severity: 'CRITICAL',
+            category: 'structure',
+            message: `Parser or validator error: ${(err as Error).message}`,
+          }],
+        };
+      }
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify(report, null, 2),
         }],
       };
     }

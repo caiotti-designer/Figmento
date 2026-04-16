@@ -1,6 +1,6 @@
 # Figmento — Project Status (Agent Quick-Reference)
 
-> **Last synced:** 2026-04-15 — DMD-2/3/4 validated GO by @po (10/10 each), all three Ready. Recommended ship order: DMD-3 → DMD-2 → DMD-4
+> **Last synced:** 2026-04-16 — **DMD-3 DONE** (22/22 tests, 374/374 full suite, 0 regressions). Parser + validator + MCP tool shipped. DMD-2 next
 > **Purpose:** Single source of truth for "what's active, what's parked, what's shipped"
 > so any agent (@pm, @po, @sm, @dev, @qa, @architect) can orient in one read.
 > **Update this file** whenever a story lands, gets blocked, or changes priority.
@@ -26,8 +26,8 @@ If you want to unblock something, see `## Parked / On-Standby` below for externa
 | Story | Status | Blocker | Owner |
 |---|---|---|---|
 | [DMD-1 — DESIGN.md Schema Specification](DMD-1-schema-specification.story.md) | **Done** | Committed `6e78c4b`. All 10 ACs accepted by @po 2026-04-15. | @architect (executor), @po (accepted) |
-| [DMD-3 — `validate_design_md` MCP Tool](DMD-3-validate-design-md.story.md) | **Ready** | None — ship #1 (creates shared `ds-md-validator.ts` module) | @dev (executor), @qa (gate) |
-| [DMD-2 — `import_design_system_from_md` MCP Tool](DMD-2-import-design-system-from-md.story.md) | **Ready** | None — ship #2 (imports DMD-3's validator unchanged) | @dev (executor), @qa (gate) |
+| [DMD-3 — `validate_design_md` MCP Tool](DMD-3-validate-design-md.story.md) | **Done** | Shipped 2026-04-16 — parser + validator + MCP tool + 22 tests. Full suite 374/374 PASS. | @dev (shipped), @qa (regression-verified) |
+| [DMD-2 — `import_design_system_from_md` MCP Tool](DMD-2-import-design-system-from-md.story.md) | **Ready** | None — ship #2 (imports DMD-3's shared modules unchanged) | @dev (executor), @qa (gate) |
 | [DMD-4 — `export_design_system_to_md` MCP Tool](DMD-4-export-design-system-to-md.story.md) | **Ready** | None — ship #3 (round-trip tests need DMD-2's parser) | @dev (executor), @qa (gate) |
 | [DM-2 — Anthropic OAuth](DM-2-oauth-login.story.md) | **Scaffolded** | External (OAuth app registration + callback page hosting) | @dev |
 

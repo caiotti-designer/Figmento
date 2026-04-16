@@ -1,6 +1,6 @@
 # DMD-3 — `validate_design_md` MCP Tool
 
-## Status: Ready
+## Status: Done
 
 > **Epic:** [epic-DMD — DESIGN.md Pipeline](epic-DMD-design-markdown.md)
 > **Phase:** A — Pipeline + Validation Gate
@@ -168,6 +168,7 @@ The three DMD-1 samples are the validator's permanent regression suite. If a fut
 |---|---|---|---|
 | 2026-04-15 | 0.1 | Initial draft from @sm. Thin MCP wrapper around shared `validateDesignMdIR`. Story deliberately sized for a fast turnaround (~2–3 pts) — most of the work lives in the shared `ds-md-validator.ts` module owned jointly with DMD-2. Verdict mapping (PASS/CONCERNS/FAIL), severity definitions, and upstream tolerance contract all locked in the story body for both DMD-2 and DMD-3 to consume. | @sm (River) |
 | 2026-04-15 | 0.2 | `*validate-story-draft` GO verdict (10/10). Figmento 10-point checklist passed. Notable @po finding: DMD-3 is the **authoritative source** for severity definitions and verdict mapping — the canonical tables live in this story's Dev Notes and DMD-2 consumes them by reference. Recommendation: **DMD-3 ships first** of the three Phase A tool stories because it's smallest (2-3 pts), creates the shared `ds-md-validator.ts` module, and establishes the contract before DMD-2's integration surface needs it. Status: Draft → **Ready**. @dev unblocked — this is the recommended first story of the three. | @po (Pax) |
+| 2026-04-16 | 1.0 | **DMD-3 DONE.** Shipped: `ds-md-parser.ts` (marked@^12 lexer, numbered-heading tolerance, mood/do-dont extraction), `ds-md-validator.ts` (shared module — structural ajv validation + semantic checks for hex validity, WCAG contrast, 8px-grid snap, font availability), `ds-md-types.ts` (shared TypeScript types + constants), `validate_design_md` MCP tool registered in `ds-extraction.ts` with Zod schema. `marked@^12` added to `package.json` dependencies. 22 tests in `tests/ds-md-validate.test.ts` — 6 parser tests + 10 validator severity tests + 6 reference sample regression tests (incl. aurelia contrast bug detection). Full test suite: **374/374 PASS, 0 regressions.** Build clean. Lint: 0 errors (16 pre-existing warnings). DMD-2 and DMD-4 now import the shared modules unchanged. Status: Ready → **Done**. | @dev (Dex) |
 
 ## Dev Agent Record
 
