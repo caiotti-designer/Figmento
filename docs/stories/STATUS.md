@@ -1,6 +1,6 @@
 # Figmento — Project Status (Agent Quick-Reference)
 
-> **Last synced:** 2026-04-15 — **DMD-1 DONE** (10/10 ACs accepted by @po, 20/20 validation exercises PASS, zero schema bugs). DMD-2/3/4 unblocked for parallel drafting
+> **Last synced:** 2026-04-15 — DMD-2/3/4 validated GO by @po (10/10 each), all three Ready. Recommended ship order: DMD-3 → DMD-2 → DMD-4
 > **Purpose:** Single source of truth for "what's active, what's parked, what's shipped"
 > so any agent (@pm, @po, @sm, @dev, @qa, @architect) can orient in one read.
 > **Update this file** whenever a story lands, gets blocked, or changes priority.
@@ -9,13 +9,14 @@
 
 ## TL;DR
 
-- **Zero active stories.** `DMD-1` shipped Done 2026-04-15 (10/10 ACs accepted by @po, 20 validation exercises PASS, zero schema bugs). DMD-1 is a candidate for archival after Phase A ships; keeping it in `docs/stories/` for now as a reference for @sm drafting DMD-2/3/4.
-- **One Draft epic — active, Phase A Story 1/5 complete.** `epic-DMD` (DESIGN.md pipeline). Phase A = 5 stories (**DMD-1 Done**, DMD-2..5 unblocked for @sm drafting), Phase B = 2 stories (DMD-6..7 not yet drafted). Epic amended 2026-04-15 to expand fenced-block languages 4→9 after @architect's audit findings.
+- **Three Ready stories in queue, recommended ship order locked.** `DMD-3` (validator, S, 2-3pt) → `DMD-2` (parser, L, 5-8pt) → `DMD-4` (exporter, M, 3-5pt). All validated GO by @po 2026-04-15 (10/10 each). DMD-3 ships first because it creates the shared `ds-md-validator.ts` module that DMD-2 imports unchanged; DMD-4 ships last because its round-trip test suite needs DMD-2's parser to run end-to-end.
+- **DMD-1 committed** as `6e78c4b` on `feat/ad-analyzer-bridge-chat-core` (11 files, 2921 insertions). Not yet pushed — @devops handles push.
+- **Epic active, Phase A Story 1/5 Done.** `epic-DMD` Phase A: DMD-1 ✅, DMD-2/3/4 Ready, DMD-5 (re-seed gate) blocked on DMD-2 + DMD-4. Phase B (DMD-6 plugin upload, DMD-7 docs) not yet drafted.
 - **One Scaffolded story** — `DM-2` (Anthropic OAuth) waiting on external prereqs.
 - **6 epics active** — DMD is executing; the other 5 are parked on strategic decisions or external blockers.
 - **75 story files + 8 fully-Done epics** archived to `_archived/`.
 
-If you're an agent looking for "what to work on next" — `DMD-1` is **Done**. Next action: @sm `*draft` for **DMD-2 (parser), DMD-3 (validator), and DMD-4 (exporter)** — they share the same contract ([`design-md.schema.json`](../../figmento-mcp-server/schemas/design-md.schema.json) + 3 reference samples) and can be drafted in parallel.
+If you're an agent looking for "what to work on next" — **DMD-3 is the recommended first story** (smallest, creates the shared validator module that DMD-2 imports). Once DMD-3 ships, DMD-2 is next, then DMD-4.
 If you want to unblock something, see `## Parked / On-Standby` below for external blockers.
 
 ---
@@ -24,7 +25,10 @@ If you want to unblock something, see `## Parked / On-Standby` below for externa
 
 | Story | Status | Blocker | Owner |
 |---|---|---|---|
-| [DMD-1 — DESIGN.md Schema Specification](DMD-1-schema-specification.story.md) | **Done** | All 10 ACs accepted by @po 2026-04-15. Unblocks DMD-2/3/4. Archival candidate after Phase A ships. | @architect (executor), @po (accepted) |
+| [DMD-1 — DESIGN.md Schema Specification](DMD-1-schema-specification.story.md) | **Done** | Committed `6e78c4b`. All 10 ACs accepted by @po 2026-04-15. | @architect (executor), @po (accepted) |
+| [DMD-3 — `validate_design_md` MCP Tool](DMD-3-validate-design-md.story.md) | **Ready** | None — ship #1 (creates shared `ds-md-validator.ts` module) | @dev (executor), @qa (gate) |
+| [DMD-2 — `import_design_system_from_md` MCP Tool](DMD-2-import-design-system-from-md.story.md) | **Ready** | None — ship #2 (imports DMD-3's validator unchanged) | @dev (executor), @qa (gate) |
+| [DMD-4 — `export_design_system_to_md` MCP Tool](DMD-4-export-design-system-to-md.story.md) | **Ready** | None — ship #3 (round-trip tests need DMD-2's parser) | @dev (executor), @qa (gate) |
 | [DM-2 — Anthropic OAuth](DM-2-oauth-login.story.md) | **Scaffolded** | External (OAuth app registration + callback page hosting) | @dev |
 
 **DM-2 activation requires:**
@@ -124,7 +128,7 @@ Files under [_archived/](_archived/) are **historical**. Don't edit them except 
 
 - **Starting a session?** Read this first to know the current state without re-auditing.
 - **Reporting to Caio?** Verify every claim here against code before quoting — statuses rot. Run a grep for AC markers if in doubt.
-- **Planning next work?** `DMD-1` is **Done**. Next action: @sm `*draft` for **DMD-2, DMD-3, and DMD-4** — they all share the same contract ([`design-md.schema.json`](../../figmento-mcp-server/schemas/design-md.schema.json) + reference samples) and can be drafted in parallel. DMD-2 is the parser (consumes `scripts/validate-design-md-sample.js` as reference implementation per spec §12.5). DMD-3 is the standalone validator (zero side effects). DMD-4 is the exporter (must guarantee byte-identical round-trip against the 3 samples). DM-2 (Anthropic OAuth) remains Scaffolded-external-blocker.
+- **Planning next work?** DMD-2/3/4 are **Ready** (@po GO 10/10 on each, 2026-04-15). Recommended implementation order: **DMD-3** first (smallest, creates the shared `ds-md-validator.ts` module + establishes severity definitions), then **DMD-2** (imports the validator unchanged, adds the parser + tool handler + auto-preview hook), then **DMD-4** (exporter + round-trip test suite against all 7 seeded systems — blocks DMD-5). @dev begins with DMD-3 Task 1. DM-2 (Anthropic OAuth) remains Scaffolded-external-blocker.
 - **Archiving a new Done story?** `git mv` the file to `_archived/`, add a line under the appropriate prefix above, update "Last synced" date at top.
 - **Spotting drift?** If you find an active story that's actually shipped, don't re-implement — mark it Done (retroactive) with a change log entry pointing at the shipped code, then archive it.
 - **Keep STATUS.md current.** The single worst failure mode of this file is silent drift. Update the "Last synced" date every time you touch it.
