@@ -10,11 +10,13 @@ import * as nodePath from 'path';
 import { hexToHsl, hslToHex, lighten, darken, rotateHue, desaturate, bestTextColor, hexToRgb, rgbToHsl, relativeLuminance } from '../utils/color';
 import { getDesignSystemsDir } from '../utils/knowledge-paths';
 import { getByDotPath, setByDotPath } from '../utils/tokens';
-import { generateDesignSystemFromUrlSchema, refineDesignSystemSchema, importDesignMdSchema, validateDesignMdSchema } from './ds-schemas';
+import { generateDesignSystemFromUrlSchema, refineDesignSystemSchema, importDesignMdSchema, exportDesignMdSchema, validateDesignMdSchema } from './ds-schemas';
 import { generateTokens, listAvailableSystems } from './ds-crud';
 import { parseDesignMd } from './ds-md-parser';
 import { validateDesignMdIR } from './ds-md-validator';
 import { irToTokens } from './ds-md-to-tokens';
+import { tokensToIR } from './ds-tokens-to-ir';
+import { renderMarkdown } from './ds-ir-to-markdown';
 import type { DesignTokens, PresetDefaults, ExtractedDesignTokens, VisionExtraction, HybridMergeResult, SendDesignCommand } from './ds-types';
 
 // ═══════════════════════════════════════════════════════════
@@ -869,6 +871,73 @@ export function registerExtractionTools(
       if (warning) response.warning = warning;
 
       return { content: [{ type: 'text' as const, text: JSON.stringify(response, null, 2) }] };
+    }
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // DMD-4: export_design_system_to_md — tokens.yaml → DESIGN.md
+  // Reads an existing design system's tokens, converts to canonical
+  // DESIGN.md format, and writes the file.
+  // See: docs/stories/DMD-4-export-design-system-to-md.story.md
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'export_design_system_to_md',
+    'Export a Figmento design system as a canonical DESIGN.md file. Reads tokens.yaml, converts to the 9-section markdown format with frontmatter and fenced blocks, writes to knowledge/design-systems/{name}/DESIGN.md (or a custom outputPath). Use this to share design systems with Cursor, Claude Desktop, or the awesome-design-md ecosystem.',
+    exportDesignMdSchema,
+    async (params: { name: string; outputPath?: string; overwrite?: boolean }) => {
+      const safeName = params.name.replace(/[^a-z0-9-]/gi, '').toLowerCase();
+      const tokensPath = nodePath.join(getDesignSystemsDir(), safeName, 'tokens.yaml');
+
+      if (!fs.existsSync(tokensPath)) {
+        const available = listAvailableSystems();
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          exported: false,
+          reason: 'NOT_FOUND',
+          message: `Design system "${safeName}" not found. Available: ${available.join(', ')}`,
+        }, null, 2) }] };
+      }
+
+      // Load tokens
+      const tokensContent = fs.readFileSync(tokensPath, 'utf-8');
+      const tokens = yaml.load(tokensContent) as Record<string, unknown>;
+
+      // Convert to IR then render to markdown
+      const ir = tokensToIR(tokens);
+      const markdown = renderMarkdown(ir);
+
+      // Resolve output path
+      const outputPath = params.outputPath || nodePath.join(getDesignSystemsDir(), safeName, 'DESIGN.md');
+
+      // Collision check
+      if (fs.existsSync(outputPath) && !params.overwrite) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          exported: false,
+          reason: 'FILE_EXISTS',
+          outputPath,
+          suggestion: 'Pass overwrite: true to replace the existing file.',
+        }, null, 2) }] };
+      }
+
+      // Write
+      fs.writeFileSync(outputPath, markdown, 'utf-8');
+
+      // Build summary
+      const sectionCount = Object.keys(ir.sections).filter(k => {
+        const v = ir.sections[k as keyof typeof ir.sections];
+        return v && Object.keys(v).length > 0;
+      }).length;
+
+      return { content: [{ type: 'text' as const, text: JSON.stringify({
+        exported: true,
+        outputPath,
+        systemName: safeName,
+        irSummary: {
+          sectionCount,
+          frontmatterKeys: Object.keys(ir.frontmatter),
+        },
+        markdown: markdown.length > 2000 ? markdown.slice(0, 2000) + '\n... (truncated)' : markdown,
+      }, null, 2) }] };
     }
   );
 

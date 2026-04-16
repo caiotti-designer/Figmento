@@ -89,6 +89,13 @@ export const brandConsistencyCheckSchema = {
   system: z.string().describe('Design system name to compare against'),
 };
 
+// DMD-4: export_design_system_to_md — exports tokens.yaml as DESIGN.md
+export const exportDesignMdSchema = {
+  name: z.string().describe('Design system name (e.g., "notion", "aurelia") — must exist in knowledge/design-systems/{name}/tokens.yaml.'),
+  outputPath: z.string().optional().describe('Path to write the DESIGN.md file. Defaults to knowledge/design-systems/{name}/DESIGN.md.'),
+  overwrite: z.boolean().optional().default(false).describe('When true, overwrite an existing DESIGN.md file at the target path without prompting.'),
+};
+
 // DMD-2: import_design_system_from_md — imports a DESIGN.md as a design system
 export const importDesignMdSchema = {
   path: z.string().optional().describe('Path to a DESIGN.md file to import. Provide either `path` OR `content` + `name` (not both). When path is given, name is inferred from the YAML frontmatter or filename.'),

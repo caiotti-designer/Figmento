@@ -42,8 +42,7 @@
         },
         "source_url": {
           "type": "string",
-          "format": "uri",
-          "description": "Upstream origin URL when the system was ingested from somewhere. Maps to tokens.yaml.source."
+          "description": "Upstream origin or attribution when the system was ingested from somewhere. Maps to tokens.yaml.source. Accepts URLs (https://...) and non-URL attribution strings (e.g., 'VoltAgent/awesome-design-md — design-md/notion/DESIGN.md'). DMD-4 round-trip testing revealed that existing tokens.yaml files use non-URI attribution strings — format: uri was relaxed to type: string to support the full round-trip contract."
         },
         "figma_file_key": {
           "type": ["string", "null"],

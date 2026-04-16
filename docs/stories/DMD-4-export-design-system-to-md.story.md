@@ -1,6 +1,6 @@
 # DMD-4 — `export_design_system_to_md` MCP Tool
 
-## Status: Ready
+## Status: Done
 
 > **Epic:** [epic-DMD — DESIGN.md Pipeline](epic-DMD-design-markdown.md)
 > **Phase:** A — Pipeline + Validation Gate
@@ -231,6 +231,7 @@ Alternative: DMD-4 could ship with ITS OWN test-time importer (a second copy of 
 |---|---|---|---|
 | 2026-04-15 | 0.1 | Initial draft from @sm. Exporter story scoped against the 7-system round-trip gate. Central technical challenge: canonical key ordering + YAML quoting discipline for byte-identical round-trip. aurelia superset divergence documented and resolved via policy (export-from-tokens canonical, collision warning on overwrite). Story deliberately defers DMD-5's re-seed commit decision — DMD-4 produces files, DMD-5 decides what's committed. | @sm (River) |
 | 2026-04-15 | 0.2 | `*validate-story-draft` GO verdict (10/10). Figmento 10-point checklist passed. Notable @po finding: DMD-4 has the **strongest risk documentation** of the three Phase A tool stories — round-trip fidelity is articulated as the central technical challenge in the Background section, not buried as an integrated Dev Note. aurelia superset policy is explicitly resolved in Task 6. Sequencing note: DMD-4's round-trip test suite depends on DMD-2 existing; **recommend implementing DMD-4 last of the three** (DMD-3 → DMD-2 → DMD-4) so the test chain can run end-to-end from day one. DMD-3 and DMD-4 can technically parallelize if @dev is careful with parser mocks, but DMD-4-last is the safer path. Status: Draft → **Ready**. | @po (Pax) |
+| 2026-04-16 | 1.0 | **DMD-4 DONE.** Shipped: `ds-tokens-to-ir.ts` (tokens → IR converter, inverse of irToTokens), `ds-ir-to-markdown.ts` (IR → canonical markdown renderer with deterministic key ordering), `export_design_system_to_md` MCP tool registered in `ds-extraction.ts`. Schema amendment: relaxed `source_url` from `format: "uri"` to `type: "string"` — round-trip testing exposed that existing `tokens.yaml` files store non-URI attribution strings (e.g., "VoltAgent/awesome-design-md — design-md/notion/DESIGN.md"). **46 new tests in `tests/ds-md-roundtrip.test.ts`** — round-trip verified on all 7 seeded systems: notion, claude, aurelia (thin-system semantic round-trip), figma, linear, stripe, vercel. All 9 canonical section headings emitted, deterministic output confirmed (two calls produce identical markdown), fenced-block language hints correct, frontmatter quoted. Full suite: **438/438 PASS, 0 regressions.** Build clean, lint 0 errors. Phase A stories 1-4 all Done; DMD-5 (re-seed gate) is now unblocked. Status: Ready → **Done**. | @dev (Dex) |
 
 ## Dev Agent Record
 
