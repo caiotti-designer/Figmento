@@ -10,10 +10,11 @@ import * as nodePath from 'path';
 import { hexToHsl, hslToHex, lighten, darken, rotateHue, desaturate, bestTextColor, hexToRgb, rgbToHsl, relativeLuminance } from '../utils/color';
 import { getDesignSystemsDir } from '../utils/knowledge-paths';
 import { getByDotPath, setByDotPath } from '../utils/tokens';
-import { generateDesignSystemFromUrlSchema, refineDesignSystemSchema, validateDesignMdSchema } from './ds-schemas';
+import { generateDesignSystemFromUrlSchema, refineDesignSystemSchema, importDesignMdSchema, validateDesignMdSchema } from './ds-schemas';
 import { generateTokens, listAvailableSystems } from './ds-crud';
 import { parseDesignMd } from './ds-md-parser';
 import { validateDesignMdIR } from './ds-md-validator';
+import { irToTokens } from './ds-md-to-tokens';
 import type { DesignTokens, PresetDefaults, ExtractedDesignTokens, VisionExtraction, HybridMergeResult, SendDesignCommand } from './ds-types';
 
 // ═══════════════════════════════════════════════════════════
@@ -736,6 +737,138 @@ export function registerExtractionTools(
           }, null, 2),
         }],
       };
+    }
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // DMD-2: import_design_system_from_md — DESIGN.md → tokens.yaml
+  // Parses a DESIGN.md file, validates it, converts to tokens, saves.
+  // Optional auto-preview hook when Figma is connected.
+  // See: docs/stories/DMD-2-import-design-system-from-md.story.md
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'import_design_system_from_md',
+    'Import a DESIGN.md file as a Figmento design system. Parses frontmatter + 9 canonical sections + fenced blocks, validates against the schema, converts to tokens.yaml, and saves to knowledge/design-systems/{name}/. Pass previewInFigma: true to auto-generate a preview frame in Figma after import.',
+    importDesignMdSchema,
+    async (params: { path?: string; content?: string; name?: string; previewInFigma?: boolean; overwrite?: boolean }) => {
+      // ─── Step 1: Resolve input to markdown string ─────────────────
+      let markdown: string;
+      let inferredName: string | undefined;
+
+      if (params.path) {
+        try {
+          markdown = fs.readFileSync(params.path, 'utf-8');
+          // Infer name from filename: /path/to/my-system/DESIGN.md → my-system
+          const dir = nodePath.basename(nodePath.dirname(params.path));
+          if (dir && dir !== '.' && dir !== 'design-systems') {
+            inferredName = dir.replace(/[^a-z0-9-]/gi, '').toLowerCase();
+          }
+        } catch (err) {
+          return { content: [{ type: 'text' as const, text: JSON.stringify({
+            systemName: null, tokensPath: null, verdict: 'FAIL',
+            issues: [{ severity: 'CRITICAL', category: 'structure', message: `Could not read file: ${(err as Error).message}` }],
+          }, null, 2) }] };
+        }
+      } else if (params.content !== undefined) {
+        markdown = params.content;
+      } else {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          systemName: null, tokensPath: null, verdict: 'FAIL',
+          issues: [{ severity: 'CRITICAL', category: 'structure', message: 'Must provide either `path` or `content` input.' }],
+        }, null, 2) }] };
+      }
+
+      // ─── Step 2: Parse ────────────────────────────────────────────
+      let ir;
+      try {
+        ir = parseDesignMd(markdown);
+      } catch (err) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          systemName: null, tokensPath: null, verdict: 'FAIL',
+          issues: [{ severity: 'CRITICAL', category: 'structure', message: `Parser error: ${(err as Error).message}` }],
+        }, null, 2) }] };
+      }
+
+      // ─── Step 3: Validate ─────────────────────────────────────────
+      const report = validateDesignMdIR(ir);
+
+      if (report.verdict === 'FAIL') {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          systemName: null, tokensPath: null,
+          verdict: report.verdict, issues: report.issues,
+        }, null, 2) }] };
+      }
+
+      // ─── Step 4: Resolve system name ──────────────────────────────
+      const systemName = (params.name || ir.frontmatter.name || inferredName || 'imported')
+        .replace(/[^a-z0-9-]/gi, '')
+        .toLowerCase();
+
+      if (!systemName) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          systemName: null, tokensPath: null, verdict: 'FAIL',
+          issues: [{ severity: 'CRITICAL', category: 'structure', message: 'Could not determine a system name. Provide `name` parameter or add `name` to the frontmatter.' }],
+        }, null, 2) }] };
+      }
+
+      // ─── Step 5: Check for duplicate name ─────────────────────────
+      const tokensPath = nodePath.join(getDesignSystemsDir(), systemName, 'tokens.yaml');
+      if (fs.existsSync(tokensPath) && !params.overwrite) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          systemName, tokensPath: null, verdict: 'CONCERNS',
+          issues: [{
+            severity: 'HIGH', category: 'structure',
+            message: `Design system "${systemName}" already exists at ${tokensPath}.`,
+            suggestion: 'Pass overwrite: true to replace, or provide a different name.',
+          }],
+          warning: 'DUPLICATE_NAME — existing system not overwritten.',
+        }, null, 2) }] };
+      }
+
+      // ─── Step 6: Convert IR → tokens + save ──────────────────────
+      const tokens = irToTokens(ir);
+      // Ensure the name in the saved tokens matches the resolved name
+      tokens.name = systemName;
+
+      try {
+        await saveFn(systemName, tokens as unknown as DesignTokens);
+      } catch (err) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          systemName, tokensPath: null, verdict: 'FAIL',
+          issues: [{ severity: 'CRITICAL', category: 'structure', message: `Save failed: ${(err as Error).message}` }],
+        }, null, 2) }] };
+      }
+
+      const savedPath = nodePath.join(getDesignSystemsDir(), systemName, 'tokens.yaml');
+
+      // ─── Step 7: Optional auto-preview ────────────────────────────
+      let preview: unknown = undefined;
+      let warning: string | undefined = undefined;
+
+      if (params.previewInFigma) {
+        try {
+          // Check if Figma is connected by attempting the design command
+          const previewData = await _sendDesignCommand('design_system_preview', {
+            system: systemName,
+          });
+          preview = previewData;
+        } catch {
+          warning = 'Figma not connected — skipping preview. tokens.yaml was saved successfully.';
+        }
+      }
+
+      // ─── Step 8: Response ─────────────────────────────────────────
+      const response: Record<string, unknown> = {
+        systemName,
+        tokensPath: savedPath,
+        verdict: report.verdict,
+      };
+      if (report.issues.length > 0) response.issues = report.issues;
+      if (preview) response.preview = preview;
+      if (warning) response.warning = warning;
+
+      return { content: [{ type: 'text' as const, text: JSON.stringify(response, null, 2) }] };
     }
   );
 

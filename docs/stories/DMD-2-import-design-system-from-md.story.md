@@ -1,6 +1,6 @@
 # DMD-2 — `import_design_system_from_md` MCP Tool (+ auto-preview hook)
 
-## Status: Ready
+## Status: Done
 
 > **Epic:** [epic-DMD — DESIGN.md Pipeline](epic-DMD-design-markdown.md)
 > **Phase:** A — Pipeline + Validation Gate
@@ -207,6 +207,7 @@ Check `typography.heading.family`, `typography.body.family`, `typography.mono.fa
 |---|---|---|---|
 | 2026-04-15 | 0.1 | Initial draft from @sm. Story scoped against DMD-1's locked contract (spec + schema + 3 reference samples + reference parser). 12 ACs + 8 tasks + 45 subtasks. Key decisions: marked@^12 parser locked, shared `ds-md-validator.ts` module with DMD-3, tolerance-contract validation built in, auto-preview hook absorbed. | @sm (River) |
 | 2026-04-15 | 0.2 | `*validate-story-draft` GO verdict (10/10). Figmento 10-point checklist passed, soft note on risk-documentation pattern (risks integrated into Dev Notes rather than dedicated section — accepted consistent with DMD-1). Cross-story finding: shared `ds-md-validator.ts` ownership is unambiguous with DMD-3 — recommend DMD-3 ships first to establish the module contract. Status: Draft → **Ready**. @dev unblocked (subject to DMD-3 sequencing). | @po (Pax) |
+| 2026-04-16 | 1.0 | **DMD-2 DONE.** Tasks 1-3 were pre-shipped by DMD-3 (parser, validator, types modules + marked@^12 dep). DMD-2 added: `ds-md-to-tokens.ts` (IR → tokens converter with defaults for thin systems), `import_design_system_from_md` MCP tool registered in `ds-extraction.ts` (Zod schema, duplicate-name detection with overwrite flag, auto-preview hook gated on Figma connection, structured response shape). 18 new tests in `tests/ds-md-import.test.ts` — 10 irToTokens converter tests (mandatory fields, extended colors, opentype_features, letter_spacing, elevation pass-through, constraints, gradient, aurelia thin-system, source_url mapping, default fallbacks) + 4 pipeline integration tests against notion/aurelia/claude (color count match, typography family match, scale match, spacing/radius match) + 4 edge-case tests (missing frontmatter, missing-both-sections FAIL, malformed YAML block skip, unknown language ignore). Full test suite: **392/392 PASS, 0 regressions.** Build clean. DMD-4 (exporter) now has all pipeline modules available for its round-trip tests. Status: Ready → **Done**. | @dev (Dex) |
 
 ## Dev Agent Record
 

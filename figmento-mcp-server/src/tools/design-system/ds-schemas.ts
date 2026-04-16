@@ -89,6 +89,15 @@ export const brandConsistencyCheckSchema = {
   system: z.string().describe('Design system name to compare against'),
 };
 
+// DMD-2: import_design_system_from_md — imports a DESIGN.md as a design system
+export const importDesignMdSchema = {
+  path: z.string().optional().describe('Path to a DESIGN.md file to import. Provide either `path` OR `content` + `name` (not both). When path is given, name is inferred from the YAML frontmatter or filename.'),
+  content: z.string().optional().describe('Inline DESIGN.md markdown text to import. Must also provide `name` when using content mode.'),
+  name: z.string().optional().describe('Design system name (kebab-case). Required when using `content` mode; overrides frontmatter name when provided with `path` mode.'),
+  previewInFigma: z.boolean().optional().default(false).describe('When true, auto-invoke design_system_preview after saving tokens.yaml. Requires Figma connection — if not connected, succeeds with a warning instead of failing.'),
+  overwrite: z.boolean().optional().default(false).describe('When true, overwrite an existing design system with the same name without prompting.'),
+};
+
 // DMD-3: validate_design_md — zero side effects (no file writes, no Figma calls)
 export const validateDesignMdSchema = {
   path: z.string().optional().describe('Path to a DESIGN.md file to validate. Provide either `path` OR `content` (not both).'),
