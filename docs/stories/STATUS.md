@@ -1,6 +1,6 @@
 # Figmento — Project Status (Agent Quick-Reference)
 
-> **Last synced:** 2026-04-22 — **epic-DMD CLOSED** (DMD-1..7 all Done). **DQ-HF-1 shipped** — post-showcase contrast + nesting discipline (CLAUDE.md rules + soft sibling warning + 12 regression tests). Full suite 450/450 PASS.
+> **Last synced:** 2026-04-22 — **Workspace clean, Ready queue empty, 15 commits ahead of remote.** epic-DMD CLOSED. DQ-HF-1 shipped. Skills MCP infrastructure (`list_skills` / `load_skill`) committed. All three packages build clean; 838 tests total pass (450 MCP server + 388 plugin). Awaiting @devops push.
 > **Purpose:** Single source of truth for "what's active, what's parked, what's shipped"
 > so any agent (@pm, @po, @sm, @dev, @qa, @architect) can orient in one read.
 > **Update this file** whenever a story lands, gets blocked, or changes priority.
@@ -11,6 +11,7 @@
 
 - **epic-DMD — CLOSED.** Phase A (DMD-1..5) + Phase B (DMD-6..7) all shipped. 7 seeded systems with canonical DESIGN.md files, round-trip PASS, 86/86 ds-md tests green, plugin drag-drop works, CLAUDE.md + authoring guide published at `docs/guides/design-md-authoring.md`.
 - **DQ-HF-1 — Done.** Post-showcase contrast + nesting discipline shipped 2026-04-22. CLAUDE.md rules added; `create_frame` now emits a soft warning when a sibling of a recent showcase is created without `parentId`; 12 regression tests + fixture + manual regression note.
+- **Skills MCP infrastructure — shipped** (`4208cec`). New tools `list_skills` + `load_skill` expose markdown recipes (with YAML frontmatter) to any MCP client. First recipe: `design-system.md`. Server instructions block added so agents default to the skills-first workflow instead of drifting to Instagram-post output on brand briefs.
 - **One Scaffolded story** — `DM-2` (Anthropic OAuth) waiting on external prereqs.
 - **6 epics active** — DMD is executing; the other 5 are parked on strategic decisions or external blockers.
 - **75 story files + 8 fully-Done epics** archived to `_archived/`.
