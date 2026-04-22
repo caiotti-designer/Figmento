@@ -753,7 +753,7 @@ export function registerExtractionTools(
     'import_design_system_from_md',
     'Import a DESIGN.md file as a Figmento design system. Parses frontmatter + 9 canonical sections + fenced blocks, validates against the schema, converts to tokens.yaml, and saves to knowledge/design-systems/{name}/. Pass previewInFigma: true to auto-generate a preview frame in Figma after import.',
     importDesignMdSchema,
-    async (params: { path?: string; content?: string; name?: string; previewInFigma?: boolean; overwrite?: boolean }) => {
+    async (params: { path?: string; content?: string; name?: string; previewInFigma?: boolean; createVariables?: boolean; overwrite?: boolean }) => {
       // ─── Step 1: Resolve input to markdown string ─────────────────
       let markdown: string;
       let inferredName: string | undefined;
@@ -844,19 +844,32 @@ export function registerExtractionTools(
 
       const savedPath = nodePath.join(getDesignSystemsDir(), systemName, 'tokens.yaml');
 
-      // ─── Step 7: Optional auto-preview ────────────────────────────
+      // ─── Step 7: Optional Figma-native bindings ──────────────────
       let preview: unknown = undefined;
-      let warning: string | undefined = undefined;
+      let variables: unknown = undefined;
+      const warnings: string[] = [];
+
+      if (params.createVariables) {
+        try {
+          const varsData = await _sendDesignCommand('create_variables_from_design_system', {
+            system: systemName,
+          });
+          variables = varsData;
+        } catch {
+          warnings.push('Figma not connected — skipping variable creation. tokens.yaml was saved successfully.');
+        }
+      }
 
       if (params.previewInFigma) {
         try {
-          // Check if Figma is connected by attempting the design command
           const previewData = await _sendDesignCommand('design_system_preview', {
             system: systemName,
           });
           preview = previewData;
         } catch {
-          warning = 'Figma not connected — skipping preview. tokens.yaml was saved successfully.';
+          if (!warnings.some(w => w.includes('Figma not connected'))) {
+            warnings.push('Figma not connected — skipping preview. tokens.yaml was saved successfully.');
+          }
         }
       }
 
@@ -867,8 +880,9 @@ export function registerExtractionTools(
         verdict: report.verdict,
       };
       if (report.issues.length > 0) response.issues = report.issues;
+      if (variables) response.variables = variables;
       if (preview) response.preview = preview;
-      if (warning) response.warning = warning;
+      if (warnings.length > 0) response.warning = warnings.join(' ');
 
       return { content: [{ type: 'text' as const, text: JSON.stringify(response, null, 2) }] };
     }

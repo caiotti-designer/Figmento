@@ -102,6 +102,7 @@ export const importDesignMdSchema = {
   content: z.string().optional().describe('Inline DESIGN.md markdown text to import. Must also provide `name` when using content mode.'),
   name: z.string().optional().describe('Design system name (kebab-case). Required when using `content` mode; overrides frontmatter name when provided with `path` mode.'),
   previewInFigma: z.boolean().optional().default(false).describe('When true, auto-invoke design_system_preview after saving tokens.yaml. Requires Figma connection — if not connected, succeeds with a warning instead of failing.'),
+  createVariables: z.boolean().optional().default(false).describe('When true, auto-invoke create_variables_from_design_system after saving — binds every color/spacing/radius token to native Figma Variables. Requires Figma connection; soft-fails with a warning when not connected.'),
   overwrite: z.boolean().optional().default(false).describe('When true, overwrite an existing design system with the same name without prompting.'),
 };
 

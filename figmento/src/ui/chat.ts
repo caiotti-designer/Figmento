@@ -787,6 +787,8 @@ async function buildClientFileContext(attachments: AttachmentFile[]): Promise<st
   if (nonImageFiles.length === 0) return '';
 
   const blocks: string[] = [];
+  let designMdFile: { name: string; content: string } | null = null;
+
   for (const file of nonImageFiles) {
     let text = '';
 
@@ -800,17 +802,49 @@ async function buildClientFileContext(attachments: AttachmentFile[]): Promise<st
         blocks.push(`📄 ${file.name} (PDF) — could not extract text (may be image-only/scanned)`);
         continue;
       }
-    } else if (file.type === 'text/plain' || file.type === 'image/svg+xml') {
+    } else if (
+      file.type === 'text/plain' ||
+      file.type === 'text/markdown' ||
+      file.type === 'text/x-markdown' ||
+      file.type === 'image/svg+xml' ||
+      /\.(md|markdown)$/i.test(file.name)
+    ) {
       text = extractTextFromDataUri(file.dataUri);
     }
 
     if (text) {
+      // DMD-6: detect DESIGN.md files — either by extension, frontmatter shape, or canonical section headings
+      const isDesignMd =
+        /\.(md|markdown)$/i.test(file.name) &&
+        (/^---\s*\n[\s\S]*?\bname\s*:/.test(text) || /^##\s+Visual Theme & Atmosphere/m.test(text));
+
+      if (isDesignMd && !designMdFile) {
+        designMdFile = { name: file.name, content: text };
+      }
       blocks.push(`📄 ${file.name}\nContent:\n${text}`);
     }
   }
 
   if (blocks.length === 0) return '';
-  return `[EXTRACTED FILE CONTENT]\n${blocks.join('\n\n---\n\n')}`;
+
+  let context = `[EXTRACTED FILE CONTENT]\n${blocks.join('\n\n---\n\n')}`;
+
+  // DMD-6: if a DESIGN.md was attached, inject an explicit directive so the
+  // agent calls the import tool rather than just discussing the content.
+  if (designMdFile) {
+    const inferredName = designMdFile.name.replace(/\.(md|markdown)$/i, '').replace(/[^a-z0-9-]/gi, '').toLowerCase() || 'imported';
+    context += `\n\n[FIGMENTO DESIGN.md DETECTED]\n` +
+      `A Figmento DESIGN.md file (${designMdFile.name}) was attached. You MUST call the MCP tool ` +
+      `\`import_design_system_from_md\` with these exact parameters:\n` +
+      `  content: <the full markdown content shown above>\n` +
+      `  name: "${inferredName}"\n` +
+      `  previewInFigma: true\n` +
+      `  createVariables: true\n` +
+      `This one call will save the design system, create Figma Variables bound to its tokens, and render a visual preview on the canvas. ` +
+      `Do NOT re-explain the file — import it directly. After the tool returns, briefly confirm what was imported and where the preview frame landed.`;
+  }
+
+  return context;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1208,9 +1242,10 @@ export function initChat() {
     if (!file) return;
 
     // Validate file type
-    const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'application/pdf', 'text/plain'];
-    if (!validTypes.includes(file.type)) {
-      appendChatBubble('assistant', '<span class="chat-error">Unsupported file type. Please upload PNG, JPG, WEBP, SVG, PDF, or TXT.</span>');
+    const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'application/pdf', 'text/plain', 'text/markdown', 'text/x-markdown'];
+    const isMarkdownByExt = /\.(md|markdown)$/i.test(file.name);
+    if (!validTypes.includes(file.type) && !isMarkdownByExt) {
+      appendChatBubble('assistant', '<span class="chat-error">Unsupported file type. Please upload PNG, JPG, WEBP, SVG, PDF, TXT, or MD.</span>');
       fileInput.value = '';
       return;
     }
@@ -1634,9 +1669,10 @@ export function initChat() {
       const files = e.dataTransfer?.files;
       if (!files || files.length === 0) return;
 
-      const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'application/pdf', 'text/plain'];
+      const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'application/pdf', 'text/plain', 'text/markdown', 'text/x-markdown'];
       for (const file of Array.from(files)) {
-        if (!validTypes.includes(file.type)) continue;
+        const isMarkdownByExt = /\.(md|markdown)$/i.test(file.name);
+        if (!validTypes.includes(file.type) && !isMarkdownByExt) continue;
         if (file.size > 20 * 1024 * 1024) {
           appendChatBubble('assistant', `<span class="chat-error">${file.name} too large (max 20MB)</span>`);
           continue;
