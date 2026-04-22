@@ -1954,4 +1954,4 @@ export const DESIGN_RULES: Record<string, unknown> = {
   }
 };
 
-export const KNOWLEDGE_VERSION: string = "24942c0268f389b6";
+export const KNOWLEDGE_VERSION: string = "c1d377e71e872fe3";
