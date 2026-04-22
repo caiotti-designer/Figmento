@@ -99,8 +99,32 @@ export async function handleCreateDSShowcase(params: Record<string, unknown>): P
   const PAD = 80;
   const CONTENT_W = FRAME_W - PAD * 2;
   const BG_COLOR = colors.background || '#FFFFFF';
-  const TEXT_COLOR = colors.text || '#1A202C';
-  const MUTED_COLOR = colors.muted || '#718096';
+
+  // ── Contrast-aware text color picking ────────────────────────────
+  // HOTFIX-2026-04-16: when BrandAnalysis produces dark-theme palettes,
+  // colors.text and colors.muted can have too little contrast against
+  // colors.background — section titles become invisible. Fall back to
+  // safe high-contrast defaults when that happens.
+  const toLin = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  const luminance = (hex: string): number => {
+    const { r, g, b } = hexToRgb(hex);
+    return 0.2126 * toLin(r) + 0.7152 * toLin(g) + 0.0722 * toLin(b);
+  };
+  const bgLum = luminance(BG_COLOR);
+  const isDarkBg = bgLum < 0.5;
+
+  const rawText = colors.text || '#1A202C';
+  const TEXT_COLOR = Math.abs(luminance(rawText) - bgLum) < 0.3
+    ? (isDarkBg ? '#FFFFFF' : '#1A202C')
+    : rawText;
+
+  const rawMuted = colors.muted || '#718096';
+  const MUTED_COLOR = Math.abs(luminance(rawMuted) - bgLum) < 0.2
+    ? (isDarkBg ? '#A0A0A0' : '#718096')
+    : rawMuted;
 
   // Load fonts
   const headingFontName = await loadFont(typography.headingFont, typography.headingWeight);

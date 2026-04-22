@@ -113,8 +113,8 @@ function buildStatusLine(data) {
 
 function formatModel(id) {
   if (!id) return '';
-  if (id.includes('opus')) return 'Opus 4.6';
-  if (id.includes('sonnet')) return 'Sonnet 4.5';
+  if (id.includes('opus')) return 'Opus 4.7';
+  if (id.includes('sonnet')) return 'Sonnet 4.6';
   if (id.includes('haiku')) return 'Haiku 4.5';
   return id.split('-').slice(0, 2).join(' ');
 }
