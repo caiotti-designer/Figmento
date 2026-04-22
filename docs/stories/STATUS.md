@@ -1,6 +1,6 @@
 # Figmento — Project Status (Agent Quick-Reference)
 
-> **Last synced:** 2026-04-22 — **epic-DMD CLOSED**. DMD-1..7 all Done (Phase A + Phase B shipped). DQ-HF-1 **Ready** (@po GO 9/10) awaiting @dev.
+> **Last synced:** 2026-04-22 — **epic-DMD CLOSED** (DMD-1..7 all Done). **DQ-HF-1 shipped** — post-showcase contrast + nesting discipline (CLAUDE.md rules + soft sibling warning + 12 regression tests). Full suite 450/450 PASS.
 > **Purpose:** Single source of truth for "what's active, what's parked, what's shipped"
 > so any agent (@pm, @po, @sm, @dev, @qa, @architect) can orient in one read.
 > **Update this file** whenever a story lands, gets blocked, or changes priority.
@@ -10,12 +10,12 @@
 ## TL;DR
 
 - **epic-DMD — CLOSED.** Phase A (DMD-1..5) + Phase B (DMD-6..7) all shipped. 7 seeded systems with canonical DESIGN.md files, round-trip PASS, 86/86 ds-md tests green, plugin drag-drop works, CLAUDE.md + authoring guide published at `docs/guides/design-md-authoring.md`.
-- **DQ-HF-1 — Ready.** Agent-prompting discipline hotfix (contrast + frame nesting rules after `generate_design_system_in_figma`). @po validated 2026-04-22 (9/10, GO conditional — Risks section + stale test count refreshed). Ready for @dev.
+- **DQ-HF-1 — Done.** Post-showcase contrast + nesting discipline shipped 2026-04-22. CLAUDE.md rules added; `create_frame` now emits a soft warning when a sibling of a recent showcase is created without `parentId`; 12 regression tests + fixture + manual regression note.
 - **One Scaffolded story** — `DM-2` (Anthropic OAuth) waiting on external prereqs.
 - **6 epics active** — DMD is executing; the other 5 are parked on strategic decisions or external blockers.
 - **75 story files + 8 fully-Done epics** archived to `_archived/`.
 
-If you're an agent looking for "what to work on next" — **DQ-HF-1** is Ready for @dev (Coral de Dois hotfix: CLAUDE.md rules + soft warning in `create_frame` + regression fixture).
+If you're an agent looking for "what to work on next" — no stories in the active Ready queue. Next activations: DM-2 (external blocker), epic-DQ expansion, epic-MQ drafting, ODS Phase C drafting.
 If you want to unblock something, see `## Parked / On-Standby` below for external blockers.
 
 ---
@@ -31,7 +31,7 @@ If you want to unblock something, see `## Parked / On-Standby` below for externa
 | [DMD-5 — Re-Seed Validation Gate](DMD-5-reseed-validation-gate.story.md) | **Done** | Shipped 2026-04-22 — seed script + figma/linear/stripe/vercel DESIGN.md files generated via canonical pipeline. Round-trip PASS all 7. Phase A closed. | @dev (shipped) |
 | [DMD-6 — Plugin Drag-Drop + createVariables](docs/stories — implemented directly, no story file) | **Done** | Shipped 2026-04-16 (`4fea544`) — drag `.md`/`.markdown` into chat, agent calls `import_design_system_from_md` with `previewInFigma: true` + `createVariables: true`. | @dev (shipped) |
 | [DMD-7 — Documentation: CLAUDE.md + Authoring Guide](DMD-7-documentation-claude-md-authoring-guide.story.md) | **Done** | Shipped 2026-04-22 — CLAUDE.md "Starting Any Design" updated with DESIGN.md as first-class path + `docs/guides/design-md-authoring.md` published. Closes epic-DMD. | @dev (shipped) |
-| [DQ-HF-1 — Design Agent Showcase Discipline](DQ-HF-1-design-agent-showcase-discipline.story.md) | **Ready** | Hotfix — agent-prompting rules for contrast + frame nesting after `generate_design_system_in_figma`. @po validated 2026-04-22 GO 9/10. Next: @dev `*develop`. | @dev (executor), @qa (gate) |
+| [DQ-HF-1 — Design Agent Showcase Discipline](DQ-HF-1-design-agent-showcase-discipline.story.md) | **Done** | Shipped 2026-04-22 — CLAUDE.md "Post-Showcase Extension Discipline" rules + `showcase-tracker.ts` + soft sibling warning in `create_frame` + fixture + 12 regression tests + manual regression note. | @dev (shipped) |
 | [DM-2 — Anthropic OAuth](DM-2-oauth-login.story.md) | **Scaffolded** | External (OAuth app registration + callback page hosting) | @dev |
 
 **DM-2 activation requires:**

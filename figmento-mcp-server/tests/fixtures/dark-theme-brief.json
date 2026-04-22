@@ -1,0 +1,51 @@
+{
+  "_note": "DQ-HF-1 regression fixture — condensed Coral-de-Dois-like BrandAnalysis. Deep-forest dark theme where on_surface (muted dark text) would be invisible if blindly placed on a near-black panel. Used to verify post-showcase contrast + nesting discipline.",
+  "brandName": "Coral de Dois",
+  "industry": "hospitality",
+  "tone": ["luxury", "editorial", "mediterranean"],
+  "targetAudience": "fine-dining patrons, wine enthusiasts",
+  "brandValues": ["craftsmanship", "restraint", "provenance"],
+  "colors": {
+    "primary": "#1F3A2E",
+    "secondary": "#B8860B",
+    "accent": "#B8860B",
+    "background": "#000000",
+    "text": "#151917",
+    "muted": "#6D7873",
+    "surface": "#0D0D0D",
+    "error": "#DC2626",
+    "success": "#16A34A",
+    "scales": {
+      "primary": { "50": "#EAF2EE", "500": "#1F3A2E", "900": "#0C1712" },
+      "secondary": { "50": "#FFF8E6", "500": "#B8860B", "900": "#4B3604" },
+      "accent": { "50": "#FFF8E6", "500": "#B8860B", "900": "#4B3604" }
+    },
+    "neutrals": { "0": "#FFFFFF", "500": "#6D7873", "1000": "#000000" }
+  },
+  "typography": {
+    "headingFont": "Cormorant Garamond",
+    "bodyFont": "Inter",
+    "headingWeight": 700,
+    "bodyWeight": 400,
+    "typeScale": "golden",
+    "styles": {
+      "display": { "size": 96, "weight": 700, "lineHeight": 108, "letterSpacing": -1 },
+      "h1":      { "size": 60, "weight": 700, "lineHeight": 68,  "letterSpacing": -1 },
+      "h2":      { "size": 44, "weight": 700, "lineHeight": 52,  "letterSpacing": 0 },
+      "h3":      { "size": 32, "weight": 600, "lineHeight": 40,  "letterSpacing": 0 },
+      "bodyLg":  { "size": 20, "weight": 400, "lineHeight": 30,  "letterSpacing": 0 },
+      "body":    { "size": 16, "weight": 400, "lineHeight": 24,  "letterSpacing": 0 },
+      "bodySm":  { "size": 13, "weight": 400, "lineHeight": 20,  "letterSpacing": 0 },
+      "caption": { "size": 10, "weight": 500, "lineHeight": 14,  "letterSpacing": 0.5 }
+    }
+  },
+  "spacing": { "base": 8, "scale": [4, 8, 16, 24, 32, 48, 64, 96] },
+  "radius":  { "values": { "none": 0, "sm": 0, "md": 4, "lg": 8, "xl": 12, "full": 9999 }, "default": 4 },
+  "source":  { "hasPdf": false, "hasLogo": false, "paletteId": null, "fontPairingId": null, "confidence": 0.92 },
+  "_regressionExpectations": {
+    "contrast_bug_reproduction": "Placing a rectangle with fillColor=#1F3A2E (primary) and then a text node with color=#151917 (on_surface) reproduces the Coral de Dois dark-on-dark invisible header bug. WCAG contrast ratio is approximately 1.07:1 — far below the 4.5:1 normal-text minimum.",
+    "contrast_fix_expectation": "The agent should call get_contrast_check(bg=#1F3A2E, fg=#151917) before placing the text, see FAIL, and fall back to #FFFFFF (on_primary) which gives a ratio >= 10:1.",
+    "nesting_bug_reproduction": "Calling create_frame without parentId with width=1200 (same as the showcase root) within 60s of create_ds_showcase triggers the new sibling-warning response field.",
+    "nesting_fix_expectation": "The agent should pass parentId=<recent showcase rootFrameId> to nest the supplementary Brand Quote frame inside the showcase."
+  }
+}

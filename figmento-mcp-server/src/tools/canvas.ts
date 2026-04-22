@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import * as fs from 'fs';
 import * as nodePath from 'path';
+import { buildSiblingWarning } from './design-system/showcase-tracker';
 
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
@@ -170,7 +171,10 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
     createFrameSchema,
     async (params) => {
       const data = await sendDesignCommand('create_frame', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+      // DQ-HF-1: warn on likely-sibling-of-recent-showcase mistakes (never blocks)
+      const siblingWarning = buildSiblingWarning({ parentId: params.parentId, width: params.width });
+      const payload = siblingWarning ? { ...data, warning: siblingWarning } : data;
+      return { content: [{ type: 'text' as const, text: JSON.stringify(payload) }] };
     }
   );
 

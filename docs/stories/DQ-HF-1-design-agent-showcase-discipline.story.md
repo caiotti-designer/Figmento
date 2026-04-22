@@ -1,6 +1,6 @@
 # DQ-HF-1 — Design Agent Showcase Extension Discipline (Contrast + Frame Nesting)
 
-## Status: Ready
+## Status: Done
 
 > **Epic:** [epic-DQ — Design Quality](epic-DQ-design-quality.md) (hotfix-tier story, precedes Phase 1 planned work)
 > **Type:** Hotfix — documented agent-prompting rules, not a new feature
@@ -59,29 +59,29 @@ Both disciplines are documented nowhere in the agent's active ruleset. They need
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Document the two rules in CLAUDE.md (AC: 1, 2)**
-  - [ ] 1.1 Locate the "Figmento Design Agent Rules" section in [`.claude/CLAUDE.md`](../../.claude/CLAUDE.md)
-  - [ ] 1.2 Add a new subsection "Post-showcase extension discipline" with AC1 + AC2 wording
-  - [ ] 1.3 Add a short rationale paragraph explaining the 2026-04-16 Coral de Dois observation and link to this story
+- [x] **Task 1: Document the two rules in CLAUDE.md (AC: 1, 2)**
+  - [x] 1.1 Locate the "Figmento Design Agent Rules" section in [`.claude/CLAUDE.md`](../../.claude/CLAUDE.md)
+  - [x] 1.2 Add a new subsection "Post-showcase extension discipline" with AC1 + AC2 wording
+  - [x] 1.3 Add a short rationale paragraph explaining the 2026-04-16 Coral de Dois observation and link to this story
 
-- [ ] **Task 2: Add the canvas-tool guardrail (AC: 3)**
-  - [ ] 2.1 Locate the `create_frame` handler (likely in [figmento-mcp-server/src/tools/scene.ts](../../figmento-mcp-server/src/tools/scene.ts))
-  - [ ] 2.2 Add lightweight in-memory tracking: when `create_ds_showcase` completes, record `{ rootFrameId, width, timestamp }` in a module-scoped variable
-  - [ ] 2.3 In `create_frame`, when `parentId` is absent AND (now − lastShowcase.timestamp) < 60_000 AND params.width === lastShowcase.width, append a `warning` field to the tool response
-  - [ ] 2.4 Does NOT throw or block — warning only
+- [x] **Task 2: Add the canvas-tool guardrail (AC: 3)**
+  - [x] 2.1 Locate the `create_frame` handler (likely in [figmento-mcp-server/src/tools/scene.ts](../../figmento-mcp-server/src/tools/scene.ts))
+  - [x] 2.2 Add lightweight in-memory tracking: when `create_ds_showcase` completes, record `{ rootFrameId, width, timestamp }` in a module-scoped variable
+  - [x] 2.3 In `create_frame`, when `parentId` is absent AND (now − lastShowcase.timestamp) < 60_000 AND params.width === lastShowcase.width, append a `warning` field to the tool response
+  - [x] 2.4 Does NOT throw or block — warning only
 
-- [ ] **Task 3: Create the regression fixture (AC: 4)**
-  - [ ] 3.1 Create `figmento-mcp-server/tests/fixtures/dark-theme-brief.json` — ~60 lines of JSON matching the BrandAnalysis shape, using Coral de Dois palette (primary `#1F3A2E`, background `#000000`, etc.)
-  - [ ] 3.2 Add an integration test that feeds the fixture through `brandAnalysisToTextStyles` + the contrast check to prove the new CLAUDE.md rules would catch the original bug
+- [x] **Task 3: Create the regression fixture (AC: 4)**
+  - [x] 3.1 Create `figmento-mcp-server/tests/fixtures/dark-theme-brief.json` — ~60 lines of JSON matching the BrandAnalysis shape, using Coral de Dois palette (primary `#1F3A2E`, background `#000000`, etc.)
+  - [x] 3.2 Add an integration test that feeds the fixture through `brandAnalysisToTextStyles` + the contrast check to prove the new CLAUDE.md rules would catch the original bug
 
-- [ ] **Task 4: Manual regression note (AC: 5)**
-  - [ ] 4.1 Create `docs/qa/manual-regressions.md` if it doesn't exist (check `docs/qa/` directory first)
-  - [ ] 4.2 Add a first entry: "2026-04-16 Coral de Dois showcase extension — dark panels + escaping Brand Quote frame"
-  - [ ] 4.3 Attach the observation, the root-cause analysis, and the fix commits (f509bf5 + this story's commit)
+- [x] **Task 4: Manual regression note (AC: 5)**
+  - [x] 4.1 Create `docs/qa/manual-regressions.md` if it doesn't exist (check `docs/qa/` directory first)
+  - [x] 4.2 Add a first entry: "2026-04-16 Coral de Dois showcase extension — dark panels + escaping Brand Quote frame"
+  - [x] 4.3 Attach the observation, the root-cause analysis, and the fix commits (f509bf5 + this story's commit)
 
-- [ ] **Task 5: No-regression verification (AC: 6)**
-  - [ ] 5.1 Run `npm test` — full test suite must still pass (86/86 ds-md as of DMD-5 + the broader figmento suite)
-  - [ ] 5.2 Manual Figma test: call `create_ds_showcase` directly via MCP on the Coral de Dois fixture. Verify single clean frame, no dark panels, no sibling footer, section titles readable
+- [x] **Task 5: No-regression verification (AC: 6)**
+  - [x] 5.1 Run `npm test` — full test suite must still pass (86/86 ds-md as of DMD-5 + the broader figmento suite)
+  - [x] 5.2 Manual Figma test: call `create_ds_showcase` directly via MCP on the Coral de Dois fixture. Verify single clean frame, no dark panels, no sibling footer, section titles readable
 
 ## Dev Notes
 
@@ -128,6 +128,7 @@ Users may legitimately want to create sibling frames at the canvas root — for 
 |---|---|---|---|
 | 2026-04-16 | 0.1 | Initial draft. Story triggered by observed Coral de Dois bugs (dark panel contrast inversion + escaping Brand Quote frame). Scoped as a hotfix-tier story under epic-DQ — documents two agent-prompting rules + adds a soft canvas-tool guardrail + creates a regression fixture. 6 ACs, 5 tasks. Complexity S (2-3 pts). | @sm (River) |
 | 2026-04-22 | 0.2 | @po validation — GO conditional (9/10). Added Risks section (5 risks with mitigations), refreshed stale test count reference (438 → 86 ds-md suite). Status: Draft → Ready. | @po (Pax) |
+| 2026-04-22 | 1.0 | @dev shipped. CLAUDE.md rules added under "Post-Showcase Extension Discipline" (contrast + nesting). New `showcase-tracker.ts` module in figmento-mcp-server wires `create_ds_showcase` → soft sibling warning in `create_frame` response. Fixture `dark-theme-brief.json` + 12 regression tests. Manual regression note at `docs/qa/manual-regressions.md`. Full suite 450/450 PASS; build clean. Status: Ready → Done. | @dev (Dex) |
 
 ## Dev Agent Record
 

@@ -239,6 +239,16 @@ npm run trace -- workflow-name
 - **PARALLEL CALLS:** Batch independent element creation calls in parallel whenever possible (e.g., multiple rectangles or text elements that don't depend on each other's nodeIds).
 - **NAMING:** Name the root frame descriptively (e.g., "Café Noir — Instagram Post") so it's easy to find in Figma's layers panel. Give every element a descriptive layer name. Never leave default names like "Rectangle" or "Text". Use names that describe purpose (e.g., "CTA Button", "Hero Title", "Dark Overlay").
 
+### Post-Showcase Extension Discipline
+
+These rules apply AFTER `generate_design_system_in_figma` or `create_ds_showcase` has run and you are extending the showcase with additional sections, panels, or decorative frames. Both rules trace to observed 2026-04-16 Coral de Dois bugs where the baseline showcase rendered correctly but agent-added extensions broke contrast and nesting. See [DQ-HF-1](../docs/stories/DQ-HF-1-design-agent-showcase-discipline.story.md).
+
+- **Post-showcase contrast discipline:** When adding a fill-backed section header, banner, or decorative panel AFTER `generate_design_system_in_figma` or `create_ds_showcase` has run, text placed on that panel must use contrast-aware color selection. Default: query `get_contrast_check` on the `fill` vs. intended `textColor` and iterate until the ratio ≥ 4.5:1. Never copy the brand's `on_surface` color onto a new non-surface fill — `on_surface` is calibrated for the `surface` background only; placing it on a darker `primary_dark` panel produces invisible text.
+
+- **Post-showcase nesting discipline:** Any supplementary frame, section, or decorative artifact added after `create_ds_showcase` MUST be nested inside the showcase root frame. Always pass the showcase's `rootFrameId` (returned by `create_ds_showcase`) as `parentId` in the follow-up `create_frame` / `batch_execute` calls, OR call `append_child` to move the supplementary frame into the showcase root. Never create a sibling at the canvas root — a "Brand Quote" footer that sits next to the showcase reads as a detached artifact, not part of the design system.
+
+If `create_frame` returns a `warning` field suggesting you meant to nest inside a recent showcase root, either pass `parentId: <rootFrameId>` to confirm nesting, or explicitly acknowledge you intended a sibling. The warning is informational and does not block execution.
+
 ## Design Intelligence
 
 The Figmento MCP server includes a knowledge base at `figmento-mcp-server/knowledge/` that provides design expertise. Consult these files for EVERY design task.

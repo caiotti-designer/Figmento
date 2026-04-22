@@ -8,6 +8,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { BrandAnalysis } from '../types/brand-analysis';
+import { recordShowcase } from './design-system/showcase-tracker';
 
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
@@ -270,6 +271,11 @@ async function handleGenerateDS(
       icons: ['home', 'search', 'settings', 'user', 'mail', 'phone', 'star', 'heart', 'zap', 'shield', 'globe', 'camera'],
     });
     stepResults.showcase = { success: true, showcaseId: showcaseResult.showcaseId };
+
+    // DQ-HF-1: record for sibling-frame warning window
+    if (typeof showcaseResult.showcaseId === 'string' && typeof showcaseResult.width === 'number') {
+      recordShowcase(showcaseResult.showcaseId, showcaseResult.width);
+    }
 
     // Populate icon grid
     const iconGridId = showcaseResult.iconGridId as string;
