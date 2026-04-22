@@ -1,6 +1,6 @@
 # Figmento — Project Status (Agent Quick-Reference)
 
-> **Last synced:** 2026-04-22 — DMD-1/2/3/4/5 DONE (Phase A closed); DMD-6 DONE (plugin drag-drop + createVariables). DQ-HF-1 **Ready** (@po GO 9/10). DMD-7 (docs) not yet drafted.
+> **Last synced:** 2026-04-22 — **epic-DMD CLOSED**. DMD-1..7 all Done (Phase A + Phase B shipped). DQ-HF-1 **Ready** (@po GO 9/10) awaiting @dev.
 > **Purpose:** Single source of truth for "what's active, what's parked, what's shipped"
 > so any agent (@pm, @po, @sm, @dev, @qa, @architect) can orient in one read.
 > **Update this file** whenever a story lands, gets blocked, or changes priority.
@@ -9,14 +9,13 @@
 
 ## TL;DR
 
-- **epic-DMD Phase A — closed.** DMD-1/2/3/4/5 all Done. All 7 seeded systems now have canonical DESIGN.md files, round-trip PASS, 86/86 ds-md tests green.
-- **epic-DMD Phase B — DMD-6 Done, DMD-7 pending.** DMD-6 (plugin drag-drop + auto-variable creation) shipped in `4fea544`. DMD-7 (CLAUDE.md refs + authoring guide) not yet drafted.
+- **epic-DMD — CLOSED.** Phase A (DMD-1..5) + Phase B (DMD-6..7) all shipped. 7 seeded systems with canonical DESIGN.md files, round-trip PASS, 86/86 ds-md tests green, plugin drag-drop works, CLAUDE.md + authoring guide published at `docs/guides/design-md-authoring.md`.
 - **DQ-HF-1 — Ready.** Agent-prompting discipline hotfix (contrast + frame nesting rules after `generate_design_system_in_figma`). @po validated 2026-04-22 (9/10, GO conditional — Risks section + stale test count refreshed). Ready for @dev.
 - **One Scaffolded story** — `DM-2` (Anthropic OAuth) waiting on external prereqs.
 - **6 epics active** — DMD is executing; the other 5 are parked on strategic decisions or external blockers.
 - **75 story files + 8 fully-Done epics** archived to `_archived/`.
 
-If you're an agent looking for "what to work on next" — **DMD-7** (docs / authoring guide) closes the epic; **DQ-HF-1** needs @po validation before it can go to @dev.
+If you're an agent looking for "what to work on next" — **DQ-HF-1** is Ready for @dev (Coral de Dois hotfix: CLAUDE.md rules + soft warning in `create_frame` + regression fixture).
 If you want to unblock something, see `## Parked / On-Standby` below for external blockers.
 
 ---
@@ -31,6 +30,7 @@ If you want to unblock something, see `## Parked / On-Standby` below for externa
 | [DMD-4 — `export_design_system_to_md` MCP Tool](DMD-4-export-design-system-to-md.story.md) | **Done** | Shipped 2026-04-16 — exporter + renderer + 46 round-trip tests across all 7 systems. 438/438 PASS. | @dev (shipped) |
 | [DMD-5 — Re-Seed Validation Gate](DMD-5-reseed-validation-gate.story.md) | **Done** | Shipped 2026-04-22 — seed script + figma/linear/stripe/vercel DESIGN.md files generated via canonical pipeline. Round-trip PASS all 7. Phase A closed. | @dev (shipped) |
 | [DMD-6 — Plugin Drag-Drop + createVariables](docs/stories — implemented directly, no story file) | **Done** | Shipped 2026-04-16 (`4fea544`) — drag `.md`/`.markdown` into chat, agent calls `import_design_system_from_md` with `previewInFigma: true` + `createVariables: true`. | @dev (shipped) |
+| [DMD-7 — Documentation: CLAUDE.md + Authoring Guide](DMD-7-documentation-claude-md-authoring-guide.story.md) | **Done** | Shipped 2026-04-22 — CLAUDE.md "Starting Any Design" updated with DESIGN.md as first-class path + `docs/guides/design-md-authoring.md` published. Closes epic-DMD. | @dev (shipped) |
 | [DQ-HF-1 — Design Agent Showcase Discipline](DQ-HF-1-design-agent-showcase-discipline.story.md) | **Ready** | Hotfix — agent-prompting rules for contrast + frame nesting after `generate_design_system_in_figma`. @po validated 2026-04-22 GO 9/10. Next: @dev `*develop`. | @dev (executor), @qa (gate) |
 | [DM-2 — Anthropic OAuth](DM-2-oauth-login.story.md) | **Scaffolded** | External (OAuth app registration + callback page hosting) | @dev |
 
@@ -49,7 +49,7 @@ One epic is **executable** (epic-DMD, top of queue). The other 5 are **parked on
 
 | Epic | State | Why it's still active |
 |---|---|---|
-| [epic-DMD — DESIGN.md Pipeline](epic-DMD-design-markdown.md) | **Active, Phase A closed + DMD-6 Done** | Phase A (DMD-1..5) all Done — full import/export/validate pipeline shipped, 7/7 systems round-trip green. Phase B: DMD-6 (plugin drag-drop) Done; DMD-7 (docs) not yet drafted. Parser locked to `marked@^12`. Complementary to epic-ODS. |
+| [epic-DMD — DESIGN.md Pipeline](epic-DMD-design-markdown.md) | **CLOSED 2026-04-22** | Both phases shipped. DMD-1..5 delivered the pipeline (schema, validator, importer, exporter, seed gate). DMD-6 shipped plugin drag-drop + `createVariables`. DMD-7 published CLAUDE.md integration + authoring guide. 86/86 ds-md tests green; 7/7 systems have canonical DESIGN.md files on disk. |
 | [epic-DQ — Design Quality](epic-DQ-design-quality.md) | Draft, 0 child stories | Strategic bucket — 15 stories across 4 phases are notional, never drafted. Awaiting priority decision before @sm expands. |
 | [epic-FN — Figma Native Agent Migration](epic-FN-figma-native-integration.md) | Phase 1+2+4 Done, **Phase 3 Deferred** | Phase 3 (FN-10..14 MCP server migration) depends on Figma's `use_figma` API reaching GA. Not actionable until Figma ships. |
 | [epic-KI — Knowledge Injection](epic-KI-knowledge-injection.md) | Phases 1-3 Done, **KI-4 Superseded by AE-1** | Kept active for historical reference — phases 1-3 document what's in the bundled compiled-knowledge pipeline. KI-4 was closed because AE-1 auto-evaluation made the refinement-prompt injection redundant. |

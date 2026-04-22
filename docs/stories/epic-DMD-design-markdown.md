@@ -224,8 +224,8 @@ The parser (DMD-2) converts DESIGN.md → tokens.yaml on import. The exporter (D
 
 | ID | Title | Executor | Gate | Depends On | Status |
 |----|-------|----------|------|------------|--------|
-| DMD-6 | Plugin Chat: Drag-Drop DESIGN.md Upload | @dev | @qa | DMD-2, Phase A complete | [ ] Draft |
-| DMD-7 | Documentation — CLAUDE.md + Authoring Guide | @dev | @po | DMD-1..6 | [ ] Draft |
+| DMD-6 | Plugin Chat: Drag-Drop DESIGN.md Upload | @dev | @qa | DMD-2, Phase A complete | [x] Done 2026-04-16 — shipped `4fea544` |
+| DMD-7 | Documentation — CLAUDE.md + Authoring Guide | @dev | @po | DMD-1..6 | [x] Done 2026-04-22 — CLAUDE.md updated + `docs/guides/design-md-authoring.md` published |
 
 ### DMD-6: Plugin Chat: Drag-Drop DESIGN.md Upload
 

@@ -502,11 +502,31 @@ Only after completing this analysis, proceed with tool calls.
 
 ### Starting Any Design
 1. Ask what brand/project this is for
-2. Check for existing design system: get_design_system(name)
-3. If none: offer to create one from color+font, mood, or preset
-4. Load format rules: get_format_rules(format) for the target format
-5. Use create_component for standard elements — NEVER manually build buttons, badges, cards
+2. Check for existing design system: `get_design_system(name)`
+3. If none: offer **one of three authoring paths**:
+   - **DESIGN.md upload** — user drags a `DESIGN.md` file into Figmento chat → call `import_design_system_from_md({ path, previewInFigma: true, createVariables: true, overwrite: false })`. This creates the tokens.yaml, renders a preview frame, and wires Figma Variables in one shot. See [docs/guides/design-md-authoring.md](../docs/guides/design-md-authoring.md).
+   - **PDF brief** — user drops a PDF brief → ODS pipeline (`analyze_brief` → `create_design_system` from the extracted mood+palette).
+   - **URL extraction** — user pastes a site URL → `generate_design_system_from_url`.
+   Fallback if none of those fit: create from `(color+font, mood, preset)` via `create_design_system`.
+4. Load format rules: `get_format_rules(format)` for the target format
+5. Use `create_component` for standard elements — NEVER manually build buttons, badges, cards
 6. All colors, fonts, spacing from tokens — NEVER hardcode values when a system is loaded
+
+### DESIGN.md Authoring Path (Portable Design Systems)
+
+Figmento reads and writes the DESIGN.md format — a portable markdown-based design system spec defined in [docs/architecture/DESIGN-MD-SPEC.md](../docs/architecture/DESIGN-MD-SPEC.md). It round-trips 1:1 with `tokens.yaml` across 9 canonical sections (visual theme, colors, typography, components, layout, depth, do/don'ts, responsive, agent prompt guide).
+
+**Tools:**
+
+| Tool | Purpose |
+|---|---|
+| `validate_design_md({ path })` | Static validation against the JSON schema — verdict PASS/CONCERNS/FAIL with severity-tagged issues. |
+| `import_design_system_from_md({ path, name?, previewInFigma?, createVariables?, overwrite? })` | Parses DESIGN.md → creates Figmento tokens.yaml + (optionally) renders a preview frame + (optionally) writes Figma Variables. |
+| `export_design_system_to_md({ name, path? })` | Converts a stored design system back to a canonical DESIGN.md string. |
+
+**When to use which:** `import` when the user provides a DESIGN.md; `export` when they want to share their Figmento system with Cursor/Claude Desktop/Cline; `validate` as a first-pass lint before import if the source is hand-written. All three are in [.claude/settings.json](./settings.json) `allow` for automatic approval.
+
+**Authoring guide:** [docs/guides/design-md-authoring.md](../docs/guides/design-md-authoring.md) — frontmatter fields, 9 sections, fenced-block reference, 3 worked examples.
 
 ### Format Awareness
 - ALWAYS call get_format_rules before starting any design
