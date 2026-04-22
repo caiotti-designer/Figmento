@@ -1,6 +1,6 @@
 # Figmento — Project Status (Agent Quick-Reference)
 
-> **Last synced:** 2026-04-16 — DMD-1/2/3/4 DONE; f509bf5 ds-showcase contrast fix shipped; DQ-HF-1 drafted (agent-prompting discipline). DMD-5 + DQ-HF-1 awaiting @po
+> **Last synced:** 2026-04-22 — DMD-1/2/3/4/5 DONE (Phase A closed); DMD-6 DONE (plugin drag-drop + createVariables). DQ-HF-1 drafted awaiting @po. DMD-7 (docs) not yet drafted.
 > **Purpose:** Single source of truth for "what's active, what's parked, what's shipped"
 > so any agent (@pm, @po, @sm, @dev, @qa, @architect) can orient in one read.
 > **Update this file** whenever a story lands, gets blocked, or changes priority.
@@ -9,14 +9,14 @@
 
 ## TL;DR
 
-- **Three Ready stories in queue, recommended ship order locked.** `DMD-3` (validator, S, 2-3pt) → `DMD-2` (parser, L, 5-8pt) → `DMD-4` (exporter, M, 3-5pt). All validated GO by @po 2026-04-15 (10/10 each). DMD-3 ships first because it creates the shared `ds-md-validator.ts` module that DMD-2 imports unchanged; DMD-4 ships last because its round-trip test suite needs DMD-2's parser to run end-to-end.
-- **DMD-1 committed** as `6e78c4b` on `feat/ad-analyzer-bridge-chat-core` (11 files, 2921 insertions). Not yet pushed — @devops handles push.
-- **Epic active, Phase A Story 1/5 Done.** `epic-DMD` Phase A: DMD-1 ✅, DMD-2/3/4 Ready, DMD-5 (re-seed gate) blocked on DMD-2 + DMD-4. Phase B (DMD-6 plugin upload, DMD-7 docs) not yet drafted.
+- **epic-DMD Phase A — closed.** DMD-1/2/3/4/5 all Done. All 7 seeded systems now have canonical DESIGN.md files, round-trip PASS, 86/86 ds-md tests green.
+- **epic-DMD Phase B — DMD-6 Done, DMD-7 pending.** DMD-6 (plugin drag-drop + auto-variable creation) shipped in `4fea544`. DMD-7 (CLAUDE.md refs + authoring guide) not yet drafted.
+- **DQ-HF-1 — Draft awaiting @po validation.** Agent-prompting discipline hotfix (contrast + frame nesting rules after `generate_design_system_in_figma`). Triggered by observed Coral de Dois bugs.
 - **One Scaffolded story** — `DM-2` (Anthropic OAuth) waiting on external prereqs.
 - **6 epics active** — DMD is executing; the other 5 are parked on strategic decisions or external blockers.
 - **75 story files + 8 fully-Done epics** archived to `_archived/`.
 
-If you're an agent looking for "what to work on next" — **DMD-3 is the recommended first story** (smallest, creates the shared validator module that DMD-2 imports). Once DMD-3 ships, DMD-2 is next, then DMD-4.
+If you're an agent looking for "what to work on next" — **DMD-7** (docs / authoring guide) closes the epic; **DQ-HF-1** needs @po validation before it can go to @dev.
 If you want to unblock something, see `## Parked / On-Standby` below for external blockers.
 
 ---
@@ -29,6 +29,8 @@ If you want to unblock something, see `## Parked / On-Standby` below for externa
 | [DMD-3 — `validate_design_md` MCP Tool](DMD-3-validate-design-md.story.md) | **Done** | Shipped 2026-04-16 — parser + validator + MCP tool + 22 tests. | @dev (shipped) |
 | [DMD-2 — `import_design_system_from_md` MCP Tool](DMD-2-import-design-system-from-md.story.md) | **Done** | Shipped 2026-04-16 — irToTokens converter + MCP tool + 18 tests. Full suite 392/392 PASS. | @dev (shipped) |
 | [DMD-4 — `export_design_system_to_md` MCP Tool](DMD-4-export-design-system-to-md.story.md) | **Done** | Shipped 2026-04-16 — exporter + renderer + 46 round-trip tests across all 7 systems. 438/438 PASS. | @dev (shipped) |
+| [DMD-5 — Re-Seed Validation Gate](DMD-5-reseed-validation-gate.story.md) | **Done** | Shipped 2026-04-22 — seed script + figma/linear/stripe/vercel DESIGN.md files generated via canonical pipeline. Round-trip PASS all 7. Phase A closed. | @dev (shipped) |
+| [DMD-6 — Plugin Drag-Drop + createVariables](docs/stories — implemented directly, no story file) | **Done** | Shipped 2026-04-16 (`4fea544`) — drag `.md`/`.markdown` into chat, agent calls `import_design_system_from_md` with `previewInFigma: true` + `createVariables: true`. | @dev (shipped) |
 | [DQ-HF-1 — Design Agent Showcase Discipline](DQ-HF-1-design-agent-showcase-discipline.story.md) | **Draft** | Hotfix — agent-prompting rules for contrast + frame nesting after `generate_design_system_in_figma`. Triggered by observed Coral de Dois bugs 2026-04-16. Awaiting @po validation. | @dev (executor), @qa (gate) |
 | [DM-2 — Anthropic OAuth](DM-2-oauth-login.story.md) | **Scaffolded** | External (OAuth app registration + callback page hosting) | @dev |
 
@@ -47,7 +49,7 @@ One epic is **executable** (epic-DMD, top of queue). The other 5 are **parked on
 
 | Epic | State | Why it's still active |
 |---|---|---|
-| [epic-DMD — DESIGN.md Pipeline](epic-DMD-design-markdown.md) | **Active, Phase A Story 1/5 Done** | DMD-1 shipped 2026-04-15 (spec + JSON Schema + 3 reference samples, all 10 ACs PASS). Phase A stories remaining: DMD-2 (parser), DMD-3 (validator), DMD-4 (exporter), DMD-5 (re-seed validation gate). DMD-2/3/4 can be drafted in parallel; DMD-5 blocked on DMD-2 + DMD-4. Phase B (DMD-6..7) not yet drafted. Parser decision locked to `marked@^12`. Complementary to epic-ODS — ODS takes PDF briefs, DMD takes markdown DS files. |
+| [epic-DMD — DESIGN.md Pipeline](epic-DMD-design-markdown.md) | **Active, Phase A closed + DMD-6 Done** | Phase A (DMD-1..5) all Done — full import/export/validate pipeline shipped, 7/7 systems round-trip green. Phase B: DMD-6 (plugin drag-drop) Done; DMD-7 (docs) not yet drafted. Parser locked to `marked@^12`. Complementary to epic-ODS. |
 | [epic-DQ — Design Quality](epic-DQ-design-quality.md) | Draft, 0 child stories | Strategic bucket — 15 stories across 4 phases are notional, never drafted. Awaiting priority decision before @sm expands. |
 | [epic-FN — Figma Native Agent Migration](epic-FN-figma-native-integration.md) | Phase 1+2+4 Done, **Phase 3 Deferred** | Phase 3 (FN-10..14 MCP server migration) depends on Figma's `use_figma` API reaching GA. Not actionable until Figma ships. |
 | [epic-KI — Knowledge Injection](epic-KI-knowledge-injection.md) | Phases 1-3 Done, **KI-4 Superseded by AE-1** | Kept active for historical reference — phases 1-3 document what's in the bundled compiled-knowledge pipeline. KI-4 was closed because AE-1 auto-evaluation made the refinement-prompt injection redundant. |
