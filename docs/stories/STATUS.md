@@ -1,6 +1,6 @@
 # Figmento — Project Status (Agent Quick-Reference)
 
-> **Last synced:** 2026-04-16 — **DMD-1/2/3/4 all DONE.** Phase A: 4/5 stories shipped. 438/438 full suite, 0 regressions. DMD-5 (re-seed gate) is the last Phase A story
+> **Last synced:** 2026-04-16 — DMD-1/2/3/4 DONE; f509bf5 ds-showcase contrast fix shipped; DQ-HF-1 drafted (agent-prompting discipline). DMD-5 + DQ-HF-1 awaiting @po
 > **Purpose:** Single source of truth for "what's active, what's parked, what's shipped"
 > so any agent (@pm, @po, @sm, @dev, @qa, @architect) can orient in one read.
 > **Update this file** whenever a story lands, gets blocked, or changes priority.
@@ -29,6 +29,7 @@ If you want to unblock something, see `## Parked / On-Standby` below for externa
 | [DMD-3 — `validate_design_md` MCP Tool](DMD-3-validate-design-md.story.md) | **Done** | Shipped 2026-04-16 — parser + validator + MCP tool + 22 tests. | @dev (shipped) |
 | [DMD-2 — `import_design_system_from_md` MCP Tool](DMD-2-import-design-system-from-md.story.md) | **Done** | Shipped 2026-04-16 — irToTokens converter + MCP tool + 18 tests. Full suite 392/392 PASS. | @dev (shipped) |
 | [DMD-4 — `export_design_system_to_md` MCP Tool](DMD-4-export-design-system-to-md.story.md) | **Done** | Shipped 2026-04-16 — exporter + renderer + 46 round-trip tests across all 7 systems. 438/438 PASS. | @dev (shipped) |
+| [DQ-HF-1 — Design Agent Showcase Discipline](DQ-HF-1-design-agent-showcase-discipline.story.md) | **Draft** | Hotfix — agent-prompting rules for contrast + frame nesting after `generate_design_system_in_figma`. Triggered by observed Coral de Dois bugs 2026-04-16. Awaiting @po validation. | @dev (executor), @qa (gate) |
 | [DM-2 — Anthropic OAuth](DM-2-oauth-login.story.md) | **Scaffolded** | External (OAuth app registration + callback page hosting) | @dev |
 
 **DM-2 activation requires:**
