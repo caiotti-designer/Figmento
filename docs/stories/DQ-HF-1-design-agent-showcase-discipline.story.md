@@ -1,6 +1,6 @@
 # DQ-HF-1 — Design Agent Showcase Extension Discipline (Contrast + Frame Nesting)
 
-## Status: Draft
+## Status: Ready
 
 > **Epic:** [epic-DQ — Design Quality](epic-DQ-design-quality.md) (hotfix-tier story, precedes Phase 1 planned work)
 > **Type:** Hotfix — documented agent-prompting rules, not a new feature
@@ -80,7 +80,7 @@ Both disciplines are documented nowhere in the agent's active ruleset. They need
   - [ ] 4.3 Attach the observation, the root-cause analysis, and the fix commits (f509bf5 + this story's commit)
 
 - [ ] **Task 5: No-regression verification (AC: 6)**
-  - [ ] 5.1 Run `npm test` — full test suite must still pass (438/438 as of DMD-4)
+  - [ ] 5.1 Run `npm test` — full test suite must still pass (86/86 ds-md as of DMD-5 + the broader figmento suite)
   - [ ] 5.2 Manual Figma test: call `create_ds_showcase` directly via MCP on the Coral de Dois fixture. Verify single clean frame, no dark panels, no sibling footer, section titles readable
 
 ## Dev Notes
@@ -106,6 +106,16 @@ Users may legitimately want to create sibling frames at the canvas root — for 
 - ❌ Do not try to "solve contrast" globally — the rule is narrowly scoped to post-showcase panel additions.
 - ❌ Do not fold this into DQ-4's scope — DQ-4 is a planned Phase 1 story and hasn't been drafted yet. DQ-HF-1 ships now.
 
+### Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|---|---|---|---|
+| CLAUDE.md rule is ignored by the agent because it's too generic | Medium | High (bug recurs) | Rules quote explicit tool names (`create_ds_showcase`, `batch_execute`, `parentId`) rather than abstract guidance — the agent's context-matching hooks on the named tools |
+| In-memory `lastShowcase` tracking (Task 2.2) evaporates on server restart, warning goes silent | High | Low | Warning is an aid, not a gate — baseline contrast fix in `f509bf5` already protects the showcase itself. Worst case: guardrail stops warning, but no visual regression |
+| Soft warning is too easy to miss, agent still ships broken output | Medium | Medium | Manual regression note (AC5) + future DQ-4 refinement rules provide a second line of defense. Can escalate to hard-block in a later story if the warning proves insufficient |
+| Over-constraining the agent's creative freedom (e.g., blocking legitimate sibling frames) | Low | Low | Warning-only, `parentId` bypass trivial; "What NOT to do" explicitly forbids hard blocks |
+| CLAUDE.md gets large, new rules drown in noise | Medium | Low | Place rules under an existing section ("Figmento Design Agent Rules") rather than creating a new top-level heading; DQ-4 will fold these into the refinement-rules YAML |
+
 ### Testing standards
 
 - Jest for the fixture integration test (existing `ds-md-validate.test.ts` pattern works)
@@ -117,6 +127,7 @@ Users may legitimately want to create sibling frames at the canvas root — for 
 | Date | Version | Description | Author |
 |---|---|---|---|
 | 2026-04-16 | 0.1 | Initial draft. Story triggered by observed Coral de Dois bugs (dark panel contrast inversion + escaping Brand Quote frame). Scoped as a hotfix-tier story under epic-DQ — documents two agent-prompting rules + adds a soft canvas-tool guardrail + creates a regression fixture. 6 ACs, 5 tasks. Complexity S (2-3 pts). | @sm (River) |
+| 2026-04-22 | 0.2 | @po validation — GO conditional (9/10). Added Risks section (5 risks with mitigations), refreshed stale test count reference (438 → 86 ds-md suite). Status: Draft → Ready. | @po (Pax) |
 
 ## Dev Agent Record
 

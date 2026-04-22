@@ -1,6 +1,6 @@
 # Figmento — Project Status (Agent Quick-Reference)
 
-> **Last synced:** 2026-04-22 — DMD-1/2/3/4/5 DONE (Phase A closed); DMD-6 DONE (plugin drag-drop + createVariables). DQ-HF-1 drafted awaiting @po. DMD-7 (docs) not yet drafted.
+> **Last synced:** 2026-04-22 — DMD-1/2/3/4/5 DONE (Phase A closed); DMD-6 DONE (plugin drag-drop + createVariables). DQ-HF-1 **Ready** (@po GO 9/10). DMD-7 (docs) not yet drafted.
 > **Purpose:** Single source of truth for "what's active, what's parked, what's shipped"
 > so any agent (@pm, @po, @sm, @dev, @qa, @architect) can orient in one read.
 > **Update this file** whenever a story lands, gets blocked, or changes priority.
@@ -11,7 +11,7 @@
 
 - **epic-DMD Phase A — closed.** DMD-1/2/3/4/5 all Done. All 7 seeded systems now have canonical DESIGN.md files, round-trip PASS, 86/86 ds-md tests green.
 - **epic-DMD Phase B — DMD-6 Done, DMD-7 pending.** DMD-6 (plugin drag-drop + auto-variable creation) shipped in `4fea544`. DMD-7 (CLAUDE.md refs + authoring guide) not yet drafted.
-- **DQ-HF-1 — Draft awaiting @po validation.** Agent-prompting discipline hotfix (contrast + frame nesting rules after `generate_design_system_in_figma`). Triggered by observed Coral de Dois bugs.
+- **DQ-HF-1 — Ready.** Agent-prompting discipline hotfix (contrast + frame nesting rules after `generate_design_system_in_figma`). @po validated 2026-04-22 (9/10, GO conditional — Risks section + stale test count refreshed). Ready for @dev.
 - **One Scaffolded story** — `DM-2` (Anthropic OAuth) waiting on external prereqs.
 - **6 epics active** — DMD is executing; the other 5 are parked on strategic decisions or external blockers.
 - **75 story files + 8 fully-Done epics** archived to `_archived/`.
@@ -31,7 +31,7 @@ If you want to unblock something, see `## Parked / On-Standby` below for externa
 | [DMD-4 — `export_design_system_to_md` MCP Tool](DMD-4-export-design-system-to-md.story.md) | **Done** | Shipped 2026-04-16 — exporter + renderer + 46 round-trip tests across all 7 systems. 438/438 PASS. | @dev (shipped) |
 | [DMD-5 — Re-Seed Validation Gate](DMD-5-reseed-validation-gate.story.md) | **Done** | Shipped 2026-04-22 — seed script + figma/linear/stripe/vercel DESIGN.md files generated via canonical pipeline. Round-trip PASS all 7. Phase A closed. | @dev (shipped) |
 | [DMD-6 — Plugin Drag-Drop + createVariables](docs/stories — implemented directly, no story file) | **Done** | Shipped 2026-04-16 (`4fea544`) — drag `.md`/`.markdown` into chat, agent calls `import_design_system_from_md` with `previewInFigma: true` + `createVariables: true`. | @dev (shipped) |
-| [DQ-HF-1 — Design Agent Showcase Discipline](DQ-HF-1-design-agent-showcase-discipline.story.md) | **Draft** | Hotfix — agent-prompting rules for contrast + frame nesting after `generate_design_system_in_figma`. Triggered by observed Coral de Dois bugs 2026-04-16. Awaiting @po validation. | @dev (executor), @qa (gate) |
+| [DQ-HF-1 — Design Agent Showcase Discipline](DQ-HF-1-design-agent-showcase-discipline.story.md) | **Ready** | Hotfix — agent-prompting rules for contrast + frame nesting after `generate_design_system_in_figma`. @po validated 2026-04-22 GO 9/10. Next: @dev `*develop`. | @dev (executor), @qa (gate) |
 | [DM-2 — Anthropic OAuth](DM-2-oauth-login.story.md) | **Scaffolded** | External (OAuth app registration + callback page hosting) | @dev |
 
 **DM-2 activation requires:**
