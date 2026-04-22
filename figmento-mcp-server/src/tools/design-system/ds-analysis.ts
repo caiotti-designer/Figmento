@@ -41,11 +41,13 @@ export function registerAnalysisTools(server: McpServer, sendDesignCommand: Send
 
   // ═══════════════════════════════════════════════════════════
   // DS-27: design_system_preview
+  // Fully auto-layout driven — every frame HUGs content vertically.
+  // No fixed heights, no absolute positioning, no cursor math.
   // ═══════════════════════════════════════════════════════════
 
   server.tool(
     'design_system_preview',
-    'Generate a visual design system preview frame showing color tokens, typography, component samples, and spacing.',
+    'Generate a visual design system preview frame showing color tokens, typography, component samples, and spacing. Uses nested auto-layout with HUG sizing throughout — sections never overlap and never clip content.',
     designSystemPreviewSchema,
     async (params: { system: string; x?: number; y?: number }) => {
       const safeName = params.system.replace(/[^a-z0-9-]/gi, '').toLowerCase();
@@ -69,312 +71,356 @@ export function registerAnalysisTools(server: McpServer, sendDesignCommand: Send
       let cmdIdx = 0;
       const uid = () => `p${cmdIdx++}`;
 
-      // Color display order
+      // ── Token ordering (filtered to what exists) ──
       const colorOrder = [
         'primary', 'primary_light', 'primary_dark', 'secondary', 'accent',
         'surface', 'background', 'border', 'on_surface', 'on_surface_muted',
         'on_primary', 'success', 'warning', 'error', 'info',
       ].filter(k => k in colors);
 
-      // Typography scale display order
       const typeOrder = ['display', 'h1', 'h2', 'h3', 'body_lg', 'body', 'body_sm', 'caption']
         .filter(k => k in typographyScale);
 
-      // Spacing tokens (sorted ascending, excludes 'unit')
       const spacingOrder = Object.entries(spacingTokens)
         .filter(([k, v]) => k !== 'unit' && typeof v === 'number' && (v as number) > 0)
         .sort(([, a], [, b]) => (a as number) - (b as number))
         .map(([k, v]) => ({ key: k, value: v as number }));
 
-      // Layout constants
+      // ── Design constants ──
       const FRAME_W = 1376;
       const FRAME_PAD = 48;
-      const INNER_W = FRAME_W - FRAME_PAD * 2;
-      const SECTION_GAP = 40;
+      const SECTION_GAP = 48;
       const SWATCH_SIZE = 64;
+      const SWATCH_COL_W = 80;   // swatch + label breathing room
       const SWATCH_GAP = 16;
-      const SWATCH_COL_W = SWATCH_SIZE + SWATCH_GAP;
       const TYPE_COL_W = 144;
+      const TYPE_COL_GAP = 16;
       const BG_COLOR = colors.background || '#FFFFFF';
       const TEXT_COLOR = colors.on_surface || '#1A1A1A';
       const MUTED_COLOR = colors.on_surface_muted || '#888888';
       const PRIMARY_COLOR = colors.primary || '#6366F1';
+      const BORDER_COLOR = colors.border || '#E5E5E5';
 
-      // Section layout helper — returns section header Y and advances cursor
-      let curY = FRAME_PAD;
+      // ── Helpers ──
 
-      function sectionHeader(label: string): { headerY: number } {
-        const headerY = curY;
-        curY += 28 + 16; // 28px header text + 16px gap
-        return { headerY };
+      // Build a section frame: VERTICAL auto-layout, FILL width, HUG height.
+      // Contains a header text, a 1px divider, and a content child added later.
+      function pushSectionFrame(label: string, parentId: string, tempId: string, contentSpacing: number): void {
+        commands.push({
+          action: 'create_frame',
+          params: {
+            parentId,
+            name: `Section: ${label}`,
+            layoutMode: 'VERTICAL',
+            layoutSizingHorizontal: 'FILL',
+            layoutSizingVertical: 'HUG',
+            itemSpacing: contentSpacing,
+            paddingTop: 0,
+            paddingBottom: 0,
+            paddingLeft: 0,
+            paddingRight: 0,
+            fills: [],
+          },
+          tempId,
+        });
+        // Section header (short label — WIDTH_AND_HEIGHT so it never wraps / never fixed-width)
+        commands.push({
+          action: 'create_text',
+          params: {
+            parentId: `$${tempId}`,
+            text: label.toUpperCase(),
+            name: `Section header: ${label}`,
+            fontSize: 11,
+            fontFamily: headingFamily,
+            fontWeight: 700,
+            color: MUTED_COLOR,
+            letterSpacing: 2,
+            textAutoResize: 'WIDTH_AND_HEIGHT',
+          },
+        });
+        // Divider — 1px tall, stretches full width of parent section
+        commands.push({
+          action: 'create_frame',
+          params: {
+            parentId: `$${tempId}`,
+            name: 'Divider',
+            layoutMode: 'HORIZONTAL',
+            layoutSizingHorizontal: 'FILL',
+            layoutSizingVertical: 'FIXED',
+            height: 1,
+            fills: [{ type: 'SOLID', color: BORDER_COLOR }],
+          },
+        });
       }
 
-      // === Root frame ===
+      // ═══════════════════════════════════════════════════════════
+      // Root Frame — VERTICAL auto-layout, HUG height
+      // ═══════════════════════════════════════════════════════════
       const rootId = uid();
-      // Estimate total height
-      const totalH = FRAME_PAD + 48 + SECTION_GAP
-        + 28 + 16 + SWATCH_SIZE + 40 + SECTION_GAP   // colors
-        + 28 + 16 + 80 + 36 + SECTION_GAP            // typography
-        + 28 + 16 + 100 + SECTION_GAP                // components
-        + 28 + 16 + 64 + 32 + FRAME_PAD;             // spacing
       commands.push({
         action: 'create_frame',
         params: {
           name: `${safeName} — Design System Preview`,
           width: FRAME_W,
-          height: Math.max(totalH, 1200),
           x: params.x ?? 0,
           y: params.y ?? 0,
+          layoutMode: 'VERTICAL',
+          layoutSizingHorizontal: 'FIXED',
+          layoutSizingVertical: 'HUG',
+          paddingTop: FRAME_PAD,
+          paddingBottom: FRAME_PAD,
+          paddingLeft: FRAME_PAD,
+          paddingRight: FRAME_PAD,
+          itemSpacing: SECTION_GAP,
           fills: [{ type: 'SOLID', color: BG_COLOR }],
         },
         tempId: rootId,
       });
 
-      // Title
+      // ── Title ──
       commands.push({
         action: 'create_text',
         params: {
           parentId: `$${rootId}`,
-          text: safeName.toUpperCase() + ' Design System',
+          text: `${safeName.toUpperCase()} · DESIGN SYSTEM`,
           name: 'Preview Title',
-          fontSize: 24,
+          fontSize: 28,
           fontFamily: headingFamily,
           fontWeight: 700,
           color: TEXT_COLOR,
-          x: FRAME_PAD,
-          y: curY,
-          width: INNER_W,
-          height: 36,
+          letterSpacing: 1,
+          textAutoResize: 'WIDTH_AND_HEIGHT',
         },
       });
-      curY += 36 + SECTION_GAP;
 
-      // ── Row 1: Colors ──
-      const { headerY: colorsHeaderY } = sectionHeader('COLORS');
+      // ═══════════════════════════════════════════════════════════
+      // Section: Colors
+      // ═══════════════════════════════════════════════════════════
+      const colorsSectionId = uid();
+      pushSectionFrame('Colors', `$${rootId}`, colorsSectionId, 20);
+
+      // Swatches row — HORIZONTAL auto-layout, WRAP, FILL width, HUG height
+      const colorsRowId = uid();
       commands.push({
-        action: 'create_text',
+        action: 'create_frame',
         params: {
-          parentId: `$${rootId}`,
-          text: 'COLORS',
-          name: 'Section: Colors',
-          fontSize: 11,
-          fontFamily: headingFamily,
-          fontWeight: 600,
-          color: MUTED_COLOR,
-          letterSpacing: 2,
-          x: FRAME_PAD,
-          y: colorsHeaderY,
-          width: INNER_W,
-          height: 20,
+          parentId: `$${colorsSectionId}`,
+          name: 'Swatches Row',
+          layoutMode: 'HORIZONTAL',
+          layoutSizingHorizontal: 'FILL',
+          layoutSizingVertical: 'HUG',
+          layoutWrap: 'WRAP',
+          itemSpacing: SWATCH_GAP,
+          counterAxisSpacing: SWATCH_GAP,
+          paddingTop: 0,
+          paddingBottom: 0,
+          paddingLeft: 0,
+          paddingRight: 0,
+          fills: [],
         },
+        tempId: colorsRowId,
       });
 
-      // Divider line
-      const colorDivId = uid();
-      commands.push({
-        action: 'create_rectangle',
-        params: {
-          parentId: `$${rootId}`,
-          name: 'Divider',
-          width: INNER_W,
-          height: 1,
-          x: FRAME_PAD,
-          y: colorsHeaderY + 24,
-          fills: [{ type: 'SOLID', color: colors.border || '#E5E5E5' }],
-        },
-        tempId: colorDivId,
-      });
-
-      const swatchStartY = curY;
-      let swatchX = FRAME_PAD;
       for (const colorKey of colorOrder) {
         const colorHex = colors[colorKey];
-        // Swatch rectangle
-        const swId = uid();
+        // Swatch column: VERTICAL, FIXED width, HUG height
+        const swColId = uid();
         commands.push({
           action: 'create_frame',
           params: {
-            parentId: `$${rootId}`,
+            parentId: `$${colorsRowId}`,
+            name: `Swatch column: ${colorKey}`,
+            layoutMode: 'VERTICAL',
+            layoutSizingHorizontal: 'FIXED',
+            layoutSizingVertical: 'HUG',
+            width: SWATCH_COL_W,
+            itemSpacing: 6,
+            paddingTop: 0,
+            paddingBottom: 0,
+            paddingLeft: 0,
+            paddingRight: 0,
+            counterAxisAlignItems: 'CENTER',
+            fills: [],
+          },
+          tempId: swColId,
+        });
+        // Swatch chip: fixed 64x64 with color fill
+        commands.push({
+          action: 'create_frame',
+          params: {
+            parentId: `$${swColId}`,
             name: `Swatch: ${colorKey}`,
+            layoutMode: 'NONE',
             width: SWATCH_SIZE,
             height: SWATCH_SIZE,
-            x: swatchX,
-            y: swatchStartY,
             cornerRadius: 8,
             fills: [{ type: 'SOLID', color: colorHex }],
           },
-          tempId: swId,
         });
-        // Hex label
+        // Token name (WIDTH_AND_HEIGHT — short label, no wrap)
         commands.push({
           action: 'create_text',
           params: {
-            parentId: `$${rootId}`,
+            parentId: `$${swColId}`,
+            text: colorKey,
+            name: `Name: ${colorKey}`,
+            fontSize: 10,
+            fontFamily: bodyFamily,
+            fontWeight: 700,
+            color: TEXT_COLOR,
+            textAutoResize: 'WIDTH_AND_HEIGHT',
+          },
+        });
+        // Hex value (WIDTH_AND_HEIGHT)
+        commands.push({
+          action: 'create_text',
+          params: {
+            parentId: `$${swColId}`,
             text: colorHex.toUpperCase(),
             name: `Hex: ${colorKey}`,
             fontSize: 9,
             fontFamily: bodyFamily,
             fontWeight: 400,
             color: MUTED_COLOR,
-            x: swatchX,
-            y: swatchStartY + SWATCH_SIZE + 4,
-            width: SWATCH_SIZE,
-            height: 14,
-            textAlign: 'CENTER',
+            textAutoResize: 'WIDTH_AND_HEIGHT',
           },
         });
-        // Token name
-        commands.push({
-          action: 'create_text',
-          params: {
-            parentId: `$${rootId}`,
-            text: colorKey,
-            name: `Name: ${colorKey}`,
-            fontSize: 9,
-            fontFamily: bodyFamily,
-            fontWeight: 600,
-            color: TEXT_COLOR,
-            x: swatchX,
-            y: swatchStartY + SWATCH_SIZE + 20,
-            width: SWATCH_SIZE,
-            height: 14,
-            textAlign: 'CENTER',
-          },
-        });
-        swatchX += SWATCH_COL_W;
       }
-      curY = swatchStartY + SWATCH_SIZE + 40 + SECTION_GAP;
 
-      // ── Row 2: Typography ──
-      const { headerY: typeHeaderY } = sectionHeader('TYPOGRAPHY');
+      // ═══════════════════════════════════════════════════════════
+      // Section: Typography
+      // ═══════════════════════════════════════════════════════════
+      const typeSectionId = uid();
+      pushSectionFrame('Typography', `$${rootId}`, typeSectionId, 24);
+
+      // Type row — HORIZONTAL wrap
+      const typeRowId = uid();
       commands.push({
-        action: 'create_text',
+        action: 'create_frame',
         params: {
-          parentId: `$${rootId}`,
-          text: 'TYPOGRAPHY',
-          name: 'Section: Typography',
-          fontSize: 11,
-          fontFamily: headingFamily,
-          fontWeight: 600,
-          color: MUTED_COLOR,
-          letterSpacing: 2,
-          x: FRAME_PAD,
-          y: typeHeaderY,
-          width: INNER_W,
-          height: 20,
+          parentId: `$${typeSectionId}`,
+          name: 'Type Row',
+          layoutMode: 'HORIZONTAL',
+          layoutSizingHorizontal: 'FILL',
+          layoutSizingVertical: 'HUG',
+          layoutWrap: 'WRAP',
+          itemSpacing: TYPE_COL_GAP,
+          counterAxisSpacing: 24,
+          paddingTop: 0,
+          paddingBottom: 0,
+          paddingLeft: 0,
+          paddingRight: 0,
+          counterAxisAlignItems: 'MAX',
+          fills: [],
         },
-      });
-      const typeDivId = uid();
-      commands.push({
-        action: 'create_rectangle',
-        params: {
-          parentId: `$${rootId}`,
-          name: 'Divider',
-          width: INNER_W,
-          height: 1,
-          x: FRAME_PAD,
-          y: typeHeaderY + 24,
-          fills: [{ type: 'SOLID', color: colors.border || '#E5E5E5' }],
-        },
-        tempId: typeDivId,
+        tempId: typeRowId,
       });
 
-      const typeStartY = curY;
-      let typeX = FRAME_PAD;
       for (const scaleKey of typeOrder) {
         const fontSize = typographyScale[scaleKey] as number;
-        const displaySize = Math.min(fontSize, 48);
+        const displaySize = Math.min(fontSize, 56);
         const isHeading = ['display', 'h1', 'h2', 'h3'].includes(scaleKey);
+        // Type column: VERTICAL, FIXED width (keeps the Aa specimen aligned), HUG height
+        const typeColId = uid();
+        commands.push({
+          action: 'create_frame',
+          params: {
+            parentId: `$${typeRowId}`,
+            name: `Type column: ${scaleKey}`,
+            layoutMode: 'VERTICAL',
+            layoutSizingHorizontal: 'FIXED',
+            layoutSizingVertical: 'HUG',
+            width: TYPE_COL_W,
+            itemSpacing: 8,
+            paddingTop: 0,
+            paddingBottom: 0,
+            paddingLeft: 0,
+            paddingRight: 0,
+            counterAxisAlignItems: 'MIN',
+            fills: [],
+          },
+          tempId: typeColId,
+        });
+        // Specimen — wraps to column width, HUG height so tall fonts grow naturally
         commands.push({
           action: 'create_text',
           params: {
-            parentId: `$${rootId}`,
+            parentId: `$${typeColId}`,
             text: 'Aa',
             name: `Type: ${scaleKey}`,
             fontSize: displaySize,
             fontFamily: isHeading ? headingFamily : bodyFamily,
             fontWeight: isHeading ? 700 : 400,
             color: TEXT_COLOR,
-            x: typeX,
-            y: typeStartY,
-            width: TYPE_COL_W,
-            height: 56,
+            layoutSizingHorizontal: 'FILL',
+            textAutoResize: 'HEIGHT',
           },
         });
+        // Label — short, WIDTH_AND_HEIGHT
         commands.push({
           action: 'create_text',
           params: {
-            parentId: `$${rootId}`,
-            text: `${scaleKey} / ${fontSize}px`,
+            parentId: `$${typeColId}`,
+            text: `${scaleKey} · ${fontSize}px`,
             name: `Type label: ${scaleKey}`,
-            fontSize: 9,
+            fontSize: 10,
             fontFamily: bodyFamily,
             fontWeight: 400,
             color: MUTED_COLOR,
-            x: typeX,
-            y: typeStartY + 58,
-            width: TYPE_COL_W,
-            height: 14,
+            letterSpacing: 0.5,
+            textAutoResize: 'WIDTH_AND_HEIGHT',
           },
         });
-        typeX += TYPE_COL_W;
       }
-      curY = typeStartY + 80 + SECTION_GAP;
 
-      // ── Row 3: Component Samples ──
-      const { headerY: compHeaderY } = sectionHeader('COMPONENTS');
-      commands.push({
-        action: 'create_text',
-        params: {
-          parentId: `$${rootId}`,
-          text: 'COMPONENTS',
-          name: 'Section: Components',
-          fontSize: 11,
-          fontFamily: headingFamily,
-          fontWeight: 600,
-          color: MUTED_COLOR,
-          letterSpacing: 2,
-          x: FRAME_PAD,
-          y: compHeaderY,
-          width: INNER_W,
-          height: 20,
-        },
-      });
-      const compDivId = uid();
-      commands.push({
-        action: 'create_rectangle',
-        params: {
-          parentId: `$${rootId}`,
-          name: 'Divider',
-          width: INNER_W,
-          height: 1,
-          x: FRAME_PAD,
-          y: compHeaderY + 24,
-          fills: [{ type: 'SOLID', color: colors.border || '#E5E5E5' }],
-        },
-        tempId: compDivId,
-      });
+      // ═══════════════════════════════════════════════════════════
+      // Section: Components
+      // ═══════════════════════════════════════════════════════════
+      const compSectionId = uid();
+      pushSectionFrame('Components', `$${rootId}`, compSectionId, 24);
 
-      const compStartY = curY;
       const mdRadius = radiusTokens.md || 8;
       const lgRadius = radiusTokens.lg || 12;
 
-      // Button (primary)
+      // Components row — HORIZONTAL, HUG width, HUG height, aligned center
+      const compRowId = uid();
+      commands.push({
+        action: 'create_frame',
+        params: {
+          parentId: `$${compSectionId}`,
+          name: 'Components Row',
+          layoutMode: 'HORIZONTAL',
+          layoutSizingHorizontal: 'HUG',
+          layoutSizingVertical: 'HUG',
+          itemSpacing: 32,
+          paddingTop: 8,
+          paddingBottom: 8,
+          paddingLeft: 0,
+          paddingRight: 0,
+          counterAxisAlignItems: 'CENTER',
+          fills: [],
+        },
+        tempId: compRowId,
+      });
+
+      // Button — HUG × HUG, proper padding
       const btnId = uid();
       commands.push({
         action: 'create_frame',
         params: {
-          parentId: `$${rootId}`,
+          parentId: `$${compRowId}`,
           name: 'Component: Button (primary)',
-          width: 144,
-          height: 40,
-          x: FRAME_PAD,
-          y: compStartY,
-          cornerRadius: mdRadius,
-          fills: [{ type: 'SOLID', color: PRIMARY_COLOR }],
           layoutMode: 'HORIZONTAL',
+          layoutSizingHorizontal: 'HUG',
+          layoutSizingVertical: 'HUG',
+          paddingTop: 12,
+          paddingBottom: 12,
+          paddingLeft: 24,
+          paddingRight: 24,
+          cornerRadius: mdRadius,
           primaryAxisAlignItems: 'CENTER',
           counterAxisAlignItems: 'CENTER',
+          fills: [{ type: 'SOLID', color: PRIMARY_COLOR }],
         },
         tempId: btnId,
       });
@@ -382,33 +428,34 @@ export function registerAnalysisTools(server: McpServer, sendDesignCommand: Send
         action: 'create_text',
         params: {
           parentId: `$${btnId}`,
-          text: 'Button',
+          text: 'Primary Button',
           fontSize: 14,
           fontFamily: headingFamily,
-          fontWeight: 600,
+          fontWeight: 700,
           color: colors.on_primary || '#FFFFFF',
-          width: 120,
-          height: 20,
-          textAlign: 'CENTER',
+          letterSpacing: 0.5,
+          textAutoResize: 'WIDTH_AND_HEIGHT',
         },
       });
 
-      // Badge
+      // Badge — HUG × HUG, pill shape
       const badgeId = uid();
       commands.push({
         action: 'create_frame',
         params: {
-          parentId: `$${rootId}`,
+          parentId: `$${compRowId}`,
           name: 'Component: Badge',
-          width: 80,
-          height: 24,
-          x: FRAME_PAD + 160,
-          y: compStartY + 8,
-          cornerRadius: 12,
-          fills: [{ type: 'SOLID', color: colors.primary_light || PRIMARY_COLOR }],
           layoutMode: 'HORIZONTAL',
+          layoutSizingHorizontal: 'HUG',
+          layoutSizingVertical: 'HUG',
+          paddingTop: 6,
+          paddingBottom: 6,
+          paddingLeft: 14,
+          paddingRight: 14,
+          cornerRadius: 9999,
           primaryAxisAlignItems: 'CENTER',
           counterAxisAlignItems: 'CENTER',
+          fills: [{ type: 'SOLID', color: colors.accent || colors.primary_light || PRIMARY_COLOR }],
         },
         tempId: badgeId,
       });
@@ -419,33 +466,33 @@ export function registerAnalysisTools(server: McpServer, sendDesignCommand: Send
           text: 'Badge',
           fontSize: 11,
           fontFamily: bodyFamily,
-          fontWeight: 600,
-          color: PRIMARY_COLOR,
-          width: 60,
-          height: 16,
-          textAlign: 'CENTER',
+          fontWeight: 700,
+          color: colors.on_primary || '#FFFFFF',
+          letterSpacing: 0.5,
+          textAutoResize: 'WIDTH_AND_HEIGHT',
         },
       });
 
-      // Card placeholder
+      // Card — FIXED width, HUG height, auto-layout for padding + content
       const cardId = uid();
       commands.push({
         action: 'create_frame',
         params: {
-          parentId: `$${rootId}`,
+          parentId: `$${compRowId}`,
           name: 'Component: Card',
-          width: 220,
-          height: 100,
-          x: FRAME_PAD + 280,
-          y: compStartY,
+          layoutMode: 'VERTICAL',
+          layoutSizingHorizontal: 'FIXED',
+          layoutSizingVertical: 'HUG',
+          width: 260,
+          itemSpacing: 8,
+          paddingTop: 20,
+          paddingBottom: 20,
+          paddingLeft: 20,
+          paddingRight: 20,
           cornerRadius: lgRadius,
           fills: [{ type: 'SOLID', color: colors.surface || '#FFFFFF' }],
-          layoutMode: 'VERTICAL',
-          itemSpacing: 8,
-          paddingTop: 16,
-          paddingBottom: 16,
-          paddingLeft: 16,
-          paddingRight: 16,
+          strokes: [{ type: 'SOLID', color: BORDER_COLOR }],
+          strokeWeight: 1,
         },
         tempId: cardId,
       });
@@ -454,106 +501,135 @@ export function registerAnalysisTools(server: McpServer, sendDesignCommand: Send
         params: {
           parentId: `$${cardId}`,
           text: 'Card Title',
-          fontSize: 14,
+          fontSize: 16,
           fontFamily: headingFamily,
-          fontWeight: 600,
+          fontWeight: 700,
           color: TEXT_COLOR,
-          width: 188,
-          height: 20,
+          layoutSizingHorizontal: 'FILL',
+          textAutoResize: 'HEIGHT',
         },
       });
       commands.push({
         action: 'create_text',
         params: {
           parentId: `$${cardId}`,
-          text: 'Card body content goes here.',
+          text: 'Card body content demonstrates surface + text tokens.',
           fontSize: 12,
           fontFamily: bodyFamily,
           fontWeight: 400,
           color: MUTED_COLOR,
-          width: 188,
-          height: 32,
+          layoutSizingHorizontal: 'FILL',
+          textAutoResize: 'HEIGHT',
         },
-      });
-      curY = compStartY + 100 + SECTION_GAP;
-
-      // ── Row 4: Spacing Scale ──
-      const { headerY: spacingHeaderY } = sectionHeader('SPACING');
-      commands.push({
-        action: 'create_text',
-        params: {
-          parentId: `$${rootId}`,
-          text: 'SPACING',
-          name: 'Section: Spacing',
-          fontSize: 11,
-          fontFamily: headingFamily,
-          fontWeight: 600,
-          color: MUTED_COLOR,
-          letterSpacing: 2,
-          x: FRAME_PAD,
-          y: spacingHeaderY,
-          width: INNER_W,
-          height: 20,
-        },
-      });
-      const spacingDivId = uid();
-      commands.push({
-        action: 'create_rectangle',
-        params: {
-          parentId: `$${rootId}`,
-          name: 'Divider',
-          width: INNER_W,
-          height: 1,
-          x: FRAME_PAD,
-          y: spacingHeaderY + 24,
-          fills: [{ type: 'SOLID', color: colors.border || '#E5E5E5' }],
-        },
-        tempId: spacingDivId,
       });
 
-      const spacingStartY = curY;
-      const MAX_BAR_H = 48;
+      // ═══════════════════════════════════════════════════════════
+      // Section: Spacing
+      // ═══════════════════════════════════════════════════════════
+      const spacingSectionId = uid();
+      pushSectionFrame('Spacing', `$${rootId}`, spacingSectionId, 20);
+
+      // Spacing row — HORIZONTAL, FILL width, HUG height, counterAxis MAX (bars bottom-aligned)
+      const spacingRowId = uid();
+      commands.push({
+        action: 'create_frame',
+        params: {
+          parentId: `$${spacingSectionId}`,
+          name: 'Spacing Row',
+          layoutMode: 'HORIZONTAL',
+          layoutSizingHorizontal: 'HUG',
+          layoutSizingVertical: 'HUG',
+          itemSpacing: 20,
+          paddingTop: 8,
+          paddingBottom: 0,
+          paddingLeft: 0,
+          paddingRight: 0,
+          counterAxisAlignItems: 'MAX',
+          fills: [],
+        },
+        tempId: spacingRowId,
+      });
+
+      const MAX_BAR_H = 72;
+      const BAR_W = 32;
       const maxSpacingVal = Math.max(...spacingOrder.map(s => s.value), 1);
-      let spX = FRAME_PAD;
       for (const { key, value } of spacingOrder) {
         const barH = Math.max(4, Math.round((value / maxSpacingVal) * MAX_BAR_H));
-        const barW = 32;
-        const barSpId = uid();
+        // Column: VERTICAL, HUG, center-aligned
+        const colId = uid();
         commands.push({
           action: 'create_frame',
           params: {
-            parentId: `$${rootId}`,
-            name: `Spacing: ${key}`,
-            width: barW,
-            height: barH,
-            x: spX,
-            y: spacingStartY + (MAX_BAR_H - barH),
-            fills: [{ type: 'SOLID', color: PRIMARY_COLOR }],
-            cornerRadius: 3,
+            parentId: `$${spacingRowId}`,
+            name: `Spacing column: ${key}`,
+            layoutMode: 'VERTICAL',
+            layoutSizingHorizontal: 'HUG',
+            layoutSizingVertical: 'HUG',
+            itemSpacing: 8,
+            paddingTop: 0,
+            paddingBottom: 0,
+            paddingLeft: 0,
+            paddingRight: 0,
+            counterAxisAlignItems: 'CENTER',
+            fills: [],
           },
-          tempId: barSpId,
+          tempId: colId,
         });
+        // Bar slot — FIXED height (MAX_BAR_H), inner bar bottom-aligned
+        const slotId = uid();
+        commands.push({
+          action: 'create_frame',
+          params: {
+            parentId: `$${colId}`,
+            name: `Bar slot: ${key}`,
+            layoutMode: 'VERTICAL',
+            layoutSizingHorizontal: 'FIXED',
+            layoutSizingVertical: 'FIXED',
+            width: BAR_W,
+            height: MAX_BAR_H,
+            primaryAxisAlignItems: 'MAX',
+            counterAxisAlignItems: 'CENTER',
+            paddingTop: 0,
+            paddingBottom: 0,
+            paddingLeft: 0,
+            paddingRight: 0,
+            fills: [],
+          },
+          tempId: slotId,
+        });
+        // Bar (fixed dims, this is the only place we legitimately use fixed sizing — it IS the viz)
+        commands.push({
+          action: 'create_frame',
+          params: {
+            parentId: `$${slotId}`,
+            name: `Bar: ${key}`,
+            layoutMode: 'NONE',
+            width: BAR_W,
+            height: barH,
+            cornerRadius: 3,
+            fills: [{ type: 'SOLID', color: PRIMARY_COLOR }],
+          },
+        });
+        // Label
         commands.push({
           action: 'create_text',
           params: {
-            parentId: `$${rootId}`,
-            text: `${key}\n${value}px`,
+            parentId: `$${colId}`,
+            text: `${key}\n${value}`,
             name: `Spacing label: ${key}`,
-            fontSize: 9,
+            fontSize: 10,
             fontFamily: bodyFamily,
             fontWeight: 400,
             color: MUTED_COLOR,
-            x: spX,
-            y: spacingStartY + MAX_BAR_H + 4,
-            width: barW + 12,
-            height: 28,
             textAlign: 'CENTER',
+            textAutoResize: 'WIDTH_AND_HEIGHT',
           },
         });
-        spX += barW + 16;
       }
 
+      // ═══════════════════════════════════════════════════════════
       // Execute
+      // ═══════════════════════════════════════════════════════════
       const data = await sendDesignCommand('batch_execute', { commands });
       const results = (data as Record<string, unknown>).results as Array<Record<string, unknown>> | undefined;
       const rootNodeId = results?.[0]?.nodeId || results?.[0]?.id || 'unknown';
@@ -569,6 +645,7 @@ export function registerAnalysisTools(server: McpServer, sendDesignCommand: Send
             typeScaleCount: typeOrder.length,
             spacingTokenCount: spacingOrder.length,
             totalCommands: commands.length,
+            layout: 'nested-auto-layout-hug',
           }, null, 2),
         }],
       };
