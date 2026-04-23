@@ -1,231 +1,43 @@
-# Synkra AIOS Development Rules for Claude Code
+# Figmento — Claude Code Project Rules
 
-You are working with Synkra AIOS, an AI-Orchestrated System for Full Stack Development.
+Caio is a designer who vibecodes. This file defines how Claude works on Figmento and how the Figmento design-agent behaves.
 
-<!-- AIOS-MANAGED-START: core-framework -->
-## Core Framework Understanding
+## How Caio works
 
-Synkra AIOS is a meta-framework that orchestrates AI agents to handle complex development workflows. Always recognize and work within this architecture.
-<!-- AIOS-MANAGED-END: core-framework -->
+- **Product/scope thinking** → use `@helm` (Jarvis squad)
+- **Design/UX** → use `@muse` or `@pixel` (Jarvis squad)
+- **Cleanup/audit** → use `@atlas` (Jarvis squad)
+- **Agent building** → use `@mason` (Jarvis squad)
+- **Dev-mode thinking** → use the 4 slash-command personas: `@architect`, `@dev`, `@qa`, `@devops`
 
-<!-- AIOS-MANAGED-START: agent-system -->
-## Agent System
+AIOS framework was removed (2026-04-22) — was mostly ceremonial for a solo designer. Kept the 4 dev-thinking personas as lightweight persona prompts (no workflow engine, no dependencies).
 
-### Agent Activation
-- Agents are activated with @agent-name syntax: @dev, @qa, @architect, @pm, @po, @sm, @analyst
-- The master agent is activated with @aios-master
-- Agent commands use the * prefix: *help, *create-story, *task, *exit
+## Story files (optional, lightweight)
 
-### Agent Context
-When an agent is active:
-- Follow that agent's specific persona and expertise
-- Use the agent's designated workflow patterns
-- Maintain the agent's perspective throughout the interaction
-<!-- AIOS-MANAGED-END: agent-system -->
+Non-trivial features can be tracked in `docs/stories/{ID}-{slug}.story.md` for session-to-session context. No validation rituals, no 10-point checklists — just a working-memory document. Archive to `docs/stories/_archived/` when Done.
 
-## Development Methodology
+## Code standards
 
-### Story-Driven Development
-1. **Work from stories** - All development starts with a story in `docs/stories/`
-2. **Update progress** - Mark checkboxes as tasks complete: [ ] → [x]
-3. **Track changes** - Maintain the File List section in the story
-4. **Follow criteria** - Implement exactly what the acceptance criteria specify
-
-### Code Standards
 - Write clean, self-documenting code
 - Follow existing patterns in the codebase
-- Include comprehensive error handling
-- Add unit tests for all new functionality
-- Use TypeScript/JavaScript best practices
+- TypeScript/JavaScript best practices
+- Add tests for non-trivial features (don't test trivial one-liners)
+- Before marking a task complete: run `npm run build` or the relevant test command for the subproject you touched
 
-### Testing Requirements
-- Run all tests before marking tasks complete
-- Ensure linting passes: `npm run lint`
-- Verify type checking: `npm run typecheck`
-- Add tests for new features
-- Test edge cases and error scenarios
+## Git conventions
 
-<!-- AIOS-MANAGED-START: framework-structure -->
-## AIOS Framework Structure
+- Conventional commits: `feat:`, `fix:`, `chore:`, `docs:`, `security:`, `refactor:`
+- Keep commits atomic
+- `@devops` owns `git push` and `gh pr create` — other agents stage/commit locally only
 
-```
-aios-core/
-├── agents/         # Agent persona definitions (YAML/Markdown)
-├── tasks/          # Executable task workflows
-├── workflows/      # Multi-step workflow definitions
-├── templates/      # Document and code templates
-├── checklists/     # Validation and review checklists
-└── rules/          # Framework rules and patterns
+## Tool selection
 
-docs/
-├── stories/        # Development stories (numbered)
-├── prd/            # Product requirement documents
-├── architecture/   # System architecture documentation
-└── guides/         # User and developer guides
-```
-<!-- AIOS-MANAGED-END: framework-structure -->
-
-## Workflow Execution
-
-### Task Execution Pattern
-1. Read the complete task/workflow definition
-2. Understand all elicitation points
-3. Execute steps sequentially
-4. Handle errors gracefully
-5. Provide clear feedback
-
-### Interactive Workflows
-- Workflows with `elicit: true` require user input
-- Present options clearly
-- Validate user responses
-- Provide helpful defaults
-
-## Best Practices
-
-### When implementing features:
-- Check existing patterns first
-- Reuse components and utilities
-- Follow naming conventions
-- Keep functions focused and testable
-- Document complex logic
-
-### When working with agents:
-- Respect agent boundaries
-- Use appropriate agent for each task
-- Follow agent communication patterns
-- Maintain agent context
-
-### When handling errors:
-```javascript
-try {
-  // Operation
-} catch (error) {
-  console.error(`Error in ${operation}:`, error);
-  // Provide helpful error message
-  throw new Error(`Failed to ${operation}: ${error.message}`);
-}
-```
-
-## Git & GitHub Integration
-
-### Commit Conventions
-- Use conventional commits: `feat:`, `fix:`, `docs:`, `chore:`, etc.
-- Reference story ID: `feat: implement IDE detection [Story 2.1]`
-- Keep commits atomic and focused
-
-### GitHub CLI Usage
-- Ensure authenticated: `gh auth status`
-- Use for PR creation: `gh pr create`
-- Check org access: `gh api user/memberships`
-
-<!-- AIOS-MANAGED-START: aios-patterns -->
-## AIOS-Specific Patterns
-
-### Working with Templates
-```javascript
-const template = await loadTemplate('template-name');
-const rendered = await renderTemplate(template, context);
-```
-
-### Agent Command Handling
-```javascript
-if (command.startsWith('*')) {
-  const agentCommand = command.substring(1);
-  await executeAgentCommand(agentCommand, args);
-}
-```
-
-### Story Updates
-```javascript
-// Update story progress
-const story = await loadStory(storyId);
-story.updateTask(taskId, { status: 'completed' });
-await story.save();
-```
-<!-- AIOS-MANAGED-END: aios-patterns -->
-
-## Environment Setup
-
-### Required Tools
-- Node.js 18+
-- GitHub CLI
-- Git
-- Your preferred package manager (npm/yarn/pnpm)
-
-### Configuration Files
-- `.aios/config.yaml` - Framework configuration
-- `.env` - Environment variables
-- `aios.config.js` - Project-specific settings
-
-<!-- AIOS-MANAGED-START: common-commands -->
-## Common Commands
-
-### AIOS Master Commands
-- `*help` - Show available commands
-- `*create-story` - Create new story
-- `*task {name}` - Execute specific task
-- `*workflow {name}` - Run workflow
-
-### Development Commands
-- `npm run dev` - Start development
-- `npm test` - Run tests
-- `npm run lint` - Check code style
-- `npm run build` - Build project
-<!-- AIOS-MANAGED-END: common-commands -->
-
-## Debugging
-
-### Enable Debug Mode
-```bash
-export AIOS_DEBUG=true
-```
-
-### View Agent Logs
-```bash
-tail -f .aios/logs/agent.log
-```
-
-### Trace Workflow Execution
-```bash
-npm run trace -- workflow-name
-```
-
-## Claude Code Specific Configuration
-
-### Performance Optimization
-- Prefer batched tool calls when possible for better performance
-- Use parallel execution for independent operations
-- Cache frequently accessed data in memory during sessions
-
-### Tool Usage Guidelines
-- Always use the Grep tool for searching, never `grep` or `rg` in bash
-- Use the Task tool for complex multi-step operations
-- Batch file reads/writes when processing multiple files
-- Prefer editing existing files over creating new ones
-
-### Session Management
-- Track story progress throughout the session
-- Update checkboxes immediately after completing tasks
-- Maintain context of the current story being worked on
-- Save important state before long-running operations
-
-### Error Recovery
-- Always provide recovery suggestions for failures
-- Include error context in messages to user
-- Suggest rollback procedures when appropriate
-- Document any manual fixes required
-
-### Testing Strategy
-- Run tests incrementally during development
-- Always verify lint and typecheck before marking complete
-- Test edge cases for each new feature
-- Document test scenarios in story files
-
-### Documentation
-- Update relevant docs when changing functionality
-- Include code examples in documentation
-- Keep README synchronized with actual behavior
-- Document breaking changes prominently
+- **Search files** → Grep tool (never bash `grep`/`rg`)
+- **Find files** → Glob tool
+- **Read files** → Read tool
+- **Edit files** → Edit tool (prefer over Write for existing files)
+- **Run commands** → Bash tool
+- **MCP** → see `.claude/rules/mcp-usage.md`
 
 ## Figmento Design Agent Rules
 
@@ -589,4 +401,4 @@ The following tools are hidden from the visible tool list in design sessions to 
 - **Low usage:** update_design_system, delete_design_system, refine_design_system, design_system_preview, brand_consistency_check, get_layout_blueprint, get_learned_preferences, scan_template, disconnect_from_figma, create_carousel, create_presentation, fetch_placeholder_image, evaluate_design
 
 ---
-*Synkra AIOS Claude Code Configuration v2.2*
+*Figmento Claude Code Configuration — lean mode*
