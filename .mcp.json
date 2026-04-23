@@ -4,8 +4,8 @@
       "command": "node",
       "args": ["c:/Users/Caio/Projects/Figmento/figmento-mcp-server/dist/index.js"],
       "env": {
-        "GEMINI_API_KEY": "AIzaSyAi7giDr-Hbst9ywy80FOljqrd1CZjSD3Q",
-        "ANTHROPIC_API_KEY": "YOUR_KEY_HERE"
+        "GEMINI_API_KEY": "${GEMINI_API_KEY}",
+        "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}"
       }
     },
     "mcp-image": {
