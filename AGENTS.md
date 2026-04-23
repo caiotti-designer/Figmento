@@ -24,9 +24,9 @@ This file defines project instructions for the Codex CLI.
 ## Project Map
 
 - **figmento-mcp-server/**: MCP server (stdio transport) — design tools for Claude Code to control Figma
-- **figmento-plugin/**: Figma plugin v2 — WebSocket-driven MCP design executor
+- **figmento/**: Figma plugin — WebSocket-driven MCP design executor with AI vision
 - **figmento-ws-relay/**: Channel-based WebSocket relay server (port 3055)
-- **figmento/**: Figma plugin v1 — standalone screenshot-to-design using AI vision
+- **packages/figmento-core/**: Shared types and utilities (re-exported by figmento/src/ shims)
 - **scripts/**: Utility scripts (HTML-to-PNG renderer)
 - **docs/**: Documentation, stories, architecture
 - **.aios-core/**: AIOS framework (agents, tasks, workflows)
@@ -38,13 +38,12 @@ This file defines project instructions for the Codex CLI.
 ```bash
 # Build all subprojects
 cd figmento-mcp-server && npm run build
-cd figmento-plugin && npm run build
-cd figmento-ws-relay && npm run build
 cd figmento && npm run build
+cd figmento-ws-relay && npm run build
 
 # Development
-cd figmento-plugin && npm run watch
 cd figmento && npm run watch
+cd figmento-ws-relay && npm run dev
 
 # Render HTML to PNG (for print designs)
 node scripts/render-html.js <input.html> <output.png>
