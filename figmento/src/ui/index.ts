@@ -618,18 +618,20 @@ function setupEventListeners(): void {
         restoreBridgeRelayUrl((settings as any).bridgeRelayUrl);
       }
 
-      // Auto-connect bridge when relay mode is enabled (CR-3, DX-1)
+      // Auto-connect bridge on plugin open. With pm2 managing the ws-relay,
+      // the local relay is always available — no need to gate auto-connect on
+      // model selection. Bridge routes MCP tool calls for ALL models.
       const cs = getChatSettings();
       const relayBar = document.getElementById('relay-status-bar');
       const useClaudeCode = cs.model === 'claude-code';
-      // Claude Code mode always needs the local relay — auto-connect to localhost
-      if (useClaudeCode || cs.chatRelayEnabled) {
-        if (relayBar) relayBar.style.display = 'flex';
-        const relayUrl = useClaudeCode ? 'http://localhost:3055' : (cs.chatRelayUrl || 'https://figmento-ws-relay.fly.dev');
-        autoConnectBridge(relayUrl, (settings as any).bridgeChannel || undefined);
-      } else {
-        if (relayBar) relayBar.style.display = 'none';
-      }
+      const isCodexModel = typeof cs.model === 'string' && cs.model.endsWith('-codex');
+      const needsLocalRelay = useClaudeCode || isCodexModel;
+
+      if (relayBar) relayBar.style.display = 'flex';
+      const relayUrl = needsLocalRelay
+        ? 'http://localhost:3055'
+        : (cs.chatRelayEnabled ? (cs.chatRelayUrl || 'https://figmento-ws-relay.fly.dev') : 'http://localhost:3055');
+      autoConnectBridge(relayUrl, (settings as any).bridgeChannel || undefined);
     },
     onMemoryLoaded: (entries) => {
       loadMemoryEntries(entries);
