@@ -38,12 +38,52 @@ export const groupNodesSchema = {
   nodeIds: z.array(z.string()).min(2).describe('Array of node IDs to group (minimum 2)'),
   name: z.string().optional().describe('Name for the group'),
 };
-export const cloneNodeSchema = {
-  nodeId: z.string().describe('Node ID to clone'),
-  offsetX: z.number().optional().describe('X offset from original position (default: 0)'),
-  offsetY: z.number().optional().describe('Y offset from original position (default: 0)'),
-  newName: z.string().optional().describe('New name for the cloned node'),
-  parentId: z.string().optional().describe('Parent frame to place clone into (default: same parent as original)'),
+export const findNodesSchema = {
+  name: z.string().optional().describe('Substring to match against node names (case-insensitive)'),
+  type: z.string().optional().describe('Figma node type filter: FRAME, TEXT, RECTANGLE, ELLIPSE, GROUP, COMPONENT, INSTANCE, VECTOR, LINE, etc.'),
+  text_content: z.string().optional().describe('Substring to match against text node content (case-insensitive). Only matches TEXT nodes.'),
+  parentId: z.string().optional().describe('Limit search to the subtree of this node. Defaults to entire current page.'),
+  max_results: z.number().optional().describe('Maximum results to return (default: 50)'),
+};
+
+export const booleanOperationSchema = {
+  operation: z.string().describe('Boolean operation: UNION, SUBTRACT, INTERSECT, or EXCLUDE. For SUBTRACT, the first nodeId is the base shape.'),
+  nodeIds: z.array(z.string()).min(2).describe('Array of node IDs to combine (minimum 2, order matters for SUBTRACT)'),
+  name: z.string().optional().describe('Name for the resulting node'),
+};
+
+export const flattenNodesSchema = {
+  nodeIds: z.array(z.string()).min(1).describe('Array of node IDs to flatten into a single editable vector'),
+  name: z.string().optional().describe('Name for the resulting vector'),
+};
+
+export const importComponentByKeySchema = {
+  key: z.string().describe('Component key (40-char hex from Figma URL or list_components output)'),
+  parentId: z.string().optional().describe('Parent frame to place the instance into'),
+  x: z.number().optional().describe('X position'),
+  y: z.number().optional().describe('Y position'),
+  name: z.string().optional().describe('Override instance name'),
+  variantName: z.string().optional().describe('For component sets: variant name to select (exact or partial match)'),
+};
+
+export const exportAsSvgSchema = {
+  nodeId: z.string().describe('Node ID to export as SVG'),
+  include_children: z.boolean().optional().describe('If true, export each direct child as a separate SVG (default: false)'),
+};
+
+export const setConstraintsSchema = {
+  nodeId: z.string().describe('Target node ID'),
+  horizontal: z.string().describe('Horizontal constraint: MIN (left), CENTER, MAX (right), STRETCH, or SCALE'),
+  vertical: z.string().describe('Vertical constraint: MIN (top), CENTER, MAX (bottom), STRETCH, or SCALE'),
+};
+
+export const importStyleByKeySchema = {
+  key: z.string().describe('Style key from Figma URL or get_local_styles output'),
+};
+
+export const listAvailableFontsSchema = {
+  query: z.string().optional().describe('Filter fonts by family name (case-insensitive substring match)'),
+  limit: z.number().optional().describe('Maximum font families to return (default: 50)'),
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -140,24 +180,6 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
     async (params) => handleTransformNode(params, sendDesignCommand)
   );
 
-  // ═══════════════════════════════════════════════════════════
-  // Deprecated aliases — delegate to transform_node handler
-  // ═══════════════════════════════════════════════════════════
-
-  server.tool(
-    'move_node',
-    '[DEPRECATED — use transform_node instead] Move a node to a new position.',
-    moveNodeSchema,
-    async (params) => handleTransformNode(params, sendDesignCommand)
-  );
-
-  server.tool(
-    'resize_node',
-    '[DEPRECATED — use transform_node instead] Resize a node.',
-    resizeNodeSchema,
-    async (params) => handleTransformNode(params, sendDesignCommand)
-  );
-
   server.tool(
     'rename_node',
     'Rename a node.',
@@ -180,7 +202,7 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
 
   server.tool(
     'reorder_child',
-    'Move a child node to a specific index within its parent frame. Use this to fix z-order after clone_node or to reorder layers. If index is omitted, moves child to the end (top of layer stack).',
+    'Reorder a child node to a specific z-index within its parent. Omit index to move to top.',
     reorderChildSchema,
     async (params) => {
       const data = await sendDesignCommand('reorder_child', params);
@@ -191,7 +213,7 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
   // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
   server.tool(
     'group_nodes',
-    'Group multiple nodes into a single group. All nodes must share the same parent. Useful for bundling related elements (e.g. a button bg + label, a speaker card) so they can be moved/cloned as a unit.',
+    'Group multiple nodes into a single group. All nodes must share the same parent.',
     groupNodesSchema,
     async (params) => {
       const data = await sendDesignCommand('group_nodes', params);
@@ -200,11 +222,83 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
   );
 
   server.tool(
-    'clone_node',
-    'Clone (duplicate) an existing node. Returns the new node\'s ID. Great for repeating patterns like menu items, speaker cards, tags, etc.',
-    cloneNodeSchema,
+    'find_nodes',
+    'Search the canvas for nodes by name, type, or text content. Use parentId to limit scope. Returns up to max_results matches.',
+    findNodesSchema,
     async (params) => {
-      const data = await sendDesignCommand('clone_node', params);
+      const data = await sendDesignCommand('find_nodes', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'list_available_fonts',
+    'List fonts available in the Figma environment, grouped by family. Use query to filter.',
+    listAvailableFontsSchema,
+    async (params) => {
+      const data = await sendDesignCommand('list_available_fonts', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
+  server.tool(
+    'boolean_operation',
+    'Perform a boolean operation (UNION, SUBTRACT, INTERSECT, EXCLUDE) on 2+ shapes.',
+    booleanOperationSchema,
+    async (params) => {
+      const data = await sendDesignCommand('boolean_operation', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
+  // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
+  server.tool(
+    'flatten_nodes',
+    'Flatten one or more nodes into a single editable vector with merged paths.',
+    flattenNodesSchema,
+    async (params) => {
+      const data = await sendDesignCommand('flatten_nodes', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
+  server.tool(
+    'import_component_by_key',
+    'Import a component from a team library by key and create an instance. Supports variant selection. Requires Figma Pro.',
+    importComponentByKeySchema,
+    async (params) => {
+      const data = await sendDesignCommand('import_component_by_key', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'import_style_by_key',
+    'Import a style from a team library by key. Available locally for apply_style. Requires Figma Pro.',
+    importStyleByKeySchema,
+    async (params) => {
+      const data = await sendDesignCommand('import_style_by_key', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
+  server.tool(
+    'export_as_svg',
+    'Export a node as raw SVG markup. Use include_children=true to export each child separately.',
+    exportAsSvgSchema,
+    async (params) => {
+      const data = await sendDesignCommand('export_as_svg', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'set_constraints',
+    'Set responsive constraints on a node. Only works in non-auto-layout frames.',
+    setConstraintsSchema,
+    async (params) => {
+      const data = await sendDesignCommand('set_constraints', params);
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
   );

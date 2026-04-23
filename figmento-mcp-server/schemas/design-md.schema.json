@@ -1,0 +1,387 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://figmento.app/schemas/design-md.schema.json",
+  "title": "Figmento DESIGN.md v1.0",
+  "description": "Intermediate representation of a parsed Figmento DESIGN.md file. Validates the shape produced by the import_design_system_from_md MCP tool after it extracts frontmatter, walks H2 sections, and parses fenced-block bodies via js-yaml. Does not validate raw markdown — the parser is responsible for tokenization, this schema is responsible for structural correctness. Schema version: 1.0.0 (see frontmatter.schema_version for authoring version).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["frontmatter", "sections"],
+  "properties": {
+    "frontmatter": { "$ref": "#/definitions/frontmatter" },
+    "sections": { "$ref": "#/definitions/sections" },
+    "format_variants": {
+      "description": "Figmento extension — per-format overrides keyed by format slug (e.g., 'instagram_post', 'a4_brochure'). Values are open objects with any override keys.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  },
+
+  "definitions": {
+    "frontmatter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "created"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "description": "Kebab-case system identifier. Becomes the directory name under knowledge/design-systems/{name}/."
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(-[A-Za-z0-9.-]+)?$",
+          "description": "Semver version of the design system content. Defaults to 1.0.0 when absent."
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 datetime. Preserved from tokens.yaml.created on round-trip."
+        },
+        "source_url": {
+          "type": "string",
+          "description": "Upstream origin or attribution when the system was ingested from somewhere. Maps to tokens.yaml.source. Accepts URLs (https://...) and non-URL attribution strings (e.g., 'VoltAgent/awesome-design-md — design-md/notion/DESIGN.md'). DMD-4 round-trip testing revealed that existing tokens.yaml files use non-URI attribution strings — format: uri was relaxed to type: string to support the full round-trip contract."
+        },
+        "figma_file_key": {
+          "type": ["string", "null"],
+          "description": "Figma file key this system is bound to. Reserved for future plugin-side workflows."
+        },
+        "preset_used": {
+          "type": ["string", "null"],
+          "description": "Name of the Figmento preset used during generation, or null if none."
+        },
+        "schema_version": {
+          "type": "string",
+          "enum": ["1.0"],
+          "description": "DESIGN.md schema version. v1.0 is the only supported value today. Parser branches on this field for future v2 migration."
+        }
+      }
+    },
+
+    "sections": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Parsed sections of the DESIGN.md file. Keys are snake_case normalizations of the H2 headings. Only visual_theme_atmosphere and color_palette_roles OR typography_rules are required — other sections default to empty prose on tolerance.",
+      "properties": {
+        "visual_theme_atmosphere": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "prose": { "type": "string" },
+            "mood": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Mood tags extracted from '**Mood**:' line or a bullet list under a 'Mood' sub-heading."
+            }
+          }
+        },
+        "color_palette_roles": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "prose": { "type": "string" },
+            "color": { "$ref": "#/definitions/blocks/color" },
+            "gradient": { "$ref": "#/definitions/blocks/gradient" }
+          }
+        },
+        "typography_rules": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "prose": { "type": "string" },
+            "font_family": { "$ref": "#/definitions/blocks/font_family" },
+            "type_scale": { "$ref": "#/definitions/blocks/type_scale" },
+            "letter_spacing": { "$ref": "#/definitions/blocks/letter_spacing" }
+          }
+        },
+        "component_stylings": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Prose only in schema v1. A future v2 may add a 'component' fenced-block DSL.",
+          "properties": {
+            "prose": { "type": "string" }
+          }
+        },
+        "layout_principles": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "prose": { "type": "string" },
+            "spacing": { "$ref": "#/definitions/blocks/spacing" },
+            "radius": { "$ref": "#/definitions/blocks/radius" }
+          }
+        },
+        "depth_elevation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "prose": { "type": "string" },
+            "shadow": { "$ref": "#/definitions/blocks/shadow" },
+            "elevation": { "$ref": "#/definitions/blocks/elevation" }
+          }
+        },
+        "dos_and_donts": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Do's and Don'ts lists. Bullet items may be plain strings or category-tagged strings (Figmento extension: '**typography:** ...'). Parser preserves whatever form was authored.",
+          "properties": {
+            "do": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "dont": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "responsive_behavior": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Prose only in schema v1. A future v2 may add a 'breakpoints' fenced block.",
+          "properties": {
+            "prose": { "type": "string" }
+          }
+        },
+        "agent_prompt_guide": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Prose only. Consumed by external AI tools (Cursor, Claude Desktop, Cline) as instructions for UI generation — Figmento preserves verbatim but does not execute on the content.",
+          "properties": {
+            "prose": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "blocks": {
+      "color": {
+        "type": "object",
+        "description": "Fenced-block language 'color'. Open map of string keys → CSS color values. Canonical 15 keys are recommended; additional freely-named keys preserved verbatim.",
+        "additionalProperties": { "$ref": "#/definitions/types/cssColor" },
+        "properties": {
+          "primary": { "$ref": "#/definitions/types/cssColor" },
+          "primary_light": { "$ref": "#/definitions/types/cssColor" },
+          "primary_dark": { "$ref": "#/definitions/types/cssColor" },
+          "secondary": { "$ref": "#/definitions/types/cssColor" },
+          "accent": { "$ref": "#/definitions/types/cssColor" },
+          "surface": { "$ref": "#/definitions/types/cssColor" },
+          "background": { "$ref": "#/definitions/types/cssColor" },
+          "border": { "$ref": "#/definitions/types/cssColor" },
+          "on_primary": { "$ref": "#/definitions/types/cssColor" },
+          "on_surface": { "$ref": "#/definitions/types/cssColor" },
+          "on_surface_muted": { "$ref": "#/definitions/types/cssColor" },
+          "success": { "$ref": "#/definitions/types/cssColor" },
+          "warning": { "$ref": "#/definitions/types/cssColor" },
+          "error": { "$ref": "#/definitions/types/cssColor" },
+          "info": { "$ref": "#/definitions/types/cssColor" }
+        }
+      },
+
+      "font_family": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fenced-block language 'font-family'. Structured typography families, weights, and OpenType/tabular features.",
+        "required": ["heading", "body"],
+        "properties": {
+          "heading": { "$ref": "#/definitions/types/fontRole" },
+          "body": { "$ref": "#/definitions/types/fontRole" },
+          "mono": { "$ref": "#/definitions/types/fontRole" },
+          "opentype_features": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Optional CSS OpenType feature tags (e.g., 'lnum', 'locl', 'cv01', 'ss03')."
+          },
+          "tabular_features": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Optional tabular figure feature tags (e.g., 'tnum')."
+          }
+        }
+      },
+
+      "type_scale": {
+        "type": "object",
+        "description": "Fenced-block language 'type-scale'. Open numeric map role → px. Canonical 10 keys recommended (display, h1-h3, heading, body_lg, body, body_sm, caption, label).",
+        "additionalProperties": {
+          "type": "number",
+          "minimum": 0
+        },
+        "properties": {
+          "display": { "type": "number", "minimum": 0 },
+          "h1": { "type": "number", "minimum": 0 },
+          "h2": { "type": "number", "minimum": 0 },
+          "h3": { "type": "number", "minimum": 0 },
+          "heading": { "type": "number", "minimum": 0 },
+          "body_lg": { "type": "number", "minimum": 0 },
+          "body": { "type": "number", "minimum": 0 },
+          "body_sm": { "type": "number", "minimum": 0 },
+          "caption": { "type": "number", "minimum": 0 },
+          "label": { "type": "number", "minimum": 0 }
+        }
+      },
+
+      "letter_spacing": {
+        "type": "object",
+        "description": "Fenced-block language 'letter-spacing'. Open string map role → CSS length or 'normal'. Same canonical keys as type-scale.",
+        "additionalProperties": {
+          "$ref": "#/definitions/types/cssLengthOrNormal"
+        }
+      },
+
+      "spacing": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fenced-block language 'spacing'. Fixed-key numeric map — always these 8 keys. Values should follow the 8px grid (soft recommendation, enforced by the validator tool not the schema).",
+        "required": ["unit", "xs", "sm", "md", "lg", "xl", "2xl", "3xl"],
+        "properties": {
+          "unit": { "type": "number", "minimum": 0, "description": "Base unit — typically 8 for the 8px grid." },
+          "xs": { "type": "number", "minimum": 0 },
+          "sm": { "type": "number", "minimum": 0 },
+          "md": { "type": "number", "minimum": 0 },
+          "lg": { "type": "number", "minimum": 0 },
+          "xl": { "type": "number", "minimum": 0 },
+          "2xl": { "type": "number", "minimum": 0 },
+          "3xl": { "type": "number", "minimum": 0 }
+        }
+      },
+
+      "radius": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fenced-block language 'radius'. Fixed-key numeric map — always these 6 keys. 'full' is conventionally 9999 for pills.",
+        "required": ["none", "sm", "md", "lg", "xl", "full"],
+        "properties": {
+          "none": { "type": "number", "minimum": 0 },
+          "sm": { "type": "number", "minimum": 0 },
+          "md": { "type": "number", "minimum": 0 },
+          "lg": { "type": "number", "minimum": 0 },
+          "xl": { "type": "number", "minimum": 0 },
+          "full": { "type": "number", "minimum": 0 }
+        }
+      },
+
+      "shadow": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fenced-block language 'shadow'. Structured 3-level shadow tokens — always sm/md/lg, always 6 fields per level. Consumed directly by Figma effect-style creation.",
+        "required": ["sm", "md", "lg"],
+        "properties": {
+          "sm": { "$ref": "#/definitions/types/shadowLayer" },
+          "md": { "$ref": "#/definitions/types/shadowLayer" },
+          "lg": { "$ref": "#/definitions/types/shadowLayer" }
+        }
+      },
+
+      "elevation": {
+        "type": "object",
+        "description": "Fenced-block language 'elevation'. OPAQUE CSS PASS-THROUGH — values are raw CSS shadow strings (often multi-layer composites) that the runtime reads without structural parsing. The schema validates only that each entry has a 'shadow' string; no CSS parsing, no contrast check, no color-token-reference check. See docs/architecture/DESIGN-MD-SPEC.md §7.1 for the trade-off rationale.",
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["shadow"],
+          "properties": {
+            "shadow": {
+              "type": "string",
+              "description": "Raw CSS shadow expression or 'none'. Opaque to the schema."
+            },
+            "background": {
+              "type": "string",
+              "description": "Optional CSS background expression."
+            },
+            "border": {
+              "type": "string",
+              "description": "Optional CSS border expression."
+            }
+          }
+        }
+      },
+
+      "gradient": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Fenced-block language 'gradient'. Structured conditional — when enabled: false, only 'enabled' is required; when enabled: true, direction and colors become relevant.",
+        "required": ["enabled"],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "direction": {
+            "type": "string",
+            "description": "Gradient type — typically 'linear' or 'radial'."
+          },
+          "colors": {
+            "type": "array",
+            "items": { "$ref": "#/definitions/types/cssColor" },
+            "minItems": 2,
+            "description": "Gradient stops as CSS colors. At least 2 entries required when present."
+          },
+          "note": {
+            "type": "string",
+            "description": "Optional free-text note explaining where/how the gradient should be applied."
+          }
+        }
+      }
+    },
+
+    "types": {
+      "cssColor": {
+        "type": "string",
+        "description": "A CSS color expression. Accepts #RRGGBB, #RRGGBBAA, rgb()/rgba(), hsl()/hsla(), or the keyword 'none'. Semantic validation (hex validity, contrast ratios) is performed by the validate_design_md tool (DMD-3), not this schema.",
+        "minLength": 1
+      },
+
+      "cssLengthOrNormal": {
+        "type": "string",
+        "description": "A CSS length (e.g., '-1.58px', '0.12px') or the keyword 'normal'.",
+        "minLength": 1
+      },
+
+      "fontRole": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["family", "weights"],
+        "properties": {
+          "family": {
+            "type": "string",
+            "description": "Primary font family name."
+          },
+          "figma_fallback": {
+            "type": "string",
+            "description": "Figmento-specific: a widely-available Figma font to use when the primary family is not loaded in the target Figma file."
+          },
+          "fallback": {
+            "type": "string",
+            "description": "Standard CSS fallback chain."
+          },
+          "weights": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 1000
+            },
+            "minItems": 1,
+            "description": "Allowed font weights. May include non-standard variable-font stops (e.g., 320, 450, 510, 590)."
+          }
+        }
+      },
+
+      "shadowLayer": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["x", "y", "blur", "spread", "color", "opacity"],
+        "properties": {
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "blur": { "type": "number", "minimum": 0 },
+          "spread": { "type": "number" },
+          "color": { "$ref": "#/definitions/types/cssColor" },
+          "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    }
+  }
+}

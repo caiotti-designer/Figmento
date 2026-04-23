@@ -28,18 +28,20 @@ const RESOURCE_HANDLERS: Record<string, (filter?: string) => Promise<{ content: 
 
 const VALID_TYPES = Object.keys(RESOURCE_HANDLERS);
 
+export const listResourcesSchema = {
+  type: z.string().describe(
+    'Resource type: blueprints | references | patterns | templates | icons | formats | components | designSystems'
+  ),
+  filter: z.string().optional().describe(
+    'Optional filter/search keyword (for icons: category or search term, for formats: category like social/print/web, for blueprints: category like web/social/ads)'
+  ),
+};
+
 export function registerResourceTools(server: McpServer): void {
   server.tool(
     'list_resources',
     'List available design resources by type. Consolidates all list_* tools into one. Returns matching items for the given resource type.',
-    {
-      type: z.string().describe(
-        'Resource type: blueprints | references | patterns | templates | icons | formats | components | designSystems'
-      ),
-      filter: z.string().optional().describe(
-        'Optional filter/search keyword (for icons: category or search term, for formats: category like social/print/web, for blueprints: category like web/social/ads)'
-      ),
-    },
+    listResourcesSchema,
     async (params) => {
       const handler = RESOURCE_HANDLERS[params.type];
       if (!handler) {

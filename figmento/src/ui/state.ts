@@ -6,19 +6,7 @@ import {
   ColorTheme,
   COLOR_THEMES,
   FONT_OPTIONS,
-  ImageSlotReference,
-  TemplateScanResult,
-  PresentationFormat,
-  PRESENTATION_FORMATS,
-  DesignStylePreset,
-  PresentationContentType,
-  PageOrientation,
-  ExtractedSlideStyle,
-  CarouselConfig,
-  SubjectPosition,
-  HeroQuality,
-  HeroFormat,
-  HERO_FORMATS,
+  DesignSystemCache,
 } from '../types';
 
 // ═══════════════════════════════════════════════════════════════
@@ -32,6 +20,7 @@ export const STORAGE_KEY_MODE = 'figmento-mode';
 export const STORAGE_KEY_CLAUDE_MODEL = 'figmento-claude-model';
 export const STORAGE_KEY_OPENAI_MODEL = 'figmento-openai-model';
 export const STORAGE_KEY_DESIGN_OVERRIDES = 'figmento-overrides';
+export const STORAGE_KEY_USE_DESIGN_SYSTEM = 'figmento-use-design-system';
 
 export const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
 export const MAX_IMAGE_DIMENSION = 2048;
@@ -288,58 +277,37 @@ export const designSettings = {
   customPrompt: '',
 };
 
-export const templateState = {
-  scanResult: null as TemplateScanResult | null,
-  imageSlots: [] as ImageSlotReference[],
-  abortController: null as AbortController | null,
-  imageStyle: '',
+
+// FN-6: Design System Discovery state
+export const designSystemState = {
+  cache: null as DesignSystemCache | null,
+  isScanning: false,
 };
 
-export const presentationState = {
-  format: PRESENTATION_FORMATS[0] as PresentationFormat,
-  orientation: 'landscape' as PageOrientation,
-  customWidth: 1920,
-  customHeight: 1080,
-  font: 'Inter',
-  colorTheme: null as ColorTheme | null,
-  customHex: '',
-  designStyle: 'auto' as DesignStylePreset,
-  contentType: 'auto' as PresentationContentType,
-  slideCount: 'auto' as number | 'auto',
-  showSlideNumbers: false,
-  isProcessing: false,
-  abortController: null as AbortController | null,
-  progressInterval: null as number | null,
+// FN-16: "Use My Design System" toggle state
+export const dsToggleState = {
+  enabled: true, // default ON — but disabled in UI when cache is null
 };
 
-export const addSlideState = {
-  extractedStyle: null as ExtractedSlideStyle | null,
-  isProcessing: false,
-};
+/**
+ * Returns true when the user wants DS awareness AND a scan has been performed.
+ * Use this in buildSystemPrompt() and matchComponent() call sites.
+ */
+export function isDesignSystemToggleOn(): boolean {
+  return dsToggleState.enabled && designSystemState.cache !== null;
+}
 
-export const textLayoutState = {
-  isProcessing: false,
-  abortController: null as AbortController | null,
-  progressInterval: null as number | null,
-  currentLayoutPreset: 'auto' as string,
-  carouselConfig: { enabled: false, slideCount: 'auto', slideFormat: 'square' } as CarouselConfig,
-  imageGenEnabled: false,
-  imageGenModel: 'gemini-3.1-flash-image-preview' as string,
-  referenceImageRoles: {} as Record<number, string>,
-  customStyleEnabled: false,
-};
+/**
+ * Returns the DS cache when the toggle is active, or null when off.
+ * Convenience for gating buildSystemPrompt's dsCache parameter.
+ */
+export function getEffectiveDsCache(): DesignSystemCache | null {
+  return isDesignSystemToggleOn() ? designSystemState.cache : null;
+}
 
-export const heroState = {
-  subjects: [] as string[],
-  styleRef: null as string | null,
-  elements: [] as string[],
-  position: 'center' as SubjectPosition,
-  quality: '2k' as HeroQuality,
-  format: HERO_FORMATS[0] as HeroFormat,
-  scenePrompt: '',
-  isProcessing: false,
-  abortController: null as AbortController | null,
-  lastGeneratedImage: null as string | null,
+// FN-15: Status Tab state
+export const statusTabState = {
+  preferencesCount: 0,
 };
 
 export const adAnalyzerState = {
@@ -470,9 +438,10 @@ export const dom = {
 
 export function initDomRefs(): void {
   dom.settingsBtn = document.getElementById('settingsBtn') as HTMLButtonElement;
-  dom.settingsOverlay = document.getElementById('settingsOverlay') as HTMLDivElement;
-  dom.settingsPanel = document.getElementById('settingsPanel') as HTMLElement;
-  dom.settingsClose = document.getElementById('settingsClose') as HTMLButtonElement;
+  // Redirected to new sheet elements (UI-2 revamp)
+  dom.settingsOverlay = document.getElementById('sheetBackdrop') as HTMLDivElement;
+  dom.settingsPanel = document.getElementById('settingsSheet') as HTMLElement;
+  dom.settingsClose = document.getElementById('sheetClose') as HTMLButtonElement;
   dom.statusDot = document.getElementById('statusDot') as HTMLSpanElement;
 
   dom.dropZone = document.getElementById('dropZone') as HTMLDivElement;

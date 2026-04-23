@@ -2,7 +2,9 @@
   "name": "figmento",
   "version": "1.0.0",
   "description": "Figmento — AI-powered design tools for Figma",
-  "scripts": {},
+  "scripts": {
+    "dev": "concurrently -n relay,plugin -c blue,green \"npm run dev --prefix figmento-ws-relay\" \"npm run watch --prefix figmento\""
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/caiotti-designer/Figmento.git"
@@ -19,5 +21,8 @@
     "mcp-image": "^0.7.0",
     "openai": "^6.25.0",
     "puppeteer": "^24.37.5"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

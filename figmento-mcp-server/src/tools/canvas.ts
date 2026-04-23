@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import * as fs from 'fs';
 import * as nodePath from 'path';
+import { buildSiblingWarning } from './design-system/showcase-tracker';
 
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
@@ -132,6 +133,28 @@ export const fetchPlaceholderImageSchema = {
   height: z.number().default(1080).describe('Image height in pixels (default: 1080)'),
 };
 
+export const createVectorSchema = {
+  name: z.string().optional().describe('Layer name (default: "Vector")'),
+  x: z.number().optional().describe('X position'),
+  y: z.number().optional().describe('Y position'),
+  width: z.number().optional().describe('Bounding box width'),
+  height: z.number().optional().describe('Bounding box height'),
+  svgPath: z.string().optional().describe('SVG path data string (e.g. "M 0 0 L 100 0 L 50 86.6 Z"). Simplest way to create a vector shape.'),
+  vectorPaths: z.array(z.object({
+    data: z.string().describe('SVG path data string'),
+    windingRule: z.string().optional().describe('NONZERO (default) or EVENODD'),
+  })).optional().describe('Multiple SVG path data strings (for compound shapes)'),
+  vertices: z.array(z.object({
+    x: z.number(),
+    y: z.number(),
+    cornerRadius: z.number().optional(),
+  })).optional().describe('Simple polygon vertices — auto-generates a closed shape from 3+ points'),
+  fillColor: z.string().optional().describe('Hex fill color'),
+  strokeColor: z.string().optional().describe('Hex stroke color'),
+  strokeWeight: z.number().optional().describe('Stroke weight in pixels'),
+  parentId: z.string().optional().describe('Parent frame to append to'),
+};
+
 export const setTextSchema = {
   nodeId: z.string().describe('Text node ID to update'),
   content: z.string().describe('New text content'),
@@ -148,7 +171,10 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
     createFrameSchema,
     async (params) => {
       const data = await sendDesignCommand('create_frame', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+      // DQ-HF-1: warn on likely-sibling-of-recent-showcase mistakes (never blocks)
+      const siblingWarning = buildSiblingWarning({ parentId: params.parentId, width: params.width });
+      const payload = siblingWarning ? { ...data, warning: siblingWarning } : data;
+      return { content: [{ type: 'text' as const, text: JSON.stringify(payload) }] };
     }
   );
 
@@ -196,7 +222,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
 
   server.tool(
     'place_generated_image',
-    'Place an AI-generated image from a local file onto the Figma canvas. Reads the image file from disk, base64 encodes it, and sends it to Figma via the existing image pipeline. Use this after generating images with mcp-image or any other tool that saves images to disk.',
+    'Place an image from a local file path onto the Figma canvas. Reads and base64-encodes the file server-side.',
     placeGeneratedImageSchema,
     async (params) => {
       const IMAGE_OUTPUT_DIR = process.env.IMAGE_OUTPUT_DIR || nodePath.join(process.cwd(), 'output');
@@ -242,7 +268,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
 
   server.tool(
     'fetch_placeholder_image',
-    'Fetch a placeholder photo from picsum.photos as a base64-encoded fallback when AI image generation fails or is unavailable. Extracts keywords from the prompt to seed consistent images, or accepts explicit keywords. Downloads the image server-side and returns { source: "placeholder_image", url, base64, width, height }. Use the base64 field with create_image or set_fill to place the photo on canvas.',
+    'Fetch a placeholder photo from picsum.photos as base64. Fallback when AI image generation is unavailable. Returns { base64, width, height }.',
     fetchPlaceholderImageSchema,
     async (params) => {
       const STOP_WORDS = new Set([
@@ -301,10 +327,21 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
 
   server.tool(
     'set_text',
-    'Update text content and optionally style on an existing text node. Use this to change what a text node says, its font size, font family, weight, or color — without recreating it.',
+    'Update text content and optionally style (font, size, weight, color) on an existing text node.',
     setTextSchema,
     async (params) => {
       const data = await sendDesignCommand('apply_template_text', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
+  // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK + zod
+  server.tool(
+    'create_vector',
+    'Create a custom vector shape from SVG path data or polygon vertices.',
+    createVectorSchema,
+    async (params) => {
+      const data = await sendDesignCommand('create_vector', params);
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
   );

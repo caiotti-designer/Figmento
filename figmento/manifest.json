@@ -16,13 +16,18 @@
       "https://fonts.googleapis.com",
       "https://fonts.gstatic.com",
       "https://figmento-production.up.railway.app",
-      "wss://figmento-production.up.railway.app"
+      "wss://figmento-production.up.railway.app",
+      "https://figmento-ws-relay.fly.dev",
+      "wss://figmento-ws-relay.fly.dev",
+      "https://api.venice.ai",
+      "https://chatgpt.com",
+      "https://auth.openai.com"
     ],
     "devAllowedDomains": [
       "http://localhost:3055",
       "ws://localhost:3055"
     ],
-    "reasoning": "Anthropic/OpenAI/Gemini APIs for AI chat + design, Google Fonts for text rendering, unpkg for external assets, Railway-hosted WebSocket relay for MCP bridge, localhost for local dev relay"
+    "reasoning": "Anthropic/OpenAI/Gemini APIs for AI chat + design, Google Fonts for text rendering, unpkg for external assets, Fly.io cloud relay for chat + bridge, Railway legacy relay, localhost for local dev relay"
   },
   "permissions": [
     "currentuser"

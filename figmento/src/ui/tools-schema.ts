@@ -56,23 +56,16 @@ const cornerRadiusSchema = {
 /** Tools never sent in chat mode — MCP-only or irrelevant for iterative chat. */
 const CHAT_EXCLUDED = new Set([
   'export_node',
-  'get_screenshot',
-  'run_refinement_check',
   'create_design',
-  'read_figma_context',
-  'bind_variable',
-  'apply_paint_style',
-  'apply_text_style',
-  'apply_effect_style',
-  'create_figma_variables',
 ]);
 
 /** Lookup tools — needed in plan phase, removed once design starts. */
 const LOOKUP_TOOLS = new Set([
+  'get_design_guidance',       // TC-1 consolidated name
   'get_layout_blueprint',
-  'get_color_palette',
-  'get_font_pairing',
-  'get_size_preset',
+  'get_color_palette',         // backward compat until TC-3
+  'get_font_pairing',         // backward compat until TC-3
+  'get_size_preset',           // backward compat until TC-3
 ]);
 
 /** Tools that signal we've entered the build phase. */
@@ -82,36 +75,59 @@ const BUILD_PHASE_TRIGGERS = new Set([
   'create_rectangle',
   'create_ellipse',
   'create_image',
-  'set_fill',
+  'set_style',                 // TC-1 consolidated name
+  'set_fill',                  // backward compat until TC-3
   'set_auto_layout',
 ]);
 
-/** Plan phase: lookups + basic creation + scene queries (~14 tools). */
+/** Plan phase: lookups + basic creation + scene queries. */
 const PLAN_PHASE_TOOLS = new Set([
-  // Lookups
+  // Lookups (TC-1 consolidated + backward compat)
+  'get_design_guidance',
   'get_layout_blueprint', 'get_color_palette', 'get_font_pairing', 'get_size_preset',
+  'get_contrast_check', 'get_design_rules',
+  // Intelligence & pairing
+  'get_design_intelligence', 'suggest_font_pairing', 'generate_accessible_palette',
   // Scene queries
   'get_selection', 'get_page_nodes', 'get_node_info', 'analyze_canvas_context',
+  'scan_frame_structure', 'get_screenshot', 'read_figma_context',
   // Basic creation
   'create_frame', 'create_text', 'create_rectangle', 'create_ellipse',
-  // Essential styling
-  'set_fill',
+  // Essential styling (TC-1 consolidated + backward compat)
+  'set_style', 'set_fill',
+  // Scene edits on existing nodes (safe in plan phase — no creation)
+  'rename_node', 'delete_node',
   // Image + utility
   'create_image', 'generate_image', 'update_memory',
 ]);
 
-/** Build phase: creation + styling + scene management (~17 tools). */
+/** Build phase: creation + styling + scene management. */
 const BUILD_PHASE_TOOLS = new Set([
+  // Intelligence & pairing (available during build for mid-design lookups)
+  'get_design_intelligence', 'suggest_font_pairing', 'generate_accessible_palette',
   // Creation
   'create_frame', 'create_text', 'create_rectangle', 'create_ellipse', 'create_image',
-  // Styling
+  'create_icon',
+  // Batch
+  'batch_execute', 'clone_with_overrides',
+  // Styling (TC-1 consolidated + backward compat until TC-3)
+  'set_style',
   'set_fill', 'set_stroke', 'set_effects', 'set_corner_radius', 'set_opacity', 'set_auto_layout',
-  // Scene management
-  'move_node', 'resize_node', 'append_child', 'clone_node', 'delete_node',
+  // Scene management (TC-1 consolidated + backward compat until TC-3)
+  'transform_node',
+  'move_node', 'resize_node', 'append_child', 'reorder_child', 'clone_node', 'delete_node',
+  'rename_node',
   // Inspection
-  'get_node_info',
+  'get_node_info', 'get_screenshot', 'scan_frame_structure',
   // Image + utility
   'generate_image', 'update_memory',
+  // Quality
+  'run_refinement_check',
+  // Figma native (TC-1 consolidated + backward compat until TC-3)
+  'read_figma_context', 'bind_variable',
+  'apply_style',
+  'apply_paint_style', 'apply_text_style', 'apply_effect_style',
+  'create_figma_variables',
 ]);
 
 export interface ToolResolverContext {
@@ -139,8 +155,53 @@ export function chatToolResolver(): ToolResolver {
   };
 }
 
-/** Plugin-only tools (no MCP server equivalent). */
+/** Plugin-only tools (no MCP server equivalent) + local intelligence tools. */
 const PLUGIN_ONLY_TOOLS: ToolDefinition[] = [
+  {
+    name: 'get_design_intelligence',
+    description: 'CALL THIS FIRST before any design task. Returns the complete Figmento design playbook: workflow, taste rules, anti-patterns, typography/color selection, scoring criteria. This is mandatory context for producing top-tier designs. Only needs to be called once per design session.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'suggest_font_pairing',
+    description: 'Suggest complementary fonts for pairing from the bundled font knowledge base. Returns similar fonts (same mood family) and contrasting fonts (heading/body partners from proven pairings). Use when the user specifies ONE font and you need to find its best partner.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        font: { type: 'string', description: 'The font family name to find pairings for (e.g. "Playfair Display", "Inter")' },
+        mode: { type: 'string', description: 'contrast (different visual feel, best for heading/body pairs) | similar (same visual feel, same-family harmony) | both (default)' },
+        count: { type: 'number', description: 'Number of suggestions to return per mode (default 5)' },
+      },
+      required: ['font'],
+    },
+  },
+  {
+    name: 'generate_accessible_palette',
+    description: 'Generate a WCAG-compliant color palette from a base color. Uses pure-math contrast ratio calculations to guarantee accessibility. Returns light and dark mode variants with brand and neutral scales at specific contrast ratios (AA, AAA). Use when you need colors guaranteed to pass WCAG contrast checks.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        base_color: { type: 'string', description: 'Base/brand color as hex (e.g. "#2680EB")' },
+        background: { type: 'string', description: 'Background color as hex (default "#FFFFFF" for light, "#141414" for dark)' },
+        mode: { type: 'string', description: 'light | dark | both (default both)' },
+      },
+      required: ['base_color'],
+    },
+  },
+  {
+    name: 'get_design_rules',
+    description: 'Get detailed design rules and guidelines by category. Returns verbose reference material for typography, color, layout, print, evaluation, refinement, anti-patterns, gradients, taste, or saliency.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        category: { type: 'string', description: 'Rule category: typography | color | layout | print | evaluation | refinement | anti-patterns | gradients | taste | saliency | all' },
+      },
+      required: ['category'],
+    },
+  },
   {
     name: 'analyze_canvas_context',
     description: 'Analyze existing frames on the Figma canvas to extract design context: dominant colors, typography, mood, and visual style. Call this when the user asks to "analyze the design", "use the project context", "match the existing style", or "generate an image that fits this design". Returns colors, text content, inferred mood, and a screenshot for visual reference.',

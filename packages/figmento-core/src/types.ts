@@ -161,7 +161,7 @@ export interface CommandResultMessage {
 // AI PROVIDER TYPES
 // ═══════════════════════════════════════════════════════════════
 
-export type AIProvider = 'claude' | 'openai' | 'gemini';
+export type AIProvider = 'claude' | 'openai' | 'gemini' | 'codex';
 
 export interface APIConfig {
   provider: AIProvider;
@@ -183,16 +183,22 @@ export const PROVIDERS: Record<AIProvider, ProviderConfig> = {
     models: ['claude-sonnet-4-20250514'],
   },
   openai: {
-    name: 'GPT-4 Vision (OpenAI)',
+    name: 'OpenAI',
     placeholder: 'sk-...',
     docsUrl: 'https://platform.openai.com/api-keys',
-    models: ['gpt-4o'],
+    models: ['gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano'],
   },
   gemini: {
     name: 'Gemini (Google)',
     placeholder: 'AIza...',
     docsUrl: 'https://aistudio.google.com/apikey',
     models: ['gemini-3-pro-preview'],
+  },
+  codex: {
+    name: 'Codex (ChatGPT)',
+    placeholder: 'OAuth — Connect with ChatGPT',
+    docsUrl: 'https://developers.openai.com/codex/auth',
+    models: ['gpt-5.4-codex', 'gpt-5.4-mini-codex', 'gpt-5.3-codex'],
   },
 };
 
@@ -683,6 +689,47 @@ export interface CreateHeroImageMessage {
   name?: string;
 }
 
+export interface GetSelectionMessage {
+  type: 'get-selection';
+}
+
+export interface SaveThemeMessage {
+  type: 'save-theme';
+  theme: string;
+}
+
+export interface GetThemeMessage {
+  type: 'get-theme';
+}
+
+export interface SaveDsToggleMessage {
+  type: 'save-ds-toggle';
+  enabled: boolean;
+}
+
+export interface LoadDsToggleMessage {
+  type: 'load-ds-toggle';
+}
+
+export interface SetAutoBindVariablesMessage {
+  type: 'set-auto-bind-variables';
+  enabled: boolean;
+}
+
+export interface ZoomToNodeMessage {
+  type: 'zoom-to-node';
+  nodeId: string;
+}
+
+export interface PlaceStudioImageMessage {
+  type: 'place-studio-image';
+  imageBase64: string;
+  mimeType?: string;
+  name?: string;
+  width?: number;
+  height?: number;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // UNIFIED PLUGIN MESSAGE TYPE
 // ═══════════════════════════════════════════════════════════════
@@ -718,7 +765,17 @@ export type PluginMessage =
   | ExecuteCommandMessage
   | CommandResultMessage
   | GetSettingsMessage
-  | SaveSettingsMessage;
+  | SaveSettingsMessage
+  | ScanDesignSystemMessage
+  | DesignSystemScannedMessage
+  | GetSelectionMessage
+  | SaveThemeMessage
+  | GetThemeMessage
+  | SaveDsToggleMessage
+  | LoadDsToggleMessage
+  | SetAutoBindVariablesMessage
+  | ZoomToNodeMessage
+  | PlaceStudioImageMessage;
 
 export interface GetSettingsMessage {
   type: 'get-settings';
@@ -818,4 +875,41 @@ export interface LearnedPreference {
   enabled: boolean;
   createdAt: number;
   lastSeenAt: number;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FN-6: DESIGN SYSTEM DISCOVERY TYPES
+// ═══════════════════════════════════════════════════════════════
+
+export interface DiscoveredComponent {
+  key: string;
+  name: string;
+  description: string;
+  category: string;
+  width: number;
+  height: number;
+  nodeType: 'COMPONENT' | 'COMPONENT_SET';
+  variantProperties?: Record<string, string[]>;
+}
+
+export interface DesignSystemCache {
+  components: DiscoveredComponent[];
+  variables: unknown[];
+  collections: unknown[];
+  paintStyles: unknown[];
+  textStyles: unknown[];
+  effectStyles: unknown[];
+  scannedAt: string;
+  truncated: boolean;
+  fileKey: string;
+}
+
+export interface ScanDesignSystemMessage {
+  type: 'scan-design-system';
+}
+
+export interface DesignSystemScannedMessage {
+  type: 'design-system-scanned';
+  cache: DesignSystemCache | null;
+  error?: string;
 }

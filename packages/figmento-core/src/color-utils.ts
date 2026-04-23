@@ -110,3 +110,16 @@ export function isContrastingColor(color1: string, color2: string): boolean {
 
   return contrastRatio >= 3;
 }
+
+/**
+ * Euclidean RGB distance in 0-255 space.
+ * Distance < 15 is imperceptible to most users.
+ */
+export function colorDistance(hex1: string, hex2: string): number {
+  const rgb1 = hexToRgb(hex1);
+  const rgb2 = hexToRgb(hex2);
+  const dr = (rgb1.r - rgb2.r) * 255;
+  const dg = (rgb1.g - rgb2.g) * 255;
+  const db = (rgb1.b - rgb2.b) * 255;
+  return Math.sqrt(dr * dr + dg * dg + db * db);
+}

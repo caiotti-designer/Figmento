@@ -298,7 +298,7 @@ export function registerIconTools(server: McpServer, sendDesignCommand: SendDesi
   // ── create_icon ─────────────────────────────────────────────────────────
   server.tool(
     'create_icon',
-    'Create a Lucide icon on the Figma canvas. Automatically loads SVG path data from the bundled Lucide icon set (1900+ icons). No need to provide svgPaths manually.',
+    'Create a Lucide icon on the Figma canvas. Auto-loads SVG paths from the bundled 1900+ icon set.',
     createIconSchema,
     async (params) => {
       const iconName = params.name;
@@ -350,11 +350,4 @@ export function registerIconTools(server: McpServer, sendDesignCommand: SendDesi
     }
   );
 
-  // ── list_icons ──────────────────────────────────────────────────────────
-  server.tool(
-    'list_icons',
-    '[DEPRECATED — use list_resources(type="icons") instead] List available Lucide icons. Search by name or browse by category.',
-    listIconsSchema,
-    async (params) => listIconsHandler(params.category || params.search),
-  );
 }

@@ -1,231 +1,43 @@
-# Synkra AIOS Development Rules for Claude Code
+# Figmento — Claude Code Project Rules
 
-You are working with Synkra AIOS, an AI-Orchestrated System for Full Stack Development.
+Caio is a designer who vibecodes. This file defines how Claude works on Figmento and how the Figmento design-agent behaves.
 
-<!-- AIOS-MANAGED-START: core-framework -->
-## Core Framework Understanding
+## How Caio works
 
-Synkra AIOS is a meta-framework that orchestrates AI agents to handle complex development workflows. Always recognize and work within this architecture.
-<!-- AIOS-MANAGED-END: core-framework -->
+- **Product/scope thinking** → use `@helm` (Jarvis squad)
+- **Design/UX** → use `@muse` or `@pixel` (Jarvis squad)
+- **Cleanup/audit** → use `@atlas` (Jarvis squad)
+- **Agent building** → use `@mason` (Jarvis squad)
+- **Dev-mode thinking** → use the 4 slash-command personas: `@architect`, `@dev`, `@qa`, `@devops`
 
-<!-- AIOS-MANAGED-START: agent-system -->
-## Agent System
+AIOS framework was removed (2026-04-22) — was mostly ceremonial for a solo designer. Kept the 4 dev-thinking personas as lightweight persona prompts (no workflow engine, no dependencies).
 
-### Agent Activation
-- Agents are activated with @agent-name syntax: @dev, @qa, @architect, @pm, @po, @sm, @analyst
-- The master agent is activated with @aios-master
-- Agent commands use the * prefix: *help, *create-story, *task, *exit
+## Story files (optional, lightweight)
 
-### Agent Context
-When an agent is active:
-- Follow that agent's specific persona and expertise
-- Use the agent's designated workflow patterns
-- Maintain the agent's perspective throughout the interaction
-<!-- AIOS-MANAGED-END: agent-system -->
+Non-trivial features can be tracked in `docs/stories/{ID}-{slug}.story.md` for session-to-session context. No validation rituals, no 10-point checklists — just a working-memory document. Archive to `docs/stories/_archived/` when Done.
 
-## Development Methodology
+## Code standards
 
-### Story-Driven Development
-1. **Work from stories** - All development starts with a story in `docs/stories/`
-2. **Update progress** - Mark checkboxes as tasks complete: [ ] → [x]
-3. **Track changes** - Maintain the File List section in the story
-4. **Follow criteria** - Implement exactly what the acceptance criteria specify
-
-### Code Standards
 - Write clean, self-documenting code
 - Follow existing patterns in the codebase
-- Include comprehensive error handling
-- Add unit tests for all new functionality
-- Use TypeScript/JavaScript best practices
+- TypeScript/JavaScript best practices
+- Add tests for non-trivial features (don't test trivial one-liners)
+- Before marking a task complete: run `npm run build` or the relevant test command for the subproject you touched
 
-### Testing Requirements
-- Run all tests before marking tasks complete
-- Ensure linting passes: `npm run lint`
-- Verify type checking: `npm run typecheck`
-- Add tests for new features
-- Test edge cases and error scenarios
+## Git conventions
 
-<!-- AIOS-MANAGED-START: framework-structure -->
-## AIOS Framework Structure
+- Conventional commits: `feat:`, `fix:`, `chore:`, `docs:`, `security:`, `refactor:`
+- Keep commits atomic
+- `@devops` owns `git push` and `gh pr create` — other agents stage/commit locally only
 
-```
-aios-core/
-├── agents/         # Agent persona definitions (YAML/Markdown)
-├── tasks/          # Executable task workflows
-├── workflows/      # Multi-step workflow definitions
-├── templates/      # Document and code templates
-├── checklists/     # Validation and review checklists
-└── rules/          # Framework rules and patterns
+## Tool selection
 
-docs/
-├── stories/        # Development stories (numbered)
-├── prd/            # Product requirement documents
-├── architecture/   # System architecture documentation
-└── guides/         # User and developer guides
-```
-<!-- AIOS-MANAGED-END: framework-structure -->
-
-## Workflow Execution
-
-### Task Execution Pattern
-1. Read the complete task/workflow definition
-2. Understand all elicitation points
-3. Execute steps sequentially
-4. Handle errors gracefully
-5. Provide clear feedback
-
-### Interactive Workflows
-- Workflows with `elicit: true` require user input
-- Present options clearly
-- Validate user responses
-- Provide helpful defaults
-
-## Best Practices
-
-### When implementing features:
-- Check existing patterns first
-- Reuse components and utilities
-- Follow naming conventions
-- Keep functions focused and testable
-- Document complex logic
-
-### When working with agents:
-- Respect agent boundaries
-- Use appropriate agent for each task
-- Follow agent communication patterns
-- Maintain agent context
-
-### When handling errors:
-```javascript
-try {
-  // Operation
-} catch (error) {
-  console.error(`Error in ${operation}:`, error);
-  // Provide helpful error message
-  throw new Error(`Failed to ${operation}: ${error.message}`);
-}
-```
-
-## Git & GitHub Integration
-
-### Commit Conventions
-- Use conventional commits: `feat:`, `fix:`, `docs:`, `chore:`, etc.
-- Reference story ID: `feat: implement IDE detection [Story 2.1]`
-- Keep commits atomic and focused
-
-### GitHub CLI Usage
-- Ensure authenticated: `gh auth status`
-- Use for PR creation: `gh pr create`
-- Check org access: `gh api user/memberships`
-
-<!-- AIOS-MANAGED-START: aios-patterns -->
-## AIOS-Specific Patterns
-
-### Working with Templates
-```javascript
-const template = await loadTemplate('template-name');
-const rendered = await renderTemplate(template, context);
-```
-
-### Agent Command Handling
-```javascript
-if (command.startsWith('*')) {
-  const agentCommand = command.substring(1);
-  await executeAgentCommand(agentCommand, args);
-}
-```
-
-### Story Updates
-```javascript
-// Update story progress
-const story = await loadStory(storyId);
-story.updateTask(taskId, { status: 'completed' });
-await story.save();
-```
-<!-- AIOS-MANAGED-END: aios-patterns -->
-
-## Environment Setup
-
-### Required Tools
-- Node.js 18+
-- GitHub CLI
-- Git
-- Your preferred package manager (npm/yarn/pnpm)
-
-### Configuration Files
-- `.aios/config.yaml` - Framework configuration
-- `.env` - Environment variables
-- `aios.config.js` - Project-specific settings
-
-<!-- AIOS-MANAGED-START: common-commands -->
-## Common Commands
-
-### AIOS Master Commands
-- `*help` - Show available commands
-- `*create-story` - Create new story
-- `*task {name}` - Execute specific task
-- `*workflow {name}` - Run workflow
-
-### Development Commands
-- `npm run dev` - Start development
-- `npm test` - Run tests
-- `npm run lint` - Check code style
-- `npm run build` - Build project
-<!-- AIOS-MANAGED-END: common-commands -->
-
-## Debugging
-
-### Enable Debug Mode
-```bash
-export AIOS_DEBUG=true
-```
-
-### View Agent Logs
-```bash
-tail -f .aios/logs/agent.log
-```
-
-### Trace Workflow Execution
-```bash
-npm run trace -- workflow-name
-```
-
-## Claude Code Specific Configuration
-
-### Performance Optimization
-- Prefer batched tool calls when possible for better performance
-- Use parallel execution for independent operations
-- Cache frequently accessed data in memory during sessions
-
-### Tool Usage Guidelines
-- Always use the Grep tool for searching, never `grep` or `rg` in bash
-- Use the Task tool for complex multi-step operations
-- Batch file reads/writes when processing multiple files
-- Prefer editing existing files over creating new ones
-
-### Session Management
-- Track story progress throughout the session
-- Update checkboxes immediately after completing tasks
-- Maintain context of the current story being worked on
-- Save important state before long-running operations
-
-### Error Recovery
-- Always provide recovery suggestions for failures
-- Include error context in messages to user
-- Suggest rollback procedures when appropriate
-- Document any manual fixes required
-
-### Testing Strategy
-- Run tests incrementally during development
-- Always verify lint and typecheck before marking complete
-- Test edge cases for each new feature
-- Document test scenarios in story files
-
-### Documentation
-- Update relevant docs when changing functionality
-- Include code examples in documentation
-- Keep README synchronized with actual behavior
-- Document breaking changes prominently
+- **Search files** → Grep tool (never bash `grep`/`rg`)
+- **Find files** → Glob tool
+- **Read files** → Read tool
+- **Edit files** → Edit tool (prefer over Write for existing files)
+- **Run commands** → Bash tool
+- **MCP** → see `.claude/rules/mcp-usage.md`
 
 ## Figmento Design Agent Rules
 
@@ -238,6 +50,16 @@ npm run trace -- workflow-name
 - **CONNECT FIRST:** Always verify the Figmento connection is active before creating any elements. Call `connect_to_figma` at the start if not already connected.
 - **PARALLEL CALLS:** Batch independent element creation calls in parallel whenever possible (e.g., multiple rectangles or text elements that don't depend on each other's nodeIds).
 - **NAMING:** Name the root frame descriptively (e.g., "Café Noir — Instagram Post") so it's easy to find in Figma's layers panel. Give every element a descriptive layer name. Never leave default names like "Rectangle" or "Text". Use names that describe purpose (e.g., "CTA Button", "Hero Title", "Dark Overlay").
+
+### Post-Showcase Extension Discipline
+
+These rules apply AFTER `generate_design_system_in_figma` or `create_ds_showcase` has run and you are extending the showcase with additional sections, panels, or decorative frames. Both rules trace to observed 2026-04-16 Coral de Dois bugs where the baseline showcase rendered correctly but agent-added extensions broke contrast and nesting. See [DQ-HF-1](../docs/stories/DQ-HF-1-design-agent-showcase-discipline.story.md).
+
+- **Post-showcase contrast discipline:** When adding a fill-backed section header, banner, or decorative panel AFTER `generate_design_system_in_figma` or `create_ds_showcase` has run, text placed on that panel must use contrast-aware color selection. Default: query `get_contrast_check` on the `fill` vs. intended `textColor` and iterate until the ratio ≥ 4.5:1. Never copy the brand's `on_surface` color onto a new non-surface fill — `on_surface` is calibrated for the `surface` background only; placing it on a darker `primary_dark` panel produces invisible text.
+
+- **Post-showcase nesting discipline:** Any supplementary frame, section, or decorative artifact added after `create_ds_showcase` MUST be nested inside the showcase root frame. Always pass the showcase's `rootFrameId` (returned by `create_ds_showcase`) as `parentId` in the follow-up `create_frame` / `batch_execute` calls, OR call `append_child` to move the supplementary frame into the showcase root. Never create a sibling at the canvas root — a "Brand Quote" footer that sits next to the showcase reads as a detached artifact, not part of the design system.
+
+If `create_frame` returns a `warning` field suggesting you meant to nest inside a recent showcase root, either pass `parentId: <rootFrameId>` to confirm nesting, or explicitly acknowledge you intended a sibling. The warning is informational and does not block execution.
 
 ## Design Intelligence
 
@@ -256,15 +78,14 @@ The Figmento MCP server includes a knowledge base at `figmento-mcp-server/knowle
 
 ### Standard Design Workflow
 
-1. **Understand** — format, mood, content, brand constraints. Print tasks: call `get_design_rules('print')` first.
-2. **Size** — `get_design_guidance(aspect="size")`. Never guess dimensions.
-3. **Palette** — `get_design_guidance(aspect="color", mood=...)`. Brand kit overrides if available.
-4. **Fonts** — `get_design_guidance(aspect="fonts", mood=...)`. Use `get_design_guidance(aspect="typeScale", ratio=...)` for sizes. Scale guide: minor_third=documents, major_third=general, perfect_fourth=marketing, golden_ratio=hero.
-5. **Layout** — `get_design_guidance(aspect="layout")`. Spacing scale only — no arbitrary pixel values.
-6. **Create frame** — exact dimensions, background color.
-7. **Content hierarchy** — headline → subheadline → body → CTA, top-down.
-8. **Style** — colors, shadows, gradients, radii.
-9. **Refine** — alignment, spacing, contrast, whitespace.
+1. **Connect** — `connect_to_figma` (skip if already connected).
+2. **Frame** — skip if a frame is already selected in Figma. Otherwise `get_design_guidance(aspect="size")` to confirm dimensions — only if format is unknown.
+3. **Generate background** — `generate_design_image(brief, format, mood)` → returns `frameId`, `imageNodeId`, `textZone`. This is the **first creative decision** — the composition is built around the image. Skippable only if the user explicitly says no image.
+4. **Overlay** — `set_fill` gradient overlay on the frame if text contrast needs reinforcement (2 stops, color-matched to frame bg, solid end behind text zone).
+5. **Content** — `batch_execute` → headline + subheadline + CTA in one call. Position text within the `textZone` returned by step 3.
+6. **Refine** — `run_refinement_check` → fix any flagged issues → done.
+
+> Steps 1–2 collapse to nothing when already connected and format is known. In practice most designs start at step 3.
 
 ### Blueprint-First Workflow (Preferred)
 
@@ -362,6 +183,12 @@ Use `clone_with_overrides` for repeated patterns like menu rows, card grids, fea
 **AI-generated image placement:**
 When placing AI-generated images, ALWAYS use `place_generated_image` with the file path from mcp-image output. NEVER read image files into base64 manually or pass base64 through bash — the strings are too large for the parameter system. The `place_generated_image` tool reads files server-side and handles all encoding internally. Use the `scaleMode` parameter to control fit: `FILL` (default, crops to fill), `FIT` (contains within bounds), `CROP`, or `TILE`.
 
+**Setting IMAGE fill on an existing node (replacing background):**
+Use `set_image_fill(nodeId, filePath, scaleMode?)` to apply an image directly as a node's fill — without creating a child element. This is the correct way to swap a frame's background image from a local file. The tool reads the file server-side and applies it as an IMAGE fill. Accepts PNG, JPG, or WebP.
+
+**Generating image directly as frame fill (no child node):**
+Use `generate_design_image(..., asFill=true)` to generate a Nano Banana 2 image and apply it directly as the target frame's IMAGE fill — no child rectangle created. This is ideal for replacing backgrounds on existing frames. Without `asFill`, the image is placed as a child node (legacy behavior).
+
 ### Image Generation Rules (Mandatory)
 
 Every design should include real images, not colored rectangles:
@@ -373,6 +200,26 @@ Every design should include real images, not colored rectangles:
 2. **Fallback:** If mcp-image is unavailable or fails, use `fetch_placeholder_image` with relevant keywords
 3. **Never:** Leave a colored or gray rectangle as a final image — always resolve to a generated or placeholder image
 4. **Budget:** Limit to 3-4 generated images per design session to keep execution time reasonable
+
+### Contextual Image Fill (Batch Image Placement)
+
+Use `fill_contextual_images` when the user wants to fill multiple frames/cards with contextually relevant images:
+
+**When to use:** "fill images for this section", "generate images for these cards", "add images to these cards", "preencha com imagens", "gere imagens para essa seção".
+
+**How it works:**
+1. Analyzes the entire page with Vision AI to understand industry, brand, tone, purpose
+2. Discovers empty image slots in the selected section (frames/rectangles without IMAGE fills, no text children, min 80px)
+3. Builds contextual prompts per slot using nearby text (card titles, descriptions)
+4. Generates and places images sequentially (3-5s per image, max 6 per call)
+
+**Usage patterns:**
+- Section selected → `fill_contextual_images()` — auto-discovers all empty slots
+- Specific frames → `fill_contextual_images(targetNodeIds=["id1","id2"])` — fills exactly those
+- With context → `fill_contextual_images(context="industrial cleaning equipment company")` — supplements auto-detection
+- Skip analysis → `fill_contextual_images(skipAnalysis=true, context="...")` — uses manual context only
+
+**Page context is cached** for 30 minutes — second call on a different section reuses the analysis.
 
 **Multi-section background composition rule:**
 When creating multiple patterns for the same page, always think about the background color sequence first. The page should read: **bold open → breathe → breathe → bold break → breathe → bold close** (primary → surface → background → primary → surface → primary). Never have the same background color on 3+ consecutive sections. Use `create_from_template` with `composition_mode: "connected"` for landing pages — it enforces this rhythm automatically via `knowledge/patterns/composition-rules.yaml`. In connected mode, sections stack vertically (gap=0) and each section's background is overridden to match the composition plan. Treat the sequence of backgrounds as a deliberate design decision, not an afterthought.
@@ -477,11 +324,31 @@ Only after completing this analysis, proceed with tool calls.
 
 ### Starting Any Design
 1. Ask what brand/project this is for
-2. Check for existing design system: get_design_system(name)
-3. If none: offer to create one from color+font, mood, or preset
-4. Load format rules: get_format_rules(format) for the target format
-5. Use create_component for standard elements — NEVER manually build buttons, badges, cards
+2. Check for existing design system: `get_design_system(name)`
+3. If none: offer **one of three authoring paths**:
+   - **DESIGN.md upload** — user drags a `DESIGN.md` file into Figmento chat → call `import_design_system_from_md({ path, previewInFigma: true, createVariables: true, overwrite: false })`. This creates the tokens.yaml, renders a preview frame, and wires Figma Variables in one shot. See [docs/guides/design-md-authoring.md](../docs/guides/design-md-authoring.md).
+   - **PDF brief** — user drops a PDF brief → ODS pipeline (`analyze_brief` → `create_design_system` from the extracted mood+palette).
+   - **URL extraction** — user pastes a site URL → `generate_design_system_from_url`.
+   Fallback if none of those fit: create from `(color+font, mood, preset)` via `create_design_system`.
+4. Load format rules: `get_format_rules(format)` for the target format
+5. Use `create_component` for standard elements — NEVER manually build buttons, badges, cards
 6. All colors, fonts, spacing from tokens — NEVER hardcode values when a system is loaded
+
+### DESIGN.md Authoring Path (Portable Design Systems)
+
+Figmento reads and writes the DESIGN.md format — a portable markdown-based design system spec defined in [docs/architecture/DESIGN-MD-SPEC.md](../docs/architecture/DESIGN-MD-SPEC.md). It round-trips 1:1 with `tokens.yaml` across 9 canonical sections (visual theme, colors, typography, components, layout, depth, do/don'ts, responsive, agent prompt guide).
+
+**Tools:**
+
+| Tool | Purpose |
+|---|---|
+| `validate_design_md({ path })` | Static validation against the JSON schema — verdict PASS/CONCERNS/FAIL with severity-tagged issues. |
+| `import_design_system_from_md({ path, name?, previewInFigma?, createVariables?, overwrite? })` | Parses DESIGN.md → creates Figmento tokens.yaml + (optionally) renders a preview frame + (optionally) writes Figma Variables. |
+| `export_design_system_to_md({ name, path? })` | Converts a stored design system back to a canonical DESIGN.md string. |
+
+**When to use which:** `import` when the user provides a DESIGN.md; `export` when they want to share their Figmento system with Cursor/Claude Desktop/Cline; `validate` as a first-pass lint before import if the source is hand-written. All three are in [.claude/settings.json](./settings.json) `allow` for automatic approval.
+
+**Authoring guide:** [docs/guides/design-md-authoring.md](../docs/guides/design-md-authoring.md) — frontmatter fields, 9 sections, fenced-block reference, 3 worked examples.
 
 ### Format Awareness
 - ALWAYS call get_format_rules before starting any design
@@ -509,13 +376,29 @@ When user says "use this as a template" or "make variations of this":
 - Cards: ALWAYS use create_component for the container
 - If a component doesn't exist for what you need: use batch_execute with token values
 
-### Deprecated Aliases (Removal: TC-3)
+### Consolidated Tools (TC-1 + TC-2 — Complete)
 
-The following old tool names are registered as deprecated aliases and will be removed next sprint. Use the new consolidated names:
+Old tool names have been fully removed. Use only the consolidated names:
 
-**TC-1 (16 aliases):** `set_fill` → `set_style(property="fill")`, `set_stroke` → `set_style(property="stroke")`, `set_effects` → `set_style(property="effects")`, `set_corner_radius` → `set_style(property="cornerRadius")`, `set_opacity` → `set_style(property="opacity")`, `move_node` → `transform_node`, `resize_node` → `transform_node`, `apply_paint_style` → `apply_style(styleType="paint")`, `apply_text_style` → `apply_style(styleType="text")`, `apply_effect_style` → `apply_style(styleType="effect")`, `get_size_preset` → `get_design_guidance(aspect="size")`, `get_font_pairing` → `get_design_guidance(aspect="fonts")`, `get_type_scale` → `get_design_guidance(aspect="typeScale")`, `get_color_palette` → `get_design_guidance(aspect="color")`, `get_spacing_scale` → `get_design_guidance(aspect="spacing")`, `get_layout_guide` → `get_design_guidance(aspect="layout")`
+| Consolidated Tool | Replaces | Parameter |
+|---|---|---|
+| `set_style` | set_fill, set_stroke, set_effects, set_corner_radius, set_opacity | `property` |
+| `transform_node` | move_node, resize_node | x, y, width, height |
+| `apply_style` | apply_paint_style, apply_text_style, apply_effect_style | `styleType` |
+| `get_design_guidance` | get_size_preset, get_font_pairing, get_type_scale, get_color_palette, get_spacing_scale, get_layout_guide | `aspect` |
+| `list_resources` | list_layout_blueprints, list_reference_categories, list_patterns, list_templates, list_icons, list_formats, list_components, list_design_systems | `type` |
 
-**TC-2 (8 aliases):** `list_layout_blueprints` → `list_resources(type="blueprints")`, `list_reference_categories` → `list_resources(type="references")`, `list_patterns` → `list_resources(type="patterns")`, `list_templates` → `list_resources(type="templates")`, `list_icons` → `list_resources(type="icons")`, `list_formats` → `list_resources(type="formats")`, `list_components` → `list_resources(type="components")`, `list_design_systems` → `list_resources(type="designSystems")`
+### Hidden Tools (54 tools — available via batch_execute)
+
+The following tools are hidden from the visible tool list in design sessions to improve tool selection accuracy (109 → 55 visible). They remain callable via `batch_execute` DSL using their action names. Categories:
+
+- **Scene advanced:** boolean_operation, flatten_nodes, export_as_svg, set_constraints, import_component_by_key, import_style_by_key, list_available_fonts
+- **Intelligence redundant:** suggest_font_pairing, get_contrast_check, generate_accessible_palette, evaluate_layout
+- **DS pipeline internals:** create_figma_variables, create_variable_collections, create_ds_components, create_text_styles, create_variables_from_design_system
+- **Interactive components:** convert_to_component, combine_as_variants, create_instance, detach_instance, set_reactions, get_reactions, apply_interaction, list_interaction_presets, make_interactive, create_prototype_flow
+- **Brand/assets/storage:** get_brand_kit, save_brand_kit, save_brand_assets, load_brand_assets, list_brand_assets, store_temp_file, list_temp_files, place_brand_asset, import_pdf
+- **Specialized flows:** start_ad_analyzer, complete_ad_analyzer, design_from_reference, generate_ad_variations, find_design_references, analyze_reference, batch_analyze_references
+- **Low usage:** update_design_system, delete_design_system, refine_design_system, design_system_preview, brand_consistency_check, get_layout_blueprint, get_learned_preferences, scan_template, disconnect_from_figma, create_carousel, create_presentation, fetch_placeholder_image, evaluate_design
 
 ---
-*Synkra AIOS Claude Code Configuration v2.1*
+*Figmento Claude Code Configuration — lean mode*

@@ -318,7 +318,7 @@ export function registerCrudTools(server: McpServer, _sendDesignCommand: SendDes
 
   server.tool(
     'create_design_system',
-    'Create a complete design system with auto-generated tokens from minimal input. Provide a name plus any combination of: preset, colors, fonts, or mood keywords. Missing values are auto-generated using color theory.',
+    'Create a design system with auto-generated tokens. Provide name plus colors, fonts, preset, or mood. Missing values are auto-generated.',
     createDesignSystemSchema,
     async (params: { name: string; preset?: string; primary_color?: string; secondary_color?: string; accent_color?: string; heading_font?: string; body_font?: string; mood?: string[]; voice?: string }) => {
       const safeName = params.name.replace(/[^a-z0-9-]/gi, '').toLowerCase();
@@ -386,13 +386,6 @@ export function registerCrudTools(server: McpServer, _sendDesignCommand: SendDes
       const tokens = yaml.load(content);
       return { content: [{ type: 'text' as const, text: JSON.stringify(tokens, null, 2) }] };
     }
-  );
-
-  server.tool(
-    'list_design_systems',
-    '[DEPRECATED — use list_resources(type="designSystems") instead] List all saved design systems with summary info.',
-    listDesignSystemsSchema,
-    async () => listDesignSystemsHandler(),
   );
 
   server.tool(

@@ -1,0 +1,155 @@
+name: notion
+created: '2026-04-04T00:00:00.000Z'
+source: VoltAgent/awesome-design-md — design-md/notion/DESIGN.md
+preset_used: null
+mood:
+  - warm
+  - approachable
+  - productive
+voice: >-
+  Warm neutrals (never cold grays) with a singular Notion Blue accent. Custom
+  modified Inter with aggressive negative tracking at display sizes. Multi-layer
+  shadow stacks at sub-0.05 opacity create whisper-soft elevation. Ultra-thin
+  borders at rgba(0,0,0,0.1).
+colors:
+  primary: '#0075de'
+  primary_light: '#62aef0'
+  primary_dark: '#005bab'
+  secondary: '#2a9d99'
+  accent: '#0075de'
+  surface: '#ffffff'
+  background: '#ffffff'
+  border: 'rgba(0,0,0,0.1)'
+  on_primary: '#ffffff'
+  on_surface: 'rgba(0,0,0,0.95)'
+  on_surface_muted: '#615d59'
+  success: '#1aae39'
+  warning: '#dd5b00'
+  error: '#DC2626'
+  info: '#0075de'
+  warm_white: '#f6f5f4'
+  warm_dark: '#31302e'
+  warm_gray_500: '#615d59'
+  warm_gray_300: '#a39e98'
+  teal: '#2a9d99'
+  green: '#1aae39'
+  orange: '#dd5b00'
+  pink: '#ff64c8'
+  purple: '#391c57'
+  brown: '#523410'
+  deep_navy: '#213183'
+  link_blue: '#0075de'
+  link_light: '#62aef0'
+  focus_blue: '#097fe8'
+  badge_blue_bg: '#f2f9ff'
+  badge_blue_text: '#097fe8'
+typography:
+  heading:
+    family: NotionInter
+    figma_fallback: Inter
+    fallback: Inter, -apple-system, system-ui, Segoe UI, Helvetica, Arial
+    weights:
+      - 600
+      - 700
+  body:
+    family: NotionInter
+    figma_fallback: Inter
+    fallback: Inter, -apple-system, system-ui, Segoe UI, Helvetica, Arial
+    weights:
+      - 400
+      - 500
+      - 600
+      - 700
+  opentype_features:
+    - lnum
+    - locl
+  scale:
+    display: 64
+    h1: 54
+    h2: 48
+    h3: 40
+    heading: 26
+    body_lg: 22
+    body: 16
+    body_sm: 15
+    caption: 14
+    label: 12
+  letter_spacing:
+    display: '-2.125px'
+    h1: '-1.875px'
+    h2: '-1.5px'
+    heading: '-0.625px'
+    body_lg: '-0.25px'
+    body: normal
+    badge: '0.125px'
+spacing:
+  unit: 8
+  xs: 4
+  sm: 8
+  md: 16
+  lg: 24
+  xl: 32
+  2xl: 48
+  3xl: 64
+radius:
+  none: 0
+  sm: 4
+  md: 8
+  lg: 12
+  xl: 16
+  full: 9999
+shadows:
+  sm:
+    x: 0
+    'y': 0.175
+    blur: 1
+    spread: 0
+    color: 'rgba(0,0,0,0.01)'
+    opacity: 1
+  md:
+    x: 0
+    'y': 4
+    blur: 18
+    spread: 0
+    color: 'rgba(0,0,0,0.04)'
+    opacity: 1
+  lg:
+    x: 0
+    'y': 23
+    blur: 52
+    spread: 0
+    color: 'rgba(0,0,0,0.05)'
+    opacity: 1
+elevation:
+  flat:
+    shadow: none
+  whisper:
+    shadow: '1px solid rgba(0,0,0,0.1)'
+  soft_card:
+    shadow: 'rgba(0,0,0,0.04) 0px 4px 18px, rgba(0,0,0,0.027) 0px 2.025px 7.84688px, rgba(0,0,0,0.02) 0px 0.8px 2.925px, rgba(0,0,0,0.01) 0px 0.175px 1.04062px'
+  deep_card:
+    shadow: 'rgba(0,0,0,0.01) 0px 1px 3px, rgba(0,0,0,0.02) 0px 3px 7px, rgba(0,0,0,0.02) 0px 7px 15px, rgba(0,0,0,0.04) 0px 14px 28px, rgba(0,0,0,0.05) 0px 23px 52px'
+  focus:
+    shadow: '2px solid #097fe8'
+gradients:
+  enabled: false
+constraints:
+  do:
+    - Use NotionInter (modified Inter) with "lnum" and "locl" OpenType features on larger text
+    - Apply aggressive negative letter-spacing at display sizes (-2.125px at 64px)
+    - Use warm neutrals throughout — #f6f5f4, #615d59, #a39e98 — never cool grays
+    - Use ultra-thin borders at rgba(0,0,0,0.1)
+    - Build multi-layer shadow stacks with sub-0.05 opacity for soft elevation
+    - Reserve Notion Blue (#0075de) as the singular accent color for CTAs and links
+    - Use four-weight system — 400 (body), 500 (UI), 600 (emphasis), 700 (headings)
+    - Apply positive letter-spacing (0.125px) only on 12px badges
+    - Use scale(0.9) active state on primary buttons
+  dont:
+    - Never use cold blue-grays — all neutrals must be warm-toned
+    - Never use heavy shadows — max individual layer opacity is 0.05
+    - Never introduce accent colors that compete with Notion Blue
+    - Never skip the multi-layer shadow approach — single-layer shadows look flat
+    - Never use weight 800+ — the system caps at 700
+    - Never apply positive letter-spacing on text larger than 12px
+    - Never use solid opaque borders — always rgba(0,0,0,0.1) or similar
+    - Never use Notion Blue decoratively — it is strictly interactive/CTA

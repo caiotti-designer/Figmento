@@ -3,12 +3,8 @@ import { z } from 'zod';
 
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
-export const scanTemplateSchema = {
-  nodeId: z.string().optional().describe('Frame nodeId to scan. If omitted, scans the current Figma selection.'),
-};
-
 export const applyTemplateTextSchema = {
-  nodeId: z.string().describe('The text placeholder node ID (from scan_template results)'),
+  nodeId: z.string().describe('The text placeholder node ID (from scan_frame_structure results)'),
   content: z.string().describe('New text content to set'),
   fontSize: z.number().optional().describe('Override font size in pixels'),
   color: z.string().optional().describe('Override text color as hex'),
@@ -17,7 +13,7 @@ export const applyTemplateTextSchema = {
 };
 
 export const applyTemplateImageSchema = {
-  nodeId: z.string().describe('The image placeholder node ID (from scan_template results)'),
+  nodeId: z.string().describe('The image placeholder node ID (from scan_frame_structure results)'),
   imageData: z.string().describe('Base64 image data (with or without data: prefix)'),
   scaleMode: z.enum(['FILL', 'FIT', 'CROP', 'TILE']).optional().describe('Image scale mode (default: FILL)'),
 };
@@ -43,26 +39,12 @@ export const createPresentationSchema = {
 export function registerTemplateTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
 
   // ═══════════════════════════════════════════════════════════
-  // S-17: scan_template
-  // ═══════════════════════════════════════════════════════════
-
-  server.tool(
-    'scan_template',
-    'Scan a frame for template placeholders. Placeholders are layers whose names start with "#". Returns a list of placeholder nodes with their types (text or image). Use before apply_template_text/apply_template_image.',
-    scanTemplateSchema,
-    async (params) => {
-      const data = await sendDesignCommand('scan_template', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
-    }
-  );
-
-  // ═══════════════════════════════════════════════════════════
   // S-18: apply_template_text
   // ═══════════════════════════════════════════════════════════
 
   server.tool(
     'apply_template_text',
-    'Fill a text placeholder in a template with new content. Preserves existing font styling unless overrides are provided. Use scan_template first to find placeholder nodeIds.',
+    'Fill a text placeholder with new content. Preserves existing styling unless overrides are provided.',
     applyTemplateTextSchema,
     async (params) => {
       const data = await sendDesignCommand('apply_template_text', params);
@@ -76,7 +58,7 @@ export function registerTemplateTools(server: McpServer, sendDesignCommand: Send
 
   server.tool(
     'apply_template_image',
-    'Fill an image placeholder in a template with actual image data. Replaces the placeholder fill with the provided base64 image. Use scan_template first to find placeholder nodeIds.',
+    'Fill an image placeholder with base64 image data.',
     applyTemplateImageSchema,
     async (params) => {
       const data = await sendDesignCommand('apply_template_image', params);
@@ -90,7 +72,7 @@ export function registerTemplateTools(server: McpServer, sendDesignCommand: Send
 
   server.tool(
     'create_carousel',
-    'Create a multi-slide carousel on the Figma canvas. Each slide is a separate frame positioned side-by-side with a 40px gap. Useful for Instagram carousels, multi-page social content, etc.',
+    'Create a multi-slide carousel with frames positioned side-by-side.',
     createCarouselSchema,
     async (params) => {
       const slideCount = params.slideCount;
@@ -139,7 +121,7 @@ export function registerTemplateTools(server: McpServer, sendDesignCommand: Send
 
   server.tool(
     'create_presentation',
-    'Create a multi-slide presentation on the Figma canvas. Each slide is a 1920x1080 frame (or custom size) positioned side-by-side with an 80px gap. Returns all slide nodeIds for content population.',
+    'Create a multi-slide presentation with frames positioned side-by-side. Returns all slide nodeIds.',
     createPresentationSchema,
     async (params) => {
       const slideCount = params.slideCount;

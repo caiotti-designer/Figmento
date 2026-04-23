@@ -337,6 +337,12 @@ function compileRefinementChecks(): string {
   return JSON.stringify(checks, null, 2);
 }
 
+function compileDesignRules(): string {
+  const data = readYaml('design-rules.yaml') as Record<string, unknown> | null;
+  if (!data) return '{}';
+  return JSON.stringify(data, null, 2);
+}
+
 // --- Main ---
 
 function main() {
@@ -363,17 +369,21 @@ function main() {
   const patterns = compilePatterns();
   const compositionRules = compileCompositionRules();
   const refinementChecks = compileRefinementChecks();
+  const designRules = compileDesignRules();
 
   // Compute version hash across all source YAML files
   const allYamlPaths = collectAllYamlPaths();
   const versionHash = hashFiles(allYamlPaths);
 
   // Generate TypeScript output
+  // Note: no Generated timestamp — the versionHash below is derived from YAML content
+  // and changes only when the inputs change. Keeping the output deterministic means the
+  // tracked copy in figmento-ws-relay/src/knowledge/ (used as the Fly.io deploy fallback)
+  // doesn't churn on every build.
   const output = `/**
  * AUTO-GENERATED — DO NOT EDIT
  * Compiled from figmento-mcp-server/knowledge/ YAML files.
  * Run: npx tsx scripts/compile-knowledge.ts
- * Generated: ${new Date().toISOString()}
  */
 
 import type {
@@ -393,15 +403,17 @@ export const FONT_PAIRINGS: Record<string, FontPairing> = ${fontPairings} as Rec
 
 export const TYPE_SCALES: Record<string, TypeScale> = ${typeScales} as Record<string, TypeScale>;
 
-export const SIZE_PRESETS: Record<string, SizePreset> = ${sizePresets} as Record<string, SizePreset>;
+export const SIZE_PRESETS: Record<string, SizePreset> = ${sizePresets} as unknown as Record<string, SizePreset>;
 
 export const BLUEPRINTS: Blueprint[] = ${blueprints} as Blueprint[];
 
-export const PATTERNS: Record<string, PatternRecipe> = ${patterns} as Record<string, PatternRecipe>;
+export const PATTERNS: Record<string, PatternRecipe> = ${patterns} as unknown as Record<string, PatternRecipe>;
 
 export const COMPOSITION_RULES: CompositionRules = ${compositionRules} as CompositionRules;
 
 export const REFINEMENT_CHECKS: RefinementCheck[] = ${refinementChecks} as RefinementCheck[];
+
+export const DESIGN_RULES: Record<string, unknown> = ${designRules};
 
 export const KNOWLEDGE_VERSION: string = "${versionHash}";
 `;

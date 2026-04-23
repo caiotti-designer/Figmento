@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createHttpServer, IncomingMessage, ServerResponse } from 'http';
-import { RelayMessage, ResponseMessage } from './types';
+import { RelayMessage, CommandMessage, ResponseMessage } from './types';
 import { handleChatRequest, getActiveChatRequests } from './chat/chat-endpoint';
 import {
   handleClaudeCodeTurn,
@@ -25,8 +25,8 @@ interface ClientInfo {
 /** Relay command ID prefix — distinguishes relay-originated commands from MCP/plugin commands. */
 export const RELAY_CMD_PREFIX = 'relay-';
 
-/** Default timeout for relay-originated commands (ms). */
-const RELAY_CMD_TIMEOUT = 30_000;
+/** Default timeout for relay-originated commands (ms). Increased to 120s to handle batch_execute and complex canvas ops. */
+const RELAY_CMD_TIMEOUT = 120_000;
 
 interface PendingRelayCommand {
   resolve: (data: Record<string, unknown>) => void;
@@ -117,6 +117,33 @@ export class FigmentoRelay {
     this.httpServer.listen(config.port, () => {
       console.log(`[Figmento Relay] Server started on port ${config.port}`);
       console.log(`[Figmento Relay] Health check: http://localhost:${config.port}/health`);
+    });
+
+    // DM-3: Start OAuth callback server on port 1455 (Codex CLI registered redirect_uri)
+    this.startOAuthCallbackServer();
+  }
+
+  /** DM-3: Dedicated HTTP server on port 1455 for Codex OAuth callback. */
+  private startOAuthCallbackServer(): void {
+    const oauthServer = createHttpServer(async (req, res) => {
+      if (req.url?.startsWith('/auth/callback')) {
+        const handled = await handleChatRequest(this, req, res);
+        if (handled) return;
+      }
+      res.writeHead(404);
+      res.end('Not found');
+    });
+
+    oauthServer.listen(1455, () => {
+      console.log(`[Figmento Relay] OAuth callback listening on http://localhost:1455/auth/callback`);
+    });
+
+    oauthServer.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        console.warn(`[Figmento Relay] Port 1455 in use — OAuth callback unavailable (another Codex instance running?)`);
+      } else {
+        console.error(`[Figmento Relay] OAuth callback server error:`, err.message);
+      }
     });
   }
 
@@ -211,7 +238,7 @@ export class FigmentoRelay {
         break;
 
       case 'command':
-        this.forwardToChannel(sender, msg.channel, raw.toString());
+        this.forwardToChannel(sender, msg.channel, raw.toString(), msg);
         break;
 
       case 'response':
@@ -219,7 +246,7 @@ export class FigmentoRelay {
         if (msg.id.startsWith(RELAY_CMD_PREFIX)) {
           this.resolveRelayCommand(msg as ResponseMessage);
         } else {
-          this.forwardToChannel(sender, msg.channel, raw.toString());
+          this.forwardToChannel(sender, msg.channel, raw.toString(), msg);
         }
         break;
 
@@ -251,6 +278,33 @@ export class FigmentoRelay {
       channel,
       clients: channelSize,
     }));
+
+    // Pre-warm chat engine on connect (fire-and-forget)
+    this.preWarmChat();
+  }
+
+  /** Pre-warm system prompt, tool schemas, and knowledge cache on first connect. */
+  private preWarmDone = false;
+  private preWarmChat(): void {
+    if (this.preWarmDone) return;
+    this.preWarmDone = true;
+
+    try {
+      // Pre-build system prompt (static parts only — knowledge is lazy-loaded on first brief)
+      const { buildSystemPrompt } = require('./chat/system-prompt');
+      buildSystemPrompt();
+
+      // Pre-load compiled knowledge into memory so first design request doesn't pay import cost
+      require('./knowledge/compiled-knowledge');
+
+      // Pre-resolve tool definitions
+      const { chatToolResolver } = require('./chat/chat-tools');
+      chatToolResolver();
+
+      console.log('[Figmento Relay] Chat engine pre-warmed (system prompt + knowledge + tools cached)');
+    } catch (err) {
+      console.error('[Figmento Relay] Pre-warm failed (non-critical):', (err as Error).message);
+    }
   }
 
   private leaveChannel(ws: WebSocket, channel: string): void {
@@ -273,7 +327,7 @@ export class FigmentoRelay {
     ws.send(JSON.stringify({ type: 'left', channel }));
   }
 
-  private forwardToChannel(sender: WebSocket, channel: string, rawMessage: string): void {
+  private forwardToChannel(sender: WebSocket, channel: string, rawMessage: string, parsed: CommandMessage | ResponseMessage): void {
     const channelClients = this.channels.get(channel);
     if (!channelClients) {
       sender.send(JSON.stringify({
@@ -291,15 +345,10 @@ export class FigmentoRelay {
       }
     }
 
-    // Parse for logging
-    try {
-      const parsed = JSON.parse(rawMessage);
-      const direction = parsed.type === 'command' ? 'CMD' : 'RSP';
-      const detail = parsed.type === 'command' ? parsed.action : (parsed.success ? 'OK' : 'ERR');
-      console.log(`[Figmento Relay] ${direction} ${parsed.id || '?'} [${channel}] ${detail} -> ${forwarded} peer(s)`);
-    } catch {
-      // ignore parse errors for logging
-    }
+    // Log using pre-parsed message (already parsed in handleMessage)
+    const direction = parsed.type === 'command' ? 'CMD' : 'RSP';
+    const detail = parsed.type === 'command' ? parsed.action : (parsed.success ? 'OK' : 'ERR');
+    console.log(`[Figmento Relay] ${direction} ${parsed.id || '?'} [${channel}] ${detail} -> ${forwarded} peer(s)`);
   }
 
   private handleDisconnect(ws: WebSocket, ip?: string): void {
@@ -340,7 +389,20 @@ export class FigmentoRelay {
     const channelClients = this.channels.get(msg.channel);
     console.log(`[Figmento Relay] claude-code-turn on channel="${msg.channel}" (${channelClients?.size ?? 0} clients on channel)`);
 
-    const result = await handleClaudeCodeTurn(msg);
+    // Stream progress events to the sender while the turn is in progress
+    const onProgress = (event: { type: string; toolName?: string; toolIndex?: number }) => {
+      if (sender.readyState === WebSocket.OPEN) {
+        sender.send(JSON.stringify({
+          type: 'claude-code-progress',
+          channel: msg.channel,
+          progressType: event.type,
+          toolName: event.toolName,
+          toolIndex: event.toolIndex,
+        }));
+      }
+    };
+
+    const result = await handleClaudeCodeTurn(msg, onProgress);
 
     // Send result back to the requesting client
     if (sender.readyState === WebSocket.OPEN) {

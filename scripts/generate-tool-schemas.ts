@@ -48,17 +48,19 @@ import * as referencesSchemas from '../figmento-mcp-server/src/tools/references'
 import * as adAnalyzerSchemas from '../figmento-mcp-server/src/tools/ad-analyzer';
 import * as designSystemSchemas from '../figmento-mcp-server/src/tools/design-system';
 
-// ── PLUGIN_TOOLS whitelist: 35 MCP tools surfaced in the plugin ──────────────
+// ── PLUGIN_TOOLS whitelist: 37 MCP tools surfaced in the plugin ──────────────
 // generate_image and update_memory are plugin-only — kept hand-authored in tools-schema.ts.
 const PLUGIN_TOOLS: string[] = [
   'create_frame', 'create_text', 'create_rectangle', 'create_ellipse', 'create_image',
   'set_fill', 'set_stroke', 'set_effects', 'set_corner_radius', 'set_opacity', 'set_auto_layout',
   'get_selection', 'get_screenshot', 'export_node', 'get_node_info', 'get_page_nodes',
-  'delete_node', 'move_node', 'resize_node', 'rename_node', 'append_child',
-  'group_nodes', 'clone_node', 'create_design',
+  'delete_node', 'move_node', 'resize_node', 'rename_node', 'append_child', 'reorder_child',
+  'group_nodes', 'clone_node', 'create_design', 'scan_frame_structure', 'create_icon',
+  'batch_execute', 'clone_with_overrides',
   'read_figma_context', 'bind_variable', 'apply_paint_style', 'apply_text_style',
   'apply_effect_style', 'run_refinement_check', 'create_figma_variables',
   'get_layout_blueprint', 'get_color_palette', 'get_font_pairing', 'get_size_preset',
+  'get_contrast_check', 'get_design_rules',
 ];
 
 // ── Tool descriptions (Option B: hardcoded — no MCP server changes needed) ───
@@ -89,12 +91,19 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   resize_node: 'Resize a node.',
   rename_node: 'Rename a node.',
   append_child: 'Move a node inside a parent frame.',
+  reorder_child: 'Reorder a child node within its parent frame. Use index=0 to send to back (bottom layer behind all siblings), or omit index to send to front (top layer). Essential for placing background images behind text.',
+  scan_frame_structure: 'Deep-scan a Figma frame and return its complete structure tree with types, positions, sizes, styles, text content, and children. Use this to understand the full layout and content of a frame. Returns much more detail than get_node_info.',
+  create_icon: 'Place a Lucide icon on the canvas. Over 1900 icons available by name (e.g. "check", "arrow-right", "star", "heart", "zap", "shield"). Returns the icon nodeId. Specify size in pixels and optional color.',
   group_nodes:
     'Group multiple nodes into a single group. All nodes must share the same parent. Useful for bundling related elements (e.g. a button bg + label, a speaker card) so they can be moved/cloned as a unit.',
   clone_node:
     "Clone (duplicate) an existing node. Returns the new node's ID. Great for repeating patterns like menu items, speaker cards, tags, etc.",
   create_design:
     'Create a complete design from a UIAnalysis JSON structure. This is the batch tool — it creates a main frame with all child elements (text, shapes, images, icons, auto-layout) in a single operation. Best for creating full designs at once rather than element-by-element.',
+  batch_execute:
+    'Execute multiple Figma commands in a single call. Each command has an action (any tool name), params, and optional tempId for cross-references ($tempId). Supports Enhanced DSL: "repeat" (loop with ${i}), "if" (conditional on exists($name)). Max 200 commands after expansion. Prefer this over sequential tool calls for designs with 3+ elements — dramatically faster.',
+  clone_with_overrides:
+    'Clone a node multiple times in one call with positional offsets and named child text/color/font overrides. Replaces the clone → find → set_text × N pattern. Use for repeated patterns: menu rows, card grids, feature lists, speaker cards.',
   read_figma_context:
     "Read the current Figma file's design context: all local Variables (with collections and modes), Paint Styles, Text Styles, Effect Styles, and available fonts. Call this FIRST when working with a file that has an existing design system — use the returned variable IDs and style IDs with bind_variable and apply_*_style tools instead of hardcoding values.",
   bind_variable:
@@ -116,6 +125,10 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'Get font pairing recommendations by mood/style. Returns heading and body fonts with recommended weights.',
   get_size_preset:
     'Get exact pixel dimensions for common design formats (social media, print, presentations, web). Query by platform, category, or specific preset ID.',
+  get_contrast_check:
+    'Check WCAG contrast ratio between two colors. Returns ratio and pass/fail for AA/AAA levels (normal and large text). Use to verify text readability.',
+  get_design_rules:
+    'Retrieve design reference data by category: typography (font rules, hierarchy), layout (8px grid, spacing), color (palettes, WCAG), print (page structure), evaluation (16-point checklist), refinement (7-step pass), anti-patterns (what to avoid), gradients (direction map), taste (aesthetic directions).',
 };
 
 // ── Map schema export name → tool name ──────────────────────────────────────

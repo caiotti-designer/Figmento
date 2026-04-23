@@ -12,6 +12,8 @@ import {
   deepMerge,
 } from './design-system';
 import { getPatternRecipe, resolveFormatCategory } from './patterns';
+import { generateFigmaCode } from './codegen/codegen';
+import type { BatchCommand } from './batch';
 
 // ═══════════════════════════════════════════════════════════
 // Template Schema Types
@@ -89,6 +91,21 @@ function loadCompositionRules(): CompositionRules | null {
   const filePath = nodePath.join(getKnowledgeDir(), 'patterns', 'composition-rules.yaml');
   if (!fs.existsSync(filePath)) return null;
   return yaml.load(fs.readFileSync(filePath, 'utf-8')) as CompositionRules;
+}
+
+/** Deep-prefix $tempId references in params for multi-frame codegen */
+function prefixRefs(obj: Record<string, unknown>, prefix: string): void {
+  for (const [key, val] of Object.entries(obj)) {
+    if (typeof val === 'string' && val.startsWith('$')) {
+      obj[key] = '$' + prefix + val.slice(1);
+    } else if (val && typeof val === 'object' && !Array.isArray(val)) {
+      prefixRefs(val as Record<string, unknown>, prefix);
+    } else if (Array.isArray(val)) {
+      for (const item of val) {
+        if (item && typeof item === 'object') prefixRefs(item as Record<string, unknown>, prefix);
+      }
+    }
+  }
 }
 
 /**
@@ -215,11 +232,12 @@ type SendDesignCommand = (action: string, params: Record<string, unknown>) => Pr
 
 export const createFromTemplateSchema = {
   template: z.string().describe('Template name (e.g. "pitch_deck", "social_media_kit", "brand_stationery", "landing_page_full", "restaurant_menu")'),
-  system: z.string().describe('Design system name to use for tokens (e.g. "testbrand", "payflow")'),
+  system: z.string().describe('Design system name to use for tokens (e.g. "stripe", "linear", "claude")'),
   props: z.record(z.unknown()).optional().describe('Props to inject across all template frames'),
   startX: z.coerce.number().optional().describe('Starting X position for the first frame (default: 0)'),
   startY: z.coerce.number().optional().describe('Starting Y position for all frames (default: 0)'),
   composition_mode: z.enum(['connected', 'isolated']).optional().describe('"connected" (default for templates that declare it) — sections stack vertically with gap=0 and composition background rules applied. "isolated" — current behavior, each frame placed horizontally with a gap, no background overrides.'),
+  outputMode: z.enum(['execute', 'codegen']).optional().describe('Output mode: "execute" (default) or "codegen" for use_figma JavaScript'),
 };
 
 export const listTemplatesSchema = {};
@@ -232,7 +250,7 @@ export function registerDsTemplateTools(server: McpServer, sendDesignCommand: Se
 
   server.tool(
     'create_from_template',
-    'Instantiate a multi-frame project template on the Figma canvas. Loads the template YAML, resolves all frame patterns with design system tokens, and creates every frame in one pass. Templates: social_media_kit (9 frames), pitch_deck (8 slides), brand_stationery (4 frames), landing_page_full (6 sections), restaurant_menu (5 frames). Use composition_mode="connected" (default for landing pages) to stack sections vertically with alternating backgrounds for a cohesive page feel.',
+    'Create a multi-frame project template on canvas. Resolves all patterns with design system tokens in one pass. Use composition_mode="connected" for vertically stacked pages.',
     createFromTemplateSchema,
     async (params) => {
       // 1. Load template definition
@@ -279,7 +297,63 @@ export function registerDsTemplateTools(server: McpServer, sendDesignCommand: Se
       let currentY = startY;
       let colIndex = 0;
 
-      // 5. Iterate through each frame in the template
+      // 5. Codegen path — collect all frames into single code block
+      if (params.outputMode === 'codegen') {
+        const allCommands: BatchCommand[] = [];
+        let cgX = startX;
+        let cgY = startY;
+        let cgCol = 0;
+
+        for (let fi = 0; fi < template.frames.length; fi++) {
+          const fd = template.frames[fi];
+          const rProps = resolveTemplateProps(fd.props || {}, globalProps, template.frames, fi);
+          const recipe = getPatternRecipe(fd.pattern);
+          if (!recipe) continue;
+          const variant = fd.variant || 'default';
+          const formatCategory = resolveFormatCategory(fd.format);
+          let merged = JSON.parse(JSON.stringify(recipe));
+          if (recipe.variants?.[variant]) merged = deepMerge(merged, recipe.variants[variant]);
+          if (formatCategory && recipe.format_adaptations?.[formatCategory]) merged = deepMerge(merged, recipe.format_adaptations[formatCategory]);
+          const resolved = resolveTokens(merged, tokens, rProps, fd.pattern);
+
+          // Position calculation
+          const dims = getFormatDimensions(fd.format);
+          let fX = cgX, fY = cgY;
+          if (isConnected) {
+            fX = startX; fY = cgY; cgY += (dims.height || 1080);
+          } else {
+            if (templateLayout?.grid_columns && cgCol >= templateLayout.grid_columns) { cgY += (dims.height || 1080) + gap; cgCol = 0; cgX = startX; }
+            fX = cgX; fY = cgY; cgX += (dims.width || 1920) + gap; cgCol++;
+          }
+
+          const commands = recipeToCommands(resolved, { x: fX, y: fY, componentName: fd.pattern, variant });
+          // Prefix tempIds to avoid cross-frame collisions
+          const prefix = `f${fi}_`;
+          for (const cmd of commands) {
+            if (cmd.tempId) cmd.tempId = prefix + cmd.tempId;
+            prefixRefs(cmd.params, prefix);
+          }
+          allCommands.push(...commands);
+
+          // Connected mode background
+          if (isConnected) {
+            const bgKey = resolveFrameBackground(fd, fi, compositionRules);
+            const bgColor = resolveBackgroundColor(bgKey, tokens);
+            if (bgColor) allCommands.push({ action: 'set_fill', params: { nodeId: `$${prefix}comp_root`, color: bgColor } });
+          }
+        }
+
+        const code = generateFigmaCode(allCommands);
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({
+            outputMode: 'codegen', code, commandCount: allCommands.length,
+            template: params.template, system: params.system, compositionMode,
+            frames: template.frames.map((f: Record<string, unknown>, i: number) => ({ id: f.id, name: f.name, pattern: f.pattern, tempId: `f${i}_comp_root` })),
+          }) }],
+        };
+      }
+
+      // 5. Iterate through each frame in the template (execute path)
       for (let frameIndex = 0; frameIndex < template.frames.length; frameIndex++) {
         const frameDef = template.frames[frameIndex];
 
@@ -426,10 +500,4 @@ export function registerDsTemplateTools(server: McpServer, sendDesignCommand: Se
   // DS-19: list_templates
   // ═══════════════════════════════════════════════════════════
 
-  server.tool(
-    'list_templates',
-    '[DEPRECATED — use list_resources(type="templates") instead] List all available project templates with their names, descriptions, frame counts, formats used, and estimated creation time.',
-    listTemplatesSchema,
-    async () => listTemplatesHandler(),
-  );
 }

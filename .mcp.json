@@ -2,17 +2,17 @@
   "mcpServers": {
     "figmento": {
       "command": "node",
-      "args": ["c:/Users/Caio/Downloads/Projects/Figmento/figmento-mcp-server/dist/index.js"],
+      "args": ["c:/Users/Caio/Projects/Figmento/figmento-mcp-server/dist/index.js"],
       "env": {
-        "GEMINI_API_KEY": "AIzaSyAi7giDr-Hbst9ywy80FOljqrd1CZjSD3Q",
-        "ANTHROPIC_API_KEY": "YOUR_KEY_HERE"
+        "GEMINI_API_KEY": "${GEMINI_API_KEY}",
+        "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}"
       }
     },
     "mcp-image": {
       "command": "node",
-      "args": ["c:/Users/Caio/Downloads/Projects/Figmento/scripts/run-mcp-image.js"],
+      "args": ["c:/Users/Caio/Projects/Figmento/scripts/run-mcp-image.js"],
       "env": {
-        "IMAGE_OUTPUT_DIR": "C:\\Users\\Caio\\Downloads\\Projects\\Figmento\\generated-images"
+        "IMAGE_OUTPUT_DIR": "C:\\Users\\Caio\\Projects\\Figmento\\generated-images"
       }
     }
   }

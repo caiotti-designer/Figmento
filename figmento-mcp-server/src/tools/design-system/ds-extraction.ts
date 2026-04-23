@@ -10,8 +10,13 @@ import * as nodePath from 'path';
 import { hexToHsl, hslToHex, lighten, darken, rotateHue, desaturate, bestTextColor, hexToRgb, rgbToHsl, relativeLuminance } from '../utils/color';
 import { getDesignSystemsDir } from '../utils/knowledge-paths';
 import { getByDotPath, setByDotPath } from '../utils/tokens';
-import { generateDesignSystemFromUrlSchema, refineDesignSystemSchema } from './ds-schemas';
+import { generateDesignSystemFromUrlSchema, refineDesignSystemSchema, importDesignMdSchema, exportDesignMdSchema, validateDesignMdSchema } from './ds-schemas';
 import { generateTokens, listAvailableSystems } from './ds-crud';
+import { parseDesignMd } from './ds-md-parser';
+import { validateDesignMdIR } from './ds-md-validator';
+import { irToTokens } from './ds-md-to-tokens';
+import { tokensToIR } from './ds-tokens-to-ir';
+import { renderMarkdown } from './ds-ir-to-markdown';
 import type { DesignTokens, PresetDefaults, ExtractedDesignTokens, VisionExtraction, HybridMergeResult, SendDesignCommand } from './ds-types';
 
 // ═══════════════════════════════════════════════════════════
@@ -452,7 +457,7 @@ export function registerExtractionTools(
 
   server.tool(
     'generate_design_system_from_url',
-    'Generates a design system draft from a URL. Extracts what it can via CSS and vision, then guides you through refining the result. Best used as a starting point, not a final output.',
+    'Generate a design system draft from a URL by extracting CSS colors, fonts, and visual patterns.',
     generateDesignSystemFromUrlSchema,
     async (params: { url: string; name?: string; preset?: string }) => {
       // Step 1: CSS extraction
@@ -604,7 +609,7 @@ export function registerExtractionTools(
 
   server.tool(
     'refine_design_system',
-    'Refine a draft design system with user-provided corrections. Use after generate_design_system_from_url to fix colors, fonts, border radius, dark/light mode, and mood. Returns a diff of what changed.',
+    'Refine a draft design system with user corrections (colors, fonts, radius, mode, mood). Returns a diff.',
     refineDesignSystemSchema,
     async (params: {
       name: string;
@@ -732,6 +737,293 @@ export function registerExtractionTools(
               ? `${changeCount} token(s) updated. Call design_system_preview to see the result visually.`
               : 'No changes were needed — the system already matched your inputs.',
           }, null, 2),
+        }],
+      };
+    }
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // DMD-2: import_design_system_from_md — DESIGN.md → tokens.yaml
+  // Parses a DESIGN.md file, validates it, converts to tokens, saves.
+  // Optional auto-preview hook when Figma is connected.
+  // See: docs/stories/DMD-2-import-design-system-from-md.story.md
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'import_design_system_from_md',
+    'Import a DESIGN.md file as a Figmento design system. Parses frontmatter + 9 canonical sections + fenced blocks, validates against the schema, converts to tokens.yaml, and saves to knowledge/design-systems/{name}/. Pass previewInFigma: true to auto-generate a preview frame in Figma after import.',
+    importDesignMdSchema,
+    async (params: { path?: string; content?: string; name?: string; previewInFigma?: boolean; createVariables?: boolean; overwrite?: boolean }) => {
+      // ─── Step 1: Resolve input to markdown string ─────────────────
+      let markdown: string;
+      let inferredName: string | undefined;
+
+      if (params.path) {
+        try {
+          markdown = fs.readFileSync(params.path, 'utf-8');
+          // Infer name from filename: /path/to/my-system/DESIGN.md → my-system
+          const dir = nodePath.basename(nodePath.dirname(params.path));
+          if (dir && dir !== '.' && dir !== 'design-systems') {
+            inferredName = dir.replace(/[^a-z0-9-]/gi, '').toLowerCase();
+          }
+        } catch (err) {
+          return { content: [{ type: 'text' as const, text: JSON.stringify({
+            systemName: null, tokensPath: null, verdict: 'FAIL',
+            issues: [{ severity: 'CRITICAL', category: 'structure', message: `Could not read file: ${(err as Error).message}` }],
+          }, null, 2) }] };
+        }
+      } else if (params.content !== undefined) {
+        markdown = params.content;
+      } else {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          systemName: null, tokensPath: null, verdict: 'FAIL',
+          issues: [{ severity: 'CRITICAL', category: 'structure', message: 'Must provide either `path` or `content` input.' }],
+        }, null, 2) }] };
+      }
+
+      // ─── Step 2: Parse ────────────────────────────────────────────
+      let ir;
+      try {
+        ir = parseDesignMd(markdown);
+      } catch (err) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          systemName: null, tokensPath: null, verdict: 'FAIL',
+          issues: [{ severity: 'CRITICAL', category: 'structure', message: `Parser error: ${(err as Error).message}` }],
+        }, null, 2) }] };
+      }
+
+      // ─── Step 3: Validate ─────────────────────────────────────────
+      const report = validateDesignMdIR(ir);
+
+      if (report.verdict === 'FAIL') {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          systemName: null, tokensPath: null,
+          verdict: report.verdict, issues: report.issues,
+        }, null, 2) }] };
+      }
+
+      // ─── Step 4: Resolve system name ──────────────────────────────
+      const systemName = (params.name || ir.frontmatter.name || inferredName || 'imported')
+        .replace(/[^a-z0-9-]/gi, '')
+        .toLowerCase();
+
+      if (!systemName) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          systemName: null, tokensPath: null, verdict: 'FAIL',
+          issues: [{ severity: 'CRITICAL', category: 'structure', message: 'Could not determine a system name. Provide `name` parameter or add `name` to the frontmatter.' }],
+        }, null, 2) }] };
+      }
+
+      // ─── Step 5: Check for duplicate name ─────────────────────────
+      const tokensPath = nodePath.join(getDesignSystemsDir(), systemName, 'tokens.yaml');
+      if (fs.existsSync(tokensPath) && !params.overwrite) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          systemName, tokensPath: null, verdict: 'CONCERNS',
+          issues: [{
+            severity: 'HIGH', category: 'structure',
+            message: `Design system "${systemName}" already exists at ${tokensPath}.`,
+            suggestion: 'Pass overwrite: true to replace, or provide a different name.',
+          }],
+          warning: 'DUPLICATE_NAME — existing system not overwritten.',
+        }, null, 2) }] };
+      }
+
+      // ─── Step 6: Convert IR → tokens + save ──────────────────────
+      const tokens = irToTokens(ir);
+      // Ensure the name in the saved tokens matches the resolved name
+      tokens.name = systemName;
+
+      try {
+        await saveFn(systemName, tokens as unknown as DesignTokens);
+      } catch (err) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          systemName, tokensPath: null, verdict: 'FAIL',
+          issues: [{ severity: 'CRITICAL', category: 'structure', message: `Save failed: ${(err as Error).message}` }],
+        }, null, 2) }] };
+      }
+
+      const savedPath = nodePath.join(getDesignSystemsDir(), systemName, 'tokens.yaml');
+
+      // ─── Step 7: Optional Figma-native bindings ──────────────────
+      let preview: unknown = undefined;
+      let variables: unknown = undefined;
+      const warnings: string[] = [];
+
+      if (params.createVariables) {
+        try {
+          const varsData = await _sendDesignCommand('create_variables_from_design_system', {
+            system: systemName,
+          });
+          variables = varsData;
+        } catch {
+          warnings.push('Figma not connected — skipping variable creation. tokens.yaml was saved successfully.');
+        }
+      }
+
+      if (params.previewInFigma) {
+        try {
+          const previewData = await _sendDesignCommand('design_system_preview', {
+            system: systemName,
+          });
+          preview = previewData;
+        } catch {
+          if (!warnings.some(w => w.includes('Figma not connected'))) {
+            warnings.push('Figma not connected — skipping preview. tokens.yaml was saved successfully.');
+          }
+        }
+      }
+
+      // ─── Step 8: Response ─────────────────────────────────────────
+      const response: Record<string, unknown> = {
+        systemName,
+        tokensPath: savedPath,
+        verdict: report.verdict,
+      };
+      if (report.issues.length > 0) response.issues = report.issues;
+      if (variables) response.variables = variables;
+      if (preview) response.preview = preview;
+      if (warnings.length > 0) response.warning = warnings.join(' ');
+
+      return { content: [{ type: 'text' as const, text: JSON.stringify(response, null, 2) }] };
+    }
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // DMD-4: export_design_system_to_md — tokens.yaml → DESIGN.md
+  // Reads an existing design system's tokens, converts to canonical
+  // DESIGN.md format, and writes the file.
+  // See: docs/stories/DMD-4-export-design-system-to-md.story.md
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'export_design_system_to_md',
+    'Export a Figmento design system as a canonical DESIGN.md file. Reads tokens.yaml, converts to the 9-section markdown format with frontmatter and fenced blocks, writes to knowledge/design-systems/{name}/DESIGN.md (or a custom outputPath). Use this to share design systems with Cursor, Claude Desktop, or the awesome-design-md ecosystem.',
+    exportDesignMdSchema,
+    async (params: { name: string; outputPath?: string; overwrite?: boolean }) => {
+      const safeName = params.name.replace(/[^a-z0-9-]/gi, '').toLowerCase();
+      const tokensPath = nodePath.join(getDesignSystemsDir(), safeName, 'tokens.yaml');
+
+      if (!fs.existsSync(tokensPath)) {
+        const available = listAvailableSystems();
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          exported: false,
+          reason: 'NOT_FOUND',
+          message: `Design system "${safeName}" not found. Available: ${available.join(', ')}`,
+        }, null, 2) }] };
+      }
+
+      // Load tokens
+      const tokensContent = fs.readFileSync(tokensPath, 'utf-8');
+      const tokens = yaml.load(tokensContent) as Record<string, unknown>;
+
+      // Convert to IR then render to markdown
+      const ir = tokensToIR(tokens);
+      const markdown = renderMarkdown(ir);
+
+      // Resolve output path
+      const outputPath = params.outputPath || nodePath.join(getDesignSystemsDir(), safeName, 'DESIGN.md');
+
+      // Collision check
+      if (fs.existsSync(outputPath) && !params.overwrite) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({
+          exported: false,
+          reason: 'FILE_EXISTS',
+          outputPath,
+          suggestion: 'Pass overwrite: true to replace the existing file.',
+        }, null, 2) }] };
+      }
+
+      // Write
+      fs.writeFileSync(outputPath, markdown, 'utf-8');
+
+      // Build summary
+      const sectionCount = Object.keys(ir.sections).filter(k => {
+        const v = ir.sections[k as keyof typeof ir.sections];
+        return v && Object.keys(v).length > 0;
+      }).length;
+
+      return { content: [{ type: 'text' as const, text: JSON.stringify({
+        exported: true,
+        outputPath,
+        systemName: safeName,
+        irSummary: {
+          sectionCount,
+          frontmatterKeys: Object.keys(ir.frontmatter),
+        },
+        markdown: markdown.length > 2000 ? markdown.slice(0, 2000) + '\n... (truncated)' : markdown,
+      }, null, 2) }] };
+    }
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // DMD-3: validate_design_md — zero-side-effect validator
+  // Parses a DESIGN.md file (or inline content) and returns a structured
+  // report of issues. Does NOT write files or call any Figma tool.
+  // See: docs/stories/DMD-3-validate-design-md.story.md
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'validate_design_md',
+    'Validate a DESIGN.md file against the Figmento schema (docs/architecture/DESIGN-MD-SPEC.md). ZERO SIDE EFFECTS — does not write files or call any Figma tool. Returns a verdict (PASS/CONCERNS/FAIL) plus a structured list of issues with severity, category, message, and suggestion. Use this for the edit-validate-fix authoring loop before committing a DESIGN.md via import_design_system_from_md.',
+    validateDesignMdSchema,
+    async (params: { path?: string; content?: string }) => {
+      let markdown: string;
+
+      if (params.path) {
+        try {
+          markdown = fs.readFileSync(params.path, 'utf-8');
+        } catch (err) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify({
+                verdict: 'FAIL',
+                issues: [{
+                  severity: 'CRITICAL',
+                  category: 'structure',
+                  message: `Could not read file at ${params.path}: ${(err as Error).message}`,
+                }],
+              }, null, 2),
+            }],
+          };
+        }
+      } else if (params.content !== undefined) {
+        markdown = params.content;
+      } else {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              verdict: 'FAIL',
+              issues: [{
+                severity: 'CRITICAL',
+                category: 'structure',
+                message: 'Must provide either `path` or `content` input',
+              }],
+            }, null, 2),
+          }],
+        };
+      }
+
+      let report;
+      try {
+        const ir = parseDesignMd(markdown);
+        report = validateDesignMdIR(ir);
+      } catch (err) {
+        report = {
+          verdict: 'FAIL',
+          issues: [{
+            severity: 'CRITICAL',
+            category: 'structure',
+            message: `Parser or validator error: ${(err as Error).message}`,
+          }],
+        };
+      }
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify(report, null, 2),
         }],
       };
     }

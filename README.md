@@ -34,7 +34,7 @@
                             │  WebSocket (channel ID handshake)
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   figmento-plugin                           │
+│                       figmento                              │
 │          (Figma Desktop plugin — sandbox + UI iframe)       │
 └───────────────────────────┬─────────────────────────────────┘
                             │  Figma Plugin API
@@ -236,7 +236,8 @@ figmento/
 │       ├── templates/          # Multi-frame project templates
 │       └── *.yaml              # Color, type, layout, size reference
 ├── figmento-ws-relay/          # WebSocket message broker (port 3055)
-├── figmento-plugin/            # Figma plugin (esbuild, sandbox + UI)
+├── figmento/                   # Figma plugin (esbuild, sandbox + UI)
+├── packages/figmento-core/     # Shared types/utilities (re-exported by figmento/src/)
 ├── scripts/                    # render-html.js (Puppeteer HTML→PNG)
 └── output/                     # Image output dir (required by tools)
 ```

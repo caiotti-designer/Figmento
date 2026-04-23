@@ -5,6 +5,22 @@
 
 import { updateChatSettings, getChatSettings, ChatSettings } from './chat';
 import { autoConnectBridge as triggerAutoConnectBridge } from './bridge';
+import {
+  buildAuthorizationUrl,
+  savePkceSession,
+  loadPkceSession,
+  clearPkceSession,
+  exchangeCodeForToken,
+  refreshToken,
+  isTokenExpired,
+  isTokenExpiringSoon,
+  CODEX_OAUTH_CONFIG,
+  ANTHROPIC_OAUTH_CONFIG,
+  isAnthropicOAuthConfigured,
+  decodeActivationCode,
+  validateAnthropicToken,
+  type OAuthToken,
+} from './oauth-flow';
 
 // ═══════════════════════════════════════════════════════════════
 // DOM HELPERS
@@ -49,6 +65,33 @@ export function initChatSettings() {
     });
   }
 
+  // DM-3: Codex OAuth button wiring
+  const codexConnectBtn = document.getElementById('codex-oauth-connect');
+  if (codexConnectBtn) {
+    codexConnectBtn.addEventListener('click', handleCodexConnect);
+  }
+  const codexActivateBtn = document.getElementById('codex-activate-btn');
+  if (codexActivateBtn) {
+    codexActivateBtn.addEventListener('click', handleCodexActivate);
+  }
+  const codexDisconnectBtn = document.getElementById('codex-oauth-disconnect');
+  if (codexDisconnectBtn) {
+    codexDisconnectBtn.addEventListener('click', handleCodexDisconnect);
+  }
+
+  // DM-2: Anthropic OAuth button wiring — visible only when OAuth app is registered
+  const anthropicSection = document.getElementById('anthropic-oauth-section');
+  if (anthropicSection && isAnthropicOAuthConfigured()) {
+    anthropicSection.style.display = 'block';
+    document.getElementById('anthropic-oauth-connect')?.addEventListener('click', handleAnthropicConnect);
+    document.getElementById('anthropic-activate-btn')?.addEventListener('click', handleAnthropicActivate);
+    document.getElementById('anthropic-oauth-disconnect')?.addEventListener('click', handleAnthropicDisconnect);
+    // Reflect current token state
+    if (getChatSettings().anthropicToken) {
+      updateAnthropicOAuthUI(true);
+    }
+  }
+
   updateSettingsUI();
   updateRelaySettingsUI();
 }
@@ -62,8 +105,16 @@ export function loadChatSettings(saved: Record<string, string>) {
     ($('settings-api-key') as HTMLInputElement).value = saved.anthropicApiKey;
   }
   if (saved.model) {
-    s.model = saved.model;
-    ($('settings-model') as HTMLSelectElement).value = saved.model;
+    const select = $('settings-model') as HTMLSelectElement;
+    // Validate the saved model exists in the dropdown — if not, fall back to default
+    const optionExists = Array.from(select.options).some(opt => opt.value === saved.model);
+    if (optionExists) {
+      s.model = saved.model;
+      select.value = saved.model;
+    } else {
+      console.warn(`[Figmento] Saved model "${saved.model}" not found in dropdown, using default`);
+      s.model = select.value; // keep the HTML default (claude-code)
+    }
   }
   if (saved.geminiApiKey) {
     s.geminiApiKey = saved.geminiApiKey;
@@ -73,6 +124,27 @@ export function loadChatSettings(saved: Record<string, string>) {
   if (saved.openaiApiKey) {
     s.openaiApiKey = saved.openaiApiKey;
     ($('settings-openai-key') as HTMLInputElement).value = saved.openaiApiKey;
+  }
+  if (saved.veniceApiKey) {
+    s.veniceApiKey = saved.veniceApiKey;
+    ($('settings-venice-key') as HTMLInputElement).value = saved.veniceApiKey;
+  }
+
+  // MA-1: Custom OpenAI-compatible provider
+  if (saved.customBaseUrl) {
+    s.customBaseUrl = saved.customBaseUrl;
+    const input = document.getElementById('settings-custom-base-url') as HTMLInputElement | null;
+    if (input) input.value = saved.customBaseUrl;
+  }
+  if (saved.customModel) {
+    s.customModel = saved.customModel;
+    const input = document.getElementById('settings-custom-model') as HTMLInputElement | null;
+    if (input) input.value = saved.customModel;
+  }
+  if (saved.customApiKey) {
+    s.customApiKey = saved.customApiKey;
+    const input = document.getElementById('settings-custom-api-key') as HTMLInputElement | null;
+    if (input) input.value = saved.customApiKey;
   }
 
   // Relay settings
@@ -90,6 +162,48 @@ export function loadChatSettings(saved: Record<string, string>) {
     s.claudeCodeModel = saved.claudeCodeModel;
     const ccModel = document.getElementById('settings-cc-model') as HTMLSelectElement;
     if (ccModel) ccModel.value = saved.claudeCodeModel;
+  }
+
+  // DM-2: Load Anthropic OAuth token state (scaffolded — activation pending
+  // Anthropic OAuth app registration + hosted callback page)
+  if (saved.anthropicToken) {
+    const token = saved.anthropicToken as unknown as OAuthToken;
+    s.anthropicToken = token;
+  }
+
+  // DM-3: Load Codex OAuth token state
+  if (saved.codexToken) {
+    const token = saved.codexToken as unknown as OAuthToken;
+    s.codexToken = token;
+    updateCodexOAuthUI(true);
+
+    // Proactive: validate/refresh token in background on load
+    (async () => {
+      try {
+        if (isTokenExpired(token) || isTokenExpiringSoon(token)) {
+          if (token.refresh_token) {
+            const refreshed = await refreshToken(CODEX_OAUTH_CONFIG, token);
+            const latest = getChatSettings();
+            latest.codexToken = refreshed;
+            updateChatSettings(latest);
+            postToSandbox({ type: 'save-codex-token', token: refreshed });
+          } else {
+            const latest = getChatSettings();
+            latest.codexToken = undefined;
+            updateChatSettings(latest);
+            postToSandbox({ type: 'clear-codex-token' });
+            updateCodexOAuthUI(false);
+          }
+        }
+      } catch {
+        // Refresh failed — clear token, show disconnected
+        const latest = getChatSettings();
+        latest.codexToken = undefined;
+        updateChatSettings(latest);
+        postToSandbox({ type: 'clear-codex-token' });
+        updateCodexOAuthUI(false);
+      }
+    })();
   }
 
   updateChatSettings(s);
@@ -111,23 +225,37 @@ export function loadLearningConfig(config: Record<string, unknown>): void {
 function updateSettingsUI() {
   const model = ($('settings-model') as HTMLSelectElement).value;
   const useGemini = model.startsWith('gemini-');
-  const useOpenAI = model.startsWith('gpt-') || model.startsWith('o');
+  // DM-3: Check codex BEFORE openai — gpt-5-codex matches both patterns
+  const useCodex = model.includes('-codex');
+  const useCustom = model === 'custom'; // MA-1
+  const useOpenAI = !useCodex && !useCustom && (model.startsWith('gpt-') || model.startsWith('o'));
+  const useVenice = model.startsWith('qwen3-') || model.startsWith('zai-org-') || model.startsWith('deepseek-');
   const useClaudeCode = model === 'claude-code';
+  const useSpecial = useClaudeCode || useCodex || useCustom;
 
-  // AC2: Hide ALL API key fields when Claude Code is selected
-  $('key-gemini-chat').style.display = (!useClaudeCode && useGemini) ? 'block' : 'none';
-  $('key-anthropic-chat').style.display = (!useClaudeCode && !useGemini && !useOpenAI) ? 'block' : 'none';
-  $('key-openai-chat').style.display = (!useClaudeCode && useOpenAI) ? 'block' : 'none';
+  // Hide ALL API key fields for special providers (Claude Code, Codex OAuth, Custom)
+  $('key-gemini-chat').style.display = (!useSpecial && useGemini) ? 'block' : 'none';
+  $('key-anthropic-chat').style.display = (!useSpecial && !useGemini && !useOpenAI && !useVenice) ? 'block' : 'none';
+  $('key-openai-chat').style.display = (!useSpecial && useOpenAI) ? 'block' : 'none';
+  $('key-venice-chat').style.display = (!useSpecial && useVenice) ? 'block' : 'none';
+
+  // MA-1: Custom provider fields
+  const customSection = document.getElementById('key-custom-chat');
+  if (customSection) customSection.style.display = useCustom ? 'block' : 'none';
 
   // Claude Code status message
   const ccStatus = document.getElementById('claude-code-status');
   if (ccStatus) ccStatus.style.display = useClaudeCode ? 'block' : 'none';
 
-  // Image gen: hidden for Claude Code (MCP server handles it), otherwise normal logic
+  // DM-3: Codex OAuth section
+  const codexSection = document.getElementById('codex-oauth-section');
+  if (codexSection) codexSection.style.display = useCodex ? 'block' : 'none';
+
+  // Image gen: hidden for Claude Code, Codex, and Custom; otherwise normal logic
   const imageGenSection = document.getElementById('section-image-gen');
-  if (imageGenSection) imageGenSection.style.display = useClaudeCode ? 'none' : 'block';
-  $('image-gen-separate').style.display = (!useClaudeCode && !useGemini) ? 'block' : 'none';
-  $('image-gen-shared').style.display = (!useClaudeCode && useGemini) ? 'block' : 'none';
+  if (imageGenSection) imageGenSection.style.display = useSpecial ? 'none' : 'block';
+  $('image-gen-separate').style.display = (!useSpecial && !useGemini) ? 'block' : 'none';
+  $('image-gen-shared').style.display = (!useSpecial && useGemini) ? 'block' : 'none';
 }
 
 function saveChatSettings() {
@@ -138,14 +266,26 @@ function saveChatSettings() {
   const relayUrlInput = $('settings-relay-url') as HTMLInputElement;
 
   const ccModelSelect = document.getElementById('settings-cc-model') as HTMLSelectElement;
+
+  // MA-1: Custom provider fields — trim trailing slash on baseUrl to be forgiving
+  const customBaseUrlRaw = (document.getElementById('settings-custom-base-url') as HTMLInputElement | null)?.value.trim() || '';
+  const customBaseUrl = customBaseUrlRaw.replace(/\/+$/, '');
+  const customModel = (document.getElementById('settings-custom-model') as HTMLInputElement | null)?.value.trim() || '';
+  const customApiKey = (document.getElementById('settings-custom-api-key') as HTMLInputElement | null)?.value.trim() || '';
+
+  const currentSettings = getChatSettings();
   const s: ChatSettings = {
     model,
-    claudeCodeModel: ccModelSelect ? ccModelSelect.value : 'claude-opus-4-6',
+    claudeCodeModel: ccModelSelect ? ccModelSelect.value : 'claude-sonnet-4-6',
     anthropicApiKey: ($('settings-api-key') as HTMLInputElement).value.trim(),
     openaiApiKey: ($('settings-openai-key') as HTMLInputElement).value.trim(),
+    veniceApiKey: ($('settings-venice-key') as HTMLInputElement).value.trim(),
     geminiApiKey: '',
     chatRelayEnabled: relayToggle ? relayToggle.checked : false,
-    chatRelayUrl: relayUrlInput ? relayUrlInput.value.trim() : 'http://localhost:3055',
+    chatRelayUrl: relayUrlInput ? relayUrlInput.value.trim() : currentSettings.chatRelayUrl,
+    customBaseUrl: customBaseUrl || undefined,
+    customModel: customModel || undefined,
+    customApiKey: customApiKey || undefined,
   };
 
   if (useGemini) {
@@ -167,8 +307,13 @@ function saveChatSettings() {
       claudeCodeModel: s.claudeCodeModel,
       geminiApiKey: s.geminiApiKey,
       openaiApiKey: s.openaiApiKey,
+      veniceApiKey: s.veniceApiKey,
       chatRelayEnabled: String(s.chatRelayEnabled),
       chatRelayUrl: s.chatRelayUrl,
+      // MA-1: persist custom provider config (optional fields)
+      customBaseUrl: s.customBaseUrl || '',
+      customModel: s.customModel || '',
+      customApiKey: s.customApiKey || '',
     },
   });
 
@@ -211,4 +356,168 @@ function showSettingsStatus(text: string, isError: boolean) {
   el.className = 'settings-status ' + (isError ? 'error' : 'success');
   el.style.display = 'block';
   setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DM-3: CODEX OAUTH HANDLERS
+// ═══════════════════════════════════════════════════════════════
+
+function updateCodexOAuthUI(connected: boolean) {
+  const disconnected = document.getElementById('codex-oauth-disconnected');
+  const connectedEl = document.getElementById('codex-oauth-connected');
+  if (disconnected) disconnected.style.display = connected ? 'none' : 'block';
+  if (connectedEl) connectedEl.style.display = connected ? 'block' : 'none';
+  // Hide activation input when connected
+  const activationSection = document.getElementById('codex-activation-section');
+  if (activationSection && connected) activationSection.style.display = 'none';
+}
+
+async function handleCodexConnect() {
+  try {
+    const { url, verifier, state } = await buildAuthorizationUrl(CODEX_OAUTH_CONFIG);
+    savePkceSession(verifier, state);
+
+    // Show activation code input
+    const activationSection = document.getElementById('codex-activation-section');
+    if (activationSection) activationSection.style.display = 'block';
+
+    // Open browser for OAuth
+    postToSandbox({ type: 'open-external', url });
+
+    showSettingsStatus('Browser opened — complete login and paste the activation code.', false);
+  } catch (err) {
+    showSettingsStatus('Failed to start OAuth flow: ' + (err as Error).message, true);
+  }
+}
+
+async function handleCodexActivate() {
+  const input = document.getElementById('codex-activation-input') as HTMLInputElement;
+  const rawCode = input?.value?.trim();
+  if (!rawCode) {
+    showSettingsStatus('Please paste the activation code from the browser.', true);
+    return;
+  }
+
+  // Decode the activation code (base64 JSON with authorization_code)
+  let authCode: string;
+  try {
+    const decoded = JSON.parse(atob(rawCode));
+    authCode = decoded.authorization_code;
+    if (!authCode) throw new Error('No authorization_code');
+  } catch {
+    showSettingsStatus('Invalid activation code. Please try again.', true);
+    return;
+  }
+
+  // Retrieve stored PKCE verifier
+  const pkce = loadPkceSession();
+  if (!pkce) {
+    showSettingsStatus('PKCE session expired. Please click "Connect with ChatGPT" again.', true);
+    return;
+  }
+
+  // Exchange authorization code for access token
+  showSettingsStatus('Exchanging code for token...', false);
+  let token: OAuthToken;
+  try {
+    token = await exchangeCodeForToken(CODEX_OAUTH_CONFIG, authCode, pkce.verifier);
+  } catch (err) {
+    showSettingsStatus('Token exchange failed: ' + (err as Error).message, true);
+    return;
+  }
+
+  clearPkceSession();
+
+  // Save to clientStorage via sandbox
+  const s = getChatSettings();
+  s.codexToken = token;
+  updateChatSettings(s);
+  postToSandbox({ type: 'save-codex-token', token });
+
+  updateCodexOAuthUI(true);
+  input.value = '';
+  showSettingsStatus('Connected via ChatGPT ✓', false);
+}
+
+function handleCodexDisconnect() {
+  const s = getChatSettings();
+  s.codexToken = undefined;
+  updateChatSettings(s);
+  postToSandbox({ type: 'clear-codex-token' });
+  updateCodexOAuthUI(false);
+  showSettingsStatus('Disconnected from ChatGPT.', false);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DM-2: ANTHROPIC OAUTH HANDLERS
+// ═══════════════════════════════════════════════════════════════
+// All three handlers mirror the Codex pattern exactly. They will no-op at
+// runtime until ANTHROPIC_OAUTH_CONFIG is activated (see oauth-flow.ts).
+// The UI gates visibility on isAnthropicOAuthConfigured() so nothing is
+// surfaced to end users until the prerequisite OAuth app is registered.
+
+function updateAnthropicOAuthUI(connected: boolean) {
+  const disconnected = document.getElementById('anthropic-oauth-disconnected');
+  const connectedEl = document.getElementById('anthropic-oauth-connected');
+  if (disconnected) disconnected.style.display = connected ? 'none' : 'block';
+  if (connectedEl) connectedEl.style.display = connected ? 'block' : 'none';
+  const activationSection = document.getElementById('anthropic-activation-section');
+  if (activationSection && connected) activationSection.style.display = 'none';
+}
+
+async function handleAnthropicConnect() {
+  try {
+    const { url, verifier, state } = await buildAuthorizationUrl(ANTHROPIC_OAUTH_CONFIG);
+    savePkceSession(verifier, state);
+    const activationSection = document.getElementById('anthropic-activation-section');
+    if (activationSection) activationSection.style.display = 'block';
+    postToSandbox({ type: 'open-external', url });
+    showSettingsStatus('Browser opened — complete login and paste the activation code.', false);
+  } catch (err) {
+    showSettingsStatus('Failed to start OAuth flow: ' + (err as Error).message, true);
+  }
+}
+
+async function handleAnthropicActivate() {
+  const input = document.getElementById('anthropic-activation-input') as HTMLInputElement;
+  const rawCode = input?.value?.trim();
+  if (!rawCode) {
+    showSettingsStatus('Please paste the activation code from the browser.', true);
+    return;
+  }
+
+  // The Anthropic callback page encodes the token as base64(JSON) — same shape
+  // as the Codex flow. decodeActivationCode handles both.
+  const decoded = decodeActivationCode(rawCode);
+  if (!decoded) {
+    showSettingsStatus('Invalid activation code. Please try again.', true);
+    return;
+  }
+
+  // Validate against api.anthropic.com/v1/models before accepting
+  showSettingsStatus('Validating token...', false);
+  const valid = await validateAnthropicToken(decoded.access_token);
+  if (!valid) {
+    showSettingsStatus('Token validation failed. Please reconnect.', true);
+    return;
+  }
+
+  clearPkceSession();
+  const s = getChatSettings();
+  s.anthropicToken = decoded;
+  updateChatSettings(s);
+  postToSandbox({ type: 'save-anthropic-token', token: decoded });
+
+  updateAnthropicOAuthUI(true);
+  input.value = '';
+  showSettingsStatus('Connected via Claude.ai ✓', false);
+}
+
+function handleAnthropicDisconnect() {
+  const s = getChatSettings();
+  s.anthropicToken = undefined;
+  updateChatSettings(s);
+  postToSandbox({ type: 'clear-anthropic-token' });
+  updateAnthropicOAuthUI(false);
+  showSettingsStatus('Disconnected from Claude.ai.', false);
 }

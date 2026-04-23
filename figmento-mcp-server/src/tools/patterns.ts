@@ -11,6 +11,7 @@ import {
   recipeToCommands,
   deepMerge,
 } from './design-system';
+import { generateFigmaCode } from './codegen/codegen';
 
 // ═══════════════════════════════════════════════════════════
 // Pattern Recipe Types
@@ -115,7 +116,7 @@ export async function listPatternsHandler(_filter?: string) {
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
 export const createFromPatternSchema = {
-  system: z.string().describe('Design system name (e.g. "payflow")'),
+  system: z.string().describe('Design system name (e.g. "stripe")'),
   pattern: z.string().describe('Pattern name: hero_block, feature_grid, pricing_card, testimonial, contact_block, content_section, image_text_row, gallery, data_row, cta_banner'),
   format: z.string().describe('Target format name (e.g. "instagram_post", "landing_page", "business_card"). Used to look up the format category and apply format_adaptations.'),
   size_variant: z.string().optional().describe('Size variant key from the format\'s size_variants map (e.g. "portrait", "landscape", "square", "desktop", "mobile", "screen", "print_ready"). If omitted, uses the format\'s default_size.'),
@@ -124,6 +125,7 @@ export const createFromPatternSchema = {
   parentId: z.string().optional().describe('Parent frame nodeId to place pattern inside'),
   x: z.coerce.number().optional().describe('X position'),
   y: z.coerce.number().optional().describe('Y position'),
+  outputMode: z.enum(['execute', 'codegen']).optional().describe('Output mode: "execute" (default) runs via WS relay, "codegen" returns Plugin API JavaScript for use_figma'),
 };
 
 export const listPatternsSchema = {};
@@ -136,7 +138,7 @@ export function registerPatternTools(server: McpServer, sendDesignCommand: SendD
 
   server.tool(
     'create_from_pattern',
-    'Instantiate a cross-format design pattern on the Figma canvas. Loads design system tokens, resolves the pattern recipe with format-specific adaptations, and enforces canvas dimensions from the format YAML — the format always wins. Use size_variant to select a specific size (e.g. "portrait" → instagram_post 1080×1350, "landscape" → 1080×566, "square" → 1080×1080, "desktop" → landing_page 1440×1024, "mobile" → 390×844). If omitted, the format\'s default_size is used automatically. Patterns: hero_block, feature_grid, pricing_card, testimonial, contact_block, content_section, image_text_row, gallery, data_row, cta_banner.',
+    'Create a design pattern on canvas using design system tokens. Resolves format-specific dimensions and adaptations automatically.',
     createFromPatternSchema,
     async (params) => {
       // Always reload patterns from disk — ensures YAML edits are hot without server restart
@@ -272,7 +274,25 @@ export function registerPatternTools(server: McpServer, sendDesignCommand: SendD
         variant,
       });
 
-      // 9. Execute via batch_execute
+      // 9. Codegen path — return Plugin API JavaScript for use_figma
+      if (params.outputMode === 'codegen') {
+        const code = generateFigmaCode(commands);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              outputMode: 'codegen',
+              code,
+              commandCount: commands.length,
+              pattern: params.pattern,
+              variant,
+              format: params.format,
+            }),
+          }],
+        };
+      }
+
+      // 9b. Execute via batch_execute (default)
       const data = await sendDesignCommand('batch_execute', { commands });
 
       // 10. Extract result info
@@ -306,10 +326,4 @@ export function registerPatternTools(server: McpServer, sendDesignCommand: SendD
   // DS-14: list_patterns
   // ═══════════════════════════════════════════════════════════
 
-  server.tool(
-    'list_patterns',
-    '[DEPRECATED — use list_resources(type="patterns") instead] List all available cross-format design patterns with their names, descriptions, props, and variants.',
-    listPatternsSchema,
-    async () => listPatternsHandler(),
-  );
 }

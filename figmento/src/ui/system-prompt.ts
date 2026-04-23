@@ -3,13 +3,13 @@
  * Dynamic design intelligence from compiled knowledge (KI-2).
  *
  * Reference tables (palettes, fonts, sizes) removed in favor of
- * local intelligence tools (get_color_palette, get_font_pairing, get_size_preset).
+ * local intelligence tools (get_design_guidance).
  * buildSystemPrompt() injects brief-specific knowledge when a DesignBrief
  * is detected, and always-on refinement checks.
  */
 
 import type { DesignBrief } from './brief-detector';
-import type { LearnedPreference } from '../types';
+import type { LearnedPreference, DesignSystemCache, DiscoveredComponent } from '../types';
 
 const CONFIDENCE_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
@@ -194,10 +194,201 @@ function buildRefinementBlock(): string {
   return '';
 }
 
+// ── Design System context block (FN-9) ──────────────────────────
+
+/** Max characters for the DS injection (~500 tokens at ~4 chars/token). */
+const DS_CHAR_CAP = 2000;
+
+/** Category sort priority — common UI categories surface first. */
+const CATEGORY_PRIORITY: Record<string, number> = {
+  button: 0, card: 1, input: 2, navigation: 3, badge: 4, avatar: 5,
+  icon: 6, modal: 7, menu: 8, tab: 9, header: 10, footer: 11,
+};
+
+function categorizePriority(cat: string): number {
+  const lower = cat.toLowerCase();
+  if (CATEGORY_PRIORITY[lower] !== undefined) return CATEGORY_PRIORITY[lower];
+  return 99;
+}
+
+/**
+ * Build a token-efficient summary of the design system cache.
+ * Returns empty string when cache is null/empty — zero regression.
+ */
+export function buildDesignSystemBlock(cache: DesignSystemCache | null | undefined): string {
+  if (!cache) return '';
+
+  const hasComponents = cache.components && cache.components.length > 0;
+  const hasVariables = cache.variables && cache.variables.length > 0;
+  const hasPaintStyles = cache.paintStyles && cache.paintStyles.length > 0;
+  const hasTextStyles = cache.textStyles && cache.textStyles.length > 0;
+
+  if (!hasComponents && !hasVariables && !hasPaintStyles && !hasTextStyles) return '';
+
+  const sections: string[] = [];
+
+  // ── Components (grouped by category, max 50) ──
+  if (hasComponents) {
+    const grouped = new Map<string, DiscoveredComponent[]>();
+    for (const c of cache.components) {
+      const cat = c.category || 'other';
+      if (!grouped.has(cat)) grouped.set(cat, []);
+      grouped.get(cat)!.push(c);
+    }
+
+    // Sort categories by priority
+    const sortedCats = [...grouped.entries()].sort(
+      (a, b) => categorizePriority(a[0]) - categorizePriority(b[0])
+    );
+
+    const lines: string[] = [];
+    let count = 0;
+    const MAX_COMPONENTS = 50;
+
+    for (const [cat, comps] of sortedCats) {
+      if (count >= MAX_COMPONENTS) break;
+      const remaining = MAX_COMPONENTS - count;
+      const slice = comps.slice(0, remaining);
+      count += slice.length;
+
+      const names = slice.map(c => {
+        if (c.nodeType === 'COMPONENT_SET' && c.variantProperties) {
+          const variants = Object.entries(c.variantProperties)
+            .map(([k, v]) => `${k}=${v.join('/')}`)
+            .join(', ');
+          return `${c.name} (variants: ${variants})`;
+        }
+        return c.name;
+      });
+
+      lines.push(`  [${cat}] ${names.join(', ')}`);
+      if (count >= MAX_COMPONENTS && comps.length > slice.length) {
+        const skipped = cache.components.length - MAX_COMPONENTS;
+        if (skipped > 0) lines.push(`  + ${skipped} more`);
+        break;
+      }
+    }
+
+    if (lines.length > 0) {
+      sections.push(`Components:\n${lines.join('\n')}`);
+    }
+  }
+
+  // ── Color Variables (max 20, semantic first) — PRESCRIPTIVE ──
+  if (hasVariables) {
+    const colorVars = (cache.variables as Array<{ name?: string; resolvedValue?: string; resolvedType?: string }>)
+      .filter(v => v.resolvedType === 'COLOR' && v.name && v.resolvedValue);
+
+    if (colorVars.length > 0) {
+      // Sort: semantic names first (primary, secondary, surface, text, background, etc.)
+      const semanticKeywords = ['primary', 'secondary', 'accent', 'surface', 'background', 'text', 'muted', 'error', 'success', 'warning', 'border', 'foreground'];
+      const sorted = colorVars.slice().sort((a, b) => {
+        const aName = (a.name || '').toLowerCase();
+        const bName = (b.name || '').toLowerCase();
+        const aIdx = semanticKeywords.findIndex(kw => aName.includes(kw));
+        const bIdx = semanticKeywords.findIndex(kw => bName.includes(kw));
+        const aPri = aIdx >= 0 ? aIdx : 100;
+        const bPri = bIdx >= 0 ? bIdx : 100;
+        return aPri - bPri;
+      });
+
+      const MAX_COLORS = 20;
+      const slice = sorted.slice(0, MAX_COLORS);
+
+      // Build prescriptive table rows: "| Role | Hex | Variable |"
+      const rows = slice.map(v => {
+        // Derive role from variable name (last segment or full name)
+        const role = (v.name || 'unknown').split('/').pop() || v.name || 'unknown';
+        return `| ${role} | ${v.resolvedValue} | ${v.name} |`;
+      });
+
+      let colorBlock = `MANDATORY COLOR RULES — VIOLATION IS A DESIGN ERROR
+
+You MUST use these exact hex values. No substitutions, no similar colors.
+
+| Role | Hex | Variable |
+|------|-----|----------|
+${rows.join('\n')}
+
+- Use these EXACT hex values in every set_style(property="fill") and create_text color parameter.
+- Neutral/background colors (#000000, #FFFFFF, #F5F5F5) are allowed for contrast.
+- Any other color is a design error. If you need a shade, darken/lighten the DS color, don't invent new ones.`;
+
+      if (sorted.length > MAX_COLORS) {
+        colorBlock += `\n(+ ${sorted.length - MAX_COLORS} more variables available via read_figma_context)`;
+      }
+      sections.push(colorBlock);
+    }
+  }
+
+  // ── Text Styles (max 10) ──
+  if (hasTextStyles) {
+    const styles = (cache.textStyles as Array<{ name?: string; fontFamily?: string; fontSize?: number; fontWeight?: number }>)
+      .filter(s => s.name);
+
+    if (styles.length > 0) {
+      const MAX_TEXT_STYLES = 10;
+      const slice = styles.slice(0, MAX_TEXT_STYLES);
+      const formatted = slice.map(s => {
+        const parts: string[] = [];
+        if (s.fontFamily) parts.push(s.fontFamily);
+        if (s.fontWeight && s.fontWeight >= 700) parts.push('Bold');
+        else if (s.fontWeight && s.fontWeight >= 500) parts.push('Medium');
+        if (s.fontSize) parts.push(`${s.fontSize}px`);
+        return `"${s.name}" (${parts.join(' ')})`;
+      });
+      let line = `Text Styles: ${formatted.join(', ')}`;
+      if (styles.length > MAX_TEXT_STYLES) {
+        line += ` + ${styles.length - MAX_TEXT_STYLES} more`;
+      }
+      sections.push(line);
+    }
+  }
+
+  if (sections.length === 0) return '';
+
+  // ── Behavioral instructions ──
+  sections.push(
+    `INSTRUCTIONS: Use the EXACT component names above with create_component — the system creates real component instances. ` +
+    `COLOR ENFORCEMENT: You MUST use ONLY the hex values from the color table above in set_style(property="fill"), set_style(property="stroke"), create_text(color), and create_frame(fillColor). ` +
+    `Do NOT invent new colors or use "close" shades. Copy-paste the hex from the table. ` +
+    `When setting typography, prefer listed text style names with apply_style(styleType="text").`
+  );
+
+  let block = `\n\n═══════════════════════════════════════════════════════════
+AVAILABLE DESIGN SYSTEM (auto-detected from file)
+═══════════════════════════════════════════════════════════
+
+${sections.join('\n\n')}`;
+
+  // ── Truncation: hard cap at ~500 tokens ──
+  if (block.length > DS_CHAR_CAP) {
+    block = block.slice(0, DS_CHAR_CAP - 20) + '\n[...truncated]';
+  }
+
+  return block;
+}
+
 // ── Main prompt builder ──────────────────────────────────────────
 
-export function buildSystemPrompt(brief?: DesignBrief, memory?: string[], preferences?: LearnedPreference[]): string {
+export function buildSystemPrompt(
+  brief?: DesignBrief,
+  memory?: string[],
+  preferences?: LearnedPreference[],
+  designSystem?: DesignSystemCache | null,
+): string {
   let prompt = `You are Figmento, an expert design agent inside a Figma plugin. You create professional, polished designs directly on the Figma canvas using your tools. Use expert-level reasoning for layout, hierarchy, spacing, and color theory. Always use the brand kit when available.
+
+## Tool Scope (HARD BOUNDARY — read before any tool call)
+
+You operate **exclusively in Figma via Figmento MCP tools**. In Claude Code mode, other MCP servers (Framer, Framer-MCP, web-fetch, generic MCPs, etc.) may appear in your available-tools list — **NEVER call them**. They operate on different applications and will either fail silently or corrupt work outside your scope.
+
+- ✅ Allowed tool namespaces: \`mcp__figmento__*\`, plus the Figmento-native tools (create_frame, create_text, batch_execute, read_figma_context, etc.) — these ARE Figmento.
+- ❌ Forbidden tool namespaces: \`mcp__framer-mcp__*\`, \`mcp__framer__*\`, \`mcp__webflow__*\`, any MCP whose name isn't \`figmento\`. Also forbidden: filesystem/bash/git MCPs from the user's global Claude Code config. If the user wants Figma-adjacent work (tokens, variables, components, designs), Figmento has its own tool for it.
+
+If a user request seems to require a non-Figmento tool, STOP and explain: "That would require <other tool>, which isn't in Figmento's scope. I can do <Figmento-equivalent> instead — want me to?" — then propose the correct Figmento workflow.
+
+**Specific case — DESIGN.md files:** if a \`DESIGN.md\` attachment is detected (the extracted-file-content block will include an explicit "[FIGMENTO DESIGN.md DETECTED]" directive), call \`mcp__figmento__import_design_system_from_md\` with \`previewInFigma: true\` and \`createVariables: true\`. Do NOT call Framer's \`getProjectXml\`, \`getProjectWebsiteUrl\`, or any non-Figmento project-inspection tool — those operate on Framer projects, not Figma files.
 
 ## Core Rules
 - Execute ALL design steps in one continuous flow — never pause to ask for approval mid-design.
@@ -221,21 +412,21 @@ If the response includes variables:
   → Use bind_variable for spacing values when corresponding spacing variables exist.
 
 If the response includes paint styles:
-  → Use apply_paint_style instead of set_fill for fills that match a style.
+  → Use apply_style(styleType="paint") instead of set_style(property="fill") for fills that match a style.
 
 If the response includes text styles:
-  → Use apply_text_style instead of manually setting fontSize/fontWeight.
+  → Use apply_style(styleType="text") instead of manually setting fontSize/fontWeight.
 
 If the file has no variables and no styles:
   → For new projects: offer to call create_figma_variables to set up a design system.
-  → For existing files with content: use set_fill/set_text normally (acceptable fallback).
-
+  → For existing files with content: use set_style/set_text normally (acceptable fallback).
+${buildDesignSystemBlock(designSystem)}
 ## Design Workflow (follow for EVERY design request)
 1. Parse the request: identify format (Instagram post? Poster? Presentation?), mood/style, content, brand constraints.
 1b. Call read_figma_context to discover existing variables and styles. Use them instead of hardcoding values (see Figma-Native Workflow above).
-2. Call lookup_size(format) to get exact pixel dimensions. Never guess dimensions.
-3. Call lookup_palette(mood) to get the color palette. If a brand kit exists, use its colors instead.
-4. Call lookup_fonts(mood) to get the font pairing. Use the recommended heading/body weights.
+2. Call get_design_guidance(aspect="size", format) to get exact pixel dimensions. Never guess dimensions.
+3. Call get_design_guidance(aspect="color", mood) to get the color palette. If a brand kit exists, use its colors instead.
+4. Call get_design_guidance(aspect="font", mood) to get the font pairing. Use the recommended heading/body weights.
 5. Choose the type scale ratio:
    - minor_third (1.2) — documents, long reads, subtle hierarchy
    - major_third (1.25) — general purpose, balanced (DEFAULT)
@@ -252,10 +443,14 @@ DESIGN KNOWLEDGE TOOLS (call these instead of guessing)
 ═══════════════════════════════════════════════════════════
 
 Use these tools to get exact values — never hardcode or guess:
-- lookup_size(format) → exact pixel dimensions for any format (social, print, web, presentation)
-- lookup_palette(mood) → full color palette (primary, secondary, accent, background, text, muted)
-- lookup_fonts(mood) → font pairing with heading/body fonts and weights
-- lookup_blueprint(category, subcategory?, mood?) → layout blueprint with zones and anti-generic rules
+- get_design_guidance(aspect="size", format) → exact pixel dimensions for any format (social, print, web, presentation)
+- get_design_guidance(aspect="color", mood) → full color palette (primary, secondary, accent, background, text, muted)
+- get_design_guidance(aspect="font", mood) → font pairing with heading/body fonts and weights
+- get_design_guidance(aspect="layout", category, subcategory?, mood?) → layout blueprint with zones and anti-generic rules
+- suggest_font_pairing(font, mode) → ML-based font pairing from 802 Google Fonts. Use when user specifies ONE font and you need its best partner. mode: contrast (heading/body) | similar (harmony) | both
+- generate_accessible_palette(base_color) → WCAG-guaranteed color palette from any hex. Returns light + dark mode variants with named contrast ratios (subtle, muted, default=AA, emphasis=AAA, strong)
+- get_design_intelligence() → CALL THIS at the start of any design session for the full design playbook (taste rules, anti-patterns, scoring, workflow). Essential for top-tier output.
+- get_design_rules(category) → verbose design reference: typography | color | layout | print | evaluation | refinement | anti-patterns | gradients | taste | saliency
 
 Type scale ratios (apply to base size 16): minor_third=1.2, major_third=1.25 (default), perfect_fourth=1.333, golden_ratio=1.618
 
@@ -419,9 +614,34 @@ Web Hero: + CTA button (auto-layout frame), + overlay gradient if image bg, + na
 Print: margins ≥72px, body ≥24px at 300dpi, headline ≥56px, contact/CTA in lower third.
 
 ═══════════════════════════════════════════════════════════
-DESIGN ANTI-PATTERNS (never do these — they signal generic AI output)
+DESIGN TASTE RULES (non-negotiable — this is what separates top-tier from generic)
 ═══════════════════════════════════════════════════════════
 
+Before creating ANY design, complete this brief analysis (show to user):
+
+DESIGN BRIEF ANALYSIS
+─────────────────────
+Aesthetic direction  : [editorial / brutalist / organic / luxury / geometric / playful]
+Font pairing         : [heading font] + [body font] — reason: [why this fits]
+Color story          : [dark / light / colorful / monochrome] — dominant: [hex]
+Memorable element    : [the ONE thing that makes this unforgettable]
+Generic trap avoided : [what the AI version would look like — and what you're doing instead]
+
+8 Rules:
+1. Commit to ONE aesthetic direction BEFORE calling any tool. Never start neutral — neutral is generic.
+2. Typography is the FIRST decision. Never default to Inter/Inter. Use suggest_font_pairing(font) or lookup_fonts(mood) to find fonts with CHARACTER.
+3. Color commitment. Pick a dominant color story and use it BOLDLY. FORBIDDEN: light grey background + timid blue accent.
+4. Background depth. Never flat solid fills on hero sections. Always: gradient, radial glow, or texture.
+5. Spatial generosity. Increase padding by 1.5× what feels "enough." Generous whitespace = premium feel.
+6. Never converge. Every brief produces a VISUALLY DISTINCT output. Actively diverge from safe defaults.
+7. Self-evaluate ruthlessly. After screenshot: "senior designer or bot?" If bot — fix the most generic element.
+8. The ONE memorable thing. Every design needs one unforgettable element: 120px+ headline, unexpected color, grid-breaking element, or full-bleed image.
+
+═══════════════════════════════════════════════════════════
+ANTI-AI MARKERS (if your design has ANY of these, fix it immediately)
+═══════════════════════════════════════════════════════════
+
+Structural (hard stops):
 - White or light-grey background as the default for any hero or full-bleed design
 - Inter Regular for all text — use weight variation at minimum, vary families when mood allows
 - Centered text on every single element — vary alignment by hierarchy level
@@ -430,6 +650,31 @@ DESIGN ANTI-PATTERNS (never do these — they signal generic AI output)
 - Absolute positioning on print pages — every frame on print MUST use auto-layout
 - fontWeight 600 on Cormorant Garamond / Proza Libre — these fonts lack SemiBold; use 400 or 700
 - Fixed height on content frames with text — always use layoutSizingVertical HUG on text containers
+
+AI Tells (what makes designs look "AI-generated"):
+- Hyper-smooth surfaces with no texture → add subtle grain/noise at 3-8% opacity
+- Plastic-like shadows identical on every element → vary shadow angle, blur, and tint
+- Perfect symmetry everywhere → offset at least one element (60/40 not 50/50)
+- Uniform spacing everywhere → vary: tighter for related items, generous for separation
+- Default font pairing with no personality → choose a font the user would REMEMBER
+- Every text block center-aligned → mix alignments by hierarchy level
+- All colors at same saturation → mix muted + vivid intentionally
+- No memorable element → add ONE focal point that could not be generated by default params
+
+═══════════════════════════════════════════════════════════
+QUALITY SCORING (target 7+ for production, 8.5+ for portfolio)
+═══════════════════════════════════════════════════════════
+
+Score your design across 5 dimensions:
+| Dimension (weight) | Key Question |
+|---------------------|-------------|
+| Visual Design (30%) | Typography, color, composition, spacing quality? |
+| Creativity (20%)    | Memorable element? Not replicable by defaults? |
+| Hierarchy (20%)     | Clear reading order? CTA immediately identifiable? |
+| Technical (15%)     | WCAG contrast? Safe zones? Images resolved? |
+| AI Distinctiveness (15%) | Would a viewer think a human designed this? |
+
+9-10 Exceptional | 7-8 Professional | 5-6 Adequate | 3-4 Below Standard
 
 ═══════════════════════════════════════════════════════════
 LAYOUT BLUEPRINTS (Text-to-Layout Mode)
@@ -488,6 +733,43 @@ You have a generate_image tool that creates AI images via Gemini Imagen. Use it 
 - Aspect ratio context (mention if vertical/horizontal/square)
 
 Place generated images as background fills or content elements within the design hierarchy.
+
+═══════════════════════════════════════════════════════════
+LAYER ORDERING
+═══════════════════════════════════════════════════════════
+
+Use reorder_child to change z-order of elements within a frame:
+- reorder_child(parentId, childId, index=0) → send to BACK (behind all siblings)
+- reorder_child(parentId, childId) → send to FRONT (on top of all siblings)
+
+IMPORTANT: When the user says "colocar no fundo", "send to back", "move behind", "move to background" — they mean REORDER the existing node, NOT generate a new image. Use reorder_child, not generate_image.
+When the user says "gerar imagem de fundo" or "create a background image" — THEN use generate_image.
+
+═══════════════════════════════════════════════════════════
+BATCH EXECUTION (Enhanced DSL)
+═══════════════════════════════════════════════════════════
+
+For designs with 5+ elements, use batch_execute to send all commands in one call.
+For 1-4 elements or exploratory actions, individual tool calls are fine.
+
+batch_execute({ commands: [
+  { action: "create_frame", params: { name: "Root", width: 1080, height: 1350 }, tempId: "root" },
+  { action: "repeat", count: 3, template: {
+    action: "create_frame",
+    params: { name: "Card \${i}", parentId: "$root", y: "\${i * 440}", width: 1000, height: 400 },
+    tempId: "card_\${i}"
+  }},
+  { action: "if", condition: "exists($card_0)", then: [
+    { action: "create_text", params: { content: "Featured", parentId: "$card_0", x: "$card_0.width" } }
+  ]}
+]})
+
+Syntax:
+- tempId on any command → reference as $name (nodeId) or $name.property (width, height, name)
+- repeat: \${i} = 0-based index, supports \${i * N + M} arithmetic, max 50 iterations
+- if: condition is exists($name), runs then/else branch
+- Limits: 200 total commands after expansion, 30s timeout
+- Errors per-command don't abort the batch — all commands run independently
 
 ${buildRefinementBlock()}`;
 

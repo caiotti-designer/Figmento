@@ -2,7 +2,6 @@
  * AUTO-GENERATED — DO NOT EDIT
  * Compiled from figmento-mcp-server/knowledge/ YAML files.
  * Run: npx tsx scripts/compile-knowledge.ts
- * Generated: 2026-03-13T20:35:28.074Z
  */
 
 import type {
@@ -419,6 +418,157 @@ export const FONT_PAIRINGS: Record<string, FontPairing> = {
     ],
     "recommended_heading_weight": 700,
     "recommended_body_weight": 400
+  },
+  "scholarly": {
+    "id": "scholarly",
+    "name": "Scholarly",
+    "heading_font": "Merriweather",
+    "body_font": "Source Sans Pro",
+    "mood_tags": [
+      "authoritative",
+      "scholarly",
+      "government",
+      "institutional",
+      "readable"
+    ],
+    "recommended_heading_weight": 700,
+    "recommended_body_weight": 400
+  },
+  "warm-editorial": {
+    "id": "warm-editorial",
+    "name": "Warm Editorial",
+    "heading_font": "Playfair Display",
+    "body_font": "Fira Sans",
+    "mood_tags": [
+      "editorial",
+      "magazine",
+      "warm",
+      "refined",
+      "publishing"
+    ],
+    "recommended_heading_weight": 700,
+    "recommended_body_weight": 400
+  },
+  "impactful": {
+    "id": "impactful",
+    "name": "Impactful",
+    "heading_font": "Oswald",
+    "body_font": "PT Sans",
+    "mood_tags": [
+      "impactful",
+      "condensed",
+      "bold",
+      "strong",
+      "headline",
+      "news"
+    ],
+    "recommended_heading_weight": 700,
+    "recommended_body_weight": 400
+  },
+  "slab-warmth": {
+    "id": "slab-warmth",
+    "name": "Slab Warmth",
+    "heading_font": "Arvo",
+    "body_font": "Cabin",
+    "mood_tags": [
+      "warm",
+      "sturdy",
+      "vintage",
+      "mechanical",
+      "trustworthy"
+    ],
+    "recommended_heading_weight": 700,
+    "recommended_body_weight": 400
+  },
+  "thin-geometric": {
+    "id": "thin-geometric",
+    "name": "Thin Geometric",
+    "heading_font": "Raleway",
+    "body_font": "Libre Baskerville",
+    "mood_tags": [
+      "refined",
+      "architectural",
+      "thin",
+      "sophisticated",
+      "gallery"
+    ],
+    "recommended_heading_weight": 800,
+    "recommended_body_weight": 400
+  },
+  "whimsical": {
+    "id": "whimsical",
+    "name": "Whimsical",
+    "heading_font": "Josefin Sans",
+    "body_font": "Merriweather",
+    "mood_tags": [
+      "whimsical",
+      "dreamy",
+      "artistic",
+      "delicate",
+      "storytelling"
+    ],
+    "recommended_heading_weight": 600,
+    "recommended_body_weight": 300
+  },
+  "versatile": {
+    "id": "versatile",
+    "name": "Versatile",
+    "heading_font": "Lato",
+    "body_font": "Lato",
+    "mood_tags": [
+      "versatile",
+      "balanced",
+      "universal",
+      "neutral",
+      "professional"
+    ],
+    "recommended_heading_weight": 700,
+    "recommended_body_weight": 400
+  },
+  "slab-journalistic": {
+    "id": "slab-journalistic",
+    "name": "Slab Journalistic",
+    "heading_font": "Bitter",
+    "body_font": "Source Sans Pro",
+    "mood_tags": [
+      "journalistic",
+      "content",
+      "readable",
+      "serious",
+      "news"
+    ],
+    "recommended_heading_weight": 700,
+    "recommended_body_weight": 400
+  },
+  "adobe-matched": {
+    "id": "adobe-matched",
+    "name": "Adobe Matched",
+    "heading_font": "Source Serif Pro",
+    "body_font": "Source Sans Pro",
+    "mood_tags": [
+      "refined",
+      "matched",
+      "professional",
+      "polished",
+      "corporate"
+    ],
+    "recommended_heading_weight": 700,
+    "recommended_body_weight": 400
+  },
+  "condensed-readable": {
+    "id": "condensed-readable",
+    "name": "Condensed Readable",
+    "heading_font": "Roboto Condensed",
+    "body_font": "Vollkorn",
+    "mood_tags": [
+      "compact",
+      "readable",
+      "dense",
+      "informational",
+      "data"
+    ],
+    "recommended_heading_weight": 400,
+    "recommended_body_weight": 400
   }
 } as Record<string, FontPairing>;
 
@@ -767,7 +917,7 @@ export const SIZE_PRESETS: Record<string, SizePreset> = {
     "width": 430,
     "height": 300
   }
-} as Record<string, SizePreset>;
+} as unknown as Record<string, SizePreset>;
 
 export const BLUEPRINTS: Blueprint[] = [
   {"id":"comparison-split","name":"Ad — Comparison Split","category":"ads","subcategory":"comparison","mood":["clear","comparative","educational","conversion"],"zones":[{"name":"header","y_start_pct":0,"y_end_pct":12,"elements":[{"role":"comparison-title","type":"text"}],"typography_hierarchy":{"comparison-title":"h2"}},{"name":"split-area","y_start_pct":12,"y_end_pct":78,"elements":[{"role":"side-a-label","type":"text"},{"role":"side-a-visual","type":"image"},{"role":"side-a-description","type":"text"},{"role":"divider","type":"rectangle"},{"role":"side-b-label","type":"text"},{"role":"side-b-visual","type":"image"},{"role":"side-b-description","type":"text"}],"typography_hierarchy":{"side-a-label":"h3","side-b-label":"h3","side-a-description":"body","side-b-description":"body"}},{"name":"verdict","y_start_pct":80,"y_end_pct":96,"elements":[{"role":"verdict-text","type":"text"},{"role":"cta-button","type":"frame"}],"typography_hierarchy":{"verdict-text":"h3","cta-button":"body"}}],"anti_generic":["Center divider must be a visual element — thin vertical line, VS badge, or arrow icon. Empty space between halves looks unfinished.","The 'winning' side (side-b typically) must have a subtle visual advantage — accent border, slightly brighter background, or checkmark icons","Side labels must use contrasting colors (e.g., muted red for 'Before' vs vibrant green for 'After') to create instant visual narrative"],"memorable_element":"Visual arrow or VS element at the split point that transforms a simple comparison into a dramatic reveal","whitespace_ratio":0.45},
@@ -808,7 +958,7 @@ export const PATTERNS: Record<string, PatternRecipe> = {
   "gallery": {"description":"Grid gallery of image placeholders with optional captions","props":{"caption_1":{"type":"string","required":false,"default":""},"caption_2":{"type":"string","required":false,"default":""},"caption_3":{"type":"string","required":false,"default":""},"caption_4":{"type":"string","required":false,"default":""}},"recipe":{"type":"frame","name":"Gallery","layoutMode":"HORIZONTAL","primaryAxisAlignItems":"MIN","counterAxisAlignItems":"MIN","itemSpacing":"$tokens.spacing.lg","paddingTop":"$tokens.spacing.xl","paddingBottom":"$tokens.spacing.xl","paddingLeft":"$tokens.spacing.xl","paddingRight":"$tokens.spacing.xl","fills":[{"type":"SOLID","color":"$tokens.colors.background"}],"children":[{"type":"frame","name":"Gallery Item 1","layoutMode":"VERTICAL","itemSpacing":"$tokens.spacing.sm","children":[{"type":"rectangle","name":"Image 1","width":200,"height":200,"cornerRadius":"$tokens.radius.md","fills":[{"type":"SOLID","color":"$tokens.colors.border"}]},{"type":"text","content":"{{caption_1}}","fontSize":"$tokens.typography.scale.caption","fontFamily":"$tokens.typography.body.family","fontWeight":400,"color":"$tokens.colors.on_surface_muted","layoutSizingHorizontal":"FILL"}]},{"type":"frame","name":"Gallery Item 2","layoutMode":"VERTICAL","itemSpacing":"$tokens.spacing.sm","children":[{"type":"rectangle","name":"Image 2","width":200,"height":200,"cornerRadius":"$tokens.radius.md","fills":[{"type":"SOLID","color":"$tokens.colors.border"}]},{"type":"text","content":"{{caption_2}}","fontSize":"$tokens.typography.scale.caption","fontFamily":"$tokens.typography.body.family","fontWeight":400,"color":"$tokens.colors.on_surface_muted","layoutSizingHorizontal":"FILL"}]},{"type":"frame","name":"Gallery Item 3","layoutMode":"VERTICAL","itemSpacing":"$tokens.spacing.sm","children":[{"type":"rectangle","name":"Image 3","width":200,"height":200,"cornerRadius":"$tokens.radius.md","fills":[{"type":"SOLID","color":"$tokens.colors.border"}]},{"type":"text","content":"{{caption_3}}","fontSize":"$tokens.typography.scale.caption","fontFamily":"$tokens.typography.body.family","fontWeight":400,"color":"$tokens.colors.on_surface_muted","layoutSizingHorizontal":"FILL"}]},{"type":"frame","name":"Gallery Item 4","layoutMode":"VERTICAL","itemSpacing":"$tokens.spacing.sm","children":[{"type":"rectangle","name":"Image 4","width":200,"height":200,"cornerRadius":"$tokens.radius.md","fills":[{"type":"SOLID","color":"$tokens.colors.border"}]},{"type":"text","content":"{{caption_4}}","fontSize":"$tokens.typography.scale.caption","fontFamily":"$tokens.typography.body.family","fontWeight":400,"color":"$tokens.colors.on_surface_muted","layoutSizingHorizontal":"FILL"}]}]},"format_adaptations":{"social":{"children":[{"children":[{"width":480,"height":480}]},{"children":[{"width":480,"height":480}]},{"children":[{"width":480,"height":480}]},{"children":[{"width":480,"height":480}]}]},"print":{"children":[{"children":[{"width":350,"height":350}]},{"children":[{"width":350,"height":350}]},{"children":[{"width":350,"height":350}]},{"children":[{"width":350,"height":350}]}]},"presentation":{"children":[{"children":[{"width":380,"height":280}]},{"children":[{"width":380,"height":280}]},{"children":[{"width":380,"height":280}]},{"children":[{"width":380,"height":280}]}]},"web":{"children":[{"children":[{"width":280,"height":280}]},{"children":[{"width":280,"height":280}]},{"children":[{"width":280,"height":280}]},{"children":[{"width":280,"height":280}]}]}}},
   "data_row": {"description":"Stat display with large number and label — for dashboards and data slides","props":{"value":{"type":"string","required":true},"label":{"type":"string","required":true}},"recipe":{"type":"frame","name":"Data Row","layoutMode":"HORIZONTAL","primaryAxisAlignItems":"CENTER","counterAxisAlignItems":"CENTER","itemSpacing":"$tokens.spacing.lg","paddingTop":"$tokens.spacing.xl","paddingBottom":"$tokens.spacing.xl","paddingLeft":"$tokens.spacing.xl","paddingRight":"$tokens.spacing.xl","cornerRadius":"$tokens.radius.md","fills":[{"type":"SOLID","color":"$tokens.colors.surface"}],"strokes":[{"type":"SOLID","color":"$tokens.colors.border","opacity":0.6}],"strokeWeight":1,"children":[{"type":"text","content":"{{value}}","fontSize":"$tokens.typography.scale.display","fontFamily":"$tokens.typography.heading.family","fontWeight":800,"color":"$tokens.colors.primary"},{"type":"text","content":"{{label}}","fontSize":"$tokens.typography.scale.body","fontFamily":"$tokens.typography.body.family","fontWeight":400,"color":"$tokens.colors.on_surface_muted"}]},"format_adaptations":{"social":{"layoutMode":"VERTICAL","primaryAxisAlignItems":"CENTER","counterAxisAlignItems":"CENTER","children":[{"fontSize":64,"textAlign":"CENTER"},{"fontSize":28,"textAlign":"CENTER"}]},"print":{"children":[{"fontSize":48},{"fontSize":18}]},"presentation":{"itemSpacing":"$tokens.spacing.xl","children":[{"fontSize":56},{"fontSize":24}]},"web":{"width":1440,"children":[{"fontSize":48},{"fontSize":16}]}}},
   "cta_banner": {"description":"Full-width call-to-action banner with headline, optional subtext, and pill button","props":{"headline":{"type":"string","required":true},"subtext":{"type":"string","required":false,"default":""},"cta_label":{"type":"string","required":false,"default":"Get Started"}},"recipe":{"type":"frame","name":"CTA Banner","layoutMode":"HORIZONTAL","primaryAxisSizingMode":"HUG","primaryAxisAlignItems":"SPACE_BETWEEN","counterAxisAlignItems":"CENTER","paddingTop":"$tokens.spacing.2xl","paddingBottom":"$tokens.spacing.2xl","paddingLeft":"$tokens.spacing.2xl","paddingRight":"$tokens.spacing.2xl","cornerRadius":"$tokens.radius.lg","fills":[{"type":"SOLID","color":"$tokens.colors.primary"}],"children":[{"type":"frame","name":"CTA Text","layoutMode":"VERTICAL","primaryAxisSizingMode":"HUG","itemSpacing":"$tokens.spacing.sm","layoutSizingHorizontal":"FILL","children":[{"type":"text","content":"{{headline}}","fontSize":"$tokens.typography.scale.h1","fontFamily":"$tokens.typography.heading.family","fontWeight":700,"color":"$tokens.colors.on_primary","layoutSizingHorizontal":"FILL"},{"type":"text","content":"{{subtext}}","fontSize":"$tokens.typography.scale.body","fontFamily":"$tokens.typography.body.family","fontWeight":400,"color":"$tokens.colors.on_primary","opacity":0.75,"layoutSizingHorizontal":"FILL"}]},{"type":"frame","name":"CTA Button","layoutMode":"HORIZONTAL","primaryAxisAlignItems":"CENTER","counterAxisAlignItems":"CENTER","paddingTop":"$tokens.spacing.md","paddingBottom":"$tokens.spacing.md","paddingLeft":"$tokens.spacing.xl","paddingRight":"$tokens.spacing.xl","cornerRadius":999,"fills":[{"type":"SOLID","color":"#FFFFFF"}],"children":[{"type":"text","content":"{{cta_label}}","fontSize":"$tokens.typography.scale.body","fontFamily":"$tokens.typography.body.family","fontWeight":600,"color":"$tokens.colors.primary"}]}]},"format_adaptations":{"social":{"width":1080,"paddingTop":64,"paddingBottom":64,"children":[{"children":[{"fontSize":40},{"fontSize":24}]}]},"print":{"width":2480,"paddingTop":48,"paddingBottom":48,"children":[{"children":[{"fontSize":32},{"fontSize":18}]}]},"presentation":{"width":1920,"paddingTop":48,"paddingBottom":48,"children":[{"children":[{"fontSize":40},{"fontSize":24}]}]},"web":{"width":1440,"paddingTop":40,"paddingBottom":40}}}
-} as Record<string, PatternRecipe>;
+} as unknown as Record<string, PatternRecipe>;
 
 export const COMPOSITION_RULES: CompositionRules = {
   "alternating_backgrounds": {
@@ -1079,4 +1229,729 @@ export const REFINEMENT_CHECKS: RefinementCheck[] = [
   }
 ] as RefinementCheck[];
 
-export const KNOWLEDGE_VERSION: string = "4d74ae253d278e3e";
+export const DESIGN_RULES: Record<string, unknown> = {
+  "typography": {
+    "font_pairings": {
+      "description": "Mood → font pairing table. Use when no font is specified in the brief.",
+      "entries": [
+        {
+          "mood": "Modern, tech, SaaS",
+          "pairing_id": "modern",
+          "heading": "Inter",
+          "body": "Inter"
+        },
+        {
+          "mood": "Classic, editorial",
+          "pairing_id": "classic",
+          "heading": "Playfair Display",
+          "body": "Source Serif Pro"
+        },
+        {
+          "mood": "Bold, marketing",
+          "pairing_id": "bold",
+          "heading": "Montserrat",
+          "body": "Hind"
+        },
+        {
+          "mood": "Luxury, fashion",
+          "pairing_id": "luxury",
+          "heading": "Cormorant Garamond",
+          "body": "Proza Libre"
+        },
+        {
+          "mood": "Playful, friendly",
+          "pairing_id": "playful",
+          "heading": "Poppins",
+          "body": "Nunito"
+        },
+        {
+          "mood": "Corporate, finance",
+          "pairing_id": "corporate",
+          "heading": "Roboto",
+          "body": "Roboto Slab"
+        },
+        {
+          "mood": "Journalistic, blog",
+          "pairing_id": "editorial",
+          "heading": "Libre Baskerville",
+          "body": "Open Sans"
+        },
+        {
+          "mood": "Minimal, portfolio",
+          "pairing_id": "minimalist",
+          "heading": "DM Sans",
+          "body": "DM Sans"
+        },
+        {
+          "mood": "Creative, agency",
+          "pairing_id": "creative",
+          "heading": "Space Grotesk",
+          "body": "General Sans"
+        },
+        {
+          "mood": "Elegant, literary",
+          "pairing_id": "elegant",
+          "heading": "Lora",
+          "body": "Merriweather"
+        },
+        {
+          "mood": "Scholarly, government, institutional",
+          "pairing_id": "scholarly",
+          "heading": "Merriweather",
+          "body": "Source Sans Pro"
+        },
+        {
+          "mood": "Magazine, warm editorial",
+          "pairing_id": "warm-editorial",
+          "heading": "Playfair Display",
+          "body": "Fira Sans"
+        },
+        {
+          "mood": "Impact, condensed, news",
+          "pairing_id": "impactful",
+          "heading": "Oswald",
+          "body": "PT Sans"
+        },
+        {
+          "mood": "Vintage, craft, artisan",
+          "pairing_id": "slab-warmth",
+          "heading": "Arvo",
+          "body": "Cabin"
+        },
+        {
+          "mood": "Architectural, gallery, refined",
+          "pairing_id": "thin-geometric",
+          "heading": "Raleway",
+          "body": "Libre Baskerville"
+        },
+        {
+          "mood": "Whimsical, dreamy, storytelling",
+          "pairing_id": "whimsical",
+          "heading": "Josefin Sans",
+          "body": "Merriweather"
+        },
+        {
+          "mood": "Universal, balanced, versatile",
+          "pairing_id": "versatile",
+          "heading": "Lato",
+          "body": "Lato"
+        },
+        {
+          "mood": "Journalistic, content, news",
+          "pairing_id": "slab-journalistic",
+          "heading": "Bitter",
+          "body": "Source Sans Pro"
+        },
+        {
+          "mood": "Polished, documentation, SaaS",
+          "pairing_id": "adobe-matched",
+          "heading": "Source Serif Pro",
+          "body": "Source Sans Pro"
+        },
+        {
+          "mood": "Data-dense, informational, compact",
+          "pairing_id": "condensed-readable",
+          "heading": "Roboto Condensed",
+          "body": "Vollkorn"
+        }
+      ]
+    },
+    "line_height_rules": [
+      {
+        "range": ">48px (display/hero)",
+        "line_height": "1.1–1.2"
+      },
+      {
+        "range": "H1–H3 (headings)",
+        "line_height": "1.3–1.4"
+      },
+      {
+        "range": "14–18px (body)",
+        "line_height": "1.5–1.6"
+      },
+      {
+        "range": "<14px (captions)",
+        "line_height": "1.6–1.8"
+      }
+    ],
+    "letter_spacing_rules": [
+      {
+        "context": "Display text",
+        "value": "-0.02em (tighten)"
+      },
+      {
+        "context": "Headings",
+        "value": "-0.01em"
+      },
+      {
+        "context": "Body",
+        "value": "0 (natural)"
+      },
+      {
+        "context": "Uppercase labels",
+        "value": "+0.05 to +0.15em (open up)"
+      }
+    ],
+    "weight_hierarchy": "400 body → 500 emphasis → 600 subheadings → 700 headings → 800+ display",
+    "font_consistency_rule": "When a prompt specifies a font (e.g. 'use Outfit'), use ONLY that font for the entire design. Never mix it with Inter or any other font unless the prompt explicitly requests multiple fonts. The pairing table above is for when NO font is specified — if the user names a font, that overrides the table completely. Before every create_text call, verify you are passing the correct fontFamily.\n",
+    "minimum_sizes_by_format": [
+      {
+        "format": "Instagram/Social (1080px wide)",
+        "display": "72–120px",
+        "headline": "48–72px",
+        "subheadline": "32–40px",
+        "body": "28–32px",
+        "caption": "22–26px"
+      },
+      {
+        "format": "Print (300dpi)",
+        "display": "80–140px",
+        "headline": "56–80px",
+        "subheadline": "36–48px",
+        "body": "24–32px",
+        "caption": "18–24px"
+      },
+      {
+        "format": "Presentation (1920px wide)",
+        "display": "64–96px",
+        "headline": "40–64px",
+        "subheadline": "28–36px",
+        "body": "20–28px",
+        "caption": "16–20px"
+      },
+      {
+        "format": "Web Hero (1440px wide)",
+        "display": "56–96px",
+        "headline": "36–56px",
+        "subheadline": "24–32px",
+        "body": "16–20px",
+        "caption": "12–16px"
+      }
+    ]
+  },
+  "layout": {
+    "grid": "8px grid — all spacing values must come from the scale: 4|8|12|16|20|24|32|40|48|64|80|96|128",
+    "margins_by_format": [
+      {
+        "type": "Social media",
+        "range": "40–60px",
+        "default": 48
+      },
+      {
+        "type": "Print",
+        "range": "72–96px",
+        "default": 72
+      },
+      {
+        "type": "Presentation slides",
+        "range": "60–80px",
+        "default": 64
+      },
+      {
+        "type": "Web heroes",
+        "range": "40–80px",
+        "default": 64
+      },
+      {
+        "type": "Posters",
+        "range": "96–128px",
+        "default": 96
+      }
+    ],
+    "social_safe_zones": [
+      {
+        "platform": "Instagram",
+        "top_bottom": 150,
+        "sides": 60
+      },
+      {
+        "platform": "TikTok",
+        "top": 100,
+        "bottom": 200,
+        "left": 60,
+        "right": 100
+      },
+      {
+        "platform": "YouTube thumbnails",
+        "note": "Avoid bottom-right (timestamp overlay)"
+      }
+    ],
+    "visual_hierarchy_checklist": [
+      "Headlines ≥ 2× body size",
+      "At least 2 weight steps between hierarchy levels",
+      "Primary text at full color, secondary at muted, tertiary at light muted",
+      "Section gaps ≥ 2× item gaps"
+    ]
+  },
+  "color": {
+    "mood_to_palette": {
+      "description": "Match mood keywords to palette ID in color-system.yaml",
+      "entries": [
+        {
+          "keywords": "moody, dark, coffee, cinematic",
+          "palette": "moody-dark"
+        },
+        {
+          "keywords": "fresh, light, health, wellness",
+          "palette": "fresh-light"
+        },
+        {
+          "keywords": "corporate, business, finance",
+          "palette": "corporate-professional"
+        },
+        {
+          "keywords": "luxury, gold, premium, fashion",
+          "palette": "luxury-premium"
+        },
+        {
+          "keywords": "playful, fun, colorful, kids",
+          "palette": "playful-fun"
+        },
+        {
+          "keywords": "nature, organic, eco, botanical",
+          "palette": "nature-organic"
+        },
+        {
+          "keywords": "tech, digital, AI, startup",
+          "palette": "tech-modern"
+        },
+        {
+          "keywords": "warm, cozy, autumn, bakery",
+          "palette": "warm-cozy"
+        },
+        {
+          "keywords": "minimal, clean, monochrome",
+          "palette": "minimal-clean"
+        },
+        {
+          "keywords": "retro, vintage, nostalgic",
+          "palette": "retro-vintage"
+        },
+        {
+          "keywords": "ocean, calm, serene, spa",
+          "palette": "ocean-calm"
+        },
+        {
+          "keywords": "sunset, energy, sport, music",
+          "palette": "sunset-energy"
+        }
+      ]
+    },
+    "contrast_rules": [
+      {
+        "text_size": "Normal (<18px)",
+        "min_ratio": "4.5:1"
+      },
+      {
+        "text_size": "Large (≥18px)",
+        "min_ratio": "3:1"
+      }
+    ],
+    "forbidden": "Light grey background + timid blue accent — this is the generic AI look."
+  },
+  "gradients": {
+    "overlay_rules": {
+      "description": "When placing text over an image, the gradient direction depends on WHERE the text sits, not a fixed recipe. Place solid opacity at the text, transparency at the image.\n",
+      "text_position_map": [
+        {
+          "position": "Bottom",
+          "direction": "bottom-top",
+          "stop_0": "opacity: 0 (top = transparent, image shows)",
+          "stop_1": "opacity: 1 (bottom = solid, text readable)"
+        },
+        {
+          "position": "Top",
+          "direction": "top-bottom",
+          "stop_0": "opacity: 0 (bottom = transparent)",
+          "stop_1": "opacity: 1 (top = solid)"
+        },
+        {
+          "position": "Left",
+          "direction": "left-right",
+          "stop_0": "opacity: 0 (right = transparent)",
+          "stop_1": "opacity: 1 (left = solid)"
+        },
+        {
+          "position": "Right",
+          "direction": "right-left",
+          "stop_0": "opacity: 0 (left = transparent)",
+          "stop_1": "opacity: 1 (right = solid)"
+        }
+      ],
+      "rules": [
+        "Only 2 stops. Never 3+.",
+        "The 0.4–0.5 breakpoint: 40-50% of the overlay is fully solid.",
+        "Gradient color ALWAYS matches section/page background color.",
+        "NEVER use black gradient on a light section or white gradient on a dark section."
+      ]
+    }
+  },
+  "print": {
+    "mandatory_auto_layout": "ALL print designs (A4+) MUST use auto-layout exclusively. Never use absolute x/y positioning. Absolute positioning on A4 (2480×3508px) creates unpredictable gaps.\n",
+    "spacing_scale": [
+      {
+        "token": "page-margin",
+        "size": "72px",
+        "usage": "Root frame padding on all sides"
+      },
+      {
+        "token": "section-gap",
+        "size": "48–64px",
+        "usage": "Between major page sections"
+      },
+      {
+        "token": "content-gap",
+        "size": "24–32px",
+        "usage": "Between heading and body, or between content blocks"
+      },
+      {
+        "token": "element-gap",
+        "size": "12–16px",
+        "usage": "Between list items, paragraphs, small elements"
+      },
+      {
+        "token": "tight-gap",
+        "size": "4–8px",
+        "usage": "Between icon and label, or label and value"
+      }
+    ],
+    "page_structure": "Page Frame (VERTICAL auto-layout, padding: 72 all sides, itemSpacing: 48-64)\n├── Header (HORIZONTAL auto-layout, gap: 16)\n├── Main Content (VERTICAL auto-layout, gap: 32)\n│   ├── Section (VERTICAL auto-layout, gap: 16)\n│   │   ├── Section heading\n│   │   ├── Body text\n│   │   └── Supporting image\n│   └── Card grid (HORIZONTAL auto-layout, gap: 16)\n└── Footer (HORIZONTAL auto-layout, gap: 16)\n",
+    "auto_layout_rules": [
+      "Call set_auto_layout on EVERY frame — root, sections, subsections, card groups.",
+      "Use itemSpacing from the spacing scale above.",
+      "Use paddingTop/Right/Bottom/Left on root frame for page margins.",
+      "For multi-column: HORIZONTAL parent with VERTICAL children.",
+      "Set primaryAxisSizingMode: FIXED, counterAxisSizingMode: FILL on child frames.",
+      "If page looks empty: reduce section-gap or add content. Never leave >100px unstructured space."
+    ],
+    "typography_hierarchy": [
+      {
+        "level": "Display",
+        "size": "96–120px",
+        "weight": "700–800",
+        "usage": "Cover title only"
+      },
+      {
+        "level": "H1 — Page Title",
+        "size": "64–80px",
+        "weight": "700",
+        "usage": "Page/section main title"
+      },
+      {
+        "level": "H2 — Section Title",
+        "size": "40–48px",
+        "weight": "600–700",
+        "usage": "Section headings"
+      },
+      {
+        "level": "H3 — Subsection",
+        "size": "28–32px",
+        "weight": "600",
+        "usage": "Sub-headings, card titles"
+      },
+      {
+        "level": "Body",
+        "size": "24–28px",
+        "weight": "400",
+        "usage": "Main body text (NEVER below 24px on A4)"
+      },
+      {
+        "level": "Caption",
+        "size": "18–22px",
+        "weight": "400",
+        "usage": "Photo captions, footnotes"
+      },
+      {
+        "level": "Label",
+        "size": "16–18px",
+        "weight": "500–600 UPPERCASE",
+        "usage": "Tags, categories (tracking 0.1em)"
+      }
+    ],
+    "size_ratios": [
+      "H1 ≥ 2.5× Body",
+      "H2 ≥ 1.5× Body",
+      "H3 ≥ 1.1× Body",
+      "Body NEVER below 24px on A4 print"
+    ]
+  },
+  "evaluation": {
+    "checklist_16": [
+      "Alignment — All elements on a consistent grid? No stray offsets?",
+      "Contrast — All text readable? WCAG AA?",
+      "Hierarchy — Clear reading order: first, second, third?",
+      "Whitespace — Enough breathing room? Not cramped?",
+      "Consistency — Spacing, colors, fonts consistent throughout?",
+      "Safe zones — Critical text within platform safe zone?",
+      "Balance — Composition balanced, not top-heavy?",
+      "Intent — Does the design serve the user's stated goal and mood?",
+      "Typography polish — Display text tightened? Uppercase spaced? Lines under 75 chars?",
+      "Shadow quality — Shadows match palette temperature? Not pure black?",
+      "Memorable element — ONE standout element that makes this unforgettable?",
+      "Refinement applied — At least 3 micro-adjustments made?",
+      "Reference consulted — find_design_references called? Composition aligns with proven reference?",
+      "Images resolved — All image areas filled? Zero empty rectangles remaining?",
+      "Gradient direction — Solid end of every gradient overlay behind the text?",
+      "Print structure — Every frame uses auto-layout? No manually positioned elements? (print only)"
+    ],
+    "scoring": {
+      "description": "Score designs on a 1-10 scale across weighted dimensions. Total = weighted average. Target: 7+ for production, 8.5+ for portfolio-quality.\n",
+      "dimensions": [
+        {
+          "name": "Visual Design",
+          "weight": 0.3,
+          "source": "Awwwards (40% → normalized to 30% with AI Distinctiveness)",
+          "criteria": [
+            "Color harmony and intentional palette usage",
+            "Typography quality — hierarchy, spacing, font choice appropriateness",
+            "Composition balance and visual flow",
+            "Consistent spacing rhythm and grid adherence",
+            "Professional finish — no rough edges, orphaned elements, or misalignments"
+          ]
+        },
+        {
+          "name": "Creativity & Originality",
+          "weight": 0.2,
+          "source": "Awwwards (20%) + 99designs (Conceptual Thought)",
+          "criteria": [
+            "Contains at least one memorable/unexpected element",
+            "Not replicable by default parameters — shows intentional creative choices",
+            "Avoids all items in the anti_patterns.ai_tells checklist",
+            "Design tells a visual story — it has a concept, not just arranged elements"
+          ]
+        },
+        {
+          "name": "Content Hierarchy",
+          "weight": 0.2,
+          "source": "CrowdCrit (CMU) — Information Architecture dimension",
+          "criteria": [
+            "Clear primary-secondary-tertiary reading order",
+            "User's eye naturally flows to the most important element first",
+            "CTA or key message is immediately identifiable",
+            "Supporting content is subordinate but accessible"
+          ]
+        },
+        {
+          "name": "Technical Execution",
+          "weight": 0.15,
+          "source": "99designs (Technical Skills) + checklist_16 automated checks",
+          "criteria": [
+            "WCAG AA contrast on all text",
+            "Platform safe zones respected",
+            "Images resolved (no empty rectangles)",
+            "Gradient directions correct",
+            "Auto-layout structure clean (print)"
+          ]
+        },
+        {
+          "name": "AI Distinctiveness",
+          "weight": 0.15,
+          "source": "Anti-AI research (Crea8ive Solution 2026)",
+          "criteria": [
+            "Would a viewer identify this as human-designed? (the 'senior designer or bot?' test)",
+            "Has texture/depth — not hyper-smooth flat surfaces",
+            "Includes intentional asymmetry or grid-breaking element",
+            "Typography has personality — not default safe pairing",
+            "Color has tension — not all same saturation, has one surprise"
+          ]
+        }
+      ],
+      "score_tiers": [
+        {
+          "range": "9-10",
+          "label": "Exceptional",
+          "description": "Award-worthy. Publishable as-is. Memorable and distinctive."
+        },
+        {
+          "range": "7-8",
+          "label": "Professional",
+          "description": "Production-ready. Would pass client review. Clear and polished."
+        },
+        {
+          "range": "5-6",
+          "label": "Adequate",
+          "description": "Functional but generic. Needs creative refinement."
+        },
+        {
+          "range": "3-4",
+          "label": "Below Standard",
+          "description": "Obvious issues. Looks AI-generated. Needs significant rework."
+        },
+        {
+          "range": "1-2",
+          "label": "Failed",
+          "description": "Broken layout, unreadable text, or fundamentally flawed."
+        }
+      ]
+    }
+  },
+  "refinement": {
+    "pass_steps": [
+      {
+        "step": "Typography tightening",
+        "check": "Display text letter-spacing -0.02em? Uppercase labels +0.05em or more?"
+      },
+      {
+        "step": "Shadow warmth",
+        "check": "Shadows match palette temperature? Warm palette → warm shadow (10% brown tint). Cool → cool (10% blue tint). Never pure black."
+      },
+      {
+        "step": "Card elevation",
+        "check": "Cards 3-5% lighter than section background? Identical fills = flat hierarchy."
+      },
+      {
+        "step": "CTA isolation",
+        "check": "Primary CTA has 2× surrounding element spacing? itemSpacing 24 → gap before CTA 48+"
+      },
+      {
+        "step": "Memorable element",
+        "check": "ONE disproportionate element? Check blueprint's memorable_element hint."
+      },
+      {
+        "step": "Whitespace ratio",
+        "check": "Content density under 60%? Vertical rhythm follows Fibonacci-adjacent gaps (1:1.6:2.6)?"
+      },
+      {
+        "step": "Accent text contrast",
+        "check": "Accent color as text on dark bg: lightened 15-20% vs fill version? (e.g. button #C45A3C → text #E8956A)"
+      }
+    ]
+  },
+  "anti_patterns": {
+    "description": "These are signals of generic AI output. If you catch yourself doing any of these, stop and redesign that element.\n",
+    "structural": [
+      "White or light-grey background as the default for any hero or full-page design",
+      "Inter Regular for everything — weight variation is the minimum; font variety is better",
+      "Centered text on every single element — vary alignment by hierarchy level",
+      "Equal padding on every frame — vary padding to create visual rhythm",
+      "Three feature cards that look identical to every other three-card grid ever generated",
+      "CTA button in the same blue/purple as every other SaaS product — commit to something specific",
+      "Pricing cards with no visual hierarchy — one card must dominate (scale, color, shadow)",
+      "Shadow on everything or shadow on nothing — use shadow to direct attention",
+      "A design with no negative space — some elements should breathe alone",
+      "Typography without contrast — if all text is the same weight and size, hierarchy is broken",
+      "Gradient overlay with wrong color — gradient end doesn't match section background = ugly visible edge",
+      "fontWeight 600 on non-Inter fonts — silently falls back to Inter. Only use 400 or 700 unless verified.",
+      "Content frames with fixed height — clips text on overflow. Use layoutSizingVertical: HUG on text containers.",
+      "Gradient solid end facing away from text — most common AI gradient mistake. Solid must be behind text.",
+      "Absolute positioning on print pages — creates random gaps. Every print frame MUST use auto-layout."
+    ],
+    "ai_tells": {
+      "surfaces": [
+        {
+          "marker": "Hyper-smooth surfaces with no texture variation",
+          "fix": "Add subtle grain/noise overlay at 3-8% opacity on large fill areas. Layer a scanned paper or fabric texture."
+        },
+        {
+          "marker": "Noise-free backgrounds — zero texture, perfectly clean",
+          "fix": "Even 'clean' designs need micro-texture. A 2-4% noise layer prevents the sterile AI look."
+        },
+        {
+          "marker": "Plastic-like shadows — identical angle, blur, and spread on every element",
+          "fix": "Vary shadow properties across elements. Use warm shadow tint for warm palettes, cool for cool."
+        }
+      ],
+      "composition": [
+        {
+          "marker": "Perfect symmetry — every element centered, balanced, mathematically safe",
+          "fix": "Offset at least one major element. Introduce slight asymmetry (60/40 split instead of 50/50)."
+        },
+        {
+          "marker": "Grid-locked layouts with no visual tension",
+          "fix": "Break the grid with one overlapping element, one element bleeding into an adjacent section, or scale contrast."
+        },
+        {
+          "marker": "Uniform spacing — identical gaps everywhere, mathematically optimized",
+          "fix": "Vary spacing deliberately: tighter grouping for related items, generous whitespace for separation."
+        }
+      ],
+      "typography": [
+        {
+          "marker": "Default font pairing — safe sans + safe serif with no personality",
+          "fix": "Choose a font with character (Bitter, Josefin Sans, Playfair Display) — a font the user would remember."
+        },
+        {
+          "marker": "Every text block center-aligned identically",
+          "fix": "Mix alignments by hierarchy: left-align body, center display, right-align accents."
+        }
+      ],
+      "color": [
+        {
+          "marker": "Generic color harmony — safe, balanced palette with no tension or surprise",
+          "fix": "Introduce one unexpected color. Mix muted and vivid saturation levels intentionally."
+        },
+        {
+          "marker": "Every color at the same saturation — flat, even, no depth",
+          "fix": "Use 2-3 saturation levels: vivid for CTA, muted for backgrounds, mid for secondary elements."
+        }
+      ],
+      "meta": [
+        {
+          "marker": "Replicable perfection — work that any tool could produce with the same parameters",
+          "fix": "Add ONE non-obvious creative choice: an unusual color treatment, a broken grid element, a typographic surprise."
+        },
+        {
+          "marker": "No memorable element — nothing stands out, everything is equally 'nice'",
+          "fix": "Every design needs a focal point that could not have been generated by default parameters."
+        }
+      ]
+    }
+  },
+  "taste": {
+    "description": "Design taste rules — apply when no brand system is specified or creative latitude is given.",
+    "aesthetic_directions": [
+      {
+        "name": "editorial",
+        "description": "Asymmetric grids, large serif display, generous whitespace, minimal color"
+      },
+      {
+        "name": "brutalist",
+        "description": "Raw structure exposed, stark contrast, oversized type, no decoration"
+      },
+      {
+        "name": "organic",
+        "description": "Soft curves, warm tones, layered textures, humanist sans-serif"
+      },
+      {
+        "name": "luxury",
+        "description": "Near-black backgrounds, gold/champagne accents, thin serifs, airspace"
+      },
+      {
+        "name": "geometric",
+        "description": "Clean grids, primary color blocks, sans-serif, mathematical spacing"
+      },
+      {
+        "name": "playful",
+        "description": "Bold saturated colors, rounded type, irregular layouts, energetic"
+      }
+    ],
+    "rules": [
+      {
+        "rule": "Commit to ONE aesthetic direction before calling any tool."
+      },
+      {
+        "rule": "Typography is the first decision — never default to Inter/Inter."
+      },
+      {
+        "rule": "Pick a dominant color story and paint with it boldly. Forbidden: light grey + timid blue."
+      },
+      {
+        "rule": "Never use flat solid fills on hero sections — always depth (gradient, radial glow, etc.)"
+      },
+      {
+        "rule": "Increase all padding by 1.5× what feels enough. Designs need room to breathe."
+      },
+      {
+        "rule": "Every brief produces a visually distinct output — actively diverge from the last design."
+      },
+      {
+        "rule": "After every get_screenshot: does this look like a senior designer or a bot? Fix the most generic element."
+      },
+      {
+        "rule": "Every design must have ONE element that makes it unforgettable (giant headline, unexpected color, full-bleed image)."
+      }
+    ]
+  }
+};
+
+export const KNOWLEDGE_VERSION: string = "c1d377e71e872fe3";

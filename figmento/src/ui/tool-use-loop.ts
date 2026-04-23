@@ -12,6 +12,7 @@
  */
 
 import { ToolDefinition, ToolResolver, ToolResolverContext } from './tools-schema';
+import { BATCH_THRESHOLD, isCanvasCommand, type ToolCallEntry, type ToolCallBatchResult } from './command-queue';
 
 // ═══════════════════════════════════════════════════════════════
 // PROVIDER-SPECIFIC TYPES (re-exported for callers)
@@ -35,6 +36,7 @@ export interface AnthropicMessage {
 
 export interface GeminiPart {
   text?: string;
+  thought?: boolean;
   functionCall?: { name: string; args: Record<string, unknown> };
   functionResponse?: { name: string; response: Record<string, unknown> };
 }
@@ -62,9 +64,14 @@ export interface ToolCallResult {
 
 export interface ToolUseLoopOptions {
   /** Which AI provider to call. */
-  provider: 'claude' | 'gemini' | 'openai';
-  /** Provider API key. */
+  provider: 'claude' | 'gemini' | 'openai' | 'venice';
+  /** Provider API key. Ignored for 'claude' when oauthToken is present (DM-2). */
   apiKey: string;
+  /**
+   * DM-2: Optional OAuth access_token for Claude. When present, sent as
+   * `Authorization: Bearer <token>` instead of x-api-key. Ignored by other providers.
+   */
+  oauthToken?: string;
   /** Model ID. */
   model: string;
   /** Full system prompt string. */
@@ -95,6 +102,14 @@ export interface ToolUseLoopOptions {
   onTextChunk: (text: string) => void;
   /** Maximum AI↔tool iterations. Defaults to 50. */
   maxIterations?: number;
+  /**
+   * Optional batch handler for auto-batching canvas commands.
+   * When provided AND a turn has >= BATCH_THRESHOLD canvas commands,
+   * this is called instead of iterating through onToolCall individually.
+   * Canvas commands are bundled into one batch_execute call; non-canvas
+   * commands still execute individually.
+   */
+  onToolCallBatch?: (toolCalls: ToolCallEntry[]) => Promise<ToolCallBatchResult[]>;
 }
 
 export interface ToolUseResult {
@@ -137,6 +152,25 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/** Retry wrapper for API calls — retries once on timeout, then throws a user-friendly error. */
+async function callWithRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 2000): Promise<T> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt < retries && err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+        await sleep(delayMs);
+        continue;
+      }
+      if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+        throw new Error('API request timed out after 60s. The model may be overloaded — try again or switch models.');
+      }
+      throw err;
+    }
+  }
+  throw new Error('Unreachable');
+}
+
 /**
  * Cap a tool-result string for conversation history. Keeps the AI informed
  * (nodeId, name, key fields) while preventing unbounded history growth
@@ -144,16 +178,26 @@ function sleep(ms: number): Promise<void> {
  */
 const TOOL_RESULT_MAX_CHARS = 300;
 
-function truncateForHistory(content: string): string {
-  if (content.length <= TOOL_RESULT_MAX_CHARS) return content;
+/** Tools whose results carry context the model MUST see in full. */
+const CONTEXT_TOOLS = new Set([
+  'analyze_canvas_context',
+  'get_node_info',
+  'scan_frame_structure',
+  'get_page_nodes',
+]);
+
+function truncateForHistory(content: string, toolName?: string): string {
+  // Context-critical tools get a much higher budget (4KB)
+  const limit = toolName && CONTEXT_TOOLS.has(toolName) ? 4000 : TOOL_RESULT_MAX_CHARS;
+  if (content.length <= limit) return content;
 
   // Try to parse as JSON and keep only essential fields
   try {
     const parsed = JSON.parse(content);
     if (typeof parsed === 'object' && parsed !== null) {
       const slim: Record<string, unknown> = {};
-      // Keep essential identifiers
-      for (const key of ['nodeId', 'name', 'id', 'error', 'note', 'count', 'success', 'saved', 'width', 'height']) {
+      // Keep essential identifiers + context fields
+      for (const key of ['nodeId', 'name', 'id', 'error', 'note', 'count', 'success', 'saved', 'width', 'height', 'texts', 'colors', 'structure', 'dimensions', 'images']) {
         if (key in parsed) slim[key] = parsed[key];
       }
       // For arrays (e.g. batch_execute results, get_page_nodes), keep count + first item
@@ -166,13 +210,17 @@ function truncateForHistory(content: string): string {
       }
       // If we extracted anything useful, return the slim version
       if (Object.keys(slim).length > 0) {
+        const slimStr = JSON.stringify(slim);
+        if (slimStr.length <= limit) return slimStr;
+        // Still too big — drop structure, keep texts/colors
+        delete slim.structure;
         slim.note = 'Result truncated for history';
-        return JSON.stringify(slim);
+        return JSON.stringify(slim).slice(0, limit);
       }
     }
   } catch { /* not JSON, fall through to simple truncation */ }
 
-  return content.slice(0, TOOL_RESULT_MAX_CHARS - 3) + '...';
+  return content.slice(0, limit - 3) + '...';
 }
 
 /** Replace a screenshot/export result with a compact, token-efficient summary. */
@@ -311,12 +359,19 @@ async function callAnthropicAPI(
   apiKey: string,
   systemPrompt: string,
   tools: ToolDefinition[],
+  oauthToken?: string,
 ): Promise<AnthropicAPIResponse> {
+  // DM-2: When an OAuth access_token is present, send it as a Bearer header
+  // and skip x-api-key. Falls back to API key header otherwise.
+  const authHeaders: Record<string, string> = oauthToken
+    ? { 'Authorization': `Bearer ${oauthToken}` }
+    : { 'x-api-key': apiKey };
+
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': apiKey,
+      ...authHeaders,
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true',
     },
@@ -327,6 +382,7 @@ async function callAnthropicAPI(
       tools,
       messages,
     }),
+    signal: AbortSignal.timeout(60_000),
   });
 
   if (!resp.ok) {
@@ -335,6 +391,23 @@ async function callAnthropicAPI(
   }
 
   return resp.json();
+}
+
+/**
+ * Build the generationConfig for Gemini, adjusting thinking settings per model family:
+ * - Gemini 3.x: uses `thinkingConfig.thinkingLevel` ("LOW" for tool-use speed)
+ * - Gemini 2.5 Pro: uses `thinkingConfig.thinkingBudget` (min 128, cannot disable)
+ * - Gemini 2.5 Flash: uses `thinkingConfig.thinkingBudget` (0 disables)
+ * - Others (flash-image-preview, etc.): no thinking config needed
+ */
+function buildGeminiGenerationConfig(model: string): Record<string, unknown> {
+  const config: Record<string, unknown> = { maxOutputTokens: 8192 };
+  if (model.startsWith('gemini-3')) {
+    config.thinkingConfig = { thinkingLevel: 'LOW' };
+  } else if (model.includes('2.5-pro') || model.includes('2.5-flash')) {
+    config.thinkingConfig = { thinkingBudget: model.includes('pro') ? 128 : 0 };
+  }
+  return config;
 }
 
 async function callGeminiAPI(
@@ -354,8 +427,9 @@ async function callGeminiAPI(
         systemInstruction: { parts: [{ text: systemPrompt }] },
         tools: [{ functionDeclarations: convertToolsToGemini(tools) }],
         toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
-        generationConfig: { maxOutputTokens: 8192 },
+        generationConfig: buildGeminiGenerationConfig(model),
       }),
+      signal: AbortSignal.timeout(60_000),
     }
   );
 
@@ -387,11 +461,43 @@ async function callOpenAIAPI(
       tools: convertToolsToOpenAI(tools),
       tool_choice: 'auto',
     }),
+    signal: AbortSignal.timeout(60_000),
   });
 
   if (!resp.ok) {
     const errBody = await resp.text();
     throw new Error(`OpenAI API error ${resp.status}: ${errBody}`);
+  }
+
+  return resp.json();
+}
+
+async function callVeniceAPI(
+  messages: Array<Record<string, unknown>>,
+  model: string,
+  apiKey: string,
+  systemPrompt: string,
+  tools: ToolDefinition[],
+): Promise<Record<string, unknown>> {
+  const resp = await fetch('https://api.venice.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      max_completion_tokens: 8192,
+      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      tools: convertToolsToOpenAI(tools),
+      tool_choice: 'auto',
+    }),
+    signal: AbortSignal.timeout(60_000),
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`Venice API error ${resp.status}: ${errBody}`);
   }
 
   return resp.json();
@@ -416,6 +522,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
   const {
     provider,
     apiKey,
+    oauthToken,
     model,
     systemPrompt,
     tools,
@@ -424,6 +531,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
     onProgress,
     onTextChunk,
     maxIterations = 50,
+    onToolCallBatch,
   } = options;
 
   let iterationsUsed = 0;
@@ -439,6 +547,13 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
     return tools;
   };
 
+  /** Check if a batch of tool calls should be auto-batched. */
+  const shouldAutoBatch = (calls: ToolCallEntry[]): boolean => {
+    if (!onToolCallBatch) return false;
+    const canvasCount = calls.filter(tc => isCanvasCommand(tc.name)).length;
+    return canvasCount >= BATCH_THRESHOLD;
+  };
+
   onProgress('Starting design agent loop');
 
   // ── Gemini branch ────────────────────────────────────────────
@@ -449,7 +564,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
     while (remaining-- > 0) {
       if (iterationsUsed > 0) await sleep(500);
       iterationsUsed++;
-      const response = await callGeminiAPI(history, model, apiKey, systemPrompt, resolveTools());
+      const response = await callWithRetry(() => callGeminiAPI(history, model, apiKey, systemPrompt, resolveTools()));
 
       const candidates = response.candidates as Array<Record<string, unknown>> | undefined;
       const candidate = candidates?.[0];
@@ -464,7 +579,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
       const functionCalls: GeminiPart[] = [];
 
       for (const part of parts) {
-        if (part.text) textParts.push(part.text);
+        if (part.text && !part.thought) textParts.push(part.text);
         if (part.functionCall) functionCalls.push(part);
       }
 
@@ -477,49 +592,84 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
         break;
       }
 
-      const responseParts: GeminiPart[] = [];
-      for (const fc of functionCalls) {
-        const { name, args } = fc.functionCall!;
-        onProgress(`Calling tool: ${name}`, name);
-        toolCallCount++;
-        toolsUsed.add(name);
+      // Build tool call entries for auto-batch check
+      const geminiEntries: ToolCallEntry[] = functionCalls.map(fc => ({
+        name: fc.functionCall!.name,
+        args: fc.functionCall!.args,
+      }));
 
-        const result = await onToolCall(name, args);
+      let responseParts: GeminiPart[];
 
-        const trimmed = truncateForHistory(result.content);
-        let cleanedResponse: Record<string, unknown>;
-        if (result.is_error) {
-          cleanedResponse = { error: trimmed };
-        } else {
-          try {
-            cleanedResponse = { result: JSON.parse(trimmed) };
-          } catch {
-            cleanedResponse = { result: trimmed };
+      if (shouldAutoBatch(geminiEntries)) {
+        // Auto-batch path
+        onProgress(`Auto-batching ${functionCalls.length} tool calls`);
+        for (const fc of functionCalls) { toolCallCount++; toolsUsed.add(fc.functionCall!.name); }
+
+        const batchResults = await onToolCallBatch!(geminiEntries);
+        responseParts = functionCalls.map((fc, i) => {
+          const name = fc.functionCall!.name;
+          const trimmed = truncateForHistory(batchResults[i].content, name);
+          let cleanedResponse: Record<string, unknown>;
+          if (batchResults[i].is_error) {
+            cleanedResponse = { error: trimmed };
+          } else {
+            try { cleanedResponse = { result: JSON.parse(trimmed) }; }
+            catch { cleanedResponse = { result: trimmed }; }
           }
-        }
-
-        responseParts.push({
-          functionResponse: { name, response: cleanedResponse },
+          return { functionResponse: { name, response: cleanedResponse } };
         });
+      } else {
+        // Sequential path
+        responseParts = [];
+        for (const fc of functionCalls) {
+          const { name, args } = fc.functionCall!;
+          onProgress(`Calling tool: ${name}`, name);
+          toolCallCount++;
+          toolsUsed.add(name);
+
+          let result: ToolCallResult;
+          try {
+            result = await onToolCall(name, args);
+          } catch (err) {
+            result = {
+              content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
+              is_error: true,
+            };
+          }
+
+          const trimmed = truncateForHistory(result.content, name);
+          let cleanedResponse: Record<string, unknown>;
+          if (result.is_error) {
+            cleanedResponse = { error: trimmed };
+          } else {
+            try { cleanedResponse = { result: JSON.parse(trimmed) }; }
+            catch { cleanedResponse = { result: trimmed }; }
+          }
+
+          responseParts.push({
+            functionResponse: { name, response: cleanedResponse },
+          });
+        }
       }
 
       history.push({ role: 'user', parts: responseParts });
     }
 
-  // ── OpenAI branch ────────────────────────────────────────────
-  } else if (provider === 'openai') {
+  // ── OpenAI / Venice branch ────────────────────────────────────
+  } else if (provider === 'openai' || provider === 'venice') {
     const history = messages as Array<Record<string, unknown>>;
+    const callFn = provider === 'venice' ? callVeniceAPI : callOpenAIAPI;
     let remaining = maxIterations;
 
     while (remaining-- > 0) {
       if (iterationsUsed > 0) await sleep(500);
       iterationsUsed++;
-      const response = await callOpenAIAPI(history, model, apiKey, systemPrompt, resolveTools());
+      const response = await callWithRetry(() => callFn(history, model, apiKey, systemPrompt, resolveTools()));
 
       const choices = response.choices as Array<Record<string, unknown>> | undefined;
       const choice = choices?.[0];
       if (!choice?.message) {
-        throw new Error('Empty response from OpenAI');
+        throw new Error(`Empty response from ${provider === 'venice' ? 'Venice' : 'OpenAI'}`);
       }
 
       const message = choice.message as Record<string, unknown>;
@@ -533,28 +683,60 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
         break;
       }
 
-      for (const tc of toolCalls) {
+      // Parse all tool calls first for auto-batch check
+      const parsedToolCalls = toolCalls.map(tc => {
         const fn = tc.function as Record<string, unknown>;
         const fnName = fn.name as string;
         let args: Record<string, unknown>;
-        try {
-          args = JSON.parse(fn.arguments as string);
-        } catch {
-          args = {};
+        try { args = JSON.parse(fn.arguments as string); }
+        catch { args = {}; }
+        return { tc, fnName, args };
+      });
+
+      const openaiEntries: ToolCallEntry[] = parsedToolCalls.map(p => ({
+        name: p.fnName,
+        args: p.args,
+      }));
+
+      if (shouldAutoBatch(openaiEntries)) {
+        // Auto-batch path
+        onProgress(`Auto-batching ${toolCalls.length} tool calls`);
+        for (const p of parsedToolCalls) { toolCallCount++; toolsUsed.add(p.fnName); }
+
+        const batchResults = await onToolCallBatch!(openaiEntries);
+        for (let i = 0; i < parsedToolCalls.length; i++) {
+          const { tc, fnName } = parsedToolCalls[i];
+          const trimmed = truncateForHistory(batchResults[i].content, fnName);
+          history.push({
+            role: 'tool',
+            tool_call_id: tc.id as string,
+            content: batchResults[i].is_error ? `Error: ${trimmed}` : trimmed,
+          });
         }
+      } else {
+        // Sequential path
+        for (const { tc, fnName, args } of parsedToolCalls) {
+          onProgress(`Calling tool: ${fnName}`, fnName);
+          toolCallCount++;
+          toolsUsed.add(fnName);
 
-        onProgress(`Calling tool: ${fnName}`, fnName);
-        toolCallCount++;
-        toolsUsed.add(fnName);
-
-        const result = await onToolCall(fnName, args);
-        const trimmed = truncateForHistory(result.content);
-        history.push({
-          role: 'tool',
-          tool_call_id: tc.id as string,
-          // OpenAI tool messages have no is_error flag — prefix error messages
-          content: result.is_error ? `Error: ${trimmed}` : trimmed,
-        });
+          let result: ToolCallResult;
+          try {
+            result = await onToolCall(fnName, args);
+          } catch (err) {
+            result = {
+              content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
+              is_error: true,
+            };
+          }
+          const trimmed = truncateForHistory(result.content, fnName);
+          history.push({
+            role: 'tool',
+            tool_call_id: tc.id as string,
+            // OpenAI tool messages have no is_error flag — prefix error messages
+            content: result.is_error ? `Error: ${trimmed}` : trimmed,
+          });
+        }
       }
     }
 
@@ -566,7 +748,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
     while (remaining-- > 0) {
       if (iterationsUsed > 0) await sleep(500);
       iterationsUsed++;
-      const response = await callAnthropicAPI(history, model, apiKey, systemPrompt, resolveTools());
+      const response = await callWithRetry(() => callAnthropicAPI(history, model, apiKey, systemPrompt, resolveTools(), oauthToken));
 
       const textParts: string[] = [];
       const toolUses: ContentBlock[] = [];
@@ -586,19 +768,51 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
 
       history.push({ role: 'assistant', content: response.content });
 
-      const toolResults: ContentBlock[] = [];
-      for (const toolUse of toolUses) {
-        onProgress(`Calling tool: ${toolUse.name}`, toolUse.name);
-        toolCallCount++;
-        toolsUsed.add(toolUse.name!);
+      // Build the list of tool calls for this turn
+      const entries: ToolCallEntry[] = toolUses.map(tu => ({
+        name: tu.name!,
+        args: tu.input || {},
+      }));
 
-        const result = await onToolCall(toolUse.name!, toolUse.input || {});
-        toolResults.push({
-          type: 'tool_result',
+      let toolResults: ContentBlock[];
+
+      if (shouldAutoBatch(entries)) {
+        // Auto-batch path: bundle canvas commands into one batch_execute
+        onProgress(`Auto-batching ${toolUses.length} tool calls`);
+        for (const tu of toolUses) { toolCallCount++; toolsUsed.add(tu.name!); }
+
+        const batchResults = await onToolCallBatch!(entries);
+        toolResults = toolUses.map((toolUse, i) => ({
+          type: 'tool_result' as const,
           tool_use_id: toolUse.id,
-          content: truncateForHistory(result.content),
-          ...(result.is_error && { is_error: true }),
-        });
+          content: truncateForHistory(batchResults[i].content, toolUse.name!),
+          ...(batchResults[i].is_error && { is_error: true }),
+        }));
+      } else {
+        // Sequential path: existing behavior (< BATCH_THRESHOLD canvas commands)
+        toolResults = [];
+        for (const toolUse of toolUses) {
+          onProgress(`Calling tool: ${toolUse.name}`, toolUse.name);
+          toolCallCount++;
+          toolsUsed.add(toolUse.name!);
+
+          let result: ToolCallResult;
+          try {
+            result = await onToolCall(toolUse.name!, toolUse.input || {});
+          } catch (err) {
+            // Always produce a tool_result — an orphaned tool_use breaks the API protocol
+            result = {
+              content: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
+              is_error: true,
+            };
+          }
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: truncateForHistory(result.content, toolUse.name!),
+            ...(result.is_error && { is_error: true }),
+          });
+        }
       }
 
       history.push({ role: 'user', content: toolResults });

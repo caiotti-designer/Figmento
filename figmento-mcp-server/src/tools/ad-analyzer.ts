@@ -71,7 +71,7 @@ export function registerAdAnalyzerTools(server: McpServer, sendDesignCommand: Se
 
   server.tool(
     'start_ad_analyzer',
-    'Initialize the Ad Analyzer workflow. Receives the ad brief and base64 image from the Figmento plugin. Saves the image to disk and returns the brief, critical rules, and instructions to proceed with the MISSION.md workflow (Phases 2-5).',
+    'Initialize the Ad Analyzer workflow. Saves the ad image to disk and returns brief, rules, and workflow instructions.',
     startAdAnalyzerSchema,
     async ({ imageBase64, imageMimeType, productName, productCategory, platform, channelId, notes }) => {
       // 1. Ensure output/ directory exists
@@ -131,7 +131,7 @@ export function registerAdAnalyzerTools(server: McpServer, sendDesignCommand: Se
 
   server.tool(
     'complete_ad_analyzer',
-    'Signal that the Ad Analyzer workflow is complete. Sends the design report and carousel node IDs to the Figmento plugin via the Bridge command pipeline, which displays the report in the plugin UI.',
+    'Signal Ad Analyzer workflow completion. Sends report and carousel node IDs to the Figmento plugin.',
     completeAdAnalyzerSchema,
     async ({ report, carouselNodeId, variantNodeIds }) => {
       // Send completion to plugin via existing Bridge command pipeline

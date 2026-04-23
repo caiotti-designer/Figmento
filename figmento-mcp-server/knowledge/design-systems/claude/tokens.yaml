@@ -1,0 +1,154 @@
+name: claude
+created: '2026-04-04T00:00:00.000Z'
+source: VoltAgent/awesome-design-md — design-md/claude/DESIGN.md
+preset_used: null
+mood:
+  - warm
+  - editorial
+  - organic
+voice: >-
+  Warm parchment canvas evoking premium paper. Organic editorial aesthetic with
+  custom serif/sans/mono type family. Terracotta brand accent as the singular
+  color commitment. Every neutral is warm-toned — no cool grays anywhere.
+colors:
+  primary: '#c96442'
+  primary_light: '#d97757'
+  primary_dark: '#c96442'
+  secondary: '#b53333'
+  accent: '#d97757'
+  surface: '#faf9f5'
+  background: '#f5f4ed'
+  border: '#f0eee6'
+  on_primary: '#faf9f5'
+  on_surface: '#141413'
+  on_surface_muted: '#5e5d59'
+  success: '#16A34A'
+  warning: '#EAB308'
+  error: '#b53333'
+  info: '#3898ec'
+  charcoal_warm: '#4d4c48'
+  stone_gray: '#87867f'
+  dark_warm: '#3d3d3a'
+  warm_silver: '#b0aea5'
+  warm_sand: '#e8e6dc'
+  dark_surface: '#30302e'
+  deep_dark: '#141413'
+  border_warm: '#e8e6dc'
+  border_dark: '#30302e'
+  ring_warm: '#d1cfc5'
+  ring_deep: '#c2c0b6'
+  focus_blue: '#3898ec'
+typography:
+  heading:
+    family: Anthropic Serif
+    figma_fallback: Source Serif 4
+    fallback: Georgia
+    weights:
+      - 500
+  body:
+    family: Anthropic Sans
+    figma_fallback: DM Sans
+    fallback: Arial
+    weights:
+      - 400
+      - 500
+  mono:
+    family: Anthropic Mono
+    figma_fallback: DM Mono
+    fallback: Arial
+    weights:
+      - 400
+  opentype_features: []
+  scale:
+    display: 64
+    h1: 52
+    h2: 36
+    h3: 32
+    heading: 25
+    body_lg: 20
+    body: 17
+    body_sm: 15
+    caption: 14
+    label: 12
+    overline: 10
+    micro: 9.6
+  letter_spacing:
+    body: normal
+    label: '0.12px'
+    overline: '0.5px'
+    micro: '0.096px'
+    mono: '-0.32px'
+spacing:
+  unit: 8
+  xs: 4
+  sm: 8
+  md: 16
+  lg: 24
+  xl: 32
+  2xl: 48
+  3xl: 64
+radius:
+  none: 0
+  sm: 8
+  md: 12
+  lg: 16
+  xl: 32
+  full: 9999
+shadows:
+  sm:
+    x: 0
+    'y': 0
+    blur: 0
+    spread: 1
+    color: '#f0eee6'
+    opacity: 1
+  md:
+    x: 0
+    'y': 0
+    blur: 0
+    spread: 1
+    color: '#d1cfc5'
+    opacity: 1
+  lg:
+    x: 0
+    'y': 4
+    blur: 24
+    spread: 0
+    color: 'rgba(0,0,0,0.05)'
+    opacity: 1
+elevation:
+  flat:
+    shadow: none
+  contained:
+    shadow: none
+    border: '1px solid #f0eee6'
+  ring:
+    shadow: '0px 0px 0px 1px #d1cfc5'
+  whisper:
+    shadow: 'rgba(0,0,0,0.05) 0px 4px 24px'
+  inset:
+    shadow: 'inset 0px 0px 0px 1px rgba(0,0,0,0.15)'
+gradients:
+  enabled: false
+constraints:
+  do:
+    - Use Parchment (#f5f4ed) as primary page background
+    - Use Anthropic Serif weight 500 for ALL headlines — single weight only
+    - Reserve Terracotta (#c96442) exclusively for primary CTAs
+    - Keep all neutrals warm-toned — olive, sand, charcoal, stone
+    - Use ring-based shadows (0px 0px 0px 1px) instead of drop shadows
+    - Maintain strict serif/sans hierarchy — serif for authority, sans for utility
+    - Use generous 1.60 line-height for all body text
+    - Alternate light (#f5f4ed) and dark (#141413) sections for visual rhythm
+    - Use generous border-radius (12-32px)
+  dont:
+    - Never use cool blue-grays anywhere in the palette
+    - Never use bold (700+) on Anthropic Serif
+    - Never use saturated colors beyond Terracotta — the system is intentionally muted
+    - Never use sharp corners (<6px radius)
+    - Never use heavy drop shadows — this is a ring-based system
+    - Never use pure white (#ffffff) as page background — always parchment
+    - Never use geometric/tech illustrations — only organic, editorial
+    - Never reduce line-height below 1.40 for body text
+    - Never use monospace for non-code content
+    - Never use sans-serif for headlines

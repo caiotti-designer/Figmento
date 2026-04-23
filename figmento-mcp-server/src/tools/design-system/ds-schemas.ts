@@ -6,7 +6,7 @@
 import { z } from 'zod';
 
 export const createDesignSystemSchema = {
-  name: z.string().describe('Design system name (lowercase, e.g. "payflow")'),
+  name: z.string().describe('Design system name (lowercase, e.g. "stripe")'),
   preset: z.string().optional().describe('Library preset: shadcn, material, minimal, luxury, or vibrant'),
   primary_color: z.string().optional().describe('Primary brand color hex (e.g. "#2563EB")'),
   secondary_color: z.string().optional().describe('Secondary color hex'),
@@ -33,7 +33,7 @@ export const deleteDesignSystemSchema = {
 };
 
 export const createComponentSchema = {
-  system: z.string().describe('Design system name (e.g. "payflow")'),
+  system: z.string().describe('Design system name (e.g. "stripe")'),
   component: z.string().describe('Component name: button, badge, card, divider, avatar'),
   variant: z.string().optional().describe('Component variant (e.g. "secondary", "ghost", "outlined")'),
   size: z.string().optional().describe('Size variant: sm, md, lg, xl'),
@@ -63,7 +63,7 @@ export const scanFrameStructureSchema = {
 };
 
 export const designSystemPreviewSchema = {
-  system: z.string().describe('Design system name (e.g. "testbrand")'),
+  system: z.string().describe('Design system name (e.g. "stripe")'),
   x: z.coerce.number().optional().describe('X position on canvas (default: 0)'),
   y: z.coerce.number().optional().describe('Y position on canvas (default: 0)'),
 };
@@ -87,4 +87,27 @@ export const brandConsistencyCheckSchema = {
   nodeId: z.string().describe('First frame nodeId to check'),
   nodeId2: z.string().optional().describe('Second frame nodeId to compare (optional — cross-frame consistency check)'),
   system: z.string().describe('Design system name to compare against'),
+};
+
+// DMD-4: export_design_system_to_md — exports tokens.yaml as DESIGN.md
+export const exportDesignMdSchema = {
+  name: z.string().describe('Design system name (e.g., "notion", "aurelia") — must exist in knowledge/design-systems/{name}/tokens.yaml.'),
+  outputPath: z.string().optional().describe('Path to write the DESIGN.md file. Defaults to knowledge/design-systems/{name}/DESIGN.md.'),
+  overwrite: z.boolean().optional().default(false).describe('When true, overwrite an existing DESIGN.md file at the target path without prompting.'),
+};
+
+// DMD-2: import_design_system_from_md — imports a DESIGN.md as a design system
+export const importDesignMdSchema = {
+  path: z.string().optional().describe('Path to a DESIGN.md file to import. Provide either `path` OR `content` + `name` (not both). When path is given, name is inferred from the YAML frontmatter or filename.'),
+  content: z.string().optional().describe('Inline DESIGN.md markdown text to import. Must also provide `name` when using content mode.'),
+  name: z.string().optional().describe('Design system name (kebab-case). Required when using `content` mode; overrides frontmatter name when provided with `path` mode.'),
+  previewInFigma: z.boolean().optional().default(false).describe('When true, auto-invoke design_system_preview after saving tokens.yaml. Requires Figma connection — if not connected, succeeds with a warning instead of failing.'),
+  createVariables: z.boolean().optional().default(false).describe('When true, auto-invoke create_variables_from_design_system after saving — binds every color/spacing/radius token to native Figma Variables. Requires Figma connection; soft-fails with a warning when not connected.'),
+  overwrite: z.boolean().optional().default(false).describe('When true, overwrite an existing design system with the same name without prompting.'),
+};
+
+// DMD-3: validate_design_md — zero side effects (no file writes, no Figma calls)
+export const validateDesignMdSchema = {
+  path: z.string().optional().describe('Path to a DESIGN.md file to validate. Provide either `path` OR `content` (not both).'),
+  content: z.string().optional().describe('Inline DESIGN.md markdown text to validate. Provide either `path` OR `content` (not both).'),
 };

@@ -5,6 +5,8 @@ import {
   apiState,
   progressState,
   modeState,
+  designSystemState,
+  getEffectiveDsCache,
   MAX_IMAGE_SIZE,
   MAX_IMAGE_DIMENSION,
 } from './state';
@@ -105,7 +107,7 @@ Then recreate the design using the available tools:
 1. Start with the root frame — set appropriate dimensions based on the screenshot layout
 2. Add elements top-down, most important first (headlines, containers, then details)
 3. Use set_auto_layout for containers whenever possible
-4. Match colors as closely as possible using set_fill and set_stroke
+4. Match colors as closely as possible using set_style(property="fill") and set_style(property="stroke")
 5. Recreate text content faithfully with correct font sizes and weights
 6. If there are icons, use create_icon with the closest matching Lucide icon name
 7. End with run_refinement_check if you created 5 or more elements
@@ -628,7 +630,7 @@ export const startProcessing = async (): Promise<void> => {
       provider,
       apiKey,
       model,
-      systemPrompt: buildSystemPrompt(undefined),
+      systemPrompt: buildSystemPrompt(undefined, undefined, undefined, getEffectiveDsCache()),
       tools: FIGMENTO_TOOLS,
       messages,
       onToolCall: async (name: string, args: Record<string, unknown>): Promise<ToolCallResult> => {

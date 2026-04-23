@@ -1,0 +1,17 @@
+brand_name: Momment Co-Working
+colors:
+  primary: '#FF7262'
+  secondary: '#D7BAFD'
+  accent: '#FF7262'
+  background: '#FFF6F2'
+  text: '#101010'
+  surface: '#F5E7DF'
+  neutral: '#BFB4AE'
+fonts:
+  heading: Nunito
+  body: Nunito
+pantone:
+  primary: 170 C
+  secondary: 530 C
+original_font: All Round Gothic (Adobe Fonts)
+voice: Modern, warm, community-focused coworking space

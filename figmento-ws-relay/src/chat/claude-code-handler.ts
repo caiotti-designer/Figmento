@@ -8,7 +8,7 @@
  * tracking is now owned by ClaudeCodeSessionManager (CR-5.1 AC4).
  */
 
-import { sessionManager } from './claude-code-session-manager';
+import { sessionManager, type ProgressCallback } from './claude-code-session-manager';
 
 // ═══════════════════════════════════════════════════════════════
 // PUBLIC TYPES (consumed by relay.ts and types.ts)
@@ -21,6 +21,9 @@ export interface ClaudeCodeTurnRequest {
   history: Array<{ role: string; content: string }>;
   memory?: string[];
   model?: string;
+  imageModel?: string;
+  attachmentBase64?: string;
+  fileAttachments?: Array<{ name: string; type: string; dataUri: string }>;
 }
 
 export interface ClaudeCodeTurnResult {
@@ -47,7 +50,7 @@ export interface ClaudeCodeTurnError {
  * Rejects claude-code-turn on cloud deployments to prevent SDK auth failures.
  */
 export function isLocalRelay(): boolean {
-  return !(process.env.RAILWAY_STATIC_URL || process.env.RENDER_EXTERNAL_HOSTNAME);
+  return !(process.env.RAILWAY_STATIC_URL || process.env.RENDER_EXTERNAL_HOSTNAME || process.env.FLY_APP_NAME);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -56,8 +59,9 @@ export function isLocalRelay(): boolean {
 
 export async function handleClaudeCodeTurn(
   request: ClaudeCodeTurnRequest,
+  onProgress?: ProgressCallback,
 ): Promise<ClaudeCodeTurnResult | ClaudeCodeTurnError> {
-  const { channel, message, history, memory, model } = request;
+  const { channel, message, history, memory, model, imageModel, attachmentBase64, fileAttachments } = request;
 
   // AC15: Local-only guard
   if (!isLocalRelay()) {
@@ -69,7 +73,7 @@ export async function handleClaudeCodeTurn(
   }
 
   // Delegate entirely to the session manager (concurrency + session lifecycle)
-  return sessionManager.turn(channel, message, history, memory, model);
+  return sessionManager.turn(channel, message, history, memory, model, imageModel, attachmentBase64, fileAttachments, onProgress);
 }
 
 /** Active in-flight turn count — used by the /health endpoint. */

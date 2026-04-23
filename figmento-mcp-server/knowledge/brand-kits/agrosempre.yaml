@@ -1,0 +1,27 @@
+brand_name: AgroSempre
+colors:
+  primary: '#8CB82B'
+  secondary: '#1A5C1F'
+  accent: '#6B9B37'
+  background: '#FFFFFF'
+  text: '#1F201D'
+  surface: '#F5F6F2'
+  muted: '#6B6E65'
+  primary_dark: '#4F6718'
+  primary_light: '#D4E2B6'
+fonts:
+  heading: Montserrat
+  body: Source Sans Pro
+industry: Agricultural Parts & Implements
+tagline: Pecas e Implementos Agricolas
+tone:
+  - professional
+  - trustworthy
+  - industrial
+  - technical
+radius: 8
+logo_variants:
+  horizontal_light: logo1
+  horizontal_dark: logo2
+  stacked_light: logo3
+  stacked_dark: logo4

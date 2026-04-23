@@ -1,0 +1,139 @@
+# ═══════════════════════════════════════════════════════════════
+# Figmento Design Intelligence — Saliency-Aware Layout Rules
+# Source: RALF (CVPR 2024) + CGL-Dataset analysis
+# These rules encode where to place design elements relative to
+# image content, without requiring a saliency model at runtime.
+# ═══════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────
+# Core Principle: Place elements in low-saliency regions
+# Saliency = where the viewer's eye is drawn to in the image
+# High saliency: faces, products, bright objects, text, high-contrast edges
+# Low saliency: sky, flat surfaces, dark areas, gradients, blurred regions
+# ───────────────────────────────────────────────────────────────
+
+placement_rules:
+  - rule: "Never place text over high-detail image areas"
+    metric: "Sobel gradient magnitude < 0.02 under text elements"
+    source: "RALF — readability metric"
+    fix: "Move text to smooth regions (sky, solid bg, dark areas) or add overlay"
+
+  - rule: "Elements should overlap with no more than 12% of salient content"
+    metric: "Mean saliency intensity under element bboxes < 0.12"
+    source: "RALF — occlusion metric (ground truth: 0.112-0.125)"
+    fix: "Shift elements away from the main subject/product"
+
+  - rule: "Underlays must fully contain their text"
+    metric: "Underlay-text containment > 92%"
+    source: "RALF — underlay effectiveness metric"
+    fix: "Underlay rectangle must be larger than all text sitting on it"
+
+  - rule: "Layout elements should not overlap each other"
+    metric: "Pairwise bbox overlap < 0.01"
+    source: "RALF — overlap metric"
+    fix: "Maintain clear separation between logo, text, embellishments"
+
+  - rule: "Don't obscure the main subject beyond recognition"
+    metric: "VGG16 feature distance with/without layout mask should be minimal"
+    source: "RALF — subject preservation (R_shm)"
+    fix: "Overlay at most 30% of the product/subject area"
+
+# ───────────────────────────────────────────────────────────────
+# Text Zone Heuristics (where to place text on common image types)
+# Use when generate_design_image returns an image or when placing
+# text over a user-provided photo. No ML model needed.
+# ───────────────────────────────────────────────────────────────
+
+text_zone_heuristics:
+  product_centered:
+    description: "Product/subject centered in the image"
+    safe_zones: ["top edge", "bottom edge", "left/right margins"]
+    avoid: "Center of image where the product sits"
+    overlay_strategy: "Gradient from edges toward center, solid at text zone"
+    typical_layout: "Text top + bottom, product middle"
+
+  product_left:
+    description: "Product/subject positioned on the left side"
+    safe_zones: ["right half", "top-right corner", "bottom-right"]
+    avoid: "Left third of the image"
+    overlay_strategy: "Left-to-right gradient if needed"
+    typical_layout: "Text right, product left"
+
+  product_right:
+    description: "Product/subject positioned on the right side"
+    safe_zones: ["left half", "top-left corner", "bottom-left"]
+    avoid: "Right third of the image"
+    overlay_strategy: "Right-to-left gradient if needed"
+    typical_layout: "Text left, product right"
+
+  landscape_sky:
+    description: "Landscape with sky at top, ground at bottom"
+    safe_zones: ["top third (sky)", "center overlapping horizon"]
+    avoid: "Complex ground textures at bottom"
+    overlay_strategy: "Sky is naturally low-saliency — text directly on sky often works"
+    typical_layout: "Headline in sky area, CTA over gradient at bottom"
+
+  portrait_face:
+    description: "Portrait with face as the focal point"
+    safe_zones: ["Bottom third below chin", "far left/right of face"]
+    avoid: "Over the face, especially eyes"
+    overlay_strategy: "Bottom gradient, heavy solid end"
+    typical_layout: "Text at bottom, face in upper 2/3"
+
+  flat_background:
+    description: "Simple/flat background (solid color, subtle texture, studio)"
+    safe_zones: ["Anywhere — entire canvas is low-saliency"]
+    avoid: "Nothing — flat backgrounds are ideal for text"
+    overlay_strategy: "Usually not needed — background is already uniform"
+    typical_layout: "Free placement, use the full canvas"
+
+  busy_complex:
+    description: "Complex/busy image with no clear negative space"
+    safe_zones: ["None without overlay"]
+    avoid: "Placing text directly — always needs an overlay"
+    overlay_strategy: "Full solid scrim (50-70% opacity) or frosted glass effect"
+    typical_layout: "Large overlay area for text, image visible around edges"
+
+# ───────────────────────────────────────────────────────────────
+# Vertical Zone Statistics (from CGL-Dataset 60K posters)
+# Where elements appear by category, expressed as vertical thirds
+# ───────────────────────────────────────────────────────────────
+
+vertical_zone_stats:
+  logo:
+    top_third: 0.65     # 65% of logos appear in top third
+    middle_third: 0.15
+    bottom_third: 0.20
+    common_positions: ["top-left (brand mark)", "top-center (header)", "bottom-center (sign-off)"]
+
+  text:
+    top_third: 0.25
+    middle_third: 0.40  # 40% of text in middle — headlines over product
+    bottom_third: 0.35
+    common_positions: ["center-middle (main headline)", "bottom-center (CTA/details)", "top-center (category/label)"]
+
+  underlay:
+    top_third: 0.15
+    middle_third: 0.30
+    bottom_third: 0.55  # 55% of underlays at bottom — supporting text/CTA area
+    common_positions: ["bottom band (CTA backdrop)", "center strip (price tag)", "full-width bar"]
+
+  embellishment:
+    top_third: 0.35
+    middle_third: 0.35
+    bottom_third: 0.30
+    common_positions: ["corners (decorative)", "beside headline (badge/star)", "scattered (particles/shapes)"]
+
+# ───────────────────────────────────────────────────────────────
+# Image Type Detection (simple heuristics for the AI to classify)
+# Use these keywords in image descriptions to pick the right zone
+# ───────────────────────────────────────────────────────────────
+
+image_type_keywords:
+  product_centered: ["product shot", "centered", "studio", "packshot", "bottle", "device"]
+  product_left: ["product left", "subject left", "left-aligned"]
+  product_right: ["product right", "subject right", "right-aligned"]
+  landscape_sky: ["landscape", "sky", "outdoor", "nature", "cityscape", "horizon"]
+  portrait_face: ["portrait", "face", "headshot", "person", "model", "team"]
+  flat_background: ["flat", "solid color", "gradient background", "abstract", "minimal"]
+  busy_complex: ["crowd", "market", "busy", "complex", "detailed", "collage", "texture"]

@@ -1,3 +1,24 @@
 {
-  "language": "english"
+  "language": "english",
+  "permissions": {
+    "allow": [
+      "mcp__figmento__*",
+      "mcp__figmento__create_figma_variables",
+      "mcp__figmento__create_variable_collections",
+      "mcp__figmento__create_variables_from_design_system",
+      "mcp__figmento__create_text_styles",
+      "mcp__figmento__create_ds_components",
+      "mcp__figmento__import_design_system_from_md",
+      "mcp__figmento__export_design_system_to_md",
+      "mcp__figmento__validate_design_md"
+    ]
+  },
+  "deniedMcpServers": [
+    {
+      "serverName": "pencil"
+    },
+    {
+      "serverName": "paper"
+    }
+  ]
 }

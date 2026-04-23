@@ -40,8 +40,62 @@ export const createFigmaVariablesSchema = {
   })).describe('Variables to create'),
 };
 
+export const createDSComponentsSchema = {
+  components: z.array(z.object({
+    type: z.string().describe('Component type: "button", "card", or "badge"'),
+    name: z.string().describe('Component name with DS/ prefix (e.g., "DS/Button")'),
+    fillColor: z.string().describe('Background fill hex color'),
+    textColor: z.string().describe('Text fill hex color'),
+    fontFamily: z.string().describe('Font family for primary text'),
+    fontSize: z.number().describe('Font size in pixels'),
+    fontWeight: z.number().describe('Font weight: 400 or 700'),
+    lineHeight: z.number().describe('Line height in pixels'),
+    text: z.string().describe('Default label text'),
+    cornerRadius: z.number().describe('Corner radius in pixels'),
+    padding: z.object({
+      top: z.number(), right: z.number(), bottom: z.number(), left: z.number(),
+    }).describe('Padding in pixels'),
+    itemSpacing: z.number().describe('Auto-layout item spacing'),
+    width: z.number().optional().describe('Fixed width (for Card)'),
+    textStyleId: z.string().optional().describe('Text style ID from ODS-5'),
+    fillVariableId: z.string().optional().describe('Variable ID for fill binding from ODS-4'),
+    children: z.array(z.object({
+      text: z.string(),
+      fontFamily: z.string(),
+      fontSize: z.number(),
+      fontWeight: z.number(),
+      lineHeight: z.number(),
+      textColor: z.string(),
+      textStyleId: z.string().optional(),
+    })).optional().describe('Child text nodes (for Card with multiple text slots)'),
+  })).describe('Array of component definitions'),
+  interactive: z.boolean().optional().describe('When true, auto-generates state=default/hover/pressed variants for buttons/badges and state=default/hover for cards, combines as variant set, and wires button-hover/button-press/card-hover interaction presets. Max 3 variants per component. Default: false.'),
+};
+
+export const createTextStylesSchema = {
+  styles: z.array(z.object({
+    name: z.string().describe('Style name with DS/ prefix (e.g., "DS/Display", "DS/H1", "DS/Body")'),
+    fontFamily: z.string().describe('Font family name (e.g., "Manrope", "Inter")'),
+    fontSize: z.number().describe('Font size in pixels'),
+    fontWeight: z.number().describe('Font weight: 400 (Regular) or 700 (Bold). Never 600.'),
+    lineHeight: z.number().describe('Line height in PIXELS (e.g., 73.6 for 64px × 1.15). NOT a multiplier.'),
+    letterSpacing: z.number().describe('Letter spacing in pixels (e.g., -1.28). Use 0 for body text.'),
+  })).describe('Array of text style definitions to create'),
+};
+
+export const createVariableCollectionsSchema = {
+  collections: z.array(z.object({
+    name: z.string().describe('Collection name (e.g., "Brand Colors", "Spacing", "Radius")'),
+    variables: z.array(z.object({
+      name: z.string().describe('Variable name with optional folder path (e.g., "primary/500", "md", "none"). Use "/" for folder hierarchy.'),
+      type: z.string().describe('Variable type: COLOR, FLOAT, STRING, or BOOLEAN'),
+      value: z.any().describe('Value: hex string for COLOR, number for FLOAT, string for STRING, boolean for BOOLEAN'),
+    })).describe('Variables to create in this collection'),
+  })).describe('Array of collection definitions to create'),
+};
+
 export const createVariablesFromDesignSystemSchema = {
-  designSystemName: z.string().describe('Name of the Figmento design system (e.g., "payflow", "stripe", "noir")'),
+  designSystemName: z.string().describe('Name of the Figmento design system (e.g., "stripe", "linear", "claude", "vercel", "figma", "notion")'),
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -71,20 +125,31 @@ async function handleApplyStyle(params: { styleType: string; nodeId: string; sty
   }
 }
 
+// ─── read_figma_context cache ──────────────────────────────────────────────
+// Context (variables, styles, fonts) rarely changes during a design session.
+// Cache for 60s to eliminate redundant round-trips through relay → plugin.
+let _contextCache: { data: Record<string, unknown>; timestamp: number } | null = null;
+const CONTEXT_CACHE_TTL = 60_000; // 60 seconds
+
 export function registerFigmaNativeTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'read_figma_context',
-    'Read the current Figma file\'s design context: all local Variables (with collections and modes), Paint Styles, Text Styles, Effect Styles, and available fonts. Call this FIRST when working with a file that has an existing design system — use the returned variable IDs and style IDs with bind_variable and apply_style tools instead of hardcoding values.',
+    'Read the Figma file\'s design context: variables, paint/text/effect styles, and fonts. Call first to discover IDs for bind_variable and apply_style.',
     readFigmaContextSchema,
     async () => {
+      // Return cached context if fresh (< 60s old)
+      if (_contextCache && (Date.now() - _contextCache.timestamp) < CONTEXT_CACHE_TTL) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify(_contextCache.data, null, 2) }] };
+      }
       const data = await sendDesignCommand('read_figma_context', {});
+      _contextCache = { data, timestamp: Date.now() };
       return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
     }
   );
 
   server.tool(
     'bind_variable',
-    'Bind a Figma Variable to a property on a node. This creates a LIVE binding — changing the variable value in Figma will update the node automatically. Use read_figma_context first to discover available variable IDs.',
+    'Bind a Figma Variable to a node property. Creates a live binding that updates when the variable changes.',
     bindVariableSchema,
     async (params) => {
       const data = await sendDesignCommand('bind_variable', params);
@@ -98,39 +163,14 @@ export function registerFigmaNativeTools(server: McpServer, sendDesignCommand: S
 
   server.tool(
     'apply_style',
-    'Apply a Figma Style to a node. Use "styleType" to specify: "paint" (fill colors), "text" (font family, size, weight, spacing, line height — TEXT nodes only), or "effect" (shadows, blurs). Use read_figma_context to discover available style IDs.',
+    'Apply a Figma Style to a node. Use styleType: "paint", "text", or "effect". Get style IDs from read_figma_context.',
     applyStyleSchema,
     async (params) => handleApplyStyle(params as { styleType: string; nodeId: string; styleId: string }, sendDesignCommand)
   );
 
-  // ═══════════════════════════════════════════════════════════
-  // Deprecated aliases — delegate to apply_style handler
-  // ═══════════════════════════════════════════════════════════
-
-  server.tool(
-    'apply_paint_style',
-    '[DEPRECATED — use apply_style instead] Apply a Figma Paint Style to a node\'s fills. The node will reference the style — updating the style updates all nodes using it. Use read_figma_context to discover available style IDs.',
-    applyPaintStyleSchema,
-    async (params) => handleApplyStyle({ styleType: 'paint', nodeId: params.nodeId, styleId: params.styleId }, sendDesignCommand)
-  );
-
-  server.tool(
-    'apply_text_style',
-    '[DEPRECATED — use apply_style instead] Apply a Figma Text Style to a text node. Sets font family, size, weight, spacing, and line height from the style. Only works on TEXT nodes.',
-    applyTextStyleSchema,
-    async (params) => handleApplyStyle({ styleType: 'text', nodeId: params.nodeId, styleId: params.styleId }, sendDesignCommand)
-  );
-
-  server.tool(
-    'apply_effect_style',
-    '[DEPRECATED — use apply_style instead] Apply a Figma Effect Style to a node. Sets shadows and blurs from the style definition.',
-    applyEffectStyleSchema,
-    async (params) => handleApplyStyle({ styleType: 'effect', nodeId: params.nodeId, styleId: params.styleId }, sendDesignCommand)
-  );
-
   server.tool(
     'create_figma_variables',
-    'Create a Figma Variable Collection with variables. Converts hex colors to native COLOR variables, numbers to FLOAT variables. Use "/" in names for folder grouping (e.g., "color/primary"). If a collection with the same name exists, returns its info instead of duplicating.',
+    'Create a Figma Variable Collection with variables. Use "/" in names for folder grouping. Deduplicates existing collections.',
     createFigmaVariablesSchema,
     async (params) => {
       const data = await sendDesignCommand('create_figma_variables', params as Record<string, unknown>);
@@ -139,8 +179,38 @@ export function registerFigmaNativeTools(server: McpServer, sendDesignCommand: S
   );
 
   server.tool(
+    'create_variable_collections',
+    'Create multiple Figma Variable Collections in one call. Supports upsert — existing collections get new variables added.',
+    createVariableCollectionsSchema,
+    async (params) => {
+      const data = await sendDesignCommand('create_variable_collections', params as Record<string, unknown>);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'create_ds_components',
+    'Create design system components (Button, Card, Badge) in Figma. Set interactive: true to auto-generate variant states and wire interactions.',
+    createDSComponentsSchema,
+    async (params) => {
+      const data = await sendDesignCommand('create_ds_components', params as Record<string, unknown>);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'create_text_styles',
+    'Create Figma Text Styles from typography configuration. fontWeight must be 400 or 700. lineHeight in pixels.',
+    createTextStylesSchema,
+    async (params) => {
+      const data = await sendDesignCommand('create_text_styles', params as Record<string, unknown>);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
     'create_variables_from_design_system',
-    'Convert a Figmento design system into native Figma Variables. Loads the design system by name, extracts all color, spacing, and radius tokens, and creates a Figma Variable Collection. This makes the design system available as native Figma tokens for use with bind_variable.',
+    'Convert a Figmento design system into native Figma Variables. Creates a variable collection from color, spacing, and radius tokens.',
     createVariablesFromDesignSystemSchema,
     async (params) => {
       const dsDir = getDesignSystemsDir();

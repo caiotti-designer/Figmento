@@ -435,7 +435,18 @@ Today, the AI in chat mode has 33 tools — all routed through the sandbox to Fi
 
 ### KI-4: Quality Parity Validation & Refinement Hook
 
-**Status:** Ready
+**Status:** Superseded by AE-1 (2026-04-14)
+
+> **Why superseded:** KI-4 AC1 asked for a refinement block injected into the
+> system prompt as post-creation instructions. AE-1 (Auto-Evaluate After Batch)
+> shipped a better version: `batch_execute` and `create_design` now
+> automatically run `run_refinement_check` + screenshot and return issues in
+> the tool result. The AI sees concrete violations instead of reading generic
+> instructions. `buildRefinementBlock()` in `figmento/src/ui/system-prompt.ts`
+> intentionally returns `''` with a comment noting this. AC3 (multi-section
+> composition rules) shipped independently and is live at `system-prompt.ts:162`.
+> AC4/5 (manual quality parity tests) are out of scope for code — they become
+> @qa validation work if ever prioritized.
 **Size:** M (Medium)
 **Depends on:** KI-2, KI-3
 **Agent:** @dev

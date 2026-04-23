@@ -292,3 +292,154 @@ safe_combos:
       bg: "#F0FFF4"
       ratio: 6.7
       note: "Forest green on mint white"
+
+# ───────────────────────────────────────────────────────────────
+# Color Psychology — Emotion-to-Color Mappings
+# Source: Color Psychology Database (VladislavKorecky) + EmotaPal (Ashkinaze)
+# importance: 2 = strong association, 1 = moderate, 0 = weak
+# Use these to select colors when a brief describes a mood or emotion
+# ───────────────────────────────────────────────────────────────
+color_psychology:
+  # Maps each color to its strongest emotional associations (importance >= 1)
+  red:
+    hex_range: ["#E63946", "#FF5733", "#C70039", "#DC2626"]
+    positive_emotions: [active, energising, exciting, powerful, passionate, courageous, strong]
+    negative_emotions: [aggressive, fearful, violent]
+    industries: [food, sport, entertainment, emergency, fashion]
+  orange:
+    hex_range: ["#F4A261", "#C2590A", "#EA580C", "#FB923C"]
+    positive_emotions: [sociable, optimistic, enthusiastic, adventurous, creative, warm-hearted]
+    negative_emotions: [superficial, exhibitionist]
+    industries: [food, fitness, youth, construction, creative]
+  yellow:
+    hex_range: ["#FFE66D", "#E9C46A", "#EAB308", "#FACC15"]
+    positive_emotions: [fun, good-humored, original, wise, logical, optimistic]
+    negative_emotions: [critical, cowardly, deceitful]
+    industries: [food, retail, energy, children, creative]
+  green:
+    hex_range: ["#4CAF50", "#2D6A4F", "#40916C", "#22C55E"]
+    positive_emotions: [growth, renewal, reliable, calm, caring, generous, balanced]
+    negative_emotions: [possessive, envious, greedy]
+    industries: [health, finance, organic, environment, wellness]
+  blue:
+    hex_range: ["#0077B6", "#1E3A5F", "#3182CE", "#2563EB"]
+    positive_emotions: [trustworthy, dependable, idealistic, orderly, authoritative, calm, serene]
+    negative_emotions: [rigid, depressed, manipulative]
+    industries: [finance, tech, healthcare, corporate, insurance]
+  indigo:
+    hex_range: ["#312E81", "#3730A3", "#4338CA", "#4F46E5"]
+    positive_emotions: [integrity, structured, intuitive, faithful, sincere, wise]
+    negative_emotions: [fanatical, conformist, judgmental]
+    industries: [spirituality, education, luxury, legal]
+  purple:
+    hex_range: ["#7C3AED", "#9333EA", "#A855F7", "#BB86FC"]
+    positive_emotions: [creative, imaginative, mysterious, humanitarian, spiritual, visionary]
+    negative_emotions: [immature, cynical, pompous]
+    industries: [beauty, luxury, creative, spirituality, wellness]
+  turquoise:
+    hex_range: ["#06B6D4", "#0891B2", "#22D3EE", "#67E8F9"]
+    positive_emotions: [communicative, clarity, emotional-balance, healing, calming]
+    negative_emotions: [boastful, unapproachable]
+    industries: [wellness, spa, healthcare, communication, travel]
+  pink:
+    hex_range: ["#EC4899", "#F472B6", "#F9A8D4", "#FDA4AF"]
+    positive_emotions: [love, romantic, warm, hopeful, sweet, nurturing, compassionate]
+    negative_emotions: [naive, immature, girlish]
+    industries: [beauty, fashion, wedding, children, romance]
+  magenta:
+    hex_range: ["#C026D3", "#D946EF", "#E879F9", "#A21CAF"]
+    positive_emotions: [spiritual, supportive, imaginative, innovative, transformative]
+    negative_emotions: [bossy, domineering]
+    industries: [creative, tech, fashion, art]
+  brown:
+    hex_range: ["#78350F", "#92400E", "#A0522D", "#8B6F5E"]
+    positive_emotions: [wholesome, approachable, friendly, stable, protective, warm, reliable]
+    negative_emotions: [boring, predictable, heavy]
+    industries: [food, coffee, outdoors, construction, organic]
+  grey:
+    hex_range: ["#6B7280", "#9CA3AF", "#D1D5DB", "#4B5563"]
+    positive_emotions: [dignified, neutral, professional, mature, elegant, sophisticated]
+    negative_emotions: [indecisive, lifeless, lonely, detached]
+    industries: [corporate, tech, automotive, industrial]
+  silver:
+    hex_range: ["#C0C0C0", "#A8A29E", "#D6D3D1", "#E7E5E4"]
+    positive_emotions: [illuminative, reflective, soothing, glamorous, modern, sleek]
+    negative_emotions: [melancholy, cold]
+    industries: [tech, luxury, automotive, jewelry]
+  gold:
+    hex_range: ["#C9A84C", "#D4A373", "#B7791F", "#CA8A04"]
+    positive_emotions: [successful, abundant, wealthy, charismatic, winning, prestigious]
+    negative_emotions: [ostentatious, demanding]
+    industries: [luxury, finance, jewelry, premium, awards]
+  white:
+    hex_range: ["#FFFFFF", "#FAFAFA", "#F5F5F5", "#FEFCE8"]
+    positive_emotions: [innocent, pure, simple, pristine, clean, fresh, open]
+    negative_emotions: [sterile, empty, distant, cold]
+    industries: [healthcare, tech, minimalist, wedding, premium]
+  black:
+    hex_range: ["#000000", "#0A0A0F", "#0D0D0D", "#1A1A1A"]
+    positive_emotions: [sophisticated, sexy, serious, powerful, elegant, authoritative]
+    negative_emotions: [oppressive, menacing, heavy]
+    industries: [luxury, fashion, tech, automotive, premium]
+
+# ───────────────────────────────────────────────────────────────
+# Emotion-to-Palette Quick Lookup
+# Maps common brief emotions directly to palette IDs + suggested accent
+# Source: Cross-referenced from Color Psychology DB + EmotaPal RGB data
+# ───────────────────────────────────────────────────────────────
+emotion_to_palette:
+  # Positive energy
+  - emotions: [excited, energetic, bold, passionate, dynamic]
+    palette: sunset-energy
+    accent_color: "#E63946"
+    note: "Warm reds and oranges — high arousal, action-oriented"
+  - emotions: [fun, playful, joyful, cheerful, youthful]
+    palette: playful-fun
+    accent_color: "#FFE66D"
+    note: "Bright primaries — approachable and lively"
+  - emotions: [happy, uplifting, optimistic, warm, friendly]
+    palette: warm-cozy
+    accent_color: "#E8A87C"
+    note: "Warm oranges and browns — comfort and positivity"
+
+  # Calm & trust
+  - emotions: [calm, serene, peaceful, tranquil, meditative]
+    palette: ocean-calm
+    accent_color: "#90E0EF"
+    note: "Blues and teals — low arousal, openness"
+  - emotions: [trustworthy, reliable, stable, secure, professional]
+    palette: corporate-professional
+    accent_color: "#3182CE"
+    note: "Blues — strongest trust signal across cultures"
+  - emotions: [balanced, harmonious, natural, wholesome, caring]
+    palette: nature-organic
+    accent_color: "#40916C"
+    note: "Greens — growth, renewal, generosity"
+
+  # Sophistication
+  - emotions: [luxurious, elegant, prestigious, exclusive, refined]
+    palette: luxury-premium
+    accent_color: "#C9A84C"
+    note: "Black + gold — universal luxury signal"
+  - emotions: [sophisticated, modern, sleek, cutting-edge, innovative]
+    palette: tech-modern
+    accent_color: "#58A6FF"
+    note: "Dark + electric blue — digital authority"
+  - emotions: [mysterious, dramatic, cinematic, moody, intense]
+    palette: moody-dark
+    accent_color: "#D4A574"
+    note: "Deep browns + warm amber — emotional depth"
+
+  # Clean & intellectual
+  - emotions: [clean, pure, simple, minimal, focused]
+    palette: minimal-clean
+    accent_color: "#0066CC"
+    note: "Monochrome + single accent — clarity"
+  - emotions: [fresh, healthy, organic, wellness, natural]
+    palette: fresh-light
+    accent_color: "#29B6F6"
+    note: "Light greens + sky blue — vitality"
+  - emotions: [nostalgic, vintage, retro, warm, authentic]
+    palette: retro-vintage
+    accent_color: "#E76F51"
+    note: "Muted earth tones — time-worn warmth"

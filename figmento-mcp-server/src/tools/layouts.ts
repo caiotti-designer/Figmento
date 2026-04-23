@@ -8,7 +8,7 @@ import * as yaml from 'js-yaml';
 // Path resolution — two-candidate fallback for ts-jest and esbuild
 // ─────────────────────────────────────────────────────────────
 
-function getLayoutsDir(): string {
+export function getLayoutsDir(): string {
   const oneUp = nodePath.join(__dirname, '..', 'knowledge', 'layouts');
   if (fs.existsSync(oneUp)) return oneUp;
   return nodePath.join(__dirname, '..', '..', 'knowledge', 'layouts');
@@ -50,7 +50,7 @@ export function scoreMoodMatch(blueprint: Blueprint, queryMoods: string[]): numb
   }, 0);
 }
 
-function resolveBlueprint(
+export function resolveBlueprint(
   layoutsDir: string,
   category: string,
   subcategory?: string,
@@ -149,7 +149,7 @@ export function registerLayoutTools(server: McpServer): void {
   // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK v1.26 + zod 3.25
   server.tool(
     'get_layout_blueprint',
-    'Get a layout blueprint for a design. Blueprints define proportional zones (y_start_pct/y_end_pct), typography hierarchy, and memorable element guidance. Use before creating any design to get a structural skeleton.',
+    'Get a layout blueprint with proportional zones, typography hierarchy, and element guidance for a design.',
     getLayoutBlueprintSchema,
     async (params) => {
       const result = resolveBlueprint(LAYOUTS_DIR, params.category, params.subcategory, params.mood);
@@ -159,10 +159,4 @@ export function registerLayoutTools(server: McpServer): void {
     }
   );
 
-  server.tool(
-    'list_layout_blueprints',
-    '[DEPRECATED — use list_resources(type="blueprints") instead] List all available layout blueprints, optionally filtered by category. Returns id, description, mood, and canvas info for each blueprint.',
-    listLayoutBlueprintsSchema,
-    async (params) => listBlueprintsHandler(params.category),
-  );
 }

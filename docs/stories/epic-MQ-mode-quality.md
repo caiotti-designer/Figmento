@@ -36,10 +36,10 @@ NOT a rewrite. The Modes use a fundamentally different architecture (single JSON
 ### IN Scope
 - `system-prompt.ts` — major expansion with DQ rules
 - `prompt.ts` (ANALYSIS_PROMPT, TEXT_LAYOUT_PROMPT) — quality rules injection
-- `text-layout.ts` prompt builders — blueprint awareness + quality rules
+- ~~`text-layout.ts` prompt builders~~ — **REMOVED in CU-6** (2026-04-03). Text-to-Layout is now a chat prompt template (CU-5). Quality rules inject into `system-prompt.ts` only.
 - `tools-schema.ts` — add DQ-5 through DQ-14 tools for chat mode
 - `code.ts` — post-creation refinement step in `createDesignFromAnalysis()`
-- All 6 modes benefit: Screenshot-to-Layout, Text-to-Layout, Template Fill, Text-to-Presentation, Hero Generator, Ad Analyzer
+- ~~All 6 modes benefit~~ — **Post-CU-6:** Only Chat mode remains. Screenshot + Ad Analyzer are QuickAction inline cards. Text-to-Layout, Template Fill, Presentation, Hero Generator killed (CU-6).
 
 ### OUT of Scope
 - Rewriting modes to use MCP tool-by-tool creation

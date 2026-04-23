@@ -49,15 +49,23 @@ High confidence = strong requirement. Medium = lean toward. Low = consider this 
 AI may override a preference if the user's brief explicitly requests something different.`;
 }
 import type { Blueprint, FontPairing } from '../knowledge/types';
-import {
-  PALETTES,
-  FONT_PAIRINGS,
-  BLUEPRINTS,
-  COMPOSITION_RULES,
-  REFINEMENT_CHECKS,
-} from '../knowledge/compiled-knowledge';
+
+/**
+ * Lazy-loaded knowledge — only imported on first access to avoid bloating
+ * system prompts when no design brief is detected. The 118KB compiled
+ * knowledge is only loaded when a brief is actually present.
+ */
+let _knowledge: typeof import('../knowledge/compiled-knowledge') | null = null;
+
+function loadKnowledge() {
+  if (!_knowledge) {
+    _knowledge = require('../knowledge/compiled-knowledge');
+  }
+  return _knowledge!;
+}
 
 function findBestBlueprint(brief: DesignBrief): Blueprint | null {
+  const { BLUEPRINTS } = loadKnowledge();
   if (BLUEPRINTS.length === 0) return null;
 
   let best: Blueprint | null = null;
@@ -112,6 +120,7 @@ function buildBriefInjection(brief: DesignBrief): string {
 DETECTED BRIEF — RECOMMENDED DESIGN CHOICES
 ═══════════════════════════════════════════════════════════`);
 
+  const { PALETTES, COMPOSITION_RULES } = loadKnowledge();
   if (brief.mood && PALETTES[brief.mood]) {
     const p = PALETTES[brief.mood];
     const c = p.colors;
@@ -170,6 +179,7 @@ ${cr.color_continuity.rules.map(r => `    - ${r}`).join('\n')}
 }
 
 function findBestFontPairing(mood: string): FontPairing | null {
+  const { FONT_PAIRINGS } = loadKnowledge();
   const moodBase = mood.split('-')[0];
   for (const [id, fp] of Object.entries(FONT_PAIRINGS)) {
     if (id === mood || id === moodBase) return fp;
@@ -181,9 +191,8 @@ function findBestFontPairing(mood: string): FontPairing | null {
 }
 
 function buildRefinementBlock(): string {
-  // Reference REFINEMENT_CHECKS to keep the import used.
-  void REFINEMENT_CHECKS;
   // Quality gate (run_refinement_check / evaluate_design) is excluded from chat tools.
+  // REFINEMENT_CHECKS are only loaded on-demand by the MCP server, not injected into the prompt.
   return '';
 }
 
@@ -200,8 +209,10 @@ export function buildSystemPrompt(brief?: DesignBrief, memory?: string[], prefer
 - MEMORY: When the user reports an issue or teaches a preference — call update_memory with a concise one-sentence rule.
 - If a tool fails, clean up partial elements with delete_node before retrying.
 - Use auto-layout on all container frames for proper alignment.
+- ALWAYS set layoutSizingVertical to HUG on content frames and sections. NEVER leave fixed height on frames that contain dynamic content — it causes overlap and clipping.
 - Always set layoutSizingHorizontal to FILL on text inside auto-layout frames.
 - NEVER use literal \\n inside text content passed to create_text. Create SEPARATE create_text nodes for each text element.
+- ALWAYS end your response with a clear completion message summarizing what was done. NEVER end on a "Now let me..." or "Next I'll..." statement — if you say you'll do something, DO IT in the same turn, then confirm it's done. If you run out of steps, say "Done! Here's what I created: ..." with a summary.
 
 ## Design Workflow
 1. Parse the request: identify format, mood/style, content, brand constraints.
@@ -297,6 +308,65 @@ IMAGE GENERATION
 ═══════════════════════════════════════════════════════════
 
 Use generate_image to create AI images via Gemini Imagen. Write detailed prompts.
+
+═══════════════════════════════════════════════════════════
+LAYER ORDERING
+═══════════════════════════════════════════════════════════
+
+Use reorder_child to change z-order of elements within a frame:
+- reorder_child(parentId, childId, index=0) → send to BACK (behind all siblings)
+- reorder_child(parentId, childId) → send to FRONT (on top of all siblings)
+
+IMPORTANT: When the user says "colocar no fundo", "send to back", "move behind", "move to background" — they mean REORDER the existing node, NOT generate a new image. Use reorder_child, not generate_image.
+When the user says "gerar imagem de fundo" or "create a background image" — THEN use generate_image.
+
+═══════════════════════════════════════════════════════════
+CONTEXTUAL IMAGE FILL — BATCH IMAGE PLACEMENT
+═══════════════════════════════════════════════════════════
+
+When the user asks to "fill images", "generate images for this section", "add images to these cards",
+"preencha com imagens", "gere imagens para essa seção", "coloca imagens nos cards", or wants to fill
+multiple frames/cards with contextual images — ALWAYS use fill_contextual_images.
+
+DO NOT use analyze_canvas_context + generate_image one by one. That is the OLD workflow.
+fill_contextual_images does everything in one call:
+1. Analyzes the ENTIRE page to understand industry, brand, tone, purpose
+2. Discovers empty image slots in the selected section automatically
+3. Generates contextual prompts based on nearby text (card titles, descriptions)
+4. Places AI-generated images in every empty slot
+
+Usage:
+- Section selected → fill_contextual_images() — auto-discovers all empty slots
+- Specific frames → fill_contextual_images(targetNodeIds=["id1","id2"])
+- With extra context → fill_contextual_images(context="industrial cleaning company")
+
+IMPORTANT: Use fill_contextual_images for EXISTING layouts that need images.
+Use generate_image only when creating a NEW single image from scratch.
+
+═══════════════════════════════════════════════════════════
+ONE-CLICK DESIGN SYSTEM — BRIEF-TO-FIGMA PIPELINE
+═══════════════════════════════════════════════════════════
+
+When the user uploads a PDF brief, provides a brand description, or says "generate a design system", "create a DS", "build my design system", "cria um design system":
+
+1. Call analyze_brief with the brief text/PDF content and brand name.
+   - If user uploaded a PDF: pass extracted text as pdfText parameter.
+   - If user described the brand: pass description as briefText parameter.
+   - If user provided a brand name: pass as brandName parameter.
+2. Show the user the analysis result: brand name, colors, fonts, tone.
+3. Ask "Looks good? I'll create the design system in your Figma file." (or proceed directly if the user said "one-click" or "generate everything").
+4. Call generate_design_system_in_figma with the brandAnalysis from step 1.
+5. Report: "Created X variables, Y text styles, Z components in [time]s."
+
+The pipeline creates:
+- 4 variable collections (Brand Colors, Neutrals, Spacing, Radius) with ~65 variables
+- 8 text styles (DS/Display through DS/Caption) with correct fonts, sizes, weights
+- 3 components (DS/Button, DS/Card, DS/Badge) on a "Design System" page
+- A visual "Design System Showcase" frame (1440px) with color swatches, typography specimens, icon grid, and spacing scale
+
+IMPORTANT: After generate_design_system_in_figma completes, the showcase is ALREADY complete. Do NOT create additional frames, sections, or specimens outside it. If the user wants modifications, edit the EXISTING showcase frame — do not create loose elements on the canvas. Every element must have a parentId inside the showcase frame.
+
+IMPORTANT: analyze_brief works best when you provide the full text from the PDF or user message. Extract brand name, industry keywords, tone, and any hex colors mentioned. The more context, the better the palette and font matching.
 
 ${buildRefinementBlock()}`;
 

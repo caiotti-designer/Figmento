@@ -28,8 +28,11 @@ describe('FIGMENTO_TOOLS structural fingerprint', () => {
     expect(fingerprint(FIGMENTO_TOOLS)).toMatchSnapshot();
   });
 
-  it('has 38 tools total (35 generated + 3 plugin-only)', () => {
-    expect(FIGMENTO_TOOLS).toHaveLength(38);
+  it('has 47 tools total (40 generated + 7 plugin-only)', () => {
+    // 40 from scripts/generate-tool-schemas.ts (whitelist minus 2 missing:
+    //   clone_node removed in TC-3 predecessor, get_design_rules is plugin-only);
+    // 7 from PLUGIN_ONLY_TOOLS in tools-schema.ts
+    expect(FIGMENTO_TOOLS).toHaveLength(47);
   });
 });
 

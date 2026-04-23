@@ -1,7 +1,16 @@
 /**
  * Figmento Bridge Module — WebSocket relay for MCP server.
- * Ported from figmento-plugin/src/ui-app.ts bridge sections.
+ * FN-15: Updated to sync state across Status Tab, Settings Advanced section,
+ * and the original hidden Bridge tab elements.
  */
+
+// ═══════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════════
+
+const DEFAULT_CHANNEL = 'figmento-local';
+const CLOUD_RELAY_WS = 'wss://figmento-ws-relay.fly.dev';
+const LOCAL_RELAY_WS = 'ws://localhost:3055';
 
 // ═══════════════════════════════════════════════════════════════
 // STATE
@@ -13,12 +22,20 @@ let isBridgeConnected = false;
 let bridgeCommandCount = 0;
 let bridgeErrorCount = 0;
 
+/** External callback invoked whenever bridge connection state changes. */
+let onBridgeStateChange: ((connected: boolean, channelId: string | null, cmds: number, errs: number) => void) | null = null;
+
 // ═══════════════════════════════════════════════════════════════
 // DOM HELPERS
 // ═══════════════════════════════════════════════════════════════
 
 function $(id: string): HTMLElement {
   return document.getElementById(id)!;
+}
+
+/** Safe element getter — returns null if not found. */
+function $safe(id: string): HTMLElement | null {
+  return document.getElementById(id);
 }
 
 function postToSandbox(msg: Record<string, unknown>) {
@@ -37,21 +54,62 @@ export function getBridgeConnected(): boolean {
   return isBridgeConnected;
 }
 
+export function getBridgeCommandCount(): number {
+  return bridgeCommandCount;
+}
+
+export function getBridgeErrorCount(): number {
+  return bridgeErrorCount;
+}
+
+/** Register a callback for bridge state changes (used by Status Tab). */
+export function setOnBridgeStateChange(cb: ((connected: boolean, channelId: string | null, cmds: number, errs: number) => void) | null) {
+  onBridgeStateChange = cb;
+}
+
 export function initBridge() {
-  $('bridge-connect').addEventListener('click', toggleBridge);
+  // Original hidden Bridge tab button
+  const origBtn = $safe('bridge-connect');
+  if (origBtn) origBtn.addEventListener('click', toggleBridge);
+
+  // Settings Advanced section button
+  const advBtn = $safe('bridge-adv-connect');
+  if (advBtn) advBtn.addEventListener('click', toggleBridgeFromAdvanced);
+
+  // Sync dropdowns on change
+  const urlSelect = $safe('bridge-url') as HTMLSelectElement | null;
+  const advUrlSelect = $safe('bridge-adv-url') as HTMLSelectElement | null;
+  if (urlSelect) urlSelect.addEventListener('change', () => {
+    if (advUrlSelect) advUrlSelect.value = urlSelect.value;
+  });
+  if (advUrlSelect) advUrlSelect.addEventListener('change', () => {
+    if (urlSelect) urlSelect.value = advUrlSelect.value;
+  });
+}
+
+/** Restore saved relay URL into bridge dropdowns. Called when settings load. */
+export function restoreBridgeRelayUrl(savedUrl: string) {
+  if (!savedUrl) return;
+  const urlSelect = $safe('bridge-url') as HTMLSelectElement | null;
+  const advUrlSelect = $safe('bridge-adv-url') as HTMLSelectElement | null;
+  if (urlSelect) urlSelect.value = savedUrl;
+  if (advUrlSelect) advUrlSelect.value = savedUrl;
 }
 
 /**
- * Auto-connect Bridge for chat relay mode (CR-3).
- * Called when chatRelayEnabled is true. Silently connects to the relay
- * with an auto-generated channel ID so the user doesn't need to click Connect.
+ * Auto-connect Bridge for chat relay mode (CR-3, DX-1).
+ * Called when chatRelayEnabled is true. Connects to the relay using a
+ * fixed channel (default: 'figmento-local') so both sides agree without copy-paste.
+ * @param relayUrl - Relay HTTP/WS URL
+ * @param channel - Optional channel override. Falls back to stored or default channel.
  */
-export function autoConnectBridge(relayUrl: string) {
-  console.log(`[Figmento Bridge] autoConnectBridge called: connected=${isBridgeConnected} wsState=${ws?.readyState} url=${relayUrl}`);
+export function autoConnectBridge(relayUrl: string, channel?: string) {
+  console.log(`[Figmento Bridge] autoConnectBridge called: connected=${isBridgeConnected} wsState=${ws?.readyState} url=${relayUrl} channel=${channel}`);
   // Already connected — just re-notify status (fixes stale "Relay: Off" label)
   if (isBridgeConnected && ws && ws.readyState === WebSocket.OPEN) {
     console.log('[Figmento Bridge] already connected -> re-notifying relay status');
     notifyRelayStatus('connected');
+    notifyStateChange();
     return;
   }
 
@@ -64,14 +122,20 @@ export function autoConnectBridge(relayUrl: string) {
   else if (wsUrl.startsWith('http://')) wsUrl = 'ws://' + wsUrl.slice(7);
   if (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) wsUrl = 'wss://' + wsUrl;
 
-  bridgeChannelId = generateChannelId();
+  // DX-1 AC7/AC8: Use provided channel, or fall back to default
+  bridgeChannelId = channel || DEFAULT_CHANNEL;
+  // Persist channel to clientStorage for next session
+  postToSandbox({ type: 'save-bridge-channel', channel: bridgeChannelId });
   addBridgeLog(`[Auto] Connecting to ${wsUrl}...`, 'sys');
 
-  // Update the URL input in the Bridge tab for visibility
-  const urlInput = document.getElementById('bridge-url') as HTMLInputElement;
-  if (urlInput) urlInput.value = wsUrl;
+  // Sync dropdown selections
+  const urlSelect = $safe('bridge-url') as HTMLSelectElement | null;
+  if (urlSelect) urlSelect.value = wsUrl;
+  const advUrlSelect = $safe('bridge-adv-url') as HTMLSelectElement | null;
+  if (advUrlSelect) advUrlSelect.value = wsUrl;
 
   notifyRelayStatus('connecting');
+  notifyStateChange();
 
   try {
     ws = new WebSocket(wsUrl);
@@ -103,9 +167,15 @@ export function autoConnectBridge(relayUrl: string) {
       return;
     }
 
+    if (msg.type === 'claude-code-progress') {
+      // Stream progress updates to chat UI — shows tool execution in real-time
+      if (claudeCodeProgressHandler) claudeCodeProgressHandler(msg);
+      return;
+    }
+
     if (msg.type === 'command') {
       bridgeCommandCount++;
-      $('bridge-cmd-count').textContent = String(bridgeCommandCount);
+      updateCommandCounts();
       addBridgeLog(`CMD ${msg.id}: ${msg.action}`, 'cmd');
       postToSandbox({ type: 'execute-command', command: msg });
       return;
@@ -169,6 +239,13 @@ export function setClaudeCodeResultHandler(handler: ((msg: Record<string, unknow
   claudeCodeResultHandler = handler;
 }
 
+/** Callback for handling claude-code-progress messages (tool execution streaming). */
+let claudeCodeProgressHandler: ((msg: Record<string, unknown>) => void) | null = null;
+
+export function setClaudeCodeProgressHandler(handler: ((msg: Record<string, unknown>) => void) | null) {
+  claudeCodeProgressHandler = handler;
+}
+
 /** Handle a bridge command-result (non-chat commands routed here). */
 export function handleBridgeCommandResult(resp: Record<string, unknown>) {
   const cmdId = resp.id as string;
@@ -177,7 +254,7 @@ export function handleBridgeCommandResult(resp: Record<string, unknown>) {
     addBridgeLog(`RSP ${cmdId}: OK`, 'ok');
   } else {
     bridgeErrorCount++;
-    $('bridge-err-count').textContent = String(bridgeErrorCount);
+    updateCommandCounts();
     addBridgeLog(`RSP ${cmdId}: ERR ${resp.error}`, 'err');
   }
 
@@ -190,30 +267,65 @@ export function handleBridgeCommandResult(resp: Record<string, unknown>) {
 // BRIDGE — INTERNALS
 // ═══════════════════════════════════════════════════════════════
 
-function generateChannelId(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let id = 'figmento-';
-  for (let i = 0; i < 6; i++) {
-    id += chars[Math.floor(Math.random() * chars.length)];
+/** Notify the external state change listener (Status Tab). */
+function notifyStateChange() {
+  if (onBridgeStateChange) {
+    onBridgeStateChange(isBridgeConnected, bridgeChannelId, bridgeCommandCount, bridgeErrorCount);
   }
-  return id;
+}
+
+/** Update command/error counts across all Bridge DOM locations. */
+function updateCommandCounts() {
+  // Original hidden Bridge tab
+  const origCmd = $safe('bridge-cmd-count');
+  if (origCmd) origCmd.textContent = String(bridgeCommandCount);
+  const origErr = $safe('bridge-err-count');
+  if (origErr) origErr.textContent = String(bridgeErrorCount);
+
+  // Settings Advanced section
+  const advCmd = $safe('bridge-adv-cmd-count');
+  if (advCmd) advCmd.textContent = String(bridgeCommandCount);
+  const advErr = $safe('bridge-adv-err-count');
+  if (advErr) advErr.textContent = String(bridgeErrorCount);
+
+  notifyStateChange();
 }
 
 function setBridgeConnected(connected: boolean) {
   isBridgeConnected = connected;
-  $('bridge-dot').className = 'status-dot' + (connected ? ' connected' : '');
-  $('bridge-status').textContent = connected ? 'Connected' : 'Disconnected';
-  $('bridge-connect').textContent = connected ? 'Disconnect' : 'Connect';
-  ($('bridge-connect') as HTMLElement).className = 'btn' + (connected ? ' btn-danger' : ' btn-primary');
-  $('bridge-channel').textContent = connected ? bridgeChannelId! : '---';
-  $('channel-hint').textContent = connected ? 'Click to copy' : 'Select & copy to use with Claude Code';
+
+  // Original hidden Bridge tab elements
+  const origDot = $safe('bridge-dot');
+  if (origDot) origDot.className = 'status-dot' + (connected ? ' connected' : '');
+  const origStatus = $safe('bridge-status');
+  if (origStatus) origStatus.textContent = connected ? 'Connected' : 'Disconnected';
+  const origBtn = $safe('bridge-connect');
+  if (origBtn) {
+    origBtn.textContent = connected ? 'Disconnect' : 'Connect';
+    origBtn.className = 'btn' + (connected ? ' btn-danger' : ' btn-primary');
+  }
+  const origChannel = $safe('bridge-channel');
+  if (origChannel) origChannel.textContent = connected ? bridgeChannelId! : '---';
+  const origHint = $safe('channel-hint');
+  if (origHint) origHint.textContent = connected ? 'Click to copy' : 'Select & copy to use with Claude Code';
+
+  // Settings Advanced section elements
+  const advBtn = $safe('bridge-adv-connect');
+  if (advBtn) {
+    advBtn.textContent = connected ? 'Disconnect' : 'Connect';
+    advBtn.className = 'bridge-btn' + (connected ? ' btn-danger' : '');
+  }
+  const advChannel = $safe('bridge-adv-channel');
+  if (advChannel) advChannel.textContent = connected ? bridgeChannelId! : '---';
+  const advHint = $safe('bridge-adv-hint');
+  if (advHint) advHint.textContent = connected ? 'Click to copy' : 'Select & copy to use with Claude Code';
+
+  updateCommandCounts();
 }
 
 // Expose globally for onclick in HTML
 (window as any).copyChannelId = function copyChannelId() {
   if (!bridgeChannelId) return;
-  const display = $('channel-display');
-  const hint = $('channel-hint');
 
   const ta = document.createElement('textarea');
   ta.value = bridgeChannelId;
@@ -226,35 +338,52 @@ function setBridgeConnected(connected: boolean) {
   try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
   document.body.removeChild(ta);
 
+  // Flash feedback on all channel display elements
+  const displays = ['channel-display', 'bridge-adv-channel-display'];
+  const hints = ['channel-hint', 'bridge-adv-hint'];
+
   if (ok) {
-    display.classList.add('copied');
-    hint.textContent = 'Copied!';
-    hint.style.color = '#4ade80';
-    setTimeout(() => {
-      display.classList.remove('copied');
-      hint.textContent = 'Click to copy';
-      hint.style.color = '';
-    }, 1500);
-  } else {
-    const range = document.createRange();
-    range.selectNodeContents($('bridge-channel'));
-    const sel = window.getSelection();
-    sel?.removeAllRanges();
-    sel?.addRange(range);
-    hint.textContent = 'Press Ctrl+C to copy';
-    setTimeout(() => { hint.textContent = 'Click to copy'; }, 2000);
+    for (const id of displays) {
+      const el = $safe(id);
+      if (el) {
+        el.classList.add('copied');
+        setTimeout(() => el.classList.remove('copied'), 1500);
+      }
+    }
+    for (const id of hints) {
+      const el = $safe(id);
+      if (el) {
+        el.textContent = 'Copied!';
+        el.style.color = '#4ade80';
+        setTimeout(() => { el.textContent = 'Click to copy'; el.style.color = ''; }, 1500);
+      }
+    }
+    // Also flash the Status Tab channel value
+    const statusChannel = $safe('status-mcp-channel');
+    if (statusChannel) {
+      const orig = statusChannel.style.color;
+      statusChannel.style.color = '#4ade80';
+      setTimeout(() => { statusChannel.style.color = orig; }, 1500);
+    }
   }
 };
 
 function addBridgeLog(text: string, type: string = 'sys') {
-  const area = $('bridge-log');
-  const entry = document.createElement('div');
-  entry.className = 'log-entry ' + type;
   const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  entry.textContent = `${time}  ${text}`;
-  area.appendChild(entry);
-  area.scrollTop = area.scrollHeight;
-  while (area.children.length > 100) area.removeChild(area.firstChild!);
+  const content = `${time}  ${text}`;
+
+  // Write to both log areas
+  const logIds = ['bridge-log', 'bridge-adv-log'];
+  for (const id of logIds) {
+    const area = $safe(id);
+    if (!area) continue;
+    const entry = document.createElement('div');
+    entry.className = 'log-entry ' + type;
+    entry.textContent = content;
+    area.appendChild(entry);
+    area.scrollTop = area.scrollHeight;
+    while (area.children.length > 100) area.removeChild(area.firstChild!);
+  }
 }
 
 function toggleBridge() {
@@ -264,15 +393,38 @@ function toggleBridge() {
     notifyRelayStatus('disconnected');
     addBridgeLog('Disconnected', 'sys');
   } else {
-    connectBridge();
+    connectBridge('bridge-url');
   }
 }
 
-function connectBridge() {
-  const url = ($('bridge-url') as HTMLInputElement).value.trim();
+function toggleBridgeFromAdvanced() {
+  if (isBridgeConnected) {
+    if (ws) { ws.close(); ws = null; }
+    setBridgeConnected(false);
+    notifyRelayStatus('disconnected');
+    addBridgeLog('Disconnected', 'sys');
+  } else {
+    connectBridge('bridge-adv-url');
+  }
+}
+
+function connectBridge(urlInputId: string) {
+  const urlEl = $safe(urlInputId) as HTMLSelectElement | null;
+  const url = urlEl?.value.trim();
   if (!url) return;
 
-  bridgeChannelId = generateChannelId();
+  // Sync both dropdowns
+  const otherInput = urlInputId === 'bridge-url' ? 'bridge-adv-url' : 'bridge-url';
+  const otherEl = $safe(otherInput) as HTMLSelectElement | null;
+  if (otherEl) otherEl.value = url;
+
+  // Persist relay choice
+  postToSandbox({ type: 'save-bridge-relay-url', url });
+
+  // AC10: Use current channel if already set (manual override), otherwise default
+  bridgeChannelId = bridgeChannelId || DEFAULT_CHANNEL;
+  // Persist manual channel choice
+  postToSandbox({ type: 'save-bridge-channel', channel: bridgeChannelId });
   addBridgeLog(`Connecting to ${url}...`, 'sys');
 
   try {
@@ -307,7 +459,7 @@ function connectBridge() {
 
     if (msg.type === 'command') {
       bridgeCommandCount++;
-      $('bridge-cmd-count').textContent = String(bridgeCommandCount);
+      updateCommandCounts();
       addBridgeLog(`CMD ${msg.id}: ${msg.action}`, 'cmd');
       postToSandbox({ type: 'execute-command', command: msg });
       return;

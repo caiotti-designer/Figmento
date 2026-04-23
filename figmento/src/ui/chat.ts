@@ -22,9 +22,22 @@ import {
   summarizeScreenshotResult,
 } from './tool-use-loop';
 import { LOCAL_TOOL_HANDLERS } from './local-intelligence';
-import { getBridgeChannelId, getBridgeConnected, sendBridgeMessage, setClaudeCodeResultHandler } from './bridge';
+import { createBatchToolCallHandler } from './command-queue';
+import { designSystemState, getEffectiveDsCache } from './state';
+import { autoConnectBridge, getBridgeChannelId, getBridgeConnected, sendBridgeMessage, setClaudeCodeResultHandler, setClaudeCodeProgressHandler } from './bridge';
 import { renderDiffPanel } from './diff-panel';
+import { openSettings, closeSettings } from './settings';
 import type { CorrectionEntry, LearnedPreference } from '../types';
+import { isTokenExpiringSoon, refreshToken, CODEX_OAUTH_CONFIG, type OAuthToken } from './oauth-flow';
+
+// ═══════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════════
+
+/** Cloud relay URL — used as default for published plugin users. */
+export const CLOUD_RELAY_URL = 'https://figmento-ws-relay.fly.dev';
+/** Local relay URL — used for Claude Code mode and local development. */
+export const LOCAL_RELAY_URL = 'http://localhost:3055';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -35,14 +48,31 @@ interface PendingCommand {
   reject: (error: Error) => void;
 }
 
+interface SelectionNode {
+  id: string;
+  type: string;
+  name: string;
+  width: number;
+  height: number;
+}
+
 export interface ChatSettings {
   anthropicApiKey: string;
   geminiApiKey: string;
   openaiApiKey: string;
+  veniceApiKey: string;
   model: string;
   claudeCodeModel: string;
   chatRelayEnabled: boolean;
   chatRelayUrl: string;
+  codexToken?: import('./oauth-flow').OAuthToken;
+  // DM-2: Anthropic OAuth token — when present, used instead of anthropicApiKey
+  // for direct Claude API calls. Gated on ANTHROPIC_OAUTH_CONFIG being activated.
+  anthropicToken?: import('./oauth-flow').OAuthToken;
+  // MA-1: Custom OpenAI-compatible provider (Ollama, LM Studio, OpenRouter, etc.)
+  customBaseUrl?: string;   // e.g. "http://localhost:11434/v1"
+  customModel?: string;     // e.g. "gemma3:4b"
+  customApiKey?: string;    // optional — empty for local models
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -52,13 +82,122 @@ export interface ChatSettings {
 let conversationHistory: AnthropicMessage[] = [];
 let geminiHistory: GeminiContent[] = [];
 let openaiHistory: Array<Record<string, unknown>> = [];
+let codexHistory: Array<Record<string, unknown>> = [];
 let claudeCodeHistory: Array<{ role: string; content: string }> = [];
 let isProcessing = false;
 let chatCommandCounter = 0;
 const pendingChatCommands = new Map<string, PendingCommand>();
 let memoryEntries: string[] = [];
 let currentBrief: DesignBrief | undefined;
+
+// ── Chat Sessions Persistence ────────────────────────────────
+interface ChatSession {
+  id: string;
+  title: string;
+  provider: 'claude' | 'gemini' | 'openai' | 'venice' | 'claude-code' | 'codex' | 'custom';
+  model: string;
+  apiHistory: unknown[];
+  displayLog: Array<{ role: 'user' | 'assistant'; html: string }>;
+  savedAt: number;
+}
+const MAX_SESSIONS = 20;
+let chatSessions: ChatSession[] = [];
+let activeSessionId: string | null = null;
+let pendingSessionsRestore: ChatSession[] | null = null;
+// MF-1: Multi-file attachment queue (replaces single pendingAttachment)
+interface AttachmentFile {
+  id: string;
+  name: string;
+  type: string;
+  dataUri: string;
+  size: number;
+}
+const MAX_ATTACHMENTS = 10;
+const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB
+let pendingAttachments: AttachmentFile[] = [];
+// Legacy alias for backward compat in API paths
 let pendingAttachment: string | null = null;
+
+// MF-5: Selection context
+interface SelectionContext {
+  nodes: Array<{ id: string; name: string; type: string; width: number; height: number }>;
+}
+let currentSelection: SelectionContext = { nodes: [] };
+let selectionIncluded = true; // whether to include selection in next message
+
+// ═══════════════════════════════════════════════════════════════
+// CU-1: QUICK ACTION TYPES & REGISTRY
+// ═══════════════════════════════════════════════════════════════
+
+interface QuickActionField {
+  key: string;
+  label: string;
+  type: 'text' | 'select' | 'file' | 'textarea';
+  required: boolean;
+  options?: { value: string; label: string }[];
+  placeholder?: string;
+  accept?: string; // for file fields
+}
+
+interface QuickAction {
+  id: string;
+  label: string;
+  icon: string;
+  description: string;
+  fields: QuickActionField[];
+  buildPrompt: (values: Record<string, string>, attachments: AttachmentFile[]) => string;
+}
+
+const quickActionRegistry: QuickAction[] = [];
+let activeQuickAction: QuickAction | null = null;
+let quickActionValues: Record<string, string> = {};
+
+function registerQuickAction(action: QuickAction): void {
+  if (!quickActionRegistry.find(a => a.id === action.id)) {
+    quickActionRegistry.push(action);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CU-4: DESIGN SETTINGS STATE
+// ═══════════════════════════════════════════════════════════════
+
+interface DesignSettingsState {
+  imageModel: string;
+  imageQuality: string;
+  imageStyle: string;
+  defaultFont: string;
+  brandColors: string[];
+  gridEnabled: boolean;
+}
+
+const DESIGN_SETTINGS_KEY = 'figmento-design-settings';
+
+const VALID_IMAGE_MODELS = ['gemini-3.1-flash-image-preview', 'gemini-3.1-pro-preview', 'grok-imagine-image-pro'];
+
+function loadDesignSettings(): DesignSettingsState {
+  const defaults: DesignSettingsState = { imageModel: 'gemini-3.1-flash-image-preview', imageQuality: '2k', imageStyle: 'auto', defaultFont: 'auto', brandColors: [], gridEnabled: true };
+  try {
+    const raw = localStorage.getItem(DESIGN_SETTINGS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as DesignSettingsState;
+      // Migrate stale image model values (nano-banana-2, gemini-imagen, dall-e-3)
+      if (!VALID_IMAGE_MODELS.includes(parsed.imageModel)) {
+        parsed.imageModel = defaults.imageModel;
+      }
+      return parsed;
+    }
+  } catch { /* localStorage unavailable in Figma iframe */ }
+  return defaults;
+}
+
+function saveDesignSettings(s: DesignSettingsState): void {
+  try { localStorage.setItem(DESIGN_SETTINGS_KEY, JSON.stringify(s)); } catch { /* */ }
+}
+
+let designSettings: DesignSettingsState = loadDesignSettings();
+
+export function getDesignSettings(): DesignSettingsState { return designSettings; }
 let autoDetectEnabled = false; // LC-8: updated when learning-config-loaded arrives
 let learnedPreferences: LearnedPreference[] = []; // LC-9: updated each relay turn
 
@@ -78,15 +217,32 @@ function loadPreferencesFromSandbox(): Promise<LearnedPreference[]> {
   });
 }
 
+function getSelectionSnapshot(): Promise<SelectionNode[]> {
+  return new Promise(resolve => {
+    const timeout = setTimeout(() => resolve([]), 500);
+    const handler = (event: MessageEvent) => {
+      const msg = event.data?.pluginMessage;
+      if (msg?.type === 'selection-snapshot') {
+        clearTimeout(timeout);
+        window.removeEventListener('message', handler);
+        resolve((msg.selection as SelectionNode[]) || []);
+      }
+    };
+    window.addEventListener('message', handler);
+    postToSandbox({ type: 'get-selection-snapshot' });
+  });
+}
+
 // Settings reference — updated from outside via updateChatSettings()
 let chatSettings: ChatSettings = {
   anthropicApiKey: '',
   geminiApiKey: '',
   openaiApiKey: '',
-  model: 'gemini-3.1-flash-image-preview',
-  claudeCodeModel: 'claude-opus-4-6',
+  veniceApiKey: '',
+  model: 'gemini-3.1-flash',
+  claudeCodeModel: 'claude-sonnet-4-6',
   chatRelayEnabled: false,
-  chatRelayUrl: 'http://localhost:3055',
+  chatRelayUrl: CLOUD_RELAY_URL,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -111,12 +267,285 @@ function isGeminiModel(model: string): boolean {
   return model.startsWith('gemini-');
 }
 
+function isCodexModel(model: string): boolean {
+  return model.includes('-codex');
+}
+
 function isOpenAIModel(model: string): boolean {
-  return model.startsWith('gpt-') || model.startsWith('o');
+  // DM-3: Exclude codex models — they match gpt-* but use a different provider
+  return !isCodexModel(model) && (model.startsWith('gpt-') || model.startsWith('o'));
+}
+
+function isVeniceModel(model: string): boolean {
+  return model.startsWith('qwen3-') || model.startsWith('zai-org-') || model.startsWith('deepseek-');
 }
 
 function isClaudeCodeModel(model: string): boolean {
   return model === 'claude-code';
+}
+
+// MA-1: Custom OpenAI-compatible provider. The dropdown value "custom" is a sentinel
+// — the actual model name sent to the API comes from chatSettings.customModel.
+function isCustomModel(model: string): boolean {
+  return model === 'custom';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CHAT SESSIONS PERSISTENCE
+// ═══════════════════════════════════════════════════════════════
+
+function getActiveProvider(): ChatSession['provider'] {
+  const m = chatSettings.model;
+  if (isClaudeCodeModel(m)) return 'claude-code';
+  if (isCodexModel(m)) return 'codex';
+  if (isCustomModel(m)) return 'custom';
+  if (isGeminiModel(m)) return 'gemini';
+  if (isOpenAIModel(m)) return 'openai';
+  if (isVeniceModel(m)) return 'venice';
+  return 'claude';
+}
+
+function getActiveHistory(): unknown[] {
+  switch (getActiveProvider()) {
+    case 'gemini': return geminiHistory;
+    case 'openai': case 'venice': case 'custom': return openaiHistory;
+    case 'codex': return codexHistory;
+    case 'claude-code': return claudeCodeHistory;
+    default: return conversationHistory;
+  }
+}
+
+/**
+ * Image parts are expensive to persist and provider APIs reject truncated
+ * base64 on replay. Before save/restore, replace every image-bearing block
+ * with a plain text stub. The sanitizer is provider-aware because each SDK
+ * uses a different content shape.
+ *
+ * Idempotent: already-stubbed parts stay as text stubs, and legacy sessions
+ * whose base64 was replaced in-place with "[large content stripped]" by the
+ * old generic stripper are detected by their shape (inlineData / image_url /
+ * image block) and cleaned up on load.
+ */
+const IMAGE_STUB_TEXT = '[image from earlier turn — not persisted]';
+
+function sanitizeGeminiHistory(history: GeminiContent[]): GeminiContent[] {
+  return history.map(msg => ({
+    role: msg.role,
+    parts: (msg.parts || []).map(part => {
+      if (part && typeof part === 'object' && 'inlineData' in part) {
+        return { text: IMAGE_STUB_TEXT };
+      }
+      return part;
+    }),
+  }));
+}
+
+function sanitizeOpenAIHistory(
+  history: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  return history.map(msg => {
+    const copy = { ...msg };
+    const content = copy.content;
+    if (Array.isArray(content)) {
+      copy.content = content.map((item: unknown) => {
+        if (item && typeof item === 'object' && (item as Record<string, unknown>).type === 'image_url') {
+          return { type: 'text', text: IMAGE_STUB_TEXT };
+        }
+        return item;
+      });
+    }
+    return copy;
+  });
+}
+
+function sanitizeAnthropicHistory(history: AnthropicMessage[]): AnthropicMessage[] {
+  return history.map(msg => {
+    if (typeof msg.content === 'string') return { ...msg };
+    const blocks = msg.content as unknown as Array<Record<string, unknown>>;
+    return {
+      role: msg.role,
+      content: blocks.map(block => {
+        if (block && typeof block === 'object' && block.type === 'image') {
+          return { type: 'text', text: IMAGE_STUB_TEXT };
+        }
+        return block;
+      }) as unknown as string,
+    };
+  });
+}
+
+function sanitizeHistoryForProvider(
+  history: unknown[],
+  provider: ChatSession['provider'],
+): unknown[] {
+  switch (provider) {
+    case 'gemini':
+      return sanitizeGeminiHistory(history as GeminiContent[]);
+    case 'openai':
+    case 'venice':
+    case 'codex':
+    case 'custom':
+      return sanitizeOpenAIHistory(history as Array<Record<string, unknown>>);
+    case 'claude-code':
+      return history.map(m => ({ ...(m as Record<string, unknown>) }));
+    default:
+      return sanitizeAnthropicHistory(history as AnthropicMessage[]);
+  }
+}
+
+function collectDisplayLog(): ChatSession['displayLog'] {
+  const bubbles = document.querySelectorAll('#chat-messages .chat-bubble');
+  const log: ChatSession['displayLog'] = [];
+  bubbles.forEach(el => {
+    const role = el.classList.contains('user') ? 'user' as const : 'assistant' as const;
+    log.push({ role, html: el.innerHTML });
+  });
+  return log.slice(-50);
+}
+
+function saveChatHistory() {
+  const history = getActiveHistory();
+  const displayLog = collectDisplayLog();
+  if (history.length === 0 && displayLog.length === 0) return;
+
+  const firstUserMsg = displayLog.find(e => e.role === 'user');
+  const titleHtml = firstUserMsg ? firstUserMsg.html : 'Untitled';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = titleHtml;
+  const title = (tmp.textContent || 'Untitled').slice(0, 80);
+
+  const provider = getActiveProvider();
+  const session: ChatSession = {
+    id: activeSessionId || `s_${Date.now()}`,
+    title,
+    provider,
+    model: chatSettings.model,
+    apiHistory: sanitizeHistoryForProvider(history, provider).slice(-50),
+    displayLog,
+    savedAt: Date.now(),
+  };
+
+  // Upsert into sessions list
+  const idx = chatSessions.findIndex(s => s.id === session.id);
+  if (idx >= 0) {
+    chatSessions[idx] = session;
+  } else {
+    chatSessions.unshift(session);
+  }
+  // Cap at MAX_SESSIONS
+  if (chatSessions.length > MAX_SESSIONS) chatSessions.length = MAX_SESSIONS;
+  activeSessionId = session.id;
+
+  postToSandbox({ type: 'save-chat-history', data: chatSessions });
+  renderSessionsList();
+}
+
+function loadSession(session: ChatSession) {
+  // Clear current state
+  conversationHistory.length = 0;
+  geminiHistory.length = 0;
+  openaiHistory.length = 0;
+  codexHistory.length = 0;
+  claudeCodeHistory.length = 0;
+
+  // Restore API history — sanitize defensively so legacy sessions whose
+  // image parts were corrupted by the old generic stripper don't blow up
+  // the next API call with base64 decode errors.
+  const clean = sanitizeHistoryForProvider(session.apiHistory as unknown[], session.provider);
+  switch (session.provider) {
+    case 'gemini':
+      geminiHistory.push(...(clean as GeminiContent[]));
+      break;
+    case 'openai': case 'venice': case 'custom':
+      openaiHistory.push(...(clean as Array<Record<string, unknown>>));
+      break;
+    case 'claude-code':
+      claudeCodeHistory.push(...(clean as Array<{ role: string; content: string }>));
+      break;
+    default:
+      conversationHistory.push(...(clean as AnthropicMessage[]));
+  }
+
+  // Re-render display log
+  const messagesEl = document.getElementById('chat-messages');
+  if (messagesEl) messagesEl.innerHTML = '';
+  session.displayLog.forEach(entry => appendChatBubble(entry.role, entry.html));
+  activeSessionId = session.id;
+  renderSessionsList();
+  toggleSessionsDrawer(false);
+}
+
+function deleteSession(id: string) {
+  chatSessions = chatSessions.filter(s => s.id !== id);
+  if (activeSessionId === id) activeSessionId = null;
+  postToSandbox({ type: 'save-chat-history', data: chatSessions });
+  renderSessionsList();
+}
+
+export function restoreChatHistory(data: ChatSession[] | null) {
+  if (!data || !Array.isArray(data)) return;
+  // Defer if settings haven't loaded yet
+  if (!chatSettings.model) {
+    pendingSessionsRestore = data;
+    return;
+  }
+  chatSessions = data;
+  renderSessionsList();
+  // Auto-load the most recent session if chat is empty
+  const messagesEl = document.getElementById('chat-messages');
+  const hasMessages = messagesEl && messagesEl.querySelector('.chat-bubble');
+  if (!hasMessages && chatSessions.length > 0) {
+    const latest = chatSessions[0];
+    if (latest.provider === getActiveProvider()) {
+      loadSession(latest);
+    }
+  }
+}
+
+function clearChatHistory() {
+  activeSessionId = null;
+  // Don't clear all sessions — just detach current
+}
+
+function timeAgo(ts: number): string {
+  const diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}
+
+function renderSessionsList() {
+  const list = document.getElementById('sessions-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  for (const session of chatSessions) {
+    const item = document.createElement('div');
+    item.className = 'session-item' + (session.id === activeSessionId ? ' active' : '');
+    item.innerHTML = `
+      <div class="session-info">
+        <span class="session-title">${escapeHtml(session.title)}</span>
+        <span class="session-meta">${escapeHtml(session.provider)} · ${timeAgo(session.savedAt)}</span>
+      </div>
+      <button class="session-delete" title="Delete">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </button>`;
+    item.querySelector('.session-info')!.addEventListener('click', () => loadSession(session));
+    item.querySelector('.session-delete')!.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteSession(session.id);
+    });
+    list.appendChild(item);
+  }
+}
+
+function toggleSessionsDrawer(forceOpen?: boolean) {
+  const drawer = document.getElementById('sessions-drawer');
+  if (!drawer) return;
+  const isOpen = drawer.classList.contains('open');
+  const shouldOpen = forceOpen !== undefined ? forceOpen : !isOpen;
+  drawer.classList.toggle('open', shouldOpen);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -125,6 +554,39 @@ function isClaudeCodeModel(model: string): boolean {
 
 export function updateChatSettings(s: ChatSettings) {
   chatSettings = s;
+  // Sync the toolbar model label when settings are loaded from storage
+  syncModelToolbarLabel();
+  // Restore deferred chat sessions if they were waiting for settings
+  if (pendingSessionsRestore) {
+    restoreChatHistory(pendingSessionsRestore);
+    pendingSessionsRestore = null;
+  }
+}
+
+function syncModelToolbarLabel() {
+  const settingsModelSelect = document.getElementById('settings-model') as HTMLSelectElement | null;
+  const modelSelectorLabel = document.getElementById('modelSelectorLabel');
+  if (!settingsModelSelect || !modelSelectorLabel) return;
+
+  // Sync the hidden select to match chatSettings.model
+  if (chatSettings.model && settingsModelSelect.value !== chatSettings.model) {
+    settingsModelSelect.value = chatSettings.model;
+  }
+
+  // Update toolbar label from the select's displayed text
+  const selectedOpt = settingsModelSelect.selectedOptions[0];
+  if (selectedOpt) {
+    modelSelectorLabel.textContent = selectedOpt.textContent?.trim() || chatSettings.model;
+  }
+
+  // Re-populate dropdown active state
+  const modelDropdown = document.getElementById('modelDropdown');
+  if (modelDropdown) {
+    modelDropdown.querySelectorAll('.dropdown-item').forEach(item => {
+      const el = item as HTMLElement;
+      el.classList.toggle('active', el.dataset.model === chatSettings.model);
+    });
+  }
 }
 
 export function getChatSettings(): ChatSettings {
@@ -158,6 +620,13 @@ interface ChatTemplate {
   prompt: string;
 }
 
+interface PromptTemplate {
+  icon: string;
+  label: string;
+  prompt: string;
+  prefill?: boolean; // if true, prefills input instead of auto-sending
+}
+
 const CHAT_TEMPLATES: ChatTemplate[] = [
   { icon: '📸', label: 'Instagram Ad',  prompt: 'Create an Instagram post (1080×1350) for a hippie coffee shop — warm earthy tones, vintage feel, include a CTA' },
   { icon: '💼', label: 'LinkedIn Post', prompt: 'Create a LinkedIn post banner (1200×627) for a SaaS productivity tool — modern, clean, corporate blue' },
@@ -167,20 +636,66 @@ const CHAT_TEMPLATES: ChatTemplate[] = [
   { icon: '📄', label: 'A4 Flyer',      prompt: 'Create an A4 flyer (2480×3508) for a summer music festival — vibrant, energetic, neon accents' },
 ];
 
+// CU-5: Prompt templates replacing killed tools (Text to Layout, Template Fill, Presentation, Hero Generator)
+const TOOL_REPLACEMENT_TEMPLATES: PromptTemplate[] = [
+  { icon: '🎨', label: 'Create a social post', prompt: 'Create a {format: Instagram/Twitter/LinkedIn} post about {topic}. Style: {mood}. Font: {font or "auto"}.', prefill: true },
+  { icon: '📋', label: 'Fill a template', prompt: 'Scan the selected frame and fill all #-prefixed placeholders with content about {topic}.', prefill: true },
+  { icon: '📊', label: 'Build a presentation', prompt: 'Create a {count}-slide presentation about {topic}. Format: {16:9/A4}. Style: {minimal/vibrant/dark}.', prefill: true },
+  { icon: '🖼', label: 'Generate a hero image', prompt: 'Generate a hero image: {subject description}. Position: {center/left/right}. Quality: {2k/4k}.', prefill: true },
+];
+
 function renderChatTemplates(): void {
   const chatInput = $('chat-input') as HTMLTextAreaElement;
   const container = document.createElement('div');
-  container.className = 'chat-templates';
+  container.className = 'welcome-templates';
+
+  const label = document.createElement('div');
+  label.className = 'welcome-templates-label';
+  label.textContent = 'Try these prompts:';
+  container.appendChild(label);
 
   for (const tpl of CHAT_TEMPLATES) {
-    const chip = document.createElement('button');
-    chip.className = 'chat-template-chip';
-    chip.innerHTML = `<span>${tpl.icon}</span><span>${tpl.label}</span>`;
-    chip.addEventListener('click', () => {
+    const card = document.createElement('button');
+    card.className = 'template-card';
+    card.innerHTML = `<div class="template-card-title">${tpl.label}</div><div class="template-card-desc">${tpl.prompt}</div>`;
+    card.addEventListener('click', () => {
       chatInput.value = tpl.prompt;
       chatInput.focus();
+      sendMessage();
     });
-    container.appendChild(chip);
+    container.appendChild(card);
+  }
+
+  // CU-5: Tool replacement templates (prefill mode)
+  const toolLabel = document.createElement('div');
+  toolLabel.className = 'welcome-templates-label';
+  toolLabel.textContent = 'Design tools:';
+  toolLabel.style.marginTop = '12px';
+  container.appendChild(toolLabel);
+
+  for (const tpl of TOOL_REPLACEMENT_TEMPLATES) {
+    const card = document.createElement('button');
+    card.className = 'template-card template-card-tool';
+    card.innerHTML = `<span class="template-card-icon">${tpl.icon}</span><div class="template-card-title">${tpl.label}</div>`;
+    card.addEventListener('click', () => {
+      chatInput.value = tpl.prompt;
+      chatInput.focus();
+      // Select first {placeholder} for easy replacement
+      const match = tpl.prompt.match(/\{[^}]+\}/);
+      if (match) {
+        const start = tpl.prompt.indexOf(match[0]);
+        chatInput.setSelectionRange(start, start + match[0].length);
+      }
+    });
+    // CU-5 AC11: "Fill a template" needs selection context
+    if (tpl.label === 'Fill a template') {
+      card.addEventListener('click', () => {
+        if (currentSelection.nodes.length === 0) {
+          appendChatBubble('assistant', '<span class="chat-warning">Select a frame with #-prefixed layers first, then use this template.</span>');
+        }
+      });
+    }
+    container.appendChild(card);
   }
 
   $('chat-messages').appendChild(container);
@@ -190,44 +705,278 @@ function renderChatTemplates(): void {
 // CHAT — ATTACHMENT PREVIEW
 // ═══════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════
+// BROWSER-SIDE FILE TEXT EXTRACTION (PDFs via pdf.js, TXT, SVG)
+// ═══════════════════════════════════════════════════════════════
+
+/** Dynamically load pdf.js from unpkg CDN (cached after first load). */
+function loadPdfJs(): Promise<void> {
+  if ((window as any).pdfjsLib) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js';
+    script.onload = () => {
+      // Disable worker — run on main thread (avoids loading a second 800KB file)
+      const lib = (window as any).pdfjsLib;
+      if (lib) {
+        lib.GlobalWorkerOptions.workerSrc = '';
+      }
+      resolve();
+    };
+    script.onerror = () => reject(new Error('Failed to load PDF.js from CDN'));
+    document.head.appendChild(script);
+  });
+}
+
+/**
+ * Extract text content from a PDF data URI using Mozilla pdf.js.
+ * Handles compressed streams, Unicode fonts, and all standard PDF formats.
+ */
+async function extractPdfTextFromDataUri(dataUri: string): Promise<string> {
+  await loadPdfJs();
+
+  const commaIdx = dataUri.indexOf(',');
+  const base64 = commaIdx >= 0 ? dataUri.slice(commaIdx + 1) : dataUri;
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+  const pdfjsLib = (window as any).pdfjsLib;
+  const loadingTask = pdfjsLib.getDocument({ data: bytes });
+  const pdf = await loadingTask.promise;
+
+  const textParts: string[] = [];
+  const pageCount = Math.min(pdf.numPages, 50); // Cap at 50 pages
+
+  for (let i = 1; i <= pageCount; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items.map((item: { str: string }) => item.str).join(' ');
+    if (pageText.trim()) textParts.push(pageText.trim());
+  }
+
+  let text = textParts.join('\n\n');
+  if (text.length > 10000) text = text.slice(0, 10000);
+  return text;
+}
+
+/**
+ * Extract text from a TXT or SVG data URI (UTF-8 decode).
+ */
+function extractTextFromDataUri(dataUri: string): string {
+  try {
+    const commaIdx = dataUri.indexOf(',');
+    const base64 = commaIdx >= 0 ? dataUri.slice(commaIdx + 1) : dataUri;
+    const binaryStr = atob(base64);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+    return new TextDecoder('utf-8').decode(bytes).slice(0, 10000);
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Extract text content from all non-image file attachments.
+ * Returns a context block to prepend to the user message.
+ * Async because PDF extraction uses pdf.js.
+ */
+async function buildClientFileContext(attachments: AttachmentFile[]): Promise<string> {
+  const nonImageFiles = attachments.filter(f => !f.type.startsWith('image/') || f.type === 'image/svg+xml');
+  if (nonImageFiles.length === 0) return '';
+
+  const blocks: string[] = [];
+  let designMdFile: { name: string; content: string } | null = null;
+
+  for (const file of nonImageFiles) {
+    let text = '';
+
+    if (file.type === 'application/pdf') {
+      try {
+        text = await extractPdfTextFromDataUri(file.dataUri);
+      } catch (err) {
+        console.error('[Figmento] PDF extraction failed:', err);
+      }
+      if (!text) {
+        blocks.push(`📄 ${file.name} (PDF) — could not extract text (may be image-only/scanned)`);
+        continue;
+      }
+    } else if (
+      file.type === 'text/plain' ||
+      file.type === 'text/markdown' ||
+      file.type === 'text/x-markdown' ||
+      file.type === 'image/svg+xml' ||
+      /\.(md|markdown)$/i.test(file.name)
+    ) {
+      text = extractTextFromDataUri(file.dataUri);
+    }
+
+    if (text) {
+      // DMD-6: detect DESIGN.md files — either by extension, frontmatter shape, or canonical section headings
+      const isDesignMd =
+        /\.(md|markdown)$/i.test(file.name) &&
+        (/^---\s*\n[\s\S]*?\bname\s*:/.test(text) || /^##\s+Visual Theme & Atmosphere/m.test(text));
+
+      if (isDesignMd && !designMdFile) {
+        designMdFile = { name: file.name, content: text };
+      }
+      blocks.push(`📄 ${file.name}\nContent:\n${text}`);
+    }
+  }
+
+  if (blocks.length === 0) return '';
+
+  let context = `[EXTRACTED FILE CONTENT]\n${blocks.join('\n\n---\n\n')}`;
+
+  // DMD-6: if a DESIGN.md was attached, inject an explicit directive so the
+  // agent calls the import tool rather than just discussing the content.
+  if (designMdFile) {
+    const inferredName = designMdFile.name.replace(/\.(md|markdown)$/i, '').replace(/[^a-z0-9-]/gi, '').toLowerCase() || 'imported';
+    context += `\n\n[FIGMENTO DESIGN.md DETECTED]\n` +
+      `A Figmento DESIGN.md file (${designMdFile.name}) was attached. You MUST call the MCP tool ` +
+      `\`import_design_system_from_md\` with these exact parameters:\n` +
+      `  content: <the full markdown content shown above>\n` +
+      `  name: "${inferredName}"\n` +
+      `  previewInFigma: true\n` +
+      `  createVariables: true\n` +
+      `This one call will save the design system, create Figma Variables bound to its tokens, and render a visual preview on the canvas. ` +
+      `Do NOT re-explain the file — import it directly. After the tool returns, briefly confirm what was imported and where the preview frame landed.`;
+  }
+
+  return context;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MF-1: MULTI-FILE ATTACHMENT QUEUE
+// ═══════════════════════════════════════════════════════════════
+
+function getFileTypeInfo(file: { name: string; type: string }): { icon: string; badge: string; isImage: boolean } {
+  if (file.type === 'application/pdf') return { icon: '📄', badge: 'PDF', isImage: false };
+  if (file.type === 'text/plain') return { icon: '📝', badge: 'TXT', isImage: false };
+  if (file.type === 'image/svg+xml') return { icon: '🎨', badge: 'SVG', isImage: false };
+  return { icon: '🖼', badge: 'IMG', isImage: true };
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function getTotalAttachmentSize(): number {
+  return pendingAttachments.reduce((sum, f) => sum + f.size, 0);
+}
+
+function addAttachment(name: string, type: string, dataUri: string, size: number): boolean {
+  if (pendingAttachments.length >= MAX_ATTACHMENTS) {
+    appendChatBubble('assistant', `<span class="chat-error">Max ${MAX_ATTACHMENTS} files allowed</span>`);
+    return false;
+  }
+  if (getTotalAttachmentSize() + size > MAX_TOTAL_SIZE) {
+    appendChatBubble('assistant', `<span class="chat-error">Total size exceeds 50MB limit</span>`);
+    return false;
+  }
+  pendingAttachments.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), name, type, dataUri, size });
+  // Legacy compat: keep first image as pendingAttachment for API paths
+  const firstImage = pendingAttachments.find(f => f.type.startsWith('image/'));
+  pendingAttachment = firstImage?.dataUri || null;
+  renderAttachmentQueue();
+  return true;
+}
+
+function removeAttachment(id: string): void {
+  pendingAttachments = pendingAttachments.filter(f => f.id !== id);
+  const firstImage = pendingAttachments.find(f => f.type.startsWith('image/'));
+  pendingAttachment = firstImage?.dataUri || null;
+  renderAttachmentQueue();
+}
+
+function clearAttachments(): void {
+  pendingAttachments = [];
+  pendingAttachment = null;
+  renderAttachmentQueue();
+}
+
 function clearAttachmentUI(): void {
-  const existing = document.getElementById('chat-attachment-preview');
+  const existing = document.getElementById('attachment-queue');
   if (existing) existing.remove();
 }
 
-function renderAttachmentPreview(dataUri: string): void {
+function renderAttachmentQueue(): void {
   clearAttachmentUI();
-  const chatInput = $('chat-input');
-  const preview = document.createElement('div');
-  preview.id = 'chat-attachment-preview';
-  preview.className = 'chat-attachment-preview';
+  if (pendingAttachments.length === 0) return;
 
-  const img = document.createElement('img');
-  img.className = 'chat-attachment-thumb';
-  img.src = dataUri;
-  img.alt = 'Attached image';
+  const inputArea = document.querySelector('.input-area');
+  if (!inputArea) return;
 
-  const placeBtn = document.createElement('button');
-  placeBtn.className = 'chat-attachment-place';
-  placeBtn.title = 'Place image on Figma canvas';
-  placeBtn.textContent = '→ Figma';
-  placeBtn.addEventListener('click', () => {
-    if (pendingAttachment) placePastedImage(placeBtn, pendingAttachment);
-  });
+  const queue = document.createElement('div');
+  queue.id = 'attachment-queue';
+  queue.className = 'attachment-queue';
 
-  const removeBtn = document.createElement('button');
-  removeBtn.className = 'chat-attachment-remove';
-  removeBtn.title = 'Remove image';
-  removeBtn.textContent = '✕';
-  removeBtn.addEventListener('click', () => {
-    pendingAttachment = null;
-    clearAttachmentUI();
-  });
+  for (const file of pendingAttachments) {
+    const info = getFileTypeInfo(file);
+    const item = document.createElement('div');
+    item.className = 'attachment-item';
 
-  preview.appendChild(img);
-  preview.appendChild(placeBtn);
-  preview.appendChild(removeBtn);
-  chatInput.parentElement!.insertBefore(preview, chatInput);
+    if (info.isImage && !file.type.includes('svg')) {
+      const thumb = document.createElement('img');
+      thumb.className = 'attachment-thumb';
+      thumb.src = file.dataUri;
+      thumb.alt = file.name;
+      item.appendChild(thumb);
+    } else {
+      const icon = document.createElement('span');
+      icon.className = 'attachment-icon';
+      icon.textContent = info.icon;
+      item.appendChild(icon);
+    }
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'attachment-name';
+    nameEl.textContent = file.name;
+    item.appendChild(nameEl);
+
+    const badge = document.createElement('span');
+    badge.className = 'attachment-badge';
+    badge.textContent = `${info.badge} · ${formatFileSize(file.size)}`;
+    item.appendChild(badge);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'attachment-remove';
+    removeBtn.textContent = '×';
+    removeBtn.title = 'Remove file';
+    removeBtn.addEventListener('click', () => removeAttachment(file.id));
+    item.appendChild(removeBtn);
+
+    queue.appendChild(item);
+  }
+
+  // Footer: count + total size + clear all
+  const footer = document.createElement('div');
+  footer.className = 'attachment-footer';
+  footer.innerHTML = `<span>${pendingAttachments.length} file${pendingAttachments.length > 1 ? 's' : ''} · ${formatFileSize(getTotalAttachmentSize())}</span>`;
+  if (pendingAttachments.length >= 2) {
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'attachment-clear';
+    clearBtn.textContent = 'Clear all';
+    clearBtn.addEventListener('click', clearAttachments);
+    footer.appendChild(clearBtn);
+  }
+  queue.appendChild(footer);
+
+  inputArea.insertBefore(queue, inputArea.firstChild);
+}
+
+// Legacy wrapper for backward compat
+function renderAttachmentPreview(dataUri: string): void {
+  // Called by old paste/upload handlers — now routes to queue
+  // Name is derived from MIME type
+  const mime = dataUri.match(/data:([^;]+)/)?.[1] || 'image/png';
+  const ext = mime.split('/')[1]?.replace('svg+xml', 'svg') || 'file';
+  const name = `pasted-${Date.now()}.${ext}`;
+  const size = Math.round(dataUri.length * 0.75); // approximate base64 → bytes
+  addAttachment(name, mime, dataUri, size);
 }
 
 async function placePastedImage(placeBtn: HTMLButtonElement, attachment: string): Promise<void> {
@@ -466,8 +1215,8 @@ export function initChat() {
         e.preventDefault();
         const blob = item.getAsFile();
         if (!blob) return;
-        if (blob.size > 4 * 1024 * 1024) {
-          appendChatBubble('assistant', '<span class="chat-error">Image too large — please paste a screenshot under 4MB</span>');
+        if (blob.size > 20 * 1024 * 1024) {
+          appendChatBubble('assistant', '<span class="chat-error">File too large (max 20MB)</span>');
           return;
         }
         const reader = new FileReader();
@@ -482,16 +1231,76 @@ export function initChat() {
     // No image item found — let normal text paste proceed
   });
 
+  // CF-1: Upload button handler — file picker for images
+  $('chat-upload-btn').addEventListener('click', () => {
+    ($('chat-file-upload') as HTMLInputElement).click();
+  });
+
+  ($('chat-file-upload') as HTMLInputElement).addEventListener('change', (e: Event) => {
+    const fileInput = e.target as HTMLInputElement;
+    const file = fileInput.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'application/pdf', 'text/plain', 'text/markdown', 'text/x-markdown'];
+    const isMarkdownByExt = /\.(md|markdown)$/i.test(file.name);
+    if (!validTypes.includes(file.type) && !isMarkdownByExt) {
+      appendChatBubble('assistant', '<span class="chat-error">Unsupported file type. Please upload PNG, JPG, WEBP, SVG, PDF, TXT, or MD.</span>');
+      fileInput.value = '';
+      return;
+    }
+
+    // Validate file size (20MB max)
+    if (file.size > 20 * 1024 * 1024) {
+      appendChatBubble('assistant', '<span class="chat-error">File too large (max 20MB)</span>');
+      fileInput.value = '';
+      return;
+    }
+
+    // ODS-1a: Show loading spinner for large files (>1MB)
+    const showSpinner = file.size > 1 * 1024 * 1024;
+    let spinnerEl: HTMLElement | null = null;
+    if (showSpinner) {
+      spinnerEl = document.createElement('div');
+      spinnerEl.className = 'attachment-loading';
+      spinnerEl.innerHTML = `<span class="attachment-spinner"></span><span>${file.name} — converting…</span>`;
+      const inputArea = document.querySelector('.input-area');
+      if (inputArea) inputArea.insertBefore(spinnerEl, inputArea.firstChild);
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (spinnerEl) spinnerEl.remove();
+      addAttachment(file.name, file.type, reader.result as string, file.size);
+    };
+    reader.onerror = () => {
+      if (spinnerEl) spinnerEl.remove();
+      appendChatBubble('assistant', '<span class="chat-error">Failed to read file. Please try again.</span>');
+    };
+    reader.readAsDataURL(file);
+    fileInput.value = ''; // Reset so the same file can be re-selected
+  });
+
   $('chat-new').addEventListener('click', () => {
+    // Save current conversation before clearing
+    saveChatHistory();
     conversationHistory = [];
     geminiHistory = [];
     openaiHistory = [];
     claudeCodeHistory = [];
-    pendingAttachment = null;
-    clearAttachmentUI();
+    clearAttachments();
     $('chat-messages').innerHTML = '';
     addChatWelcome();
+    activeSessionId = null;
+    renderSessionsList();
+    toggleSessionsDrawer(false);
   });
+
+  // ── Sessions drawer toggle ──────────────────────────────────────────────────
+  const sessionsBtn = document.getElementById('chat-sessions-btn');
+  if (sessionsBtn) {
+    sessionsBtn.addEventListener('click', () => toggleSessionsDrawer());
+  }
 
   // ── "Learn from my edits" button (LC Phase 4a) ──────────────────────────────
   const learnBtn = document.getElementById('chat-learn') as HTMLButtonElement | null;
@@ -545,24 +1354,817 @@ export function initChat() {
     }
   });
 
+  // ── Theme toggle wiring ───────────────────────────────────────
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  const themeIconSun = document.getElementById('themeIconSun');
+  const themeIconMoon = document.getElementById('themeIconMoon');
+
+  function applyTheme(theme: string) {
+    document.documentElement.dataset.theme = theme;
+    if (themeIconSun && themeIconMoon) {
+      themeIconSun.style.display = theme === 'light' ? '' : 'none';
+      themeIconMoon.style.display = theme === 'dark' ? '' : 'none';
+    }
+  }
+
+  themeToggleBtn?.addEventListener('click', () => {
+    const current = document.documentElement.dataset.theme || 'light';
+    const next = current === 'light' ? 'dark' : 'light';
+    applyTheme(next);
+    postToSandbox({ type: 'save-theme', theme: next });
+  });
+
+  // Listen for theme loaded from storage on startup
+  window.addEventListener('message', (event: MessageEvent) => {
+    const msg = event.data?.pluginMessage;
+    if (msg?.type === 'load-theme' && msg.theme) {
+      applyTheme(msg.theme);
+    }
+  });
+
+  // Request saved theme from sandbox
+  postToSandbox({ type: 'get-theme' });
+
+  // ── Migrate settings + bridge content into sheet on init ──────
+  const sheetBody = document.getElementById('settingsSheetBody');
+  if (sheetBody && sheetBody.children.length === 0) {
+    const settingsContent = document.querySelector('#tab-settings .chat-settings-content');
+    if (settingsContent) sheetBody.appendChild(settingsContent);
+    const bridgeContent = document.querySelector('#tab-bridge .bridge-content');
+    if (bridgeContent) {
+      const bridgeSection = document.createElement('div');
+      bridgeSection.className = 'sheet-section';
+      const bridgeTitle = document.createElement('div');
+      bridgeTitle.className = 'sheet-section-title';
+      bridgeTitle.textContent = 'MCP Bridge';
+      bridgeSection.appendChild(bridgeTitle);
+      bridgeSection.appendChild(bridgeContent);
+      sheetBody.appendChild(bridgeSection);
+    }
+  }
+  // Note: open/close handled by settings.ts via dom.settingsPanel/settingsOverlay (redirected to sheet in state.ts)
+
+  // ── Dropdown wiring (mode & model selectors) ─────────────────
+  function setupDropdown(btnId: string, menuId: string) {
+    const btn = document.getElementById(btnId);
+    const menu = document.getElementById(menuId);
+    if (!btn || !menu) return;
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = menu.classList.contains('open');
+      // Close all dropdowns first
+      document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+      if (!isOpen) menu.classList.add('open');
+    });
+  }
+
+  // Close dropdowns on outside click
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+  });
+
+  setupDropdown('modelSelectorBtn', 'modelDropdown');
+  setupDropdown('quickActionBtn', 'quickActionDropdown');
+
+  // ── Populate model dropdown from settings-model <select> ──────
+  const modelDropdown = document.getElementById('modelDropdown');
+  const modelSelectorLabel = document.getElementById('modelSelectorLabel');
+  const settingsModelSelect = document.getElementById('settings-model') as HTMLSelectElement | null;
+
+  function populateModelDropdown() {
+    if (!modelDropdown || !settingsModelSelect) return;
+    modelDropdown.innerHTML = '';
+    const currentModel = settingsModelSelect.value;
+
+    let lastGroup = '';
+    for (const opt of Array.from(settingsModelSelect.options)) {
+      const group = opt.parentElement?.tagName === 'OPTGROUP'
+        ? (opt.parentElement as HTMLOptGroupElement).label
+        : '';
+      if (group && group !== lastGroup) {
+        if (lastGroup) {
+          const div = document.createElement('div');
+          div.className = 'dropdown-divider';
+          modelDropdown.appendChild(div);
+        }
+        const label = document.createElement('div');
+        label.className = 'dropdown-label';
+        label.textContent = group;
+        modelDropdown.appendChild(label);
+        lastGroup = group;
+      }
+      const item = document.createElement('div');
+      item.className = 'dropdown-item' + (opt.value === currentModel ? ' active' : '');
+      item.dataset.model = opt.value;
+      item.textContent = opt.textContent?.trim() || opt.value;
+      modelDropdown.appendChild(item);
+    }
+
+    // Update toolbar label
+    const selectedOpt = settingsModelSelect.selectedOptions[0];
+    if (modelSelectorLabel && selectedOpt) {
+      modelSelectorLabel.textContent = selectedOpt.textContent?.trim() || 'Model';
+    }
+  }
+
+  populateModelDropdown();
+
+  // ── Model dropdown item click → update settings model ─────────
+  modelDropdown?.addEventListener('click', (e) => {
+    const item = (e.target as HTMLElement).closest('.dropdown-item') as HTMLElement | null;
+    if (!item || !item.dataset.model) return;
+
+    // Update the hidden settings select
+    if (settingsModelSelect) {
+      settingsModelSelect.value = item.dataset.model;
+      settingsModelSelect.dispatchEvent(new Event('change'));
+    }
+
+    // Update chatSettings and persist
+    chatSettings.model = item.dataset.model;
+    postToSandbox({
+      type: 'save-settings',
+      settings: { model: item.dataset.model },
+    });
+
+    // Refresh dropdown active state + label
+    modelDropdown.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+    if (modelSelectorLabel) modelSelectorLabel.textContent = item.textContent?.trim() || 'Model';
+    modelDropdown.classList.remove('open');
+  });
+
+  // CU-6: Mode dropdown removed — replaced by QuickAction dropdown
+
+  // ── CU-1: Register built-in quick actions ────────────────────
+  registerBuiltinQuickActions();
+
+  // ── CU-1: Quick action dropdown wiring ──────────────────────
+  const qaDropdown = document.getElementById('quickActionDropdown');
+  qaDropdown?.addEventListener('click', (e) => {
+    const item = (e.target as HTMLElement).closest('.dropdown-item') as HTMLElement | null;
+    if (!item || !item.dataset.action) return;
+    e.stopPropagation(); // Prevent bubble to parent button which would reopen
+    qaDropdown.classList.remove('open');
+    activateQuickAction(item.dataset.action);
+  });
+
+  // Populate quick action dropdown dynamically
+  if (qaDropdown) {
+    qaDropdown.innerHTML = '';
+    const label = document.createElement('div');
+    label.className = 'dropdown-label';
+    label.textContent = 'Quick Actions';
+    qaDropdown.appendChild(label);
+    for (const qa of quickActionRegistry) {
+      const item = document.createElement('div');
+      item.className = 'dropdown-item';
+      item.dataset.action = qa.id;
+      item.textContent = `${qa.icon} ${qa.label}`;
+      qaDropdown.appendChild(item);
+    }
+  }
+
+  // ── CU-4: Design drawer toggle ──────────────────────────────
+  const designDrawerBtn = document.getElementById('designDrawerBtn');
+  designDrawerBtn?.addEventListener('click', () => {
+    const drawer = document.getElementById('design-drawer');
+    if (drawer?.classList.contains('open')) closeDesignDrawer();
+    else openDesignDrawer();
+  });
+
+  // ── CU-7: Keyboard shortcuts (expanded) ──────────────────────
+  document.addEventListener('keydown', (e: KeyboardEvent) => {
+    const isCmd = e.metaKey || e.ctrlKey;
+    const sheetEl = document.getElementById('settingsSheet');
+
+    // Cmd+, → toggle API settings sheet
+    if (isCmd && e.key === ',') {
+      e.preventDefault();
+      if (sheetEl?.classList.contains('open')) closeSettings();
+      else openSettings();
+      return;
+    }
+
+    // Escape → cancel chat (if processing) → dismiss layers (quick action → design drawer → settings → dropdowns)
+    if (e.key === 'Escape') {
+      if (isProcessing && chatAbortController) { cancelChat(); return; }
+      if (activeQuickAction) { dismissQuickActionCard(); return; }
+      const designDrawer = document.getElementById('design-drawer');
+      if (designDrawer?.classList.contains('open')) { closeDesignDrawer(); return; }
+      if (sheetEl?.classList.contains('open')) { closeSettings(); return; }
+      document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+      return;
+    }
+
+    // Cmd+K → focus chat input
+    if (isCmd && e.key === 'k') {
+      e.preventDefault();
+      ($('chat-input') as HTMLTextAreaElement).focus();
+      return;
+    }
+
+    // Cmd+Shift+S → open Screenshot quick action (fallback: Cmd+Alt+S)
+    if (isCmd && (e.shiftKey || e.altKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      activateQuickAction('screenshot-to-layout');
+      return;
+    }
+
+    // Cmd+Shift+A → open Ad Analyzer quick action (fallback: Cmd+Alt+A)
+    if (isCmd && (e.shiftKey || e.altKey) && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      activateQuickAction('ad-analyzer');
+      return;
+    }
+  });
+
+  // ── Textarea auto-grow ────────────────────────────────────────
+  const chatTextarea = $('chat-input') as HTMLTextAreaElement;
+  chatTextarea.addEventListener('input', () => {
+    chatTextarea.style.height = 'auto';
+    chatTextarea.style.height = Math.min(chatTextarea.scrollHeight, 200) + 'px';
+  });
+
+  // ── CU-7: Rotating placeholder text ─────────────────────────
+  const placeholders = [
+    'Describe a design to generate...',
+    'Drop a screenshot to convert...',
+    'Ask about your Figma selection...',
+    'Create a social post, presentation, or hero...',
+    'Fill a template with AI content...',
+  ];
+  let placeholderIndex = 0;
+  let placeholderInterval: ReturnType<typeof setInterval> | null = null;
+
+  function startPlaceholderRotation() {
+    stopPlaceholderRotation();
+    placeholderInterval = setInterval(() => {
+      if (document.activeElement === chatTextarea || chatTextarea.value.trim()) return;
+      placeholderIndex = (placeholderIndex + 1) % placeholders.length;
+      chatTextarea.placeholder = placeholders[placeholderIndex];
+    }, 5000);
+  }
+
+  function stopPlaceholderRotation() {
+    if (placeholderInterval) { clearInterval(placeholderInterval); placeholderInterval = null; }
+  }
+
+  chatTextarea.addEventListener('focus', stopPlaceholderRotation);
+  chatTextarea.addEventListener('blur', startPlaceholderRotation);
+  startPlaceholderRotation();
+
+  // ── MF-5: Selection context listener ──────────────────────────
+  window.addEventListener('message', (event: MessageEvent) => {
+    const msg = event.data?.pluginMessage;
+    if (msg?.type === 'selection-changed') {
+      currentSelection = { nodes: (msg.selection || []).slice(0, 20) };
+      selectionIncluded = true;
+      renderSelectionBadge();
+      renderSelectionHint();
+    }
+  });
+
+  // Request initial selection
+  postToSandbox({ type: 'get-selection' });
+
+  // ── MF-2: Drag & drop zone ───────────────────────────────────
+  const chatSurface = document.querySelector('.chat-surface') as HTMLElement;
+  if (chatSurface) {
+    let dragCounter = 0;
+    const dropOverlay = document.createElement('div');
+    dropOverlay.className = 'drop-overlay';
+    dropOverlay.innerHTML = `<div class="drop-overlay-content"><svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" fill="none" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><div>Drop files here</div><div class="drop-overlay-hint">Images, PDFs, SVGs, text files</div></div>`;
+    chatSurface.style.position = 'relative';
+    chatSurface.appendChild(dropOverlay);
+
+    chatSurface.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer?.types.includes('Files')) {
+        dragCounter++;
+        dropOverlay.classList.add('active');
+      }
+    });
+
+    chatSurface.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        dropOverlay.classList.remove('active');
+      }
+    });
+
+    chatSurface.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    });
+
+    chatSurface.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dragCounter = 0;
+      dropOverlay.classList.remove('active');
+
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+
+      const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'application/pdf', 'text/plain', 'text/markdown', 'text/x-markdown'];
+      for (const file of Array.from(files)) {
+        const isMarkdownByExt = /\.(md|markdown)$/i.test(file.name);
+        if (!validTypes.includes(file.type) && !isMarkdownByExt) continue;
+        if (file.size > 20 * 1024 * 1024) {
+          appendChatBubble('assistant', `<span class="chat-error">${file.name} too large (max 20MB)</span>`);
+          continue;
+        }
+        const reader = new FileReader();
+        reader.onload = () => addAttachment(file.name, file.type, reader.result as string, file.size);
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
   addChatWelcome();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MF-5: SELECTION BADGE
+// ═══════════════════════════════════════════════════════════════
+
+function renderSelectionBadge(): void {
+  const existing = document.getElementById('selection-badge');
+  if (existing) existing.remove();
+
+  if (!selectionIncluded || currentSelection.nodes.length === 0) return;
+
+  const inputArea = document.querySelector('.input-area');
+  if (!inputArea) return;
+
+  const badge = document.createElement('div');
+  badge.id = 'selection-badge';
+  badge.className = 'selection-badge';
+
+  const nodes = currentSelection.nodes;
+  if (nodes.length === 1) {
+    const n = nodes[0];
+    badge.innerHTML = `<span class="selection-badge-icon">🔲</span><span class="selection-badge-text">${n.name} <span class="selection-badge-dim">${Math.round(n.width)}×${Math.round(n.height)} ${n.type}</span></span>`;
+  } else {
+    badge.innerHTML = `<span class="selection-badge-icon">🔲</span><span class="selection-badge-text">${nodes.length} frames selected</span>`;
+  }
+
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'selection-badge-clear';
+  clearBtn.textContent = '×';
+  clearBtn.title = 'Remove selection from message';
+  clearBtn.addEventListener('click', () => {
+    selectionIncluded = false;
+    renderSelectionBadge();
+  });
+  badge.appendChild(clearBtn);
+
+  // Insert before attachment queue or textarea
+  const attachQueue = document.getElementById('attachment-queue');
+  inputArea.insertBefore(badge, attachQueue || inputArea.firstChild);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CU-7: SELECTION-AWARE SUGGESTION HINT
+// ═══════════════════════════════════════════════════════════════
+
+let selectionHintDebounce: ReturnType<typeof setTimeout> | null = null;
+
+function renderSelectionHint(): void {
+  if (selectionHintDebounce) clearTimeout(selectionHintDebounce);
+  selectionHintDebounce = setTimeout(() => {
+    const existing = document.getElementById('selection-hint');
+    if (existing) existing.remove();
+
+    if (currentSelection.nodes.length === 0 || !selectionIncluded) return;
+
+    const inputArea = document.querySelector('.input-area');
+    if (!inputArea) return;
+
+    const hint = document.createElement('div');
+    hint.id = 'selection-hint';
+    hint.className = 'selection-hint';
+
+    const n = currentSelection.nodes[0];
+    const name = n.name.length > 25 ? n.name.slice(0, 22) + '...' : n.name;
+    const suggestions = currentSelection.nodes.length === 1
+      ? `Try: "redesign ${name}" or "fill template placeholders"`
+      : `Try: "redesign these frames" or "make them consistent"`;
+
+    hint.textContent = suggestions;
+    inputArea.appendChild(hint);
+  }, 300); // 300ms debounce
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CU-1: QUICK ACTION CARD RENDERER
+// ═══════════════════════════════════════════════════════════════
+
+function renderQuickActionCard(): void {
+  // Remove existing card DOM without clearing activeQuickAction state
+  const existingCard = document.getElementById('quick-action-card');
+  if (existingCard) existingCard.remove();
+  quickActionValues = {};
+
+  if (!activeQuickAction) return;
+  const action = activeQuickAction;
+
+  const inputArea = document.querySelector('.input-area');
+  if (!inputArea) return;
+
+  const card = document.createElement('div');
+  card.id = 'quick-action-card';
+  card.className = 'quick-action-card';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'qa-card-header';
+  header.innerHTML = `<span>${action.icon} ${action.label}</span>`;
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'qa-card-cancel';
+  cancelBtn.textContent = '×';
+  cancelBtn.addEventListener('click', dismissQuickActionCard);
+  header.appendChild(cancelBtn);
+  card.appendChild(header);
+
+  // Fields
+  const fieldsEl = document.createElement('div');
+  fieldsEl.className = 'qa-card-fields';
+
+  for (const field of action.fields) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'qa-field';
+
+    if (field.type === 'file') {
+      // File drop zone
+      const dropZone = document.createElement('div');
+      dropZone.className = 'qa-file-zone';
+      dropZone.id = `qa-field-${field.key}`;
+      dropZone.innerHTML = `<span class="qa-file-zone-label">${field.placeholder || 'Drop image here'}</span>`;
+      dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+      dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+      dropZone.addEventListener('click', () => {
+        const fi = document.createElement('input');
+        fi.type = 'file';
+        fi.accept = field.accept || 'image/*';
+        fi.addEventListener('change', () => {
+          const f = fi.files?.[0];
+          if (f) handleQuickActionFile(field.key, f, dropZone);
+        });
+        fi.click();
+      });
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        const f = e.dataTransfer?.files[0];
+        if (f) handleQuickActionFile(field.key, f, dropZone);
+      });
+      wrapper.appendChild(dropZone);
+    } else if (field.type === 'select') {
+      const sel = document.createElement('select');
+      sel.className = 'qa-select';
+      sel.id = `qa-field-${field.key}`;
+      for (const opt of field.options || []) {
+        const o = document.createElement('option');
+        o.value = opt.value;
+        o.textContent = opt.label;
+        sel.appendChild(o);
+      }
+      sel.addEventListener('change', () => { quickActionValues[field.key] = sel.value; });
+      quickActionValues[field.key] = sel.value;
+
+      const label = document.createElement('label');
+      label.className = 'qa-label';
+      label.textContent = field.label;
+      wrapper.appendChild(label);
+      wrapper.appendChild(sel);
+    } else if (field.type === 'textarea') {
+      const label = document.createElement('label');
+      label.className = 'qa-label';
+      label.textContent = field.label;
+      const ta = document.createElement('textarea');
+      ta.className = 'qa-textarea';
+      ta.id = `qa-field-${field.key}`;
+      ta.placeholder = field.placeholder || '';
+      ta.rows = 2;
+      ta.addEventListener('input', () => { quickActionValues[field.key] = ta.value; });
+      wrapper.appendChild(label);
+      wrapper.appendChild(ta);
+    } else {
+      const label = document.createElement('label');
+      label.className = 'qa-label';
+      label.textContent = field.label;
+      const inp = document.createElement('input');
+      inp.className = 'qa-input';
+      inp.type = 'text';
+      inp.id = `qa-field-${field.key}`;
+      inp.placeholder = field.placeholder || '';
+      inp.addEventListener('input', () => { quickActionValues[field.key] = inp.value; });
+      if (!field.required) quickActionValues[field.key] = '';
+      wrapper.appendChild(label);
+      wrapper.appendChild(inp);
+    }
+    fieldsEl.appendChild(wrapper);
+  }
+  card.appendChild(fieldsEl);
+
+  // Submit button
+  const submitBtn = document.createElement('button');
+  submitBtn.className = 'qa-card-submit';
+  submitBtn.id = 'qa-card-submit';
+  submitBtn.textContent = action.id === 'ad-analyzer' ? 'Analyze' : 'Generate';
+  submitBtn.addEventListener('click', submitQuickAction);
+  card.appendChild(submitBtn);
+
+  inputArea.insertBefore(card, inputArea.firstChild);
+
+  // Update submit state
+  updateQuickActionSubmitState();
+}
+
+function handleQuickActionFile(key: string, file: File, dropZone: HTMLElement): void {
+  if (file.size > 20 * 1024 * 1024) {
+    appendChatBubble('assistant', `<span class="chat-error">${file.name} too large (max 20MB)</span>`);
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUri = reader.result as string;
+    quickActionValues[key] = dataUri;
+    // Show thumbnail
+    if (file.type.startsWith('image/') && !file.type.includes('svg')) {
+      dropZone.innerHTML = `<img class="qa-file-thumb" src="${dataUri}" alt="${file.name}">`;
+    } else {
+      dropZone.innerHTML = `<span class="qa-file-zone-label">${file.name}</span>`;
+    }
+    dropZone.classList.add('has-file');
+    // Also add to attachment queue for sendMessage
+    addAttachment(file.name, file.type, dataUri, file.size);
+    updateQuickActionSubmitState();
+  };
+  reader.readAsDataURL(file);
+}
+
+function updateQuickActionSubmitState(): void {
+  if (!activeQuickAction) return;
+  const btn = document.getElementById('qa-card-submit') as HTMLButtonElement | null;
+  if (!btn) return;
+
+  const allRequired = activeQuickAction.fields
+    .filter(f => f.required)
+    .every(f => quickActionValues[f.key]?.trim());
+
+  btn.disabled = !allRequired || isProcessing;
+  if (isProcessing) btn.title = 'Processing...';
+  else btn.title = '';
+}
+
+function submitQuickAction(): void {
+  if (!activeQuickAction || isProcessing) return;
+
+  const prompt = activeQuickAction.buildPrompt(quickActionValues, pendingAttachments);
+  const chatInput = $('chat-input') as HTMLTextAreaElement;
+  chatInput.value = prompt;
+
+  dismissQuickActionCard();
+  sendMessage();
+}
+
+function dismissQuickActionCard(): void {
+  activeQuickAction = null;
+  quickActionValues = {};
+  const existing = document.getElementById('quick-action-card');
+  if (existing) {
+    existing.classList.add('qa-card-exit');
+    setTimeout(() => existing.remove(), 100);
+  }
+}
+
+function activateQuickAction(id: string): void {
+  const action = quickActionRegistry.find(a => a.id === id);
+  if (!action) return;
+  activeQuickAction = action;
+  quickActionValues = {};
+  renderQuickActionCard();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CU-4: DESIGN SETTINGS DRAWER
+// ═══════════════════════════════════════════════════════════════
+
+function renderDesignDrawer(): void {
+  if (document.getElementById('design-drawer')) return;
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'design-drawer-backdrop';
+  backdrop.className = 'design-drawer-backdrop';
+  backdrop.addEventListener('click', closeDesignDrawer);
+
+  const drawer = document.createElement('aside');
+  drawer.id = 'design-drawer';
+  drawer.className = 'design-drawer';
+
+  drawer.innerHTML = `
+    <div class="drawer-header">
+      <span class="drawer-title">Design Settings</span>
+      <button class="icon-btn" id="drawerClose">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="drawer-body">
+      <div class="drawer-section">
+        <div class="drawer-section-title">Generation</div>
+        <label class="drawer-label">Image Model</label>
+        <select class="drawer-select" id="ds-image-model">
+          <option value="gemini-3.1-flash-image-preview">Gemini Flash (fast)</option>
+          <option value="gemini-3.1-pro-preview">Gemini Pro (quality)</option>
+          <option value="grok-imagine-image-pro">Grok Imagine Pro (Venice)</option>
+        </select>
+        <label class="drawer-label">Quality</label>
+        <div class="drawer-radio-group" id="ds-quality">
+          <label class="drawer-radio"><input type="radio" name="ds-quality" value="1k"> 1k</label>
+          <label class="drawer-radio"><input type="radio" name="ds-quality" value="2k" checked> 2k</label>
+          <label class="drawer-radio"><input type="radio" name="ds-quality" value="4k"> 4k</label>
+        </div>
+        <label class="drawer-label">Style</label>
+        <select class="drawer-select" id="ds-style">
+          <option value="auto">Auto</option>
+          <option value="photographic">Photographic</option>
+          <option value="illustration">Illustration</option>
+          <option value="artistic">Artistic</option>
+        </select>
+      </div>
+      <div class="drawer-section">
+        <div class="drawer-section-title">Design Defaults</div>
+        <label class="drawer-label">Default Font</label>
+        <select class="drawer-select" id="ds-font">
+          <option value="auto">Auto (from brief)</option>
+          <option value="Inter">Inter</option>
+          <option value="Playfair Display">Playfair Display</option>
+          <option value="Space Grotesk">Space Grotesk</option>
+          <option value="DM Sans">DM Sans</option>
+          <option value="Cormorant Garamond">Cormorant Garamond</option>
+        </select>
+        <label class="drawer-label">Brand Colors</label>
+        <div class="drawer-colors" id="ds-colors"></div>
+        <label class="drawer-label">8px Grid</label>
+        <label class="drawer-toggle"><input type="checkbox" id="ds-grid" checked> Enabled</label>
+      </div>
+    </div>`;
+
+  document.body.appendChild(backdrop);
+  document.body.appendChild(drawer);
+
+  // Bind close button
+  drawer.querySelector('#drawerClose')?.addEventListener('click', closeDesignDrawer);
+
+  // Load saved values
+  const s = designSettings;
+  (drawer.querySelector('#ds-image-model') as HTMLSelectElement).value = s.imageModel;
+  (drawer.querySelector('#ds-style') as HTMLSelectElement).value = s.imageStyle;
+  (drawer.querySelector('#ds-font') as HTMLSelectElement).value = s.defaultFont;
+  (drawer.querySelector('#ds-grid') as HTMLInputElement).checked = s.gridEnabled;
+  const qualityRadio = drawer.querySelector(`input[name="ds-quality"][value="${s.imageQuality}"]`) as HTMLInputElement | null;
+  if (qualityRadio) qualityRadio.checked = true;
+
+  // Render color chips
+  renderColorChips();
+
+  // Bind change events
+  drawer.querySelector('#ds-image-model')?.addEventListener('change', (e) => { designSettings.imageModel = (e.target as HTMLSelectElement).value; saveDesignSettings(designSettings); });
+  drawer.querySelector('#ds-style')?.addEventListener('change', (e) => { designSettings.imageStyle = (e.target as HTMLSelectElement).value; saveDesignSettings(designSettings); });
+  drawer.querySelector('#ds-font')?.addEventListener('change', (e) => { designSettings.defaultFont = (e.target as HTMLSelectElement).value; saveDesignSettings(designSettings); });
+  drawer.querySelector('#ds-grid')?.addEventListener('change', (e) => { designSettings.gridEnabled = (e.target as HTMLInputElement).checked; saveDesignSettings(designSettings); });
+  drawer.querySelectorAll('input[name="ds-quality"]').forEach(r => r.addEventListener('change', (e) => { designSettings.imageQuality = (e.target as HTMLInputElement).value; saveDesignSettings(designSettings); }));
+}
+
+function renderColorChips(): void {
+  const container = document.getElementById('ds-colors');
+  if (!container) return;
+  container.innerHTML = '';
+
+  for (let i = 0; i < designSettings.brandColors.length; i++) {
+    const hex = designSettings.brandColors[i];
+    const chip = document.createElement('span');
+    chip.className = 'color-chip';
+    chip.style.background = hex;
+    chip.title = hex;
+    chip.addEventListener('click', () => {
+      designSettings.brandColors.splice(i, 1);
+      saveDesignSettings(designSettings);
+      renderColorChips();
+    });
+    container.appendChild(chip);
+  }
+
+  if (designSettings.brandColors.length < 6) {
+    const addBtn = document.createElement('button');
+    addBtn.className = 'color-chip-add';
+    addBtn.textContent = '+';
+    addBtn.title = 'Add brand color';
+    addBtn.addEventListener('click', () => {
+      const inp = document.createElement('input');
+      inp.type = 'color';
+      inp.addEventListener('input', () => {
+        designSettings.brandColors.push(inp.value);
+        saveDesignSettings(designSettings);
+        renderColorChips();
+      });
+      inp.click();
+    });
+    container.appendChild(addBtn);
+  }
+}
+
+function openDesignDrawer(): void {
+  renderDesignDrawer();
+  requestAnimationFrame(() => {
+    document.getElementById('design-drawer')?.classList.add('open');
+    document.getElementById('design-drawer-backdrop')?.classList.add('open');
+  });
+}
+
+function closeDesignDrawer(): void {
+  document.getElementById('design-drawer')?.classList.remove('open');
+  document.getElementById('design-drawer-backdrop')?.classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CU-2 & CU-3: QUICK ACTION REGISTRATIONS
+// ═══════════════════════════════════════════════════════════════
+
+function registerBuiltinQuickActions(): void {
+  // CU-2: Screenshot to Layout
+  registerQuickAction({
+    id: 'screenshot-to-layout',
+    label: 'Screenshot to Layout',
+    icon: '📸',
+    description: 'Convert screenshots into Figma designs',
+    fields: [
+      { key: 'image', label: 'Screenshot', type: 'file', required: true, placeholder: 'Drop screenshot here or click to upload', accept: '.png,.jpg,.jpeg,.webp' },
+      { key: 'format', label: 'Format', type: 'select', required: false, options: [
+        { value: 'auto', label: 'Auto-detect' },
+        { value: '1080x1350', label: 'Instagram (1080×1350)' },
+        { value: '1200x627', label: 'LinkedIn (1200×627)' },
+        { value: '1280x720', label: 'YouTube (1280×720)' },
+        { value: '1440x800', label: 'Web Hero (1440×800)' },
+        { value: '1920x1080', label: 'Presentation (1920×1080)' },
+      ]},
+    ],
+    buildPrompt: (values) => {
+      const fmt = values.format && values.format !== 'auto' ? ` Target format: ${values.format}.` : '';
+      return `Convert this screenshot to an editable Figma layout. Recreate the exact design with proper auto-layout, text nodes, and styling.${fmt}`;
+    },
+  });
+
+  // CU-3: Ad Analyzer
+  registerQuickAction({
+    id: 'ad-analyzer',
+    label: 'Ad Analyzer',
+    icon: '🎯',
+    description: 'Analyze ads and build 3 redesigned variants',
+    fields: [
+      { key: 'image', label: 'Ad Image', type: 'file', required: true, placeholder: 'Drop ad image here', accept: '.png,.jpg,.jpeg,.webp' },
+      { key: 'product', label: 'Product Name', type: 'text', required: true, placeholder: 'e.g. Café Noir Premium Blend' },
+      { key: 'category', label: 'Category', type: 'text', required: false, placeholder: 'e.g. Coffee, SaaS, Fashion' },
+      { key: 'platform', label: 'Platform', type: 'select', required: false, options: [
+        { value: 'instagram-4x5', label: 'Instagram 4:5' },
+        { value: 'instagram-1x1', label: 'Instagram 1:1' },
+        { value: 'instagram-story', label: 'Instagram Story' },
+        { value: 'facebook-feed', label: 'Facebook Feed' },
+      ]},
+      { key: 'notes', label: 'Notes', type: 'textarea', required: false, placeholder: 'Additional context or requirements...' },
+    ],
+    buildPrompt: (values) => {
+      const parts = [`Analyze this ad image and create 3 redesigned variants.`];
+      parts.push(`Product: ${values.product}`);
+      if (values.category) parts.push(`Category: ${values.category}`);
+      if (values.platform) parts.push(`Platform: ${values.platform}`);
+      if (values.notes) parts.push(`Notes: ${values.notes}`);
+      parts.push(`Use start_ad_analyzer to begin the analysis, then complete_ad_analyzer for each variant.`);
+      return parts.join('\n');
+    },
+  });
 }
 
 function addChatWelcome() {
   const messagesEl = $('chat-messages');
-  messagesEl.innerHTML = `<div class="chat-welcome">
-    <div class="chat-welcome-icon">F</div>
-    <div class="chat-welcome-title">Figmento AI</div>
-    <div class="chat-welcome-subtitle">AI design agent. Describe what you want to create.</div>
+  messagesEl.innerHTML = `<div class="welcome-state">
+    <div class="welcome-logo">F</div>
+    <div class="welcome-title">Figmento</div>
+    <div class="welcome-subtitle">Your AI design assistant. Describe what you want to create.</div>
   </div>`;
   renderChatTemplates();
 }
 
 function appendChatBubble(role: 'user' | 'assistant', html: string) {
   const messagesEl = $('chat-messages');
-  const welcome = messagesEl.querySelector('.chat-welcome');
+  const welcome = messagesEl.querySelector('.welcome-state');
   if (welcome) welcome.remove();
-  const templates = messagesEl.querySelector('.chat-templates');
+  const templates = messagesEl.querySelector('.welcome-templates');
   if (templates) templates.remove();
 
   const bubble = document.createElement('div');
@@ -583,6 +2185,18 @@ function appendToolAction(name: string, summary: string, isError: boolean = fals
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+// ── Chat cancellation (ESC key) ──
+let chatAbortController: AbortController | null = null;
+
+function cancelChat() {
+  if (chatAbortController) {
+    chatAbortController.abort();
+    chatAbortController = null;
+  }
+  setProcessing(false);
+  appendChatBubble('assistant', '<span class="chat-error">Cancelled.</span>');
+}
+
 function setProcessing(processing: boolean) {
   isProcessing = processing;
   ($('chat-send') as HTMLButtonElement).disabled = processing;
@@ -596,16 +2210,34 @@ function setProcessing(processing: boolean) {
 
 async function sendMessage() {
   const input = $('chat-input') as HTMLTextAreaElement;
-  const text = input.value.trim();
+  let text = input.value.trim();
   if (!text || isProcessing) return;
 
   const useGemini = isGeminiModel(chatSettings.model);
   const useOpenAI = isOpenAIModel(chatSettings.model);
+  const useVenice = isVeniceModel(chatSettings.model);
   const useClaudeCode = isClaudeCodeModel(chatSettings.model);
+  const useCodex = isCodexModel(chatSettings.model);
+  const useCustom = isCustomModel(chatSettings.model);
 
   // API keys required for both relay mode (sent to server) and direct mode
   // Claude Code uses Max subscription — no API key needed
-  if (!useClaudeCode) {
+  // DM-3: Codex uses OAuth token — no API key needed
+  // MA-1: Custom provider requires baseUrl + model name; apiKey is optional (local models)
+  if (useCustom) {
+    if (!chatSettings.customBaseUrl) {
+      appendChatBubble('assistant', '<span class="chat-error">Set a Custom Base URL in Settings first (e.g. http://localhost:11434/v1).</span>');
+      return;
+    }
+    if (!chatSettings.customModel) {
+      appendChatBubble('assistant', '<span class="chat-error">Set a Custom Model name in Settings first (e.g. gemma3:4b).</span>');
+      return;
+    }
+    if (!chatSettings.chatRelayEnabled) {
+      appendChatBubble('assistant', '<span class="chat-error">Custom providers require the WS relay. Enable it in Settings → Advanced → Bridge.</span>');
+      return;
+    }
+  } else if (!useClaudeCode && !useCodex) {
     if (useGemini && !chatSettings.geminiApiKey) {
       appendChatBubble('assistant', '<span class="chat-error">Set your Gemini API key in Settings first.</span>');
       return;
@@ -614,29 +2246,76 @@ async function sendMessage() {
       appendChatBubble('assistant', '<span class="chat-error">Set your OpenAI API key in Settings first.</span>');
       return;
     }
-    if (!useGemini && !useOpenAI && !chatSettings.anthropicApiKey) {
-      appendChatBubble('assistant', '<span class="chat-error">Set your Anthropic API key in Settings first.</span>');
+    if (useVenice && !chatSettings.veniceApiKey) {
+      appendChatBubble('assistant', '<span class="chat-error">Set your Venice API key in Settings first.</span>');
+      return;
+    }
+    if (!useGemini && !useOpenAI && !useVenice && !chatSettings.anthropicApiKey && !chatSettings.anthropicToken?.access_token) {
+      // DM-2: accept OAuth token as a valid auth source for Anthropic — the user
+      // connected via "Connect with Claude" instead of pasting an API key.
+      appendChatBubble('assistant', '<span class="chat-error">Set your Anthropic API key in Settings first (or connect with Claude via OAuth).</span>');
       return;
     }
   }
 
-  // Capture and clear attachment before the API call
-  const capturedAttachment = pendingAttachment;
-  pendingAttachment = null;
-  clearAttachmentUI();
+  // DM-3: Codex requires OAuth token
+  if (useCodex && !chatSettings.codexToken?.access_token) {
+    appendChatBubble('assistant', '<span class="chat-error">Connect with ChatGPT in Settings first.</span>');
+    return;
+  }
+
+  // Capture and clear attachments before the API call
+  const capturedAttachments = [...pendingAttachments];
+  const capturedAttachment = pendingAttachment; // legacy compat: first image
+  clearAttachments();
+
+  // MF-5: Capture selection context at send time
+  const capturedSelection = selectionIncluded && currentSelection.nodes.length > 0
+    ? { ...currentSelection } : null;
+
+  // MF-4: Build file analysis instructions if attachments present
+  if (capturedAttachments.length > 0) {
+    // Extract text from PDFs/TXT/SVG client-side so ALL providers can read it
+    try {
+      const fileContext = await buildClientFileContext(capturedAttachments);
+      if (fileContext) {
+        text += '\n\n' + fileContext;
+      }
+    } catch (err) {
+      console.error('[Figmento] File context extraction failed:', err);
+    }
+
+    // Also include metadata for image attachments the AI should analyze visually
+    const imageFiles = capturedAttachments.filter(f => f.type.startsWith('image/') && f.type !== 'image/svg+xml');
+    if (imageFiles.length > 0) {
+      const imgList = imageFiles.map(f => `- ${f.name} (${formatFileSize(f.size)})`).join('\n');
+      text += `\n\n[ATTACHED IMAGES]\n${imgList}\nAnalyze these images visually.`;
+    }
+  }
+
+  // MF-5: Inject selection context
+  if (capturedSelection && capturedSelection.nodes.length > 0) {
+    const nodes = capturedSelection.nodes.slice(0, 20);
+    const nodeList = nodes.map(n => `- nodeId: "${n.id}", name: "${n.name}", type: ${n.type}, size: ${n.width}×${n.height}`).join('\n');
+    const extra = capturedSelection.nodes.length > 20 ? `\n...and ${capturedSelection.nodes.length - 20} more nodes` : '';
+    text += `\n\n[FIGMA SELECTION CONTEXT]\nSelected nodes (use these nodeIds for edits):\n${nodeList}${extra}`;
+  }
 
   input.value = '';
 
-  // Show user bubble with optional attachment indicator
-  const userHtml = capturedAttachment
-    ? `${escapeHtml(text)}<br><span class="chat-attachment-indicator">📎 image attached</span>`
-    : escapeHtml(text);
+  // Show user bubble with optional attachment/selection indicators
+  const badges: string[] = [];
+  if (capturedAttachments.length > 0) badges.push(`📎 ${capturedAttachments.length} file${capturedAttachments.length > 1 ? 's' : ''} attached`);
+  if (capturedSelection) badges.push(`🔲 ${capturedSelection.nodes.length} frame${capturedSelection.nodes.length > 1 ? 's' : ''} selected`);
+  const badgeHtml = badges.length > 0 ? `<br><span class="chat-attachment-indicator">${badges.join(' · ')}</span>` : '';
+  const userHtml = escapeHtml(text.split('\n\n[EXTRACTED FILE CONTENT]')[0].split('\n\n[ATTACHED IMAGES]')[0].split('\n\n[ATTACHED FILES]')[0].split('\n\n[FIGMA SELECTION')[0]) + badgeHtml;
   appendChatBubble('user', userHtml);
 
   // Detect design brief from the user's message (KI-2)
   currentBrief = detectBrief(text);
 
   setProcessing(true);
+  chatAbortController = new AbortController();
 
   // LC-8: Auto-detect corrections before each AI turn (fire-and-forget)
   if (autoDetectEnabled) {
@@ -652,28 +2331,61 @@ async function sendMessage() {
     // Claude Code: always routes through local relay WS
     if (useClaudeCode) {
       if (!bridgeConnected) {
-        throw new Error('Claude Code requires a local relay. Start with: `cd figmento-ws-relay && npm run dev`');
+        autoConnectBridge(LOCAL_RELAY_URL);
+        await new Promise(r => setTimeout(r, 1500));
+        if (!getBridgeConnected()) {
+          throw new Error('Relay not reachable. Run "npm run dev" in the Figmento project to start the relay.');
+        }
       }
       console.log('[Figmento Chat] → CLAUDE CODE path (WS)');
-      await runClaudeCodeTurn(text);
+      await runClaudeCodeTurn(text, capturedAttachment, capturedAttachments);
+    // DM-3: Codex always routes through LOCAL relay (API is not browser-accessible)
+    } else if (useCodex) {
+      if (!bridgeConnected) {
+        autoConnectBridge(LOCAL_RELAY_URL);
+        await new Promise(r => setTimeout(r, 1500));
+        if (!getBridgeConnected()) {
+          throw new Error('Relay not reachable. Codex requires the relay. Start it with "npm start" in figmento-ws-relay/.');
+        }
+      }
+      console.log('[Figmento Chat] → CODEX path (relay)');
+      await runRelayTurn(text, useGemini, useOpenAI, useVenice, capturedAttachment, capturedAttachments);
+    // MA-1: Custom provider always routes through relay (Node.js fetch — no CORS issues
+    // with local servers like Ollama, unlike browser iframe fetch).
+    } else if (useCustom) {
+      if (!bridgeConnected) {
+        autoConnectBridge(chatSettings.chatRelayUrl);
+        await new Promise(r => setTimeout(r, 1500));
+        if (!getBridgeConnected()) {
+          throw new Error('Relay not reachable. Custom providers require the relay — start it with "npm run dev" in figmento-ws-relay/.');
+        }
+      }
+      console.log('[Figmento Chat] → CUSTOM path (relay)');
+      await runRelayTurn(text, useGemini, useOpenAI, useVenice, capturedAttachment, capturedAttachments, true);
     // Route through relay if enabled and bridge is connected
     } else if (relayEnabled && bridgeConnected) {
       console.log('[Figmento Chat] → RELAY path');
-      await runRelayTurn(text, useGemini, useOpenAI, capturedAttachment);
+      await runRelayTurn(text, useGemini, useOpenAI, useVenice, capturedAttachment, capturedAttachments);
     } else if (relayEnabled && !bridgeConnected) {
       // Fallback to direct API — relay is enabled but bridge is unreachable
       console.log('[Figmento Chat] → FALLBACK path (relay enabled but bridge not connected)');
       updateRelayStatus('fallback');
-      await runDirectLoop(text, useGemini, useOpenAI, capturedAttachment);
+      await runDirectLoop(text, useGemini, useOpenAI, useVenice, capturedAttachment, capturedAttachments);
     } else {
       console.log('[Figmento Chat] → DIRECT path (relay disabled)');
-      await runDirectLoop(text, useGemini, useOpenAI, capturedAttachment);
+      await runDirectLoop(text, useGemini, useOpenAI, useVenice, capturedAttachment, capturedAttachments);
     }
   } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      // User cancelled — already handled by cancelChat()
+      return;
+    }
     const msg = err instanceof Error ? err.message : 'Unknown error';
     appendChatBubble('assistant', `<span class="chat-error">Error: ${escapeHtml(msg)}</span>`);
   } finally {
+    chatAbortController = null;
     setProcessing(false);
+    saveChatHistory();
   }
 }
 
@@ -710,7 +2422,7 @@ function updateRelayStatus(state: RelayConnectionState) {
 // CHAT — RELAY TURN (POST /chat/turn)
 // ═══════════════════════════════════════════════════════════════
 
-async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean, attachment: string | null): Promise<void> {
+async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean, useVenice: boolean, attachment: string | null, allAttachments?: AttachmentFile[], useCustom: boolean = false): Promise<void> {
   const channelId = getBridgeChannelId();
   if (!channelId) {
     throw new Error('Bridge channel not available. Falling back to direct API.');
@@ -719,34 +2431,90 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
   // LC-9: Load latest preferences before each relay turn (max 2s wait)
   learnedPreferences = await loadPreferencesFromSandbox();
 
-  const provider = useGemini ? 'gemini' : useOpenAI ? 'openai' : 'claude';
-  const apiKey = useGemini ? chatSettings.geminiApiKey
-    : useOpenAI ? chatSettings.openaiApiKey
-    : chatSettings.anthropicApiKey;
-  const history = useGemini ? geminiHistory : useOpenAI ? openaiHistory : conversationHistory;
+  // IG-2: Snapshot current Figma selection (500ms timeout, graceful degradation)
+  const selectionSnapshot = await getSelectionSnapshot();
 
-  const url = chatSettings.chatRelayUrl.replace(/\/+$/, '') + '/api/chat/turn';
+  // DM-3: Codex uses OAuth token, separate from API key providers
+  const useCodex = isCodexModel(chatSettings.model);
+
+  // DM-3: Token refresh interceptor — refresh before expiry (with retry)
+  if (useCodex && chatSettings.codexToken) {
+    if (isTokenExpiringSoon(chatSettings.codexToken)) {
+      let refreshed = false;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const newToken = await refreshToken(CODEX_OAUTH_CONFIG, chatSettings.codexToken);
+          chatSettings.codexToken = newToken;
+          postToSandbox({ type: 'save-codex-token', token: newToken });
+          refreshed = true;
+          break;
+        } catch {
+          if (attempt === 0) await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+      if (!refreshed) {
+        chatSettings.codexToken = undefined;
+        postToSandbox({ type: 'clear-codex-token' });
+        throw new Error('Your ChatGPT session expired. Please reconnect via Settings.');
+      }
+    }
+  }
+
+  // MA-1: custom provider routes through OpenAI-compatible endpoint with user-supplied baseUrl.
+  const provider = useCustom ? 'custom' : useCodex ? 'codex' : useGemini ? 'gemini' : useOpenAI ? 'openai' : useVenice ? 'venice' : 'claude';
+  const apiKey = useCustom ? (chatSettings.customApiKey || '')
+    : useCodex ? (chatSettings.codexToken?.access_token || '')
+    : useGemini ? chatSettings.geminiApiKey
+    : useOpenAI ? chatSettings.openaiApiKey
+    : useVenice ? chatSettings.veniceApiKey
+    : chatSettings.anthropicApiKey;
+  const history = useCustom ? openaiHistory
+    : useCodex ? codexHistory
+    : useGemini ? geminiHistory
+    : useOpenAI ? openaiHistory
+    : useVenice ? openaiHistory
+    : conversationHistory;
+
+  // DM-3: Codex always uses local relay, regardless of saved relay URL
+  const relayBase = useCodex ? LOCAL_RELAY_URL : chatSettings.chatRelayUrl;
+  const url = relayBase.replace(/\/+$/, '') + '/api/chat/turn';
+
+  // Collect non-image file attachments for server-side text extraction (PDFs, TXT, SVG)
+  const fileAttachments = (allAttachments || [])
+    .filter(f => !f.type.startsWith('image/') || f.type === 'image/svg+xml')
+    .map(f => ({ name: f.name, type: f.type, dataUri: f.dataUri }));
 
   const body: Record<string, unknown> = {
     message: text,
     channel: channelId,
     provider,
     apiKey,
-    model: chatSettings.model,
+    // MA-1: for custom provider, send the user's customModel name instead of the dropdown sentinel "custom".
+    model: useCustom ? (chatSettings.customModel || '') : chatSettings.model,
     history,
     memory: memoryEntries,
     preferences: learnedPreferences,
     geminiApiKey: chatSettings.geminiApiKey || undefined,
+    ...(useCustom && chatSettings.customBaseUrl ? { baseUrl: chatSettings.customBaseUrl } : {}),
     ...(attachment && { attachmentBase64: attachment }),
+    ...(fileAttachments.length > 0 && { fileAttachments }),
+    ...(selectionSnapshot.length > 0 && { currentSelection: selectionSnapshot }),
   };
 
   const resp = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: chatAbortController?.signal,
   });
 
   if (!resp.ok) {
+    // DM-3: On 401 for codex, clear token and prompt re-auth
+    if (resp.status === 401 && useCodex) {
+      chatSettings.codexToken = undefined;
+      postToSandbox({ type: 'clear-codex-token' });
+      throw new Error('Your ChatGPT session expired. Please reconnect via Settings.');
+    }
     const errText = await resp.text();
     let errMsg: string;
     try {
@@ -760,10 +2528,13 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
   const result = await resp.json();
 
   // Update conversation history from relay response
-  if (useGemini) {
+  if (useCodex) {
+    codexHistory.length = 0;
+    codexHistory.push(...(result.history || []));
+  } else if (useGemini) {
     geminiHistory.length = 0;
     geminiHistory.push(...(result.history || []));
-  } else if (useOpenAI) {
+  } else if (useOpenAI || useVenice) {
     openaiHistory.length = 0;
     openaiHistory.push(...(result.history || []));
   } else {
@@ -795,11 +2566,16 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
 // CHAT — CLAUDE CODE TURN (WS → local relay → SDK subprocess)
 // ═══════════════════════════════════════════════════════════════
 
-async function runClaudeCodeTurn(text: string): Promise<void> {
+async function runClaudeCodeTurn(text: string, attachment?: string | null, allAttachments?: AttachmentFile[]): Promise<void> {
   const channelId = getBridgeChannelId();
   if (!channelId) {
     throw new Error('Bridge channel not available. Connect to the local relay first.');
   }
+
+  // ODS-1a: Collect non-image file attachments for server-side processing (PDFs, TXT, SVG)
+  const fileAttachments = (allAttachments || [])
+    .filter(f => !f.type.startsWith('image/') || f.type === 'image/svg+xml')
+    .map(f => ({ name: f.name, type: f.type, dataUri: f.dataUri }));
 
   // Send claude-code-turn message through the bridge WS
   const sent = sendBridgeMessage({
@@ -809,22 +2585,37 @@ async function runClaudeCodeTurn(text: string): Promise<void> {
     history: claudeCodeHistory,
     memory: memoryEntries,
     model: chatSettings.claudeCodeModel || undefined,
+    imageModel: designSettings.imageModel || undefined,
+    ...(attachment && { attachmentBase64: attachment }),
+    ...(fileAttachments.length > 0 && { fileAttachments }),
   });
 
   if (!sent) {
-    throw new Error('Claude Code requires a local relay. Start with: `cd figmento-ws-relay && npm run dev`');
+    throw new Error('Relay connection lost. Make sure Claude Code is running — the relay starts automatically with the MCP server.');
   }
+
+  // Stream progress events — show tool execution in real-time instead of "Thinking..."
+  const progressToolNames = new Set<string>();
+  setClaudeCodeProgressHandler((msg) => {
+    const toolName = (msg.toolName as string) || '';
+    if (toolName && !progressToolNames.has(toolName)) {
+      progressToolNames.add(toolName);
+      appendToolAction(`mcp__figmento__${toolName}`, 'Running...', false);
+    }
+  });
 
   // Wait for the result via the bridge's claude-code-turn-result handler
   const result = await new Promise<Record<string, unknown>>((resolve, reject) => {
     const timeout = setTimeout(() => {
       setClaudeCodeResultHandler(null);
-      reject(new Error('Claude Code turn timed out (180s). The subprocess may still be running.'));
-    }, 185_000); // Slightly longer than server timeout to let server timeout arrive first
+      setClaudeCodeProgressHandler(null);
+      reject(new Error('Claude Code turn timed out (10 min). The subprocess may still be running.'));
+    }, 605_000); // Slightly longer than server timeout (600s) to let server timeout arrive first
 
     setClaudeCodeResultHandler((msg) => {
       clearTimeout(timeout);
       setClaudeCodeResultHandler(null);
+      setClaudeCodeProgressHandler(null);
       resolve(msg);
     });
   });
@@ -854,7 +2645,14 @@ async function runClaudeCodeTurn(text: string): Promise<void> {
 }
 
 /** Direct API path — used when relay is disabled or as fallback. */
-async function runDirectLoop(text: string, useGemini: boolean, useOpenAI: boolean, attachment: string | null): Promise<void> {
+async function runDirectLoop(text: string, useGemini: boolean, useOpenAI: boolean, useVenice: boolean, attachment: string | null, allAttachments?: AttachmentFile[]): Promise<void> {
+  // In direct mode, non-image files can't be server-extracted — append a hint to use MCP tools
+  const nonImageFiles = (allAttachments || []).filter(f => !f.type.startsWith('image/') || f.type === 'image/svg+xml');
+  if (nonImageFiles.length > 0 && text.indexOf('[ATTACHED FILES]') === -1) {
+    const fileList = nonImageFiles.map(f => `- ${f.name} (${f.type})`).join('\n');
+    text += `\n\n[ATTACHED FILES — requires tool extraction]\n${fileList}\nUse store_temp_file then import_pdf (for PDFs) to extract text content. The files have been attached but need server-side processing.`;
+  }
+
   if (useGemini) {
     if (attachment) {
       const base64 = attachment.replace(/^data:image\/\w+;base64,/, '');
@@ -884,6 +2682,19 @@ async function runDirectLoop(text: string, useGemini: boolean, useOpenAI: boolea
       openaiHistory.push({ role: 'user', content: text });
     }
     await runOpenAILoop();
+  } else if (useVenice) {
+    if (attachment) {
+      openaiHistory.push({
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: attachment } },
+          { type: 'text', text },
+        ],
+      });
+    } else {
+      openaiHistory.push({ role: 'user', content: text });
+    }
+    await runVeniceLoop();
   } else {
     if (attachment) {
       const base64 = attachment.replace(/^data:image\/\w+;base64,/, '');
@@ -907,15 +2718,39 @@ async function runDirectLoop(text: string, useGemini: boolean, useOpenAI: boolea
 // CHAT — PROVIDER LOOP WRAPPERS (delegate to runToolUseLoop)
 // ═══════════════════════════════════════════════════════════════
 
+/**
+ * Build a batch tool call handler for auto-batching canvas commands.
+ * Wraps sendCommandToSandbox + buildToolCallHandler to batch canvas commands
+ * while executing non-canvas commands individually.
+ */
+function buildBatchToolCallHandler() {
+  const singleHandler = buildToolCallHandler();
+
+  // Format a sandbox result into the same string format as the single handler
+  const formatResult = (toolName: string, data: Record<string, unknown>): string => {
+    const summary = formatToolSummary(toolName, data);
+    appendToolAction(toolName, summary);
+    return SCREENSHOT_TOOLS.has(toolName)
+      ? summarizeScreenshotResult(toolName, data)
+      : JSON.stringify(stripBase64FromResult(data));
+  };
+
+  return createBatchToolCallHandler(sendCommandToSandbox, singleHandler, formatResult);
+}
+
 async function runAnthropicLoop(): Promise<void> {
+  // DM-2: prefer OAuth token over API key when present
+  const oauthToken = chatSettings.anthropicToken?.access_token;
   await runToolUseLoop({
     provider: 'claude',
     apiKey: chatSettings.anthropicApiKey,
+    oauthToken,
     model: chatSettings.model,
-    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences),
+    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences, getEffectiveDsCache()),
     tools: chatToolResolver(),
     messages: conversationHistory,
     onToolCall: buildToolCallHandler(),
+    onToolCallBatch: buildBatchToolCallHandler(),
     onProgress: () => { /* progress reserved for future mode UI */ },
     onTextChunk: (text) => appendChatBubble('assistant', formatMarkdown(text)),
   });
@@ -926,10 +2761,11 @@ async function runGeminiLoop(): Promise<void> {
     provider: 'gemini',
     apiKey: chatSettings.geminiApiKey,
     model: chatSettings.model,
-    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences),
+    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences, getEffectiveDsCache()),
     tools: chatToolResolver(),
     messages: geminiHistory,
     onToolCall: buildToolCallHandler(),
+    onToolCallBatch: buildBatchToolCallHandler(),
     onProgress: () => { /* progress reserved for future mode UI */ },
     onTextChunk: (text) => appendChatBubble('assistant', formatMarkdown(text)),
   });
@@ -940,10 +2776,26 @@ async function runOpenAILoop(): Promise<void> {
     provider: 'openai',
     apiKey: chatSettings.openaiApiKey,
     model: chatSettings.model,
-    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences),
+    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences, getEffectiveDsCache()),
     tools: chatToolResolver(),
     messages: openaiHistory,
     onToolCall: buildToolCallHandler(),
+    onToolCallBatch: buildBatchToolCallHandler(),
+    onProgress: () => { /* progress reserved for future mode UI */ },
+    onTextChunk: (text) => appendChatBubble('assistant', formatMarkdown(text)),
+  });
+}
+
+async function runVeniceLoop(): Promise<void> {
+  await runToolUseLoop({
+    provider: 'venice',
+    apiKey: chatSettings.veniceApiKey,
+    model: chatSettings.model,
+    systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences, getEffectiveDsCache()),
+    tools: chatToolResolver(),
+    messages: openaiHistory,
+    onToolCall: buildToolCallHandler(),
+    onToolCallBatch: buildBatchToolCallHandler(),
     onProgress: () => { /* progress reserved for future mode UI */ },
     onTextChunk: (text) => appendChatBubble('assistant', formatMarkdown(text)),
   });
@@ -1046,55 +2898,93 @@ function formatToolSummary(name: string, data: Record<string, unknown>): string 
 // SPECIAL TOOL HANDLERS
 // ═══════════════════════════════════════════════════════════════
 
+// CX-5: Recursive helpers for deep context extraction
+function extractTextsFromTree(node: Record<string, unknown>, results: Array<{ text: string; fontSize: number; fontFamily?: string; y: number; x: number }> = []) {
+  if (node.type === 'TEXT' && node.characters) {
+    results.push({
+      text: (node.characters as string).slice(0, 200),
+      fontSize: (node.fontSize as number) || 0,
+      fontFamily: node.fontFamily as string | undefined,
+      y: (node.y as number) ?? 0,
+      x: (node.x as number) ?? 0,
+    });
+  }
+  const children = (node.children as Array<Record<string, unknown>>) || [];
+  for (const child of children) extractTextsFromTree(child, results);
+  return results;
+}
+
+function extractColorsFromTree(node: Record<string, unknown>, colorSet: Set<string> = new Set()) {
+  const fills = (node.fills as Array<Record<string, unknown>>) || [];
+  for (const f of fills) {
+    if (f.type === 'SOLID' && f.color) colorSet.add(f.color as string);
+  }
+  const children = (node.children as Array<Record<string, unknown>>) || [];
+  for (const child of children) extractColorsFromTree(child, colorSet);
+  return colorSet;
+}
+
 async function executeAnalyzeCanvasContext(args: Record<string, unknown>): Promise<ToolCallResult> {
   appendToolAction('analyze_canvas_context', 'Analyzing canvas...');
   try {
-    let nodeId = args.nodeId as string | undefined;
+    // Step 1: Resolve target nodeIds (arg → selection → first page frame)
+    let nodeIds: string[] = [];
 
-    if (!nodeId) {
-      const selection = await sendCommandToSandbox('get_selection', {});
-      const selNodes = (selection.nodes as Array<Record<string, unknown>>) || [];
-      if (selNodes.length > 0) nodeId = selNodes[0].nodeId as string;
+    if (args.nodeId) {
+      nodeIds = [args.nodeId as string];
     }
 
-    if (!nodeId) {
+    if (nodeIds.length === 0) {
+      const selection = await sendCommandToSandbox('get_selection', {});
+      const selNodes = (selection.nodes as Array<Record<string, unknown>>) || [];
+      const frames = selNodes.filter(n => n.type === 'FRAME');
+      nodeIds = (frames.length > 0 ? frames : selNodes).map(n => n.nodeId as string).slice(0, 5);
+    }
+
+    if (nodeIds.length === 0) {
       const pageResult = await sendCommandToSandbox('get_page_nodes', {});
       const pageNodes = (pageResult.nodes as Array<Record<string, unknown>>) || [];
       const firstFrame = pageNodes.find((n: Record<string, unknown>) => n.type === 'FRAME') || pageNodes[0];
-      if (firstFrame) nodeId = firstFrame.nodeId as string;
+      if (firstFrame) nodeIds = [firstFrame.nodeId as string];
     }
 
-    if (!nodeId) {
+    if (nodeIds.length === 0) {
       appendToolAction('analyze_canvas_context', 'No frames found on canvas', true);
       return { content: 'No frames found on the canvas to analyze.', is_error: true };
     }
 
-    const nodeInfo = await sendCommandToSandbox('get_node_info', { nodeId });
+    // Step 2: Get deep node tree (depth=4) for all frames
+    const contexts = [];
+    for (const id of nodeIds) {
+      const nodeInfo = await sendCommandToSandbox('get_node_info', { nodeId: id, depth: 4 });
 
-    const fills = (nodeInfo.fills as Array<Record<string, unknown>>) || [];
-    const dominantColors = fills
-      .filter(f => f.type === 'SOLID' && f.color)
-      .map(f => f.color as string)
-      .slice(0, 4);
+      // Recursive text extraction, sorted by position, capped at 30
+      const allTexts = extractTextsFromTree(nodeInfo);
+      allTexts.sort((a, b) => a.y - b.y || a.x - b.x);
+      const texts = allTexts.slice(0, 30).map(t => ({
+        text: t.text,
+        fontSize: t.fontSize,
+        font: t.fontFamily || undefined,
+      }));
 
-    const children = (nodeInfo.children as Array<Record<string, unknown>>) || [];
-    const textContent = children
-      .filter(c => c.type === 'TEXT' && c.characters)
-      .map(c => c.characters as string)
-      .slice(0, 6);
+      // Recursive color extraction, deduplicated, capped at 8
+      const colorSet = extractColorsFromTree(nodeInfo);
+      const colors = [...colorSet].slice(0, 8);
 
-    const context = {
-      nodeId,
-      name: nodeInfo.name || 'frame',
-      dimensions: `${nodeInfo.width ?? '?'}x${nodeInfo.height ?? '?'}`,
-      dominantColors,
-      textContent,
-      childCount: children.length,
-      note: 'Use the colors and text above to infer the design mood and style for image generation.',
-    };
+      contexts.push({
+        nodeId: id,
+        name: nodeInfo.name || 'frame',
+        dimensions: `${nodeInfo.width ?? '?'}x${nodeInfo.height ?? '?'}`,
+        colors,
+        texts,
+        note: 'Use the texts, colors, and structure above to understand the full page content and design context.',
+      });
 
-    appendToolAction('analyze_canvas_context', `Analyzed "${context.name}" — ${dominantColors.length} colors, ${textContent.length} text elements`);
-    return { content: JSON.stringify(context), is_error: false };
+      appendToolAction('analyze_canvas_context', `Analyzed "${nodeInfo.name || id}" — ${colors.length} colors, ${texts.length} text elements`);
+    }
+
+    const content = JSON.stringify(contexts.length === 1 ? contexts[0] : contexts);
+    return { content, is_error: false };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     appendToolAction('analyze_canvas_context', msg, true);
@@ -1104,39 +2994,54 @@ async function executeAnalyzeCanvasContext(args: Record<string, unknown>): Promi
 
 async function executeGenerateImage(input: Record<string, unknown>): Promise<ToolCallResult> {
   const prompt = input.prompt as string;
+  const imageModel = designSettings.imageModel || 'gemini-3.1-flash-image-preview';
+  const useVenice = imageModel.startsWith('grok-');
 
-  if (!chatSettings.geminiApiKey) {
+  if (useVenice && !chatSettings.veniceApiKey) {
+    appendToolAction('generate_image', 'No Venice API key set', true);
+    return { content: 'Venice API key not configured. Add it in Settings to use Grok Imagine.', is_error: true };
+  }
+  if (!useVenice && !chatSettings.geminiApiKey) {
     appendToolAction('generate_image', 'No Gemini API key set', true);
-    return {
-      content: 'Gemini API key not configured. Ask the user to add it in Settings.',
-      is_error: true,
-    };
+    return { content: 'Gemini API key not configured. Add it in Settings.', is_error: true };
   }
 
   try {
-    appendToolAction('generate_image', `Generating: "${prompt.substring(0, 60)}..."`);
+    appendToolAction('generate_image', `Generating (${imageModel}): "${prompt.substring(0, 50)}..."`);
 
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${chatSettings.geminiApiKey}`,
-      {
+    let base64: string;
+
+    if (useVenice) {
+      // Venice OpenAI-compatible images endpoint
+      const resp = await fetch('https://api.venice.ai/api/v1/images/generations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `Generate an image: ${prompt}` }] }],
-          generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
-        }),
-      }
-    );
-
-    if (!resp.ok) {
-      throw new Error(`Gemini API error ${resp.status}`);
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${chatSettings.veniceApiKey}` },
+        body: JSON.stringify({ model: imageModel, prompt, n: 1, response_format: 'b64_json' }),
+      });
+      if (!resp.ok) throw new Error(`Venice API error ${resp.status}`);
+      const veniceResult = await resp.json();
+      base64 = veniceResult?.data?.[0]?.b64_json;
+      if (!base64) throw new Error('No image returned from Venice');
+    } else {
+      // Gemini API
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${imageModel}:generateContent?key=${chatSettings.geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `Generate an image: ${prompt}` }] }],
+            generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+          }),
+        }
+      );
+      if (!resp.ok) throw new Error(`Gemini API error ${resp.status}`);
+      const result = await resp.json();
+      const parts = result.candidates?.[0]?.content?.parts || [];
+      const imgPart = parts.find((p: Record<string, unknown>) => p.inlineData);
+      base64 = imgPart?.inlineData?.data;
+      if (!base64) throw new Error('No image returned from Gemini');
     }
-
-    const result = await resp.json();
-    const parts = result.candidates?.[0]?.content?.parts || [];
-    const imgPart = parts.find((p: Record<string, unknown>) => p.inlineData);
-    const base64 = imgPart?.inlineData?.data;
-    if (!base64) throw new Error('No image returned from Gemini');
 
     const imageData = `data:image/png;base64,${base64}`;
     const createParams: Record<string, unknown> = {

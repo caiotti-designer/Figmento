@@ -1,0 +1,312 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Image Generation Knowledge — Nano Banana 2 (Gemini 3.1 Flash Image)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# READ THIS FILE before every image generation call.
+# This file defines model selection, parameters, prompting strategy,
+# and quality/speed trade-offs for the Figmento design pipeline.
+#
+# Source: https://ai.google.dev/gemini-api/docs/image-generation
+# Model: Gemini 3.1 Flash Image Preview (codename: Nano Banana 2)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Model Registry ───────────────────────────────────────────────────────────
+
+models:
+  nano_banana_2:
+    model_id: "gemini-3.1-flash-image-preview"
+    codename: "Nano Banana 2"
+    tier: "flash"
+    description: >
+      Latest generation image model from Google DeepMind. Combines Pro-level
+      intelligence and fidelity with Flash-tier speed. Optimized for low-latency,
+      high-throughput image generation with advanced world knowledge, subject
+      consistency, and native text rendering.
+    strengths:
+      - Ultra-fast generation (~1.2s at 512px, ~3-5s at 1K-2K)
+      - 4K resolution support (up to 3840×2160)
+      - Native text rendering in images (marketing copy, greeting cards)
+      - Multi-turn conversational editing (chat-based image refinement)
+      - Subject consistency via seed parameter
+      - Web-grounded generation (Google Search + Image Search)
+      - Up to 14 reference images (10 objects + 4 characters)
+      - Ultra-wide aspect ratios (8:1, 1:8, 21:9)
+      - Text translation/localization within images
+    pricing: "$0.0672 per image (half the cost of Nano Banana Pro)"
+    use_when: "DEFAULT for all Figmento design generation"
+
+  nano_banana_pro:
+    model_id: "gemini-3-pro-image-preview"
+    codename: "Nano Banana Pro"
+    tier: "pro"
+    description: >
+      Higher fidelity model for maximum quality when speed is not critical.
+      Better at complex compositions, photorealistic detail, and nuanced lighting.
+    strengths:
+      - Highest fidelity output
+      - Better photorealistic quality
+      - More nuanced lighting and textures
+      - Up to 11 reference images (6 objects + 5 characters)
+    pricing: "$0.1344 per image (2× Nano Banana 2)"
+    use_when: "Only when user explicitly requests maximum quality or photorealistic output"
+
+# ── Default Model Selection ──────────────────────────────────────────────────
+
+default_model: "gemini-3.1-flash-image-preview"
+# ALWAYS use Nano Banana 2 (Flash) unless the user explicitly requests Pro quality.
+# Reason: 3-5× faster, half the cost, and quality difference is negligible
+# for design backgrounds, hero images, and social media content.
+
+# ── Resolution Tiers ─────────────────────────────────────────────────────────
+
+resolution_tiers:
+  "512":
+    label: "Preview"
+    max_pixels: "512×512"
+    latency: "~1.2 seconds"
+    use_when: "Rapid iteration, previews, high-concurrency batch generation"
+
+  "1K":
+    label: "Standard"
+    max_pixels: "1024×1024"
+    latency: "~2-3 seconds"
+    use_when: "DEFAULT — social media posts, web assets, most design work"
+
+  "2K":
+    label: "High"
+    max_pixels: "2048×2048"
+    latency: "~4-6 seconds"
+    use_when: "Print-ready, large format, hero sections at 1440px+"
+
+  "4K":
+    label: "Ultra"
+    max_pixels: "3840×2160"
+    latency: "~8-12 seconds"
+    use_when: "Only when explicitly needed — 4K displays, large print"
+
+# ── Resolution Selection Strategy ────────────────────────────────────────────
+#
+# Match resolution to the TARGET FRAME SIZE, not the maximum available:
+#
+#   Frame ≤ 1080px   → "1K"   (social posts, stories, squares)
+#   Frame ≤ 1920px   → "2K"   (web heroes, landscape, YouTube)
+#   Frame > 1920px   → "4K"   (only if frame actually needs it)
+#   Iteration/draft  → "512"  (fast previews while designing)
+#
+# NEVER use "4K" for social media — it wastes latency for no visible gain.
+
+resolution_by_format:
+  instagram_portrait: "1K"
+  instagram_story: "1K"
+  instagram_square: "1K"
+  story: "1K"
+  tiktok: "1K"
+  pinterest: "1K"
+  facebook_post: "1K"
+  youtube_thumbnail: "1K"
+  facebook_cover: "1K"
+  twitter_header: "1K"
+  linkedin_banner: "1K"
+  hero: "2K"
+  landing_hero: "2K"
+  landscape: "2K"
+  print_a4: "2K"
+  print_a3: "4K"
+
+# ── Aspect Ratios ────────────────────────────────────────────────────────────
+
+supported_aspect_ratios:
+  - "1:1"    # Square — Instagram, Facebook
+  - "2:3"    # Portrait — Pinterest
+  - "3:2"    # Landscape — Photography
+  - "3:4"    # Portrait — Instagram portrait
+  - "4:3"    # Landscape — Presentations
+  - "4:5"    # Portrait — Instagram feed
+  - "5:4"    # Landscape — Print
+  - "9:16"   # Tall — Stories, TikTok, Reels
+  - "16:9"   # Wide — YouTube, web hero
+  - "21:9"   # Ultrawide — Cinematic banners
+  - "4:1"    # Banner — LinkedIn, Twitter header
+  - "1:4"    # Tall banner
+  - "8:1"    # Extreme wide — Panoramic
+  - "1:8"    # Extreme tall
+
+aspect_ratio_by_format:
+  instagram_portrait: "4:5"
+  instagram_story: "9:16"
+  instagram_square: "1:1"
+  story: "9:16"
+  tiktok: "9:16"
+  pinterest: "2:3"
+  facebook_post: "16:9"
+  facebook_cover: "4:1"
+  twitter_header: "3:1"
+  linkedin_banner: "4:1"
+  youtube_thumbnail: "16:9"
+  hero: "16:9"
+  landing_hero: "16:9"
+  landscape: "16:9"
+
+# ── API Request Format ───────────────────────────────────────────────────────
+
+api_reference:
+  endpoint: "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+  sdk: "@google/genai"
+
+  # Standard text-to-image request
+  text_to_image:
+    config:
+      responseModalities: ["IMAGE"]  # IMAGE only for pure generation, ["TEXT", "IMAGE"] for captioned
+      imageConfig:
+        aspectRatio: "{aspect_ratio}"   # e.g. "16:9"
+        imageSize: "{resolution}"       # e.g. "1K", "2K", "4K", "512"
+
+  # Image-to-image (reference-based generation)
+  reference_based:
+    contents:
+      - text: "Create a design based on this reference style"
+      - inlineData:
+          mimeType: "image/jpeg"
+          data: "{base64_encoded_image}"
+    config:
+      responseModalities: ["IMAGE"]
+      imageConfig:
+        aspectRatio: "{aspect_ratio}"
+        imageSize: "{resolution}"
+    limits:
+      flash_max_references: 14  # 10 objects + 4 character images
+      pro_max_references: 11    # 6 objects + 5 character images
+
+  # Multi-turn editing (chat-based refinement)
+  multi_turn:
+    description: >
+      Use ai.chats.create() for iterative editing. Each turn can modify
+      the previous image. Pass thought_signature from previous response
+      back into the next turn for reasoning continuity.
+
+  # Web-grounded generation (search-informed)
+  web_grounded:
+    tools:
+      - googleSearch:
+          searchTypes:
+            webSearch: {}
+            imageSearch: {}  # Flash only — enables visual reference from web
+    description: >
+      Enable when generating images of real places, products, or people.
+      Gemini will search the web for visual references before generating.
+
+# ── Subject Consistency ──────────────────────────────────────────────────────
+
+subject_consistency:
+  method: "seed parameter"
+  description: >
+    Pass the same integer seed across multiple generation calls to maintain
+    subject appearance consistency. Same seed + similar prompt = consistent
+    character/product across variations.
+  parameters:
+    seed: "Integer — same value produces consistent subjects across calls"
+    number_of_images: "1-4 images per request"
+  best_practices:
+    - "Use identical seed for product shots across ad variations"
+    - "Vary only the background/composition prompt while keeping seed fixed"
+    - "For character consistency: same seed + 'same person' in prompt"
+    - "Seed does NOT guarantee pixel-identical output — it guides subject features"
+
+# ── Prompting Best Practices ─────────────────────────────────────────────────
+
+prompting:
+  golden_rules:
+    - rule: "Describe the scene, don't list keywords"
+      bad: "coffee, shop, warm, vintage, cozy"
+      good: "Warm interior of a vintage coffee shop with exposed brick walls, morning light streaming through large windows, wooden tables with steaming cups"
+
+    - rule: "Specify lighting and atmosphere"
+      bad: "dark mood photo"
+      good: "Moody low-key photograph with warm tungsten lighting, deep shadows, and a single dramatic highlight from the upper left"
+
+    - rule: "Include composition direction for text zones"
+      description: >
+        Always tell the model WHERE to leave negative space for text overlays.
+        This is critical for design backgrounds.
+      example: "Visual subject fills upper 60% of frame. Lower 40% transitions to dark, softly defocused — clean negative space for headline text."
+
+    - rule: "Be specific about style"
+      bad: "professional photo"
+      good: "Editorial-quality photograph in the style of Kinfolk magazine, desaturated warm tones, shallow depth of field, 85mm lens feel"
+
+    - rule: "Reference image dimensions in the prompt"
+      description: >
+        Mention the orientation to help the model compose correctly.
+      example: "Vertical portrait composition (4:5 ratio) with subject centered..."
+
+  text_in_images:
+    description: >
+      Nano Banana 2 can render text directly in images — useful for
+      marketing mockups, signs, and infographics.
+    tips:
+      - "Enclose desired text in quotes: 'SALE 50% OFF'"
+      - "Specify font style: 'bold sans-serif text reading WELCOME'"
+      - "Specify position: 'text banner at the top reading...'"
+      - "For localization: 'translate the sign text to Spanish'"
+
+  negative_prompting:
+    parameter: "negative_prompt"
+    description: "Elements to explicitly exclude from generation"
+    examples:
+      - "no text, no watermarks, no borders"
+      - "no people, no faces"
+      - "no busy patterns in the lower third"
+
+# ── Speed Optimization Strategy ──────────────────────────────────────────────
+
+speed_strategy:
+  # For Figmento's "structure-first, image-async" workflow:
+
+  phase_1_preview:
+    description: "Generate a 512px preview while building the frame structure"
+    resolution: "512"
+    latency: "~1.2 seconds"
+    purpose: "User sees composition immediately, high-res follows"
+
+  phase_2_upscale:
+    description: "Replace with target resolution once structure is complete"
+    resolution: "1K or 2K based on format"
+    latency: "~2-6 seconds"
+    purpose: "Final quality image placed after layout is done"
+
+  batch_generation:
+    description: "For variation workflows (4 ad variations)"
+    approach: "Use number_of_images: 4 in a single API call"
+    benefit: "Faster than 4 sequential calls"
+    consistency: "Use same seed for product consistency across variations"
+
+# ── Error Handling ───────────────────────────────────────────────────────────
+
+error_codes:
+  400: "Invalid parameters — check aspect ratio, resolution, prompt length"
+  403: "Authentication failure — verify GEMINI_API_KEY"
+  429: "Rate limit — implement exponential backoff, max 10 req/min"
+  503: "Service unavailable — retry with backoff"
+
+fallback_chain:
+  1: "Retry with same parameters (1 attempt)"
+  2: "Retry at lower resolution (e.g. 2K → 1K)"
+  3: "Fall back to picsum.photos placeholder"
+  4: "Return error with clear message to user"
+
+# ── Migration Notes ──────────────────────────────────────────────────────────
+#
+# BEFORE (image-gen.ts uses):
+#   model: 'gemini-3-pro-image-preview' (Nano Banana Pro — slow, expensive)
+#   config: { responseModalities: ['IMAGE'] }
+#   resolution: not specified (defaults to model default)
+#   aspect_ratio: not specified (defaults to 1:1)
+#
+# AFTER (should use):
+#   model: 'gemini-3.1-flash-image-preview' (Nano Banana 2 — fast, cheap)
+#   config: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio, imageSize } }
+#   resolution: matched to format (see resolution_by_format)
+#   aspect_ratio: matched to format (see aspect_ratio_by_format)
+#
+# Expected improvement: 15-25s → 2-6s per image generation
+# ─────────────────────────────────────────────────────────────────────────────

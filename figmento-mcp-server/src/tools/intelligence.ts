@@ -3,6 +3,7 @@ import { z } from 'zod';
 import * as yaml from 'js-yaml';
 import * as fs from 'fs';
 import * as nodePath from 'path';
+import { execFile } from 'child_process';
 
 // Knowledge base loader with lazy caching
 const knowledgeCache = new Map<string, unknown>();
@@ -20,6 +21,30 @@ function loadKnowledge(filename: string): Record<string, unknown> {
   const data = yaml.load(content) as Record<string, unknown>;
   knowledgeCache.set(filename, data);
   return data;
+}
+
+/**
+ * Pre-warm the knowledge cache by eagerly loading the most commonly used YAML files.
+ * Called at server startup (fire-and-forget). Fault-tolerant — logs errors but never throws.
+ */
+export function preWarmKnowledgeCache(): void {
+  const filesToPreload = [
+    'size-presets.yaml',
+    'typography.yaml',
+    'color-system.yaml',
+    'layout.yaml',
+    'image-generation.yaml',
+  ];
+
+  for (const filename of filesToPreload) {
+    try {
+      loadKnowledge(filename);
+    } catch (err) {
+      console.error(`[Figmento MCP] Pre-warm cache: failed to load ${filename}: ${(err as Error).message}`);
+    }
+  }
+
+  console.error(`[Figmento MCP] Knowledge cache pre-warmed (${filesToPreload.length} files)`);
 }
 
 export const getSizePresetSchema = {
@@ -295,52 +320,6 @@ export function registerIntelligenceTools(server: McpServer): void {
   );
 
   // ═══════════════════════════════════════════════════════════
-  // Deprecated aliases — delegate to get_design_guidance
-  // ═══════════════════════════════════════════════════════════
-
-  server.tool(
-    'get_size_preset',
-    '[DEPRECATED — use get_design_guidance instead] Get exact pixel dimensions for common design formats (social media, print, presentations, web). Query by platform, category, or specific preset ID.',
-    getSizePresetSchema,
-    async (params) => handleDesignGuidance({ ...params, aspect: 'size' })
-  );
-
-  server.tool(
-    'get_font_pairing',
-    '[DEPRECATED — use get_design_guidance instead] Get font pairing recommendations by mood/style. Returns heading and body fonts with recommended weights.',
-    getFontPairingSchema,
-    async (params) => handleDesignGuidance({ ...params, aspect: 'fonts' })
-  );
-
-  server.tool(
-    'get_type_scale',
-    '[DEPRECATED — use get_design_guidance instead] Compute a typographic scale from a base size and ratio. Returns sizes for xs through display. Optionally provide a custom base size.',
-    getTypeScaleSchema,
-    async (params) => handleDesignGuidance({ ...params, aspect: 'typeScale' })
-  );
-
-  server.tool(
-    'get_color_palette',
-    '[DEPRECATED — use get_design_guidance instead] Get a color palette by mood keywords or palette ID. Returns primary, secondary, accent, background, text, and muted colors.',
-    getColorPaletteSchema,
-    async (params) => handleDesignGuidance({ ...params, aspect: 'color' })
-  );
-
-  server.tool(
-    'get_spacing_scale',
-    '[DEPRECATED — use get_design_guidance instead] Get the 8px grid spacing scale values with usage guidance. Use these values for all spacing decisions — never use arbitrary pixel amounts.',
-    getSpacingScaleSchema,
-    async () => handleDesignGuidance({ aspect: 'spacing' })
-  );
-
-  server.tool(
-    'get_layout_guide',
-    '[DEPRECATED — use get_design_guidance instead] Get layout recommendations for a specific format: margins, safe zones, hierarchy rules, and common layout patterns.',
-    getLayoutGuideSchema,
-    async (params) => handleDesignGuidance({ ...params, aspect: 'layout' })
-  );
-
-  // ═══════════════════════════════════════════════════════════
   // Out-of-scope tools (remain separate, not consolidated)
   // ═══════════════════════════════════════════════════════════
 
@@ -427,8 +406,8 @@ export function registerIntelligenceTools(server: McpServer): void {
 
   server.tool(
     'get_design_rules',
-    'Retrieve verbose design reference data by category. Use this instead of relying on hardcoded knowledge in the prompt. Categories: typography, layout, color, print, evaluation, refinement, anti-patterns, gradients, taste, all.',
-    { category: z.string().describe('Category: typography | layout | color | print | evaluation | refinement | anti-patterns | gradients | taste | all') },
+    'Retrieve design rules and reference data by category from the knowledge base.',
+    { category: z.string().describe('Category: typography | layout | color | print | evaluation | refinement | anti-patterns | gradients | taste | saliency | all') },
     async (params) => {
       const data = loadKnowledge('design-rules.yaml');
       const cat = (params.category || 'all').toLowerCase().replace(/-/g, '_');
@@ -444,21 +423,397 @@ export function registerIntelligenceTools(server: McpServer): void {
         'print': 'print',
         'evaluation': 'evaluation',
         'refinement': 'refinement',
+        'saliency': '__saliency__',
       };
 
       let result: unknown;
       if (cat === 'all') {
         result = data;
+      } else if (cat === 'saliency') {
+        // Saliency rules are in a separate file
+        result = loadKnowledge('saliency-rules.yaml');
       } else {
         const key = keyMap[cat] || cat;
         result = (data as Record<string, unknown>)[key];
         if (!result) {
-          const available = Object.keys(data).join(', ');
+          const available = Object.keys(data).join(', ') + ', saliency';
           throw new Error(`Unknown category '${params.category}'. Available: ${available}`);
         }
       }
 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // suggest_font_pairing — algorithmic font pairing via Fontjoy vectors
+  // ═══════════════════════════════════════════════════════════
+
+  // Lazy-load fontjoy vectors (944KB JSON)
+  let fontjoyData: Record<string, { category: string; vector: number[] }> | null = null;
+
+  function loadFontjoyVectors(): Record<string, { category: string; vector: number[] }> {
+    if (fontjoyData) return fontjoyData;
+    const filePath = nodePath.join(getKnowledgeDir(), 'fontjoy-vectors.json');
+    fontjoyData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    return fontjoyData!;
+  }
+
+  function cosineSimilarity(a: number[], b: number[]): number {
+    let dot = 0, magA = 0, magB = 0;
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      magA += a[i] * a[i];
+      magB += b[i] * b[i];
+    }
+    return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+  }
+
+  server.tool(
+    'suggest_font_pairing',
+    'Suggest complementary fonts using ML-based similarity vectors. Returns similar and contrasting font pairings.',
+    {
+      font: z.string().describe('The font family name to find pairings for (e.g. "Playfair Display", "Inter")'),
+      mode: z.string().describe('contrast (different visual feel, best for heading/body pairs) | similar (same visual feel, same-family harmony) | both').optional(),
+      count: z.number().describe('Number of suggestions to return per mode (default 5)').optional(),
+    },
+    async (params) => {
+      const vectors = loadFontjoyVectors();
+      const source = vectors[params.font];
+      if (!source) {
+        // Fuzzy match attempt
+        const lowerFont = params.font.toLowerCase();
+        const match = Object.keys(vectors).find(k => k.toLowerCase() === lowerFont);
+        if (match) {
+          return { content: [{ type: 'text' as const, text: `Font not found as "${params.font}". Did you mean "${match}"? Try again with the exact name.` }] };
+        }
+        return { content: [{ type: 'text' as const, text: `Font "${params.font}" not found in the Fontjoy database (802 Google Fonts). Check spelling or try a different font.` }] };
+      }
+
+      const mode = params.mode || 'both';
+      const count = params.count || 5;
+
+      // Compute similarity to all other fonts
+      const scores: { font: string; category: string; similarity: number }[] = [];
+      for (const [name, data] of Object.entries(vectors)) {
+        if (name === params.font) continue;
+        scores.push({
+          font: name,
+          category: data.category,
+          similarity: cosineSimilarity(source.vector, data.vector),
+        });
+      }
+
+      const result: Record<string, unknown> = {
+        source_font: params.font,
+        source_category: source.category,
+      };
+
+      if (mode === 'similar' || mode === 'both') {
+        // Most similar = highest cosine similarity
+        const similar = [...scores].sort((a, b) => b.similarity - a.similarity).slice(0, count);
+        result.similar = similar.map(s => ({
+          font: s.font,
+          category: s.category,
+          similarity: Math.round(s.similarity * 1000) / 1000,
+        }));
+      }
+
+      if (mode === 'contrast' || mode === 'both') {
+        // Most contrasting = lowest cosine similarity (but not negative = totally unrelated)
+        // Best pairings are moderately different (0.3-0.7 range), not maximally opposite
+        const contrasting = [...scores]
+          .filter(s => s.similarity > 0.1 && s.similarity < 0.75)
+          .sort((a, b) => a.similarity - b.similarity)
+          .slice(0, count);
+        result.contrasting = contrasting.map(s => ({
+          font: s.font,
+          category: s.category,
+          similarity: Math.round(s.similarity * 1000) / 1000,
+          note: s.category !== source.category ? 'cross-category pair (serif+sans)' : 'same-category contrast',
+        }));
+      }
+
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // generate_accessible_palette — WCAG-compliant colors via Leonardo
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'generate_accessible_palette',
+    'Generate a WCAG-compliant color palette from a base color. Uses Adobe Leonardo to guarantee contrast ratios. Returns light and dark mode variants. Use when you need colors that are guaranteed to pass WCAG AA/AAA contrast checks.',
+    {
+      base_color: z.string().describe('Base/brand color as hex (e.g. "#2680EB")'),
+      background: z.string().describe('Background color as hex (default "#FFFFFF")').optional(),
+      mode: z.string().describe('light | dark | both (default both)').optional(),
+    },
+    async (params) => {
+      // Dynamic import for Leonardo (ESM/CJS compatibility)
+      const leo = await import('@adobe/leonardo-contrast-colors');
+      const { Theme, Color, BackgroundColor } = leo;
+
+      const bgHex = params.background || '#FFFFFF';
+      const mode = params.mode || 'both';
+
+      const bg = new BackgroundColor({
+        name: 'background',
+        colorKeys: [bgHex],
+        ratios: [1],
+      });
+
+      const brand = new Color({
+        name: 'brand',
+        colorKeys: [params.base_color],
+        colorSpace: 'LCH',
+        ratios: {
+          'brand-subtle': 1.25,      // Subtle tint, decorative only
+          'brand-muted': 2,          // Large text on matching bg
+          'brand-default': 4.5,      // WCAG AA normal text
+          'brand-emphasis': 7,       // WCAG AAA normal text
+          'brand-strong': 10,        // Maximum contrast
+        },
+        smooth: true,
+      });
+
+      // Neutral scale for text/borders
+      const neutral = new Color({
+        name: 'neutral',
+        colorKeys: [params.base_color], // Tinted neutrals from brand color
+        colorSpace: 'LCH',
+        ratios: {
+          'neutral-subtle': 1.15,
+          'neutral-border': 2,
+          'neutral-muted': 3,
+          'neutral-text': 4.5,
+          'neutral-heading': 7,
+          'neutral-strong': 11,
+        },
+        smooth: true,
+        saturation: 10,              // Near-neutral but warm/cool tinted
+      } as any);
+
+      const result: Record<string, unknown> = {
+        base_color: params.base_color,
+        contrast_method: 'Adobe Leonardo (CIE LCH perceptual)',
+        wcag_guaranteed: true,
+      };
+
+      if (mode === 'light' || mode === 'both') {
+        const lightTheme = new Theme({
+          colors: [bg, brand, neutral],
+          backgroundColor: bg,
+          lightness: 100,
+          output: 'HEX',
+        });
+        result.light = lightTheme.contrastColorPairs;
+      }
+
+      if (mode === 'dark' || mode === 'both') {
+        const darkTheme = new Theme({
+          colors: [bg, brand, neutral],
+          backgroundColor: bg,
+          lightness: 8,
+          output: 'HEX',
+        });
+        result.dark = darkTheme.contrastColorPairs;
+      }
+
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // evaluate_layout — opt-in layout quality metrics via Python subprocess
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'evaluate_layout',
+    'Score a layout\'s alignment and overlap quality using HuggingFace layout metrics. Requires Python 3.11+ with evaluate/numpy installed (pip install evaluate datasets numpy). This is an OPT-IN quality check — not called automatically. Input: array of bounding boxes as normalized [cx, cy, w, h] (0-1 range, center-based). Lower scores = better.',
+    {
+      bboxes: z.string().describe('JSON array of bounding boxes: [[cx, cy, w, h], ...] — all values normalized 0-1. cx/cy = center position, w/h = size relative to canvas.'),
+    },
+    async (params) => {
+      const bboxes = JSON.parse(params.bboxes);
+      if (!Array.isArray(bboxes) || bboxes.length === 0) {
+        throw new Error('bboxes must be a non-empty array of [cx, cy, w, h] arrays');
+      }
+
+      // Find the layout-metrics.py script
+      const scriptPaths = [
+        nodePath.join(__dirname, '..', '..', 'scripts', 'layout-metrics.py'),
+        nodePath.join(__dirname, '..', 'scripts', 'layout-metrics.py'),
+      ];
+      const scriptPath = scriptPaths.find(p => fs.existsSync(p));
+      if (!scriptPath) {
+        throw new Error('layout-metrics.py not found. Expected at: scripts/layout-metrics.py');
+      }
+
+      const input = JSON.stringify({ bboxes });
+
+      return new Promise((resolve, reject) => {
+        const child = execFile('python', [scriptPath], { timeout: 30000 }, (error, stdout, stderr) => {
+          if (error) {
+            resolve({
+              content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                  error: `Layout metrics failed: ${error.message}`,
+                  hint: 'Install dependencies: pip install evaluate datasets numpy',
+                  stderr: stderr?.slice(0, 500),
+                }, null, 2),
+              }],
+            });
+            return;
+          }
+
+          try {
+            const result = JSON.parse(stdout);
+            resolve({ content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] });
+          } catch {
+            resolve({
+              content: [{ type: 'text' as const, text: `Layout metrics returned invalid JSON: ${stdout.slice(0, 500)}` }],
+            });
+          }
+        });
+
+        child.stdin?.write(input);
+        child.stdin?.end();
+      });
+    }
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // get_design_intelligence — bootstrap tool for ALL models
+  // Returns the complete design playbook so any model (Gemini, GPT, Claude)
+  // produces top-tier designs. Call ONCE at the start of any design task.
+  // ═══════════════════════════════════════════════════════════
+
+  server.tool(
+    'get_design_intelligence',
+    'CALL THIS FIRST before any design task. Returns the complete Figmento design playbook: workflow, taste rules, anti-patterns, typography/color selection, scoring criteria. This is mandatory context for producing top-tier designs. Only needs to be called once per design session.',
+    {},
+    async () => {
+      const playbook = `# Figmento Design Intelligence Playbook
+## You are a top-tier graphic designer. Follow these rules exactly.
+
+## MANDATORY: Design Brief Analysis (do this BEFORE any tool call)
+Answer these questions and show them to the user:
+\`\`\`
+DESIGN BRIEF ANALYSIS
+─────────────────────
+Aesthetic direction  : [editorial / brutalist / organic / luxury / geometric / playful]
+Font pairing         : [heading font] + [body font] — reason: [why]
+Color story          : [dark / light / colorful / monochrome] — dominant: [hex]
+Memorable element    : [the ONE thing that makes this unforgettable]
+Generic trap avoided : [what the bot version would look like — and what you're doing instead]
+\`\`\`
+
+## WORKFLOW (follow this order)
+1. Connect to Figma (skip if connected)
+2. Analyze brief → fill the template above
+3. Call get_design_guidance(aspect="fonts") or suggest_font_pairing(font) for typography
+4. Call generate_accessible_palette(base_color) if user provides a color, OR get_design_guidance(aspect="color", mood=...) for mood-based palette
+5. Call get_layout_blueprint(category, mood) for composition structure
+6. Create the design in ONE continuous flow — no pausing for approval
+7. Call run_refinement_check → fix flagged issues
+8. Take screenshot → self-evaluate: "senior designer or bot?"
+
+## 8 TASTE RULES (non-negotiable)
+1. **Commit to an aesthetic direction** before calling any tool. Never start neutral.
+2. **Typography is the first decision.** Never default to Inter/Inter. Call suggest_font_pairing or pick from get_design_rules('typography'). Choose a font with CHARACTER.
+3. **Color commitment.** Pick a dominant color story and use it boldly. FORBIDDEN: light grey background + timid blue accent.
+4. **Background depth.** Never flat solid fills on hero sections. Always: gradient, radial glow, or texture. Even dark-to-slightly-less-dark creates depth.
+5. **Spatial generosity.** Increase padding by 1.5× what feels "enough." Generous whitespace = premium feel.
+6. **Never converge.** Every brief produces a visually DISTINCT output. Actively diverge.
+7. **Self-evaluate ruthlessly.** After screenshot: "senior designer or bot?" If bot — fix the most generic element.
+8. **The ONE memorable thing.** Every design needs one unforgettable element: 120px+ headline, unexpected color, grid-breaking element, or full-bleed image.
+
+## ANTI-AI MARKERS (if your design has ANY of these, fix it)
+### Surfaces
+- Hyper-smooth surfaces with no texture → add subtle grain/noise at 3-8% opacity
+- Plastic-like shadows (identical on every element) → vary shadow angle, blur, tint
+
+### Composition
+- Perfect symmetry everywhere → offset at least one element (60/40 not 50/50)
+- Grid-locked with no tension → break grid with one overlapping or bleeding element
+- Uniform spacing everywhere → vary: tighter for related items, generous for separation
+
+### Typography
+- Default font pairing with no personality → choose a font the user would REMEMBER
+- Every text block center-aligned → mix alignments by hierarchy level
+
+### Color
+- Generic harmony, all same saturation → mix muted + vivid intentionally
+- No color tension or surprise → introduce one unexpected accent
+
+### Meta
+- No memorable element → add ONE focal point that couldn't be generated by default
+- Replicable by any tool with same params → add a non-obvious creative choice
+
+## TYPOGRAPHY SELECTION
+- Call get_design_rules('typography') for the full mood → font pairing table (20 proven pairs)
+- Call suggest_font_pairing(font, mode='contrast') when user specifies ONE font
+- CRITICAL: If user names a font → use ONLY that font. Never mix without permission.
+- fontWeight 600 causes Inter fallback on most fonts. Use 400 or 700 only.
+- Line height is PIXELS not multiplier: pass fontSize × multiplier (e.g. 48 × 1.2 = 57.6)
+
+## COLOR SELECTION
+- Call generate_accessible_palette(base_color) when user gives a hex → WCAG-guaranteed palette
+- Call get_design_guidance(aspect="color", mood=...) for mood-based palettes
+- Call get_design_rules('color') for the full mood → palette mapping
+- Color psychology: get_design_rules('color') includes emotion → palette lookup
+- Contrast minimum: 4.5:1 normal text, 3:1 large text
+
+## GRADIENT OVERLAYS (most common AI mistake)
+- Only 2 stops. Never 3+.
+- Solid end = WHERE THE TEXT IS. Transparent end = where image shows.
+- Gradient color MUST match section background (dark bg → dark gradient, never black on light)
+- bottom-top: transparent at bottom, solid at top (text at top)
+- top-bottom: transparent at top, solid at bottom (text at bottom)
+
+## SALIENCY-AWARE TEXT PLACEMENT (where to put text on images)
+- Never place text over high-detail areas (edges, textures, faces)
+- Place text on smooth regions: sky, flat surfaces, dark areas, gradients
+- Product centered → text top + bottom. Product left → text right. Product right → text left.
+- Portrait/face → text below chin, never over eyes
+- Busy/complex image → ALWAYS use overlay (50-70% opacity scrim)
+- Flat background → free placement, overlay usually not needed
+- Call get_design_rules('saliency') for the full text zone heuristic table
+
+## SCORING (target 7+ for production, 8.5+ for portfolio)
+| Dimension | Weight | Key Question |
+|-----------|--------|-------------|
+| Visual Design | 30% | Typography, color, composition, spacing quality? |
+| Creativity | 20% | Memorable element? Not replicable by defaults? |
+| Content Hierarchy | 20% | Clear reading order? CTA identifiable? |
+| Technical | 15% | WCAG contrast? Safe zones? Images resolved? |
+| AI Distinctiveness | 15% | Would a viewer think a human designed this? |
+
+Score tiers: 9-10 Exceptional | 7-8 Professional | 5-6 Adequate | 3-4 Below Standard | 1-2 Failed
+
+## COMMON PATTERNS
+- **Button:** Auto-layout frame (HORIZONTAL, padding 12-16/24-32, cornerRadius 8-24) + text child. Never separate rect + text.
+- **Ad/Hero:** Nested auto-layout: root → background → overlay gradient → content frame (VERTICAL, padding 96/64, gap 40) → text-group + cta-group
+- **Cards:** Auto-layout frame with layoutSizingVertical: HUG (never fixed height — clips text)
+- **Icons:** Container must have auto-layout + padding. Icon size = container − 2×padding.
+
+## TOOLS AVAILABLE
+- suggest_font_pairing(font, mode) — ML-based font pairing from 802 Google Fonts
+- generate_accessible_palette(base_color) — WCAG-guaranteed palette from any hex
+- get_design_rules(category) — typography | color | layout | print | evaluation | refinement | anti-patterns | gradients | taste | saliency
+- get_design_guidance(aspect, mood) — size | fonts | typeScale | color | spacing | layout
+- get_layout_blueprint(category, mood) — proportional zone systems for composition
+- run_refinement_check — automated beauty checks after design creation
+- batch_execute — group 3+ element creations into one call (max 15 per batch)
+- create_component — use for buttons, badges, cards (never build manually)
+
+## SINGLE FRAME RULE
+Create exactly ONE root frame per design. Never duplicate. If something fails, fix it — don't create a new frame.`;
+
+      return { content: [{ type: 'text' as const, text: playbook }] };
     }
   );
 }
