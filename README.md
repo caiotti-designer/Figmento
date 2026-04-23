@@ -53,7 +53,15 @@ cd figmento-mcp-server && npm install && npm run build
 cd ../figmento-ws-relay  && npm install && npm run build
 ```
 
-**Step 2 — Run the WebSocket relay**
+**Step 2 — One-command background setup (Windows, recommended)**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup-pm2.ps1
+```
+
+This installs pm2, starts the relay as a background service, and registers a Task Scheduler task so it auto-starts on every login. After this runs once, you never need to start the relay manually again — open Figma, open Figmento plugin, it auto-connects.
+
+**Alternative — run the relay manually (Mac/Linux or if you prefer no background service)**
 
 ```bash
 cd figmento-ws-relay && npm start

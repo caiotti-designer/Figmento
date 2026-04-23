@@ -6,6 +6,7 @@
   "scripts": {
     "prebuild": "node scripts/copy-knowledge.js",
     "build": "tsc",
+    "postbuild": "node -e \"try{require('child_process').execSync('pm2 restart figmento-relay',{stdio:'inherit'})}catch(e){console.log('[postbuild] pm2 not managing relay (ok if running via npm run dev)')}\"",
     "start": "node dist/index.js",
     "predev": "node -e \"const {execSync}=require('child_process');try{const r=execSync('netstat -ano').toString();const m=r.match(/TCP.*:3055.*LISTENING\\s+(\\d+)/);if(m){execSync('taskkill /PID '+m[1]+' /F',{stdio:'ignore'});console.log('[predev] Freed port 3055');}}catch(e){}\"",
     "dev": "node scripts/copy-knowledge.js && tsc && node dist/index.js",

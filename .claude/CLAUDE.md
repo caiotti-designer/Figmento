@@ -39,6 +39,32 @@ Non-trivial features can be tracked in `docs/stories/{ID}-{slug}.story.md` for s
 - **Run commands** → Bash tool
 - **MCP** → see `.claude/rules/mcp-usage.md`
 
+## ws-relay lifecycle (pm2)
+
+The `figmento-ws-relay` server runs **permanently in the background via pm2**. Auto-starts on Windows login via Task Scheduler task "Figmento Relay (pm2)".
+
+One-command setup on a fresh machine:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup-pm2.ps1
+```
+
+Daily workflow: do nothing. Relay is always on port 3055.
+
+Common commands (if needed):
+- `pm2 status` — is the relay running? (look for `figmento-relay` → `online`)
+- `pm2 restart figmento-relay` — pick up new code after `git pull`
+- `pm2 logs figmento-relay` — see what the relay is doing
+- `pm2 stop figmento-relay` — stop it (auto-restarts on reboot unless also `pm2 save`d)
+
+**Auto-restart hook:** `cd figmento-ws-relay && npm run build` triggers `pm2 restart figmento-relay` automatically (postbuild hook). No manual restart needed after rebuilds.
+
+**Full reset (if something goes wrong):**
+```bash
+pm2 kill
+cd figmento-ws-relay && pm2 start dist/index.js --name figmento-relay
+pm2 save
+```
+
 ## Figmento Design Agent Rules
 
 ### Core Principles for ALL Figma design work using Figmento MCP:
