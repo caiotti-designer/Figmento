@@ -716,6 +716,30 @@ export interface SetAutoBindVariablesMessage {
   enabled: boolean;
 }
 
+export interface OpenExternalMessage {
+  type: 'open-external';
+  url: string;
+}
+
+export interface SaveBridgeChannelMessage {
+  type: 'save-bridge-channel';
+  channel: string;
+}
+
+export interface LoadBridgeChannelMessage {
+  type: 'load-bridge-channel';
+}
+
+export interface BridgeChannelLoadedMessage {
+  type: 'bridge-channel-loaded';
+  channel: string;
+}
+
+export interface SaveBridgeRelayUrlMessage {
+  type: 'save-bridge-relay-url';
+  url: string;
+}
+
 export interface ZoomToNodeMessage {
   type: 'zoom-to-node';
   nodeId: string;
@@ -774,6 +798,11 @@ export type PluginMessage =
   | SaveDsToggleMessage
   | LoadDsToggleMessage
   | SetAutoBindVariablesMessage
+  | OpenExternalMessage
+  | SaveBridgeChannelMessage
+  | LoadBridgeChannelMessage
+  | BridgeChannelLoadedMessage
+  | SaveBridgeRelayUrlMessage
   | ZoomToNodeMessage
   | PlaceStudioImageMessage;
 

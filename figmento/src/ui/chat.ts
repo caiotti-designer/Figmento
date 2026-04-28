@@ -525,19 +525,88 @@ function renderSessionsList() {
     item.className = 'session-item' + (session.id === activeSessionId ? ' active' : '');
     item.innerHTML = `
       <div class="session-info">
-        <span class="session-title">${escapeHtml(session.title)}</span>
+        <span class="session-title" data-session-id="${escapeHtml(session.id)}">${escapeHtml(session.title)}</span>
         <span class="session-meta">${escapeHtml(session.provider)} · ${timeAgo(session.savedAt)}</span>
       </div>
+      <button class="session-rename" title="Rename">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
       <button class="session-delete" title="Delete">
         <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
       </button>`;
-    item.querySelector('.session-info')!.addEventListener('click', () => loadSession(session));
+    item.querySelector('.session-info')!.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      // Ignore clicks while title is being edited
+      if (target.classList.contains('session-title') && target.isContentEditable) return;
+      loadSession(session);
+    });
+    item.querySelector('.session-rename')!.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const titleEl = item.querySelector('.session-title') as HTMLElement;
+      if (titleEl) startRenameSession(session.id, titleEl);
+    });
     item.querySelector('.session-delete')!.addEventListener('click', (e) => {
       e.stopPropagation();
       deleteSession(session.id);
     });
     list.appendChild(item);
   }
+}
+
+function startRenameSession(id: string, titleEl: HTMLElement) {
+  const originalTitle = titleEl.textContent || '';
+
+  titleEl.contentEditable = 'true';
+  titleEl.classList.add('editing');
+  titleEl.focus();
+
+  // Select all text in the editable element
+  const range = document.createRange();
+  range.selectNodeContents(titleEl);
+  const sel = window.getSelection();
+  sel?.removeAllRanges();
+  sel?.addRange(range);
+
+  const commit = () => {
+    titleEl.contentEditable = 'false';
+    titleEl.classList.remove('editing');
+    const newTitle = (titleEl.textContent || '').trim();
+    if (newTitle && newTitle !== originalTitle) {
+      renameSession(id, newTitle);
+    } else {
+      titleEl.textContent = originalTitle;
+    }
+    cleanup();
+  };
+
+  const cancel = () => {
+    titleEl.contentEditable = 'false';
+    titleEl.classList.remove('editing');
+    titleEl.textContent = originalTitle;
+    cleanup();
+  };
+
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+  };
+  const onBlur = () => commit();
+
+  const cleanup = () => {
+    titleEl.removeEventListener('keydown', onKey);
+    titleEl.removeEventListener('blur', onBlur);
+  };
+
+  titleEl.addEventListener('keydown', onKey);
+  titleEl.addEventListener('blur', onBlur);
+}
+
+function renameSession(id: string, newTitle: string) {
+  const idx = chatSessions.findIndex(s => s.id === id);
+  if (idx < 0) return;
+  chatSessions[idx].title = newTitle.slice(0, 80); // cap at 80 chars
+  postToSandbox({ type: 'save-chat-history', data: chatSessions });
+  renderSessionsList();
 }
 
 function toggleSessionsDrawer(forceOpen?: boolean) {

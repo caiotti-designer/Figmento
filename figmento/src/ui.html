@@ -2158,6 +2158,7 @@
       margin-top: 1px;
     }
     .session-item.active .session-meta { color: var(--accent-on); opacity: 0.7; }
+    .session-rename,
     .session-delete {
       width: 24px;
       height: 24px;
@@ -2173,9 +2174,20 @@
       transition: opacity var(--transition-fast), background var(--transition-fast);
       flex-shrink: 0;
     }
+    .session-item:hover .session-rename,
     .session-item:hover .session-delete { opacity: 1; }
+    .session-rename:hover { background: var(--bg-tertiary); color: var(--text-primary); }
     .session-delete:hover { background: var(--error); color: #fff; }
+    .session-rename svg,
     .session-delete svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .session-title.editing {
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-sm);
+      padding: 2px 6px;
+      outline: 1px solid var(--accent);
+      outline-offset: 0;
+      cursor: text;
+    }
 
     .icon-btn .status-indicator {
       position: absolute;
