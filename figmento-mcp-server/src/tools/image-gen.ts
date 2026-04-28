@@ -472,7 +472,7 @@ export const generateDesignImageSchema = {
   model: z.string().optional().describe('Image generation model. Gemini: "gemini-3.1-flash-image-preview" (fast, default), "gemini-3.1-pro-preview" (quality). Venice: "grok-imagine-image-pro". Venice models require VENICE_API_KEY in .env.'),
   awaitImage: z.boolean().optional().describe('If true, block until image is fully generated and placed (legacy sequential mode). Default false — returns frameId immediately.'),
   skipPreview: z.boolean().optional().describe('If true, skip the fast 512px preview and generate at target resolution directly. Default false — two-phase (preview + high-res).'),
-  asFill: z.boolean().optional().describe('If true, apply the generated image directly as the frame\'s IMAGE fill instead of creating a child node. Use this when you want to replace the frame background without adding children. Default false.'),
+  asFill: z.boolean().optional().describe('If true (DEFAULT), apply the generated image directly as the frame\'s IMAGE fill instead of creating a child node. Set to false ONLY if you specifically need a separate child image node (rare — keeps the frame fill clean and avoids orphan nodes outside the parent frame).'),
 };
 
 // ─── Tool Registration ─────────────────────────────────────────────────────────
@@ -530,6 +530,7 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
       const imageSize = formatKey ? getResolutionForFormat(formatKey) : '1K';
       const aspectRatio = formatKey ? getAspectRatioForFormat(formatKey) : '1:1';
       const skipPreview = params.skipPreview ?? false;
+      const asFill = params.asFill ?? true;
 
       if (params.awaitImage) {
         // ─── Legacy sequential mode: block until image is placed ───
@@ -562,7 +563,7 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
 
         let imageNodeId: string;
 
-        if (params.asFill) {
+        if (asFill) {
           // Apply directly as the frame's IMAGE fill (no child node)
           await sendDesignCommand('apply_template_image', {
             nodeId: frame.frameId,
@@ -617,7 +618,7 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
         params.brief,
         skipPreview,
         referenceImages.length > 0 ? referenceImages : undefined,
-        params.asFill,
+        asFill,
         params.model,
       ).catch((err) => {
         process.stderr.write(`[Figmento] Background image placement error: ${(err as Error).message}\n`);

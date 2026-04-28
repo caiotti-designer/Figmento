@@ -378,6 +378,252 @@ export function checkSafeZones(node: NodeData, issues: Issue[]): void {
 }
 
 // ─────────────────────────────────────────────────────────────
+// checkBoundaryOverflow — child bounds extend outside parent bounds
+// (Universal — runs on any frame regardless of format. Catches text
+// columns overflowing left edges, oversized images escaping containers, etc.)
+// ─────────────────────────────────────────────────────────────
+
+export function checkBoundaryOverflow(node: NodeData, issues: Issue[]): void {
+  if (!node) return;
+
+  const children: NodeData[] = Array.isArray(node.children) ? node.children : [];
+  if (children.length === 0) return;
+
+  const parentWidth = Number(node.width) || 0;
+  const parentHeight = Number(node.height) || 0;
+
+  // Skip if parent dimensions are unknown
+  if (parentWidth <= 0 || parentHeight <= 0) {
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) checkBoundaryOverflow(child, issues);
+    }
+    return;
+  }
+
+  // Tolerance for floating-point / sub-pixel rendering — anything beyond this is a real overflow.
+  const TOLERANCE = 0.5;
+
+  for (const child of children) {
+    const cx = Number(child.x) || 0;
+    const cy = Number(child.y) || 0;
+    const cw = Number(child.width) || 0;
+    const ch = Number(child.height) || 0;
+
+    const violations: string[] = [];
+    if (cx < -TOLERANCE) violations.push(`left edge by ${Math.abs(cx).toFixed(0)}px`);
+    if (cy < -TOLERANCE) violations.push(`top edge by ${Math.abs(cy).toFixed(0)}px`);
+    if (cx + cw > parentWidth + TOLERANCE) violations.push(`right edge by ${(cx + cw - parentWidth).toFixed(0)}px`);
+    if (cy + ch > parentHeight + TOLERANCE) violations.push(`bottom edge by ${(cy + ch - parentHeight).toFixed(0)}px`);
+
+    if (violations.length > 0) {
+      issues.push({
+        rule: 'boundary-overflow',
+        severity: 'error',
+        nodeId: String(child.id || ''),
+        message: `Child "${child.name || child.id}" (${child.type}) extends outside parent "${node.name || node.id}" — overflowing ${violations.join(', ')}.`,
+        suggestion: 'Reduce the child width/height, reposition it, or increase parent dimensions. If parent has auto-layout, set child layoutSizingHorizontal=HUG (short labels) or FILL (wrapping copy).',
+      });
+    }
+  }
+
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) checkBoundaryOverflow(child, issues);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// checkInteractiveTextBackground — CTA/button text without a visible fill
+// (Detects bare text that looks like an interactive element but has no
+// background rectangle/frame fill behind it.)
+// ─────────────────────────────────────────────────────────────
+
+const CTA_LABEL_PATTERNS = [
+  // PT-BR
+  /^(agendar|reservar|inscrever|comprar|saiba|saber|entrar|cadastrar|contat[ao]|enviar|baixar|criar|come[çc]ar|come[çc]ar agora|experimentar|assinar|come[çc]ar gr[aá]tis|ver mais|ver planos|conhe[çc]er|falar com|solicitar|pedir|adquirir|garantir)/i,
+  // EN
+  /^(get started|sign up|sign in|subscribe|buy now|buy|learn more|login|log in|submit|send|book|schedule|try|start|download|create|contact|join|register|continue|next|read more|see more|see plans|explore|discover|request|apply)/i,
+];
+
+const CTA_NAME_PATTERNS = /\b(btn|button|cta|action|primary|secondary)\b/i;
+
+function nodeHasVisibleFill(node: NodeData): boolean {
+  const fills: NodeData[] = Array.isArray(node.fills) ? node.fills : [];
+  return fills.some((f) => {
+    if (f.visible === false) return false;
+    if (f.type === 'SOLID' || f.type === 'IMAGE' || f.type?.startsWith('GRADIENT_')) return true;
+    return false;
+  });
+}
+
+/** Extract the first visible SOLID fill color as a hex string, or null if not solid. */
+function getSolidFillHex(node: NodeData): string | null {
+  const fills: NodeData[] = Array.isArray(node.fills) ? node.fills : [];
+  const solid = fills.find((f) => f.type === 'SOLID' && f.visible !== false);
+  if (!solid?.color) return null;
+  const { r, g, b } = solid.color;
+  return rgbToHex(Number(r) || 0, Number(g) || 0, Number(b) || 0);
+}
+
+export function checkInteractiveTextBackground(node: NodeData, issues: Issue[], parent: NodeData | null = null): void {
+  if (!node) return;
+
+  if (node.type === 'TEXT') {
+    const chars = String(node.characters || '').trim();
+    const name = String(node.name || '').trim();
+
+    const looksLikeCTAByLabel = chars.length > 0 && chars.length < 40 && CTA_LABEL_PATTERNS.some((rx) => rx.test(chars));
+    const looksLikeCTAByName = CTA_NAME_PATTERNS.test(name);
+    const parentLooksLikeButton = parent ? CTA_NAME_PATTERNS.test(String(parent.name || '')) : false;
+
+    const looksInteractive = looksLikeCTAByLabel || looksLikeCTAByName || parentLooksLikeButton;
+
+    if (looksInteractive) {
+      // Walk up — does the immediate parent (or its parent if a wrapper) carry a visible fill?
+      const parentHasFill = parent ? nodeHasVisibleFill(parent) : false;
+
+      if (!parentHasFill) {
+        issues.push({
+          rule: 'interactive-text-no-background',
+          severity: 'warning',
+          nodeId: String(node.id || ''),
+          message: `Text "${chars.slice(0, 30)}" looks like an interactive element (CTA/button/nav action) but its parent has no visible background fill.`,
+          suggestion: 'Wrap the text in a frame with auto-layout HORIZONTAL, padding 12-24px, fillColor, and cornerRadius. Or apply a fill to the existing parent. Bare text is not a valid button.',
+        });
+      } else {
+        // Parent HAS a fill — verify the text contrast against the button background.
+        // Critical case: dark text on dark button = invisible CTA.
+        const parentBgHex = parent ? getSolidFillHex(parent) : null;
+        const textHex = getSolidFillHex(node);
+        if (parentBgHex && textHex) {
+          const ratio = computeContrastRatio(textHex, parentBgHex);
+          const fontSize = Number(node.fontSize) || 0;
+          // WCAG AA: 4.5:1 normal text, 3.0:1 for ≥18px. Buttons typically 14-18px so use 4.5 by default.
+          const required = fontSize >= 18 ? 3.0 : 4.5;
+          if (ratio < required) {
+            issues.push({
+              rule: 'interactive-text-low-contrast',
+              severity: 'error',
+              nodeId: String(node.id || ''),
+              message: `Interactive element "${chars.slice(0, 30)}" has invisible/low-contrast text — ratio ${ratio.toFixed(2)}:1 (text ${textHex} on background ${parentBgHex}, requires ${required}:1). This is a fatal usability bug — users cannot read the button label.`,
+              suggestion: `Change the text fill to a high-contrast color against ${parentBgHex}. For dark backgrounds use white/cream text; for light backgrounds use black/dark text. Test that the label is clearly readable.`,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) checkInteractiveTextBackground(child, issues, node);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// checkAutoLayoutPadding — asymmetric padding on auto-layout frames
+// (Both top/bottom and left/right pairs differ by > tolerance and both nonzero
+// = likely sloppy. One-sided padding (zero on one side) is intentional and skipped.)
+// ─────────────────────────────────────────────────────────────
+
+export function checkAutoLayoutPadding(node: NodeData, issues: Issue[]): void {
+  if (!node) return;
+
+  const layoutMode: string = node.layoutMode || 'NONE';
+  if (layoutMode !== 'NONE') {
+    const pt = Number(node.paddingTop) || 0;
+    const pb = Number(node.paddingBottom) || 0;
+    const pl = Number(node.paddingLeft) || 0;
+    const pr = Number(node.paddingRight) || 0;
+    const TOLERANCE = 4;
+
+    // Only flag when BOTH values in a pair are nonzero AND differ — pure one-sided padding (e.g. pt=0, pb=20) is intentional.
+    if (pt > 0 && pb > 0 && Math.abs(pt - pb) > TOLERANCE) {
+      issues.push({
+        rule: 'asymmetric-padding',
+        severity: 'warning',
+        nodeId: String(node.id || ''),
+        message: `Frame "${node.name || node.id}" has asymmetric vertical padding (top: ${pt}px, bottom: ${pb}px). Difference of ${Math.abs(pt - pb)}px looks unintentional.`,
+        suggestion: `Use equal padding (${Math.round((pt + pb) / 2)}px on both sides) unless the asymmetry is a deliberate design choice (e.g. extra bottom space for a CTA below).`,
+      });
+    }
+    if (pl > 0 && pr > 0 && Math.abs(pl - pr) > TOLERANCE) {
+      issues.push({
+        rule: 'asymmetric-padding',
+        severity: 'warning',
+        nodeId: String(node.id || ''),
+        message: `Frame "${node.name || node.id}" has asymmetric horizontal padding (left: ${pl}px, right: ${pr}px). Difference of ${Math.abs(pl - pr)}px looks unintentional.`,
+        suggestion: `Use equal padding (${Math.round((pl + pr) / 2)}px on both sides) unless the asymmetry is a deliberate design choice.`,
+      });
+    }
+  }
+
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) checkAutoLayoutPadding(child, issues);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// checkCanvasOrphanage — siblings of the design root frame whose bounds
+// fall geometrically inside the design root (= probably should be its
+// children, not page-level siblings).
+// ─────────────────────────────────────────────────────────────
+
+interface BBox { x: number; y: number; width: number; height: number; }
+
+function getAbsoluteBox(node: NodeData): BBox | null {
+  const abs = node.absoluteBoundingBox;
+  if (abs && typeof abs === 'object') {
+    return {
+      x: Number(abs.x) || 0,
+      y: Number(abs.y) || 0,
+      width: Number(abs.width) || 0,
+      height: Number(abs.height) || 0,
+    };
+  }
+  if (typeof node.x === 'number' && typeof node.y === 'number') {
+    return {
+      x: Number(node.x) || 0,
+      y: Number(node.y) || 0,
+      width: Number(node.width) || 0,
+      height: Number(node.height) || 0,
+    };
+  }
+  return null;
+}
+
+function bboxIntersectsCenter(siblingBox: BBox, rootBox: BBox): boolean {
+  // True if the sibling's center point is inside the root's bbox.
+  const cx = siblingBox.x + siblingBox.width / 2;
+  const cy = siblingBox.y + siblingBox.height / 2;
+  return cx >= rootBox.x && cx <= rootBox.x + rootBox.width && cy >= rootBox.y && cy <= rootBox.y + rootBox.height;
+}
+
+export function checkCanvasOrphanage(rootNode: NodeData, pageNodes: NodeData[], issues: Issue[]): void {
+  if (!rootNode || !Array.isArray(pageNodes) || pageNodes.length === 0) return;
+
+  const rootBox = getAbsoluteBox(rootNode);
+  if (!rootBox) return;
+
+  const rootId = String(rootNode.id || '');
+
+  for (const sibling of pageNodes) {
+    const sibId = String(sibling.id || '');
+    if (sibId === rootId) continue;
+    const sibBox = getAbsoluteBox(sibling);
+    if (!sibBox) continue;
+
+    if (bboxIntersectsCenter(sibBox, rootBox)) {
+      issues.push({
+        rule: 'canvas-orphan',
+        severity: 'error',
+        nodeId: sibId,
+        message: `Node "${sibling.name || sibId}" (${sibling.type}) is at canvas root but its center point falls inside design frame "${rootNode.name || rootId}". It is almost certainly an orphan that should be a child of the design frame.`,
+        suggestion: `Move "${sibling.name || sibId}" inside "${rootNode.name || rootId}" using append_child(parentId="${rootId}", nodeId="${sibId}"). If it was intentionally separate, ignore this warning.`,
+      });
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // Tool registration
 // ─────────────────────────────────────────────────────────────
 
@@ -400,6 +646,16 @@ export function registerRefinementTools(
         depth: 5,
       });
 
+      // Fetch page-level nodes for canvas-orphan detection (siblings of the design root)
+      let pageNodes: NodeData[] = [];
+      try {
+        const pageResult = await sendDesignCommand('get_page_nodes', {});
+        const raw = (pageResult as Record<string, unknown>)['nodes'] ?? pageResult;
+        pageNodes = Array.isArray(raw) ? (raw as NodeData[]) : [];
+      } catch {
+        // get_page_nodes unavailable — skip orphan check, continue with the rest.
+      }
+
       const issues: Issue[] = [];
 
       checkGradientDirection(tree, issues);
@@ -409,6 +665,10 @@ export function registerRefinementTools(
       checkEmptyPlaceholders(tree, issues);
       checkContrastRatio(tree, issues);
       checkSafeZones(tree, issues);
+      checkBoundaryOverflow(tree, issues);
+      checkInteractiveTextBackground(tree, issues);
+      checkAutoLayoutPadding(tree, issues);
+      if (pageNodes.length > 0) checkCanvasOrphanage(tree, pageNodes, issues);
 
       const errorCount = issues.filter((i) => i.severity === 'error').length;
       const warnCount = issues.filter((i) => i.severity === 'warning').length;

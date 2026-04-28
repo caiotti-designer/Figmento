@@ -210,8 +210,8 @@ export function buildSystemPrompt(brief?: DesignBrief, memory?: string[], prefer
 - If a tool fails, clean up partial elements with delete_node before retrying.
 - Use auto-layout on all container frames for proper alignment.
 - ALWAYS set layoutSizingVertical to HUG on content frames and sections. NEVER leave fixed height on frames that contain dynamic content — it causes overlap and clipping.
-- Always set layoutSizingHorizontal to FILL on text inside auto-layout frames.
-- NEVER use literal \\n inside text content passed to create_text. Create SEPARATE create_text nodes for each text element.
+- For text inside auto-layout frames, see the contextual HUG-vs-FILL rule in the appended design prompt — short labels (button/pill/tag/chip/badge/eyebrow) HUG, long-form copy FILLs. There is NO blanket rule.
+- TEXT splitting rule: split into separate create_text nodes by LOGICAL ROLE only (eyebrow / headline / subhead / body / CTA label / caption). A single sentence or paragraph = ONE text node, even when it wraps across multiple visible lines. NEVER split a headline into per-word or per-line nodes — that creates "text shrapnel" that stacks vertically and destroys the design. NEVER use literal \\n inside text content; let the text wrap naturally based on its parent's width.
 - ALWAYS end your response with a clear completion message summarizing what was done. NEVER end on a "Now let me..." or "Next I'll..." statement — if you say you'll do something, DO IT in the same turn, then confirm it's done. If you run out of steps, say "Done! Here's what I created: ..." with a summary.
 
 ## Design Workflow
@@ -249,10 +249,10 @@ Web Hero (1440px): Display 56–96px | Headline 36–56px | Sub 24–32px | Body
 TYPOGRAPHY RULES
 ═══════════════════════════════════════════════════════════
 
-Line Height: Display >48px: 1.1–1.2 | Headings: 1.3–1.4 | Body: 1.5–1.6 | Captions: 1.6–1.8
+Line Height (by ROLE, not size): UI tight — Button/Pill/Tag/Chip/Badge/Eyebrow 1.0–1.2 (default 1.0) | Display (>48px) 1.05–1.15 | Headings 1.15–1.3 | Body 1.4–1.6 | Captions 1.4–1.5. ALWAYS pass lineHeight in PIXELS (fontSize × multiplier), never raw multipliers.
 Letter Spacing: Display -0.02em | Headings -0.01em | Body 0 | Uppercase +0.05 to +0.15em
-Weight Hierarchy: 400 body → 500 emphasis → 600 subheadings → 700 headings → 800+ display
-Headline >= 2x body size. At least 2 weight steps between levels. At least 3 distinct text sizes.
+Font Weights: ONLY use 400 (Regular) or 700 (Bold). NEVER use 500, 600, or 800 — they cause Inter fallback on non-Inter fonts. Differentiate hierarchy by SIZE, not extra weights.
+Headline >= 2x body size. At least 3 distinct text sizes.
 
 ═══════════════════════════════════════════════════════════
 LAYOUT RULES (8px grid)
