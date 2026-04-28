@@ -8,7 +8,7 @@
  * designs "live" — they update when the design system changes.
  */
 
-import { hexToRgb, rgbToHex } from '../color-utils';
+import { hexToRgb } from '../color-utils';
 import { getDesignSystemCache } from './design-system-discovery';
 
 // ── Types ────────────────────────────────────────────────────────────────────

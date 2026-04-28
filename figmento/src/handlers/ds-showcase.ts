@@ -92,7 +92,7 @@ function createDivider(parent: FrameNode, color: string, width: number): Rectang
 
 export async function handleCreateDSShowcase(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const config = params as unknown as ShowcaseParams;
-  const { brandName, colors, typography, spacing, radius } = config;
+  const { brandName, colors, typography, spacing } = config;
   const icons = config.icons || ['home', 'search', 'settings', 'user', 'mail', 'phone', 'star', 'heart', 'zap', 'shield', 'globe', 'camera'];
 
   const FRAME_W = 1440;

@@ -755,7 +755,7 @@ export async function handleCreateTextStyles(params: Record<string, unknown>): P
     const fontStyleStr = getFontStyle(clampedWeight);
 
     // 3-tier font loading fallback
-    let loadedFamily = styleDef.fontFamily;
+    const loadedFamily = styleDef.fontFamily;
     let loadedStyle = fontStyleStr;
     try {
       await figma.loadFontAsync({ family: styleDef.fontFamily, style: fontStyleStr });

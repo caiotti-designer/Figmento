@@ -5,7 +5,6 @@ import {
   apiState,
   progressState,
   modeState,
-  designSystemState,
   getEffectiveDsCache,
   MAX_IMAGE_SIZE,
   MAX_IMAGE_DIMENSION,
@@ -14,7 +13,6 @@ import { postMessage, showToast, compressImage, computeToolCallProgress, toolNam
 import { classifyError, CancelledError } from './errors';
 import { openSettings, showValidationStatus, closeSettings } from './settings';
 import { buildSystemPrompt } from './system-prompt';
-import { detectBrief } from './brief-detector';
 import { FIGMENTO_TOOLS } from './tools-schema';
 import {
   runToolUseLoop,

@@ -427,7 +427,6 @@ function contrastRatio(hex1: string, hex2: string): number {
  */
 function adjustForContrast(baseHex: string, bgHex: string, targetRatio: number): string {
   const bgLum = relativeLuminance(bgHex);
-  const baseLum = relativeLuminance(baseHex);
   const base = hexToRgb(baseHex);
 
   // Determine direction: lighten if bg is dark, darken if bg is light

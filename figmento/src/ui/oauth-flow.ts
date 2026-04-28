@@ -129,7 +129,9 @@ export async function generatePKCE(): Promise<{ verifier: string; challenge: str
   if (typeof crypto !== 'undefined' && crypto.subtle) {
     hash = await crypto.subtle.digest('SHA-256', encoded);
   } else {
-    hash = sha256(encoded).buffer;
+    const digest = sha256(encoded);
+    hash = new ArrayBuffer(digest.byteLength);
+    new Uint8Array(hash).set(digest);
   }
 
   const challenge = base64url(hash);

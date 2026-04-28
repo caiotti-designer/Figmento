@@ -2,7 +2,6 @@ import {
   aggregateCorrections,
   describePreference,
   getConfidenceLevel,
-  CONFIDENCE_THRESHOLDS,
 } from '../correction-aggregator';
 import type { CorrectionEntry } from '../types';
 

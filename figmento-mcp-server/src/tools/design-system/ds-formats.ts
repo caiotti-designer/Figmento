@@ -7,7 +7,7 @@ import * as yaml from 'js-yaml';
 import * as fs from 'fs';
 import * as nodePath from 'path';
 import { getFormatsDir } from '../utils/knowledge-paths';
-import { getFormatRulesSchema, listFormatsSchema } from './ds-schemas';
+import { getFormatRulesSchema } from './ds-schemas';
 import type { FormatSizeVariant, FormatListEntry, SendDesignCommand } from './ds-types';
 
 function listAvailableFormats(): FormatListEntry[] {

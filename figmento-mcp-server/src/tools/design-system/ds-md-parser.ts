@@ -27,17 +27,18 @@ import { HEADING_TO_SECTION_KEY, BLOCK_LANG_TO_KEY } from './ds-md-types';
  */
 export function parseDesignMd(markdown: string): DesignMdIR {
   // ─── Step 1: Extract + parse YAML frontmatter ────────────────────────
-  const frontmatterMatch = markdown.match(/^---\n([\s\S]*?)\n---\n?/);
+  const normalizedMarkdown = markdown.replace(/^\uFEFF/, '');
+  const frontmatterMatch = normalizedMarkdown.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   let frontmatter: DesignMdFrontmatter;
   let body: string;
 
   if (frontmatterMatch) {
     const yamlBody = frontmatterMatch[1];
     frontmatter = (yaml.load(yamlBody) ?? {}) as DesignMdFrontmatter;
-    body = markdown.slice(frontmatterMatch[0].length);
+    body = normalizedMarkdown.slice(frontmatterMatch[0].length);
   } else {
     frontmatter = { name: '', created: '' };
-    body = markdown;
+    body = normalizedMarkdown;
   }
 
   // ─── Step 2: Tokenize body via marked lexer ──────────────────────────

@@ -9,7 +9,7 @@ import * as nodePath from 'path';
 import { getKnowledgeDir, getDesignSystemsDir } from '../utils/knowledge-paths';
 import { resolveTokens, deepMerge } from '../utils/tokens';
 import { recipeToCommands } from '../utils/recipe-to-commands';
-import { createComponentSchema, listComponentsSchema } from './ds-schemas';
+import { createComponentSchema } from './ds-schemas';
 import type { ComponentRecipe, SendDesignCommand } from './ds-types';
 
 // Module-scoped cache — singleton for component recipes

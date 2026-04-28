@@ -43,7 +43,7 @@ import { initChat, resolveChatCommand, loadMemoryEntries, getChatSettings, resto
 import { initBridge, handleBridgeCommandResult, autoConnectBridge, restoreBridgeRelayUrl, getBridgeConnected, getBridgeChannelId, getBridgeCommandCount, getBridgeErrorCount, setOnBridgeStateChange } from './bridge';
 import { initChatSettings, loadChatSettings } from './chat-settings';
 import { initPreferencesPanel, reloadPreferencesPanel } from './preferences-panel';
-import { designSystemState, statusTabState, dsToggleState, STORAGE_KEY_USE_DESIGN_SYSTEM } from './state';
+import { designSystemState, statusTabState, dsToggleState } from './state';
 import { initSkillExport } from './skill-export';
 import { initImageStudio } from './image-studio';
 import type { DesignSystemCache } from '../types';

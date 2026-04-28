@@ -9,9 +9,6 @@
 // ═══════════════════════════════════════════════════════════════
 
 const DEFAULT_CHANNEL = 'figmento-local';
-const CLOUD_RELAY_WS = 'wss://figmento-ws-relay.fly.dev';
-const LOCAL_RELAY_WS = 'ws://localhost:3055';
-
 // ═══════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════
@@ -28,10 +25,6 @@ let onBridgeStateChange: ((connected: boolean, channelId: string | null, cmds: n
 // ═══════════════════════════════════════════════════════════════
 // DOM HELPERS
 // ═══════════════════════════════════════════════════════════════
-
-function $(id: string): HTMLElement {
-  return document.getElementById(id)!;
-}
 
 /** Safe element getter — returns null if not found. */
 function $safe(id: string): HTMLElement | null {

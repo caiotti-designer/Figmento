@@ -342,7 +342,7 @@ export async function handleBatchExecute(params: Record<string, unknown>): Promi
     }
   }
 
-  async function executeRepeat(cmd: RepeatCommand, depth: number): Promise<void> {
+  async function executeRepeat(cmd: RepeatCommand, _depth: number): Promise<void> {
     if (cmd.count > MAX_REPEAT_ITERATIONS) {
       results.push({
         success: false,

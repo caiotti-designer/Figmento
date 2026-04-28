@@ -83,12 +83,12 @@ export function renderDiffPanel(
   // Track which entries are checked
   const checkedState = new Map<string, boolean>(corrections.map(c => [c.id, true]));
 
-  // Save button ref (updated dynamically)
-  let saveBtn: HTMLButtonElement;
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'diff-save-btn';
 
   function updateSaveLabel() {
     const count = [...checkedState.values()].filter(Boolean).length;
-    if (saveBtn) saveBtn.textContent = `Save ${count} correction${count === 1 ? '' : 's'}`;
+    saveBtn.textContent = `Save ${count} correction${count === 1 ? '' : 's'}`;
   }
 
   // Entries
@@ -147,8 +147,6 @@ export function renderDiffPanel(
   const actions = document.createElement('div');
   actions.className = 'diff-panel-actions';
 
-  saveBtn = document.createElement('button');
-  saveBtn.className = 'diff-save-btn';
   updateSaveLabel();
   saveBtn.addEventListener('click', () => {
     const confirmed = corrections.filter(c => checkedState.get(c.id) === true);

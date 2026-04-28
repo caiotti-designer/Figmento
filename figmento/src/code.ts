@@ -446,7 +446,6 @@ figma.ui.onmessage = async function (msg: PluginMessage) {
     case 'place-studio-image':
       try {
         const studioBase64: string = (msg as any).imageBase64;
-        const studioMime: string = (msg as any).mimeType || 'image/png';
         const studioName: string = (msg as any).name || 'Image Studio';
         const studioW: number = (msg as any).width || 512;
         const studioH: number = (msg as any).height || 512;

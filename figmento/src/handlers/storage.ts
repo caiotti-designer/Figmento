@@ -168,7 +168,7 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
         }));
 
         figma.ui.postMessage({ type: 'snapshot-status', frames });
-      } catch (e) {
+      } catch (_e) {
         figma.ui.postMessage({ type: 'snapshot-status', frames: [] });
       }
       return true;

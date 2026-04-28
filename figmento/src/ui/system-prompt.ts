@@ -41,7 +41,7 @@ ${lines.join('\n')}
 High confidence = strong requirement. Medium = lean toward. Low = consider this tendency.
 AI may override a preference if the user's brief explicitly requests something different.`;
 }
-import type { Blueprint, Palette, FontPairing } from '../knowledge/types';
+import type { Blueprint, FontPairing } from '../knowledge/types';
 import {
   PALETTES,
   FONT_PAIRINGS,

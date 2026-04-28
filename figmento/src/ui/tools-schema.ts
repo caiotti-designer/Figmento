@@ -15,40 +15,6 @@ export interface ToolDefinition {
   input_schema: Record<string, unknown>;
 }
 
-const fillSchema = {
-  type: 'object',
-  properties: {
-    type: { type: 'string', enum: ['SOLID', 'GRADIENT_LINEAR'] },
-    color: { type: 'string', description: 'Hex color (e.g. "#FF5733")' },
-    opacity: { type: 'number' },
-    gradientStops: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          position: { type: 'number' },
-          color: { type: 'string' },
-          opacity: { type: 'number' },
-        },
-        required: ['position', 'color'],
-      },
-    },
-    gradientDirection: {
-      type: 'string',
-      enum: ['left-right', 'right-left', 'top-bottom', 'bottom-top'],
-      description: 'Gradient direction (default: top-bottom)',
-    },
-  },
-  required: ['type'],
-};
-
-const cornerRadiusSchema = {
-  oneOf: [
-    { type: 'number' },
-    { type: 'array', items: { type: 'number' }, minItems: 4, maxItems: 4 },
-  ],
-};
-
 // ═══════════════════════════════════════════════════════════════
 // PHASE-BASED TOOL FILTERING (Chat mode)
 // ═══════════════════════════════════════════════════════════════
@@ -57,15 +23,6 @@ const cornerRadiusSchema = {
 const CHAT_EXCLUDED = new Set([
   'export_node',
   'create_design',
-]);
-
-/** Lookup tools — needed in plan phase, removed once design starts. */
-const LOOKUP_TOOLS = new Set([
-  'get_design_guidance',       // TC-1 consolidated name
-  'get_layout_blueprint',
-  'get_color_palette',         // backward compat until TC-3
-  'get_font_pairing',         // backward compat until TC-3
-  'get_size_preset',           // backward compat until TC-3
 ]);
 
 /** Tools that signal we've entered the build phase. */

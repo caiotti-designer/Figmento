@@ -8,11 +8,10 @@ import * as fs from 'fs';
 import * as nodePath from 'path';
 import { hexToHsl, hslToHex, lighten, darken, rotateHue, desaturate, bestTextColor } from '../utils/color';
 import { getDesignSystemsDir, getPresetsDir } from '../utils/knowledge-paths';
-import { getByDotPath, setByDotPath } from '../utils/tokens';
+import { setByDotPath } from '../utils/tokens';
 import {
   createDesignSystemSchema,
   getDesignSystemSchema,
-  listDesignSystemsSchema,
   updateDesignSystemSchema,
   deleteDesignSystemSchema,
 } from './ds-schemas';

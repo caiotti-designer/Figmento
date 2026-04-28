@@ -105,7 +105,6 @@ import { apiState, screenshotState, dom } from '../ui/state';
 import { analyzeImageStreaming } from '../ui/api';
 import { generateCacheKey, getCachedResponse, setCachedResponse } from '../ui/cache';
 import { fetchAllIcons } from '../ui/icons';
-import { generateImagesForPlaceholders } from '../ui/images';
 
 // ---------------------------------------------------------------------------
 // Helpers

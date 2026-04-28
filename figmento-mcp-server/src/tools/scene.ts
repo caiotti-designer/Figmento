@@ -102,10 +102,6 @@ function wrap(data: Record<string, unknown>) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
 }
 
-function wrapPretty(data: Record<string, unknown>) {
-  return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
-}
-
 async function handleTransformNode(params: { nodeId: string; x?: number; y?: number; width?: number; height?: number }, sendDesignCommand: SendDesignCommand) {
   const hasPosition = params.x !== undefined || params.y !== undefined;
   const hasSize = params.width !== undefined || params.height !== undefined;

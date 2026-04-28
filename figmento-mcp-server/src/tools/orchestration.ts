@@ -93,7 +93,6 @@ export function registerOrchestrationTools(server: McpServer, sendDesignCommand:
 
       // Step 3: Build enriched prompt
       let enrichedBrief = params.brief;
-      const mood = analysis ? ((analysis.tags as string[]) || []).slice(0, 3).join(', ') : undefined;
 
       // Brand kit enrichment
       if (params.brandKit) {
@@ -117,7 +116,7 @@ export function registerOrchestrationTools(server: McpServer, sendDesignCommand:
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({
             outputMode: 'codegen', code, commandCount: 1,
-            analysis, blueprint, enrichedBrief: params.brief,
+            analysis, blueprint, enrichedBrief,
           }) }],
         };
       }
@@ -125,8 +124,6 @@ export function registerOrchestrationTools(server: McpServer, sendDesignCommand:
       // Step 4b: Execute path — Generate design image
       let frameResult: Record<string, unknown> = {};
       try {
-        const formatKey = format.toLowerCase().replace(/[\s-]/g, '_');
-
         // Create frame
         const frameData = await sendDesignCommand('create_frame', {
           name: `Reference Design — ${params.brief.slice(0, 30)}`,
@@ -137,7 +134,7 @@ export function registerOrchestrationTools(server: McpServer, sendDesignCommand:
         const frameId = (frameData['nodeId'] as string) ?? (frameData['id'] as string);
 
         // Place reference-influenced background image
-        const imageData = await sendDesignCommand('create_image', {
+        await sendDesignCommand('create_image', {
           imageData: '', // Will be filled by generate_design_image
           name: 'Background',
           width: 1080,

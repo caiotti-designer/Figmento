@@ -495,49 +495,6 @@ async function callVeniceAPI(
 // CODEX / RESPONSES API
 // ═══════════════════════════════════════════════════════════════
 
-function convertSchemaToResponses(schema: Record<string, unknown>): Record<string, unknown> {
-  // Responses API with strict: true requires:
-  // - additionalProperties: false on every object
-  // - required must list ALL keys in properties
-  if (schema.oneOf) {
-    const options = schema.oneOf as Record<string, unknown>[];
-    if (options.length > 0) {
-      const flattened = convertSchemaToResponses(options[0]);
-      if (schema.description && !flattened.description) {
-        flattened.description = schema.description;
-      }
-      return flattened;
-    }
-  }
-  const result: Record<string, unknown> = {};
-  if (schema.type) result.type = schema.type;
-  if (schema.description) result.description = schema.description;
-  if (schema.enum) result.enum = schema.enum;
-  if (schema.properties) {
-    const props: Record<string, unknown> = {};
-    const allKeys: string[] = [];
-    for (const [key, value] of Object.entries(schema.properties as Record<string, unknown>)) {
-      props[key] = convertSchemaToResponses(value as Record<string, unknown>);
-      allKeys.push(key);
-    }
-    result.properties = props;
-    result.additionalProperties = false;
-    result.required = allKeys;
-  }
-  // strict mode: every type=object must have additionalProperties: false
-  if (result.type === 'object' && result.additionalProperties === undefined) {
-    result.additionalProperties = false;
-    if (!result.properties) {
-      result.properties = {};
-      result.required = [];
-    }
-  }
-  if (schema.items) result.items = convertSchemaToResponses(schema.items as Record<string, unknown>);
-  if (schema.minimum !== undefined) result.minimum = schema.minimum;
-  if (schema.maximum !== undefined) result.maximum = schema.maximum;
-  return result;
-}
-
 /** Map Figmento display model names to real Codex API model names.
  *  e.g. "gpt-5.4-codex" → "gpt-5.4" (routing suffix stripped)
  *  Models like "gpt-5.3-codex" are real API names and pass through unchanged. */
@@ -1279,7 +1236,7 @@ async function executeFillContextualImages(
     }
 
     // Phase 2: Discover slots
-    let slots: FillSlot[] = [];
+    const slots: FillSlot[] = [];
     if (targetNodeIds?.length) {
       for (const nid of targetNodeIds) {
         try {

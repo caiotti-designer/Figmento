@@ -40,9 +40,9 @@ function loadKnowledge(filename: string): Record<string, unknown> {
 function hexToHsl(hex: string): [number, number, number] {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (!result) return [0, 0, 0.5];
-  let r = parseInt(result[1], 16) / 255;
-  let g = parseInt(result[2], 16) / 255;
-  let b = parseInt(result[3], 16) / 255;
+  const r = parseInt(result[1], 16) / 255;
+  const g = parseInt(result[2], 16) / 255;
+  const b = parseInt(result[3], 16) / 255;
 
   const max = Math.max(r, g, b), min = Math.min(r, g, b);
   let h = 0, s = 0;
@@ -93,7 +93,7 @@ export function generateColorScale(hex: string): Record<string, string> {
 
   const scale: Record<string, string> = {};
   for (const [step, targetL] of Object.entries(steps)) {
-    let finalL = step === '500' ? l : targetL;
+    const finalL = step === '500' ? l : targetL;
     let finalS = s;
     if (finalL > 85) finalS = Math.max(s * 0.4, 10);
     else if (finalL > 70) finalS = s * 0.7;

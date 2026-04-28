@@ -653,7 +653,7 @@ export function registerIntelligenceTools(server: McpServer): void {
 
       const input = JSON.stringify({ bboxes });
 
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         const child = execFile('python', [scriptPath], { timeout: 30000 }, (error, stdout, stderr) => {
           if (error) {
             resolve({

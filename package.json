@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "description": "Figmento — AI-powered design tools for Figma",
   "scripts": {
-    "dev": "concurrently -n relay,plugin -c blue,green \"npm run dev --prefix figmento-ws-relay\" \"npm run watch --prefix figmento\""
+    "dev": "concurrently -n relay,plugin -c blue,green \"npm run dev --prefix figmento-ws-relay\" \"npm run watch --prefix figmento\"",
+    "build": "npm run build --prefix figmento-mcp-server && npm run build --prefix figmento && npm run build --prefix figmento-ws-relay",
+    "lint": "npm run lint --prefix figmento-mcp-server && npm run lint --prefix figmento && npm run lint --prefix figmento-ws-relay",
+    "typecheck": "npm run typecheck --prefix packages/figmento-core && npm run typecheck --prefix figmento",
+    "test": "npm test --prefix figmento-mcp-server && npm test --prefix figmento"
   },
   "repository": {
     "type": "git",

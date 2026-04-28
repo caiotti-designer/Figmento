@@ -802,21 +802,6 @@ export function extractTaggedRefIds(rawValue: string): string[] {
   return ids;
 }
 
-/** Build the display HTML from raw textarea value (tokens → chips) */
-function renderOverlay(rawValue: string): string {
-  const typeColors: Record<ReferenceType, string> = {
-    style: '#3B82F6',
-    character: '#22C55E',
-    content: '#A855F7',
-  };
-  return rawValue.replace(TAG_TOKEN_RE, (_, id) => {
-    const ref = getReferenceById(id);
-    if (!ref) return '⚠️';
-    const color = typeColors[ref.type];
-    return `<span class="is-tag-chip" style="background:${color}20;color:${color};border:1px solid ${color}40">@${ref.name}</span>`;
-  });
-}
-
 /** Get clean prompt text for API (tokens replaced with @names) */
 function getCleanPrompt(rawValue: string): string {
   return rawValue.replace(TAG_TOKEN_RE, (_, id) => {

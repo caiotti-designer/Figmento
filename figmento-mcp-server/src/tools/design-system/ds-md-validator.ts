@@ -15,7 +15,7 @@ import type {
   ValidationIssue,
   Severity,
 } from './ds-md-types';
-import { hexToRgb, rgbToHsl } from '../utils/color';
+import { hexToRgb } from '../utils/color';
 
 // ─── Shared Ajv instance (compiled once) ─────────────────────────────
 

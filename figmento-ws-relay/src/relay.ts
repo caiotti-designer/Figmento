@@ -523,7 +523,7 @@ export class FigmentoRelay {
     this.connectionsByIp.clear();
 
     // Reject all pending relay commands
-    for (const [id, pending] of this.pendingRelayCommands) {
+    for (const pending of this.pendingRelayCommands.values()) {
       clearTimeout(pending.timer);
       pending.reject(new Error('Server shutting down'));
     }

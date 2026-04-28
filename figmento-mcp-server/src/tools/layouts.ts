@@ -144,8 +144,6 @@ export const listLayoutBlueprintsSchema = {
 export function registerLayoutTools(server: McpServer): void {
   const LAYOUTS_DIR = getLayoutsDir();
 
-  const VALID_CATEGORIES = ['web', 'social', 'ads', 'print', 'presentation'];
-
   // @ts-expect-error — TS2589: ZodRawShapeCompat deep instantiation with MCP SDK v1.26 + zod 3.25
   server.tool(
     'get_layout_blueprint',
