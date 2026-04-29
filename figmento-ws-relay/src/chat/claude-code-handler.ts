@@ -1,14 +1,21 @@
 /**
- * Claude Code Handler — CR-5 / CR-5.1
+ * Agent Turn Handler — dispatches to the right engine session manager.
  *
- * Thin routing layer: validates the request (local-only guard) then delegates
- * to ClaudeCodeSessionManager for session lifecycle and turn execution.
+ * Two engines share the same wire format (`claude-code-turn` / `claude-code-turn-result`):
+ *   - 'claude-code' (default) → ClaudeCodeSessionManager (Anthropic Agent SDK)
+ *   - 'codex'                 → CodexSessionManager       (OpenAI Codex SDK)
  *
- * The module-level activeChannels Set from CR-5 has been removed — concurrency
- * tracking is now owned by ClaudeCodeSessionManager (CR-5.1 AC4).
+ * The wire-format type literal is kept as `claude-code-turn` for backward
+ * compatibility with the plugin bridge — it is a wire tag, not an engine
+ * identifier. The new optional `engine` field selects the implementation.
  */
 
-import { sessionManager, type ProgressCallback } from './claude-code-session-manager';
+import { sessionManager } from './claude-code-session-manager';
+import { codexSessionManager } from './codex-session-manager';
+import type { AgentEngine, AgentSessionManager, ProgressCallback } from './agent-session-manager';
+
+// Re-export ProgressCallback so the relay's existing import path still works.
+export type { ProgressCallback };
 
 // ═══════════════════════════════════════════════════════════════
 // PUBLIC TYPES (consumed by relay.ts and types.ts)
@@ -24,6 +31,8 @@ export interface ClaudeCodeTurnRequest {
   imageModel?: string;
   attachmentBase64?: string;
   fileAttachments?: Array<{ name: string; type: string; dataUri: string }>;
+  /** Which engine should execute this turn. Defaults to 'claude-code'. */
+  engine?: AgentEngine;
 }
 
 export interface ClaudeCodeTurnResult {
@@ -57,26 +66,54 @@ export function isLocalRelay(): boolean {
 // HANDLER
 // ═══════════════════════════════════════════════════════════════
 
+/** Pick the session manager for the requested engine. */
+function pickManager(engine: AgentEngine | undefined): { manager: AgentSessionManager; otherManager: AgentSessionManager } {
+  if (engine === 'codex') {
+    return { manager: codexSessionManager, otherManager: sessionManager };
+  }
+  return { manager: sessionManager, otherManager: codexSessionManager };
+}
+
 export async function handleClaudeCodeTurn(
   request: ClaudeCodeTurnRequest,
   onProgress?: ProgressCallback,
 ): Promise<ClaudeCodeTurnResult | ClaudeCodeTurnError> {
-  const { channel, message, history, memory, model, imageModel, attachmentBase64, fileAttachments } = request;
+  const { channel, message, history, memory, model, imageModel, attachmentBase64, fileAttachments, engine } = request;
 
   // AC15: Local-only guard
   if (!isLocalRelay()) {
     return {
       type: 'claude-code-turn-result',
       channel,
-      error: 'Claude Code provider is only available on a local relay (localhost:3055).',
+      error: 'Agent engines are only available on a local relay (localhost:3055).',
     };
   }
 
-  // Delegate entirely to the session manager (concurrency + session lifecycle)
-  return sessionManager.turn(channel, message, history, memory, model, imageModel, attachmentBase64, fileAttachments, onProgress);
+  const { manager, otherManager } = pickManager(engine);
+
+  // Mid-conversation engine switch: tear down the OTHER engine's session on this
+  // channel so the next turn boots fresh under the new engine. History is carried
+  // forward via the request payload — the new engine injects it into the system
+  // prompt on session boot, so the user sees no discontinuity.
+  if (otherManager.activeChannels().includes(channel)) {
+    console.log(`[Figmento Agent] Engine switch on channel="${channel}" — destroying prior engine session`);
+    otherManager.destroy(channel);
+  }
+
+  return manager.turn(
+    channel,
+    message,
+    history,
+    memory,
+    model,
+    imageModel,
+    attachmentBase64,
+    fileAttachments,
+    onProgress,
+  );
 }
 
-/** Active in-flight turn count — used by the /health endpoint. */
+/** Active in-flight turn count across both engines — used by the /health endpoint. */
 export function getActiveClaudeCodeTurns(): number {
-  return sessionManager.activeCount();
+  return sessionManager.activeCount() + codexSessionManager.activeCount();
 }

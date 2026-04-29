@@ -73,6 +73,10 @@ export interface ChatSettings {
   customBaseUrl?: string;   // e.g. "http://localhost:11434/v1"
   customModel?: string;     // e.g. "gemma3:4b"
   customApiKey?: string;    // optional — empty for local models
+  // CDX-1: When true, Codex models route through the legacy in-process provider
+  // (HTTP /chat/turn, in-process tool loop). Default false → routes through the
+  // agentic Codex CLI subprocess via WS, sharing the same engine path as Claude Code.
+  legacyCodexProvider?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -857,6 +861,7 @@ async function buildClientFileContext(attachments: AttachmentFile[]): Promise<st
 
   const blocks: string[] = [];
   let designMdFile: { name: string; content: string } | null = null;
+  let htmlFile: { name: string; content: string } | null = null;
 
   for (const file of nonImageFiles) {
     let text = '';
@@ -876,7 +881,8 @@ async function buildClientFileContext(attachments: AttachmentFile[]): Promise<st
       file.type === 'text/markdown' ||
       file.type === 'text/x-markdown' ||
       file.type === 'image/svg+xml' ||
-      /\.(md|markdown)$/i.test(file.name)
+      file.type === 'text/html' ||
+      /\.(md|markdown|html?|htm)$/i.test(file.name)
     ) {
       text = extractTextFromDataUri(file.dataUri);
     }
@@ -889,6 +895,17 @@ async function buildClientFileContext(attachments: AttachmentFile[]): Promise<st
 
       if (isDesignMd && !designMdFile) {
         designMdFile = { name: file.name, content: text };
+      }
+
+      // HTML import: detect HTML files by extension, MIME, or doctype/markup signature
+      const isHtml =
+        file.type === 'text/html' ||
+        /\.(html?|htm)$/i.test(file.name) ||
+        /^\s*<!DOCTYPE\s+html/i.test(text) ||
+        /<html[\s>]/i.test(text);
+
+      if (isHtml && !htmlFile) {
+        htmlFile = { name: file.name, content: text };
       }
       blocks.push(`📄 ${file.name}\nContent:\n${text}`);
     }
@@ -913,6 +930,24 @@ async function buildClientFileContext(attachments: AttachmentFile[]): Promise<st
       `Do NOT re-explain the file — import it directly. After the tool returns, briefly confirm what was imported and where the preview frame landed.`;
   }
 
+  // HTML-V1: if an HTML file was attached, instruct the agent to recreate the
+  // layout in Figma using the existing canvas tools. Treats the markup as
+  // design intent (structure + copy + style tokens), not literal DOM.
+  if (htmlFile) {
+    context += `\n\n[FIGMENTO HTML LAYOUT DETECTED]\n` +
+      `An HTML file (${htmlFile.name}) was attached. The user wants you to recreate this layout in Figma.\n\n` +
+      `Plan:\n` +
+      `1. Read the HTML to identify visual sections (navbar, hero, feature grid, cards, footer, etc).\n` +
+      `2. Extract design tokens from \`<style>\` blocks, inline styles, and class names: colors, fonts, font-sizes, border-radius, spacing, line-heights.\n` +
+      `3. Determine root frame width from inferred viewport (default 1440px desktop unless the HTML clearly targets mobile/tablet — meta viewport, max-width container, or @media queries).\n` +
+      `4. Create ONE root frame named after the page title or H1, with auto-layout VERTICAL.\n` +
+      `5. Recreate sections in DOM order using batch_execute aggressively (one batch per logical section). Convert every visible element: text becomes create_text with role-appropriate font/size/lineHeight from your design rules; background colors / images become frame fills; <img> with src becomes generate_design_image with a context-aware brief based on alt text and surrounding copy; <button> / <a class="cta"> becomes a frame with fill + child text (per the interactive-element rule).\n` +
+      `6. Map HTML primitives → Figma primitives: <section>/<div> → create_frame with auto-layout · <h1>-<h6>/<p>/<span> → create_text · <button>/<a class="cta"> → create_frame + create_text · <img> → generate_design_image (asFill=true into a sized frame) · <ul>/<li> grids → auto-layout HORIZONTAL/VERTICAL with itemSpacing.\n` +
+      `7. Treat the HTML as design intent, not literal markup. Do NOT try to mirror semantic tags like <nav> or <article>; convert the visual hierarchy. Apply your typography role rules (line-height by role, hug vs fill, fontWeight 400/700 only) — even if the HTML uses different values.\n` +
+      `8. After the build, run get_page_nodes (ensure exactly one root, delete any orphans), then run_refinement_check, then get_screenshot for self-review per the standard ritual.\n\n` +
+      `LIMITATION (be honest in your final message): this is an interpretation, not a pixel-perfect renderer. Positions/spacing are derived from your design discipline rules, not computed CSS. If the user wants 1:1 fidelity, they should iterate.`;
+  }
+
   return context;
 }
 
@@ -924,6 +959,8 @@ function getFileTypeInfo(file: { name: string; type: string }): { icon: string; 
   if (file.type === 'application/pdf') return { icon: '📄', badge: 'PDF', isImage: false };
   if (file.type === 'text/plain') return { icon: '📝', badge: 'TXT', isImage: false };
   if (file.type === 'image/svg+xml') return { icon: '🎨', badge: 'SVG', isImage: false };
+  if (file.type === 'text/html' || /\.(html?|htm)$/i.test(file.name)) return { icon: '🌐', badge: 'HTML', isImage: false };
+  if (/\.(md|markdown)$/i.test(file.name)) return { icon: '📑', badge: 'MD', isImage: false };
   return { icon: '🖼', badge: 'IMG', isImage: true };
 }
 
@@ -1311,10 +1348,11 @@ export function initChat() {
     if (!file) return;
 
     // Validate file type
-    const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'application/pdf', 'text/plain', 'text/markdown', 'text/x-markdown'];
+    const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'application/pdf', 'text/plain', 'text/markdown', 'text/x-markdown', 'text/html'];
     const isMarkdownByExt = /\.(md|markdown)$/i.test(file.name);
-    if (!validTypes.includes(file.type) && !isMarkdownByExt) {
-      appendChatBubble('assistant', '<span class="chat-error">Unsupported file type. Please upload PNG, JPG, WEBP, SVG, PDF, TXT, or MD.</span>');
+    const isHtmlByExt = /\.(html?|htm)$/i.test(file.name);
+    if (!validTypes.includes(file.type) && !isMarkdownByExt && !isHtmlByExt) {
+      appendChatBubble('assistant', '<span class="chat-error">Unsupported file type. Please upload PNG, JPG, WEBP, SVG, PDF, TXT, MD, or HTML.</span>');
       fileInput.value = '';
       return;
     }
@@ -1738,10 +1776,11 @@ export function initChat() {
       const files = e.dataTransfer?.files;
       if (!files || files.length === 0) return;
 
-      const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'application/pdf', 'text/plain', 'text/markdown', 'text/x-markdown'];
+      const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'application/pdf', 'text/plain', 'text/markdown', 'text/x-markdown', 'text/html'];
       for (const file of Array.from(files)) {
         const isMarkdownByExt = /\.(md|markdown)$/i.test(file.name);
-        if (!validTypes.includes(file.type) && !isMarkdownByExt) continue;
+        const isHtmlByExt = /\.(html?|htm)$/i.test(file.name);
+        if (!validTypes.includes(file.type) && !isMarkdownByExt && !isHtmlByExt) continue;
         if (file.size > 20 * 1024 * 1024) {
           appendChatBubble('assistant', `<span class="chat-error">${file.name} too large (max 20MB)</span>`);
           continue;
@@ -2327,9 +2366,12 @@ async function sendMessage() {
     }
   }
 
-  // DM-3: Codex requires OAuth token
-  if (useCodex && !chatSettings.codexToken?.access_token) {
-    appendChatBubble('assistant', '<span class="chat-error">Connect with ChatGPT in Settings first.</span>');
+  // DM-3 / CDX-1: Codex auth requirement depends on provider mode.
+  // - Legacy in-process provider: needs the OAuth token in chatSettings.codexToken (browser-side).
+  // - Agentic engine (default): the relay reads ~/.codex/auth.json directly via the Codex SDK,
+  //   so no client-side token is required. The user must have run `codex login` once.
+  if (useCodex && chatSettings.legacyCodexProvider && !chatSettings.codexToken?.access_token) {
+    appendChatBubble('assistant', '<span class="chat-error">Connect with ChatGPT in Settings first (legacy provider mode).</span>');
     return;
   }
 
@@ -2408,7 +2450,8 @@ async function sendMessage() {
       }
       console.log('[Figmento Chat] → CLAUDE CODE path (WS)');
       await runClaudeCodeTurn(text, capturedAttachment, capturedAttachments);
-    // DM-3: Codex always routes through LOCAL relay (API is not browser-accessible)
+    // CDX-1: Codex always routes through LOCAL relay WS (agentic path via Codex CLI subprocess).
+    // The legacy in-process Codex provider (HTTP /chat/turn) is gated behind chatSettings.legacyCodexProvider.
     } else if (useCodex) {
       if (!bridgeConnected) {
         autoConnectBridge(LOCAL_RELAY_URL);
@@ -2417,8 +2460,13 @@ async function sendMessage() {
           throw new Error('Relay not reachable. Codex requires the relay. Start it with "npm start" in figmento-ws-relay/.');
         }
       }
-      console.log('[Figmento Chat] → CODEX path (relay)');
-      await runRelayTurn(text, useGemini, useOpenAI, useVenice, capturedAttachment, capturedAttachments);
+      if (chatSettings.legacyCodexProvider) {
+        console.log('[Figmento Chat] → CODEX path (LEGACY in-process provider)');
+        await runRelayTurn(text, useGemini, useOpenAI, useVenice, capturedAttachment, capturedAttachments);
+      } else {
+        console.log('[Figmento Chat] → CODEX path (WS — agentic engine)');
+        await runClaudeCodeTurn(text, capturedAttachment, capturedAttachments, 'codex');
+      }
     // MA-1: Custom provider always routes through relay (Node.js fetch — no CORS issues
     // with local servers like Ollama, unlike browser iframe fetch).
     } else if (useCustom) {
@@ -2635,7 +2683,7 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
 // CHAT — CLAUDE CODE TURN (WS → local relay → SDK subprocess)
 // ═══════════════════════════════════════════════════════════════
 
-async function runClaudeCodeTurn(text: string, attachment?: string | null, allAttachments?: AttachmentFile[]): Promise<void> {
+async function runClaudeCodeTurn(text: string, attachment?: string | null, allAttachments?: AttachmentFile[], engine: 'claude-code' | 'codex' = 'claude-code'): Promise<void> {
   const channelId = getBridgeChannelId();
   if (!channelId) {
     throw new Error('Bridge channel not available. Connect to the local relay first.');
@@ -2646,14 +2694,24 @@ async function runClaudeCodeTurn(text: string, attachment?: string | null, allAt
     .filter(f => !f.type.startsWith('image/') || f.type === 'image/svg+xml')
     .map(f => ({ name: f.name, type: f.type, dataUri: f.dataUri }));
 
-  // Send claude-code-turn message through the bridge WS
+  // Send claude-code-turn message through the bridge WS.
+  // CDX-1: `engine` selects the session manager on the relay (claude-code | codex).
+  // Both engines share the same wire format. When engine='codex' the relay reads
+  // ~/.codex/auth.json directly (no client-side token needed).
+  // When switching engines mid-conversation, the relay tears down the prior engine's
+  // session for this channel and boots fresh — history travels via the request payload.
+  const isCodex = engine === 'codex';
+  const modelForEngine = isCodex
+    ? (chatSettings.model && isCodexModel(chatSettings.model) ? chatSettings.model : 'gpt-5.4-codex')
+    : (chatSettings.claudeCodeModel || undefined);
   const sent = sendBridgeMessage({
     type: 'claude-code-turn',
     channel: channelId,
     message: text,
     history: claudeCodeHistory,
     memory: memoryEntries,
-    model: chatSettings.claudeCodeModel || undefined,
+    model: modelForEngine,
+    engine,
     imageModel: designSettings.imageModel || undefined,
     ...(attachment && { attachmentBase64: attachment }),
     ...(fileAttachments.length > 0 && { fileAttachments }),

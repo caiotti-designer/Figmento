@@ -1,3 +1,8 @@
+// Must come BEFORE any module that may spawn a child process (Codex/Claude SDKs).
+// Patches child_process.spawn to default windowsHide:true, preventing console
+// window flashes from codex.exe and downstream MCP server children on Windows.
+import './windows-spawn-hide';
+
 import { FigmentoRelay, RelayConfig } from './relay';
 import { startCredentialsWatcher } from './credentials-watcher';
 
