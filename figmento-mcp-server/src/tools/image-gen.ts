@@ -131,7 +131,7 @@ function loadReferenceImage(filePath: string): ReferenceImage | null {
   }
 }
 
-// ─── Image API Calls (Gemini + Venice) ───────────────────────────────────────
+// ─── Image API Calls (Gemini + Venice + OpenAI gpt-image-2) ─────────────────
 
 interface CallGeminiOptions {
   aspectRatio?: string;
@@ -143,6 +143,11 @@ interface CallGeminiOptions {
 /** Returns true for Venice image models (use Venice API, not Gemini). */
 function isVeniceImageModel(model: string): boolean {
   return model.startsWith('grok-');
+}
+
+/** Returns true for OpenAI gpt-image-* models (use OpenAI Platform API, not Gemini). */
+function isOpenAIImageModel(model: string): boolean {
+  return model.startsWith('gpt-image-');
 }
 
 /**
@@ -182,6 +187,51 @@ async function callVeniceImage(
   return Buffer.from(b64.b64_json, 'base64');
 }
 
+/**
+ * Generate an image via OpenAI's Platform Images API (gpt-image-2).
+ *
+ * Auth: requires a Platform API key (OPENAI_API_KEY) — the Codex CLI's
+ * ChatGPT OAuth token does NOT work on this endpoint (returns 403; gated to
+ * platform billing). Users who want gpt-image-2 must add OPENAI_API_KEY to .env.
+ *
+ * Returns raw image buffer.
+ */
+async function callOpenAIImage(
+  prompt: string,
+  apiKey: string,
+  model: string,
+  options?: { size?: string; quality?: string },
+): Promise<Buffer> {
+  const resp = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      prompt,
+      n: 1,
+      size: options?.size || '1024x1024',
+      quality: options?.quality || 'high',
+      response_format: 'b64_json',
+    }),
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text().catch(() => '');
+    throw new Error(`OpenAI Image API error ${resp.status}: ${errBody}`);
+  }
+
+  const data = await resp.json();
+  const b64 = (data as Record<string, unknown[]>)?.data?.[0] as Record<string, string> | undefined;
+  if (!b64?.b64_json) {
+    throw new Error('No image data in OpenAI response');
+  }
+
+  return Buffer.from(b64.b64_json, 'base64');
+}
+
 async function callGemini(
   prompt: string,
   apiKey: string,
@@ -194,6 +244,18 @@ async function callGemini(
     const veniceKey = process.env.VENICE_API_KEY;
     if (!veniceKey) throw new Error('VENICE_API_KEY not set in environment. Add it to .env to use Venice image models.');
     return callVeniceImage(prompt, veniceKey, geminiModel);
+  }
+
+  // Route to OpenAI Platform API for gpt-image-* models (e.g. gpt-image-2)
+  if (isOpenAIImageModel(geminiModel)) {
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (!openaiKey) {
+      throw new Error(
+        'OPENAI_API_KEY not set in environment. Add it to .env to use gpt-image-* models. ' +
+        'Note: the Codex CLI OAuth token does not unlock this endpoint — a separate Platform API key is required.',
+      );
+    }
+    return callOpenAIImage(prompt, openaiKey, geminiModel);
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -469,7 +531,7 @@ export const generateDesignImageSchema = {
   frameId: z.string().optional().describe('Target frame nodeId. If omitted, auto-resolved from current Figma selection or a new frame is created using the format dimensions.'),
   name: z.string().optional().describe('Frame name when a new frame is created. Defaults to the brief truncated to 40 characters.'),
   referenceImagePath: z.string().optional().describe('Path to a reference image file (PNG, JPG, WEBP). The generated image will inherit the style, composition, and mood of this reference. Accepts absolute paths or paths within temp/imports/ or brand-assets/.'),
-  model: z.string().optional().describe('Image generation model. Gemini: "gemini-3.1-flash-image-preview" (fast, default), "gemini-3.1-pro-preview" (quality). Venice: "grok-imagine-image-pro". Venice models require VENICE_API_KEY in .env.'),
+  model: z.string().optional().describe('Image generation model. Gemini: "gemini-3.1-flash-image-preview" (fast, default), "gemini-3.1-pro-preview" (quality). Venice: "grok-imagine-image-pro" (requires VENICE_API_KEY). OpenAI: "gpt-image-2" (requires OPENAI_API_KEY, billed at platform rates).'),
   awaitImage: z.boolean().optional().describe('If true, block until image is fully generated and placed (legacy sequential mode). Default false — returns frameId immediately.'),
   skipPreview: z.boolean().optional().describe('If true, skip the fast 512px preview and generate at target resolution directly. Default false — two-phase (preview + high-res).'),
   asFill: z.boolean().optional().describe('If true (DEFAULT), apply the generated image directly as the frame\'s IMAGE fill instead of creating a child node. Set to false ONLY if you specifically need a separate child image node (rare — keeps the frame fill clean and avoids orphan nodes outside the parent frame).'),
@@ -483,16 +545,30 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
     'Generate a background image with Gemini and place it in a Figma frame. Returns frameId immediately while image generates in background. Use awaitImage=true to block until placed.',
     generateDesignImageSchema,
     async (params) => {
-      // Fail fast if API key missing
+      // Fail fast if API key missing — branch on model family
       const useVeniceModel = params.model && isVeniceImageModel(params.model);
-      const apiKey = useVeniceModel ? (process.env.VENICE_API_KEY || '') : (process.env.GEMINI_API_KEY || '');
-      const keyName = useVeniceModel ? 'VENICE_API_KEY' : 'GEMINI_API_KEY';
-      process.stderr.write(`[Figmento ImageGen] ${keyName}=${apiKey ? apiKey.slice(0, 8) + '...' : 'NOT SET'} model=${params.model || 'default'}\n`);
+      const useOpenAIModel = params.model && isOpenAIImageModel(params.model);
+      let apiKey: string;
+      let keyName: string;
+      if (useOpenAIModel) {
+        apiKey = process.env.OPENAI_API_KEY || '';
+        keyName = 'OPENAI_API_KEY';
+      } else if (useVeniceModel) {
+        apiKey = process.env.VENICE_API_KEY || '';
+        keyName = 'VENICE_API_KEY';
+      } else {
+        apiKey = process.env.GEMINI_API_KEY || '';
+        keyName = 'GEMINI_API_KEY';
+      }
+      process.stderr.write(`[Figmento ImageGen] ${keyName}=${apiKey ? apiKey.slice(0, 8) + '...' : 'NOT SET'} model=${params.model || 'default'} engine=${process.env.FIGMENTO_ENGINE || 'unset'}\n`);
       if (!apiKey) {
+        const hint = useOpenAIModel
+          ? `${keyName} not set in environment. Add it to .env to use gpt-image-* models. The Codex OAuth token does not work here — a separate Platform API key is required.`
+          : `${keyName} not set in environment. Add it to .env to use image generation.`;
         return {
           content: [{
             type: 'text' as const,
-            text: JSON.stringify({ error: `${keyName} not set in environment. Add it to .env to use image generation.` }),
+            text: JSON.stringify({ error: hint }),
           }],
           isError: true,
         };

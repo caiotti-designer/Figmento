@@ -40,12 +40,13 @@ export const setEffectsSchema = {
   })).describe('Effects array (empty to clear)'),
 };
 
+// Split corner-radius into scalar + per-corner array. Avoids a JSON Schema
+// `oneOf` (Codex CLI's converter rejects unions in untagged enums). Handler
+// folds `radiusCorners` back into `radius` before forwarding to the plugin.
 export const setCornerRadiusSchema = {
   nodeId: z.string().describe('Target node ID'),
-  radius: z.union([
-    z.number().describe('Uniform radius'),
-    z.tuple([z.number(), z.number(), z.number(), z.number()]).describe('[topLeft, topRight, bottomRight, bottomLeft]'),
-  ]),
+  radius: z.number().optional().describe('Uniform corner radius in pixels. Use radiusCorners for per-corner control.'),
+  radiusCorners: z.array(z.number()).length(4).optional().describe('Per-corner radii as [topLeft, topRight, bottomRight, bottomLeft]. Overrides radius if both are provided.'),
 };
 
 export const setOpacitySchema = {
@@ -99,11 +100,9 @@ export const setStyleSchema = {
     blur: z.number(),
     spread: z.number().optional(),
   })).optional().describe('Effects array. Used when property="effects".'),
-  // cornerRadius params
-  radius: z.union([
-    z.number().describe('Uniform radius'),
-    z.tuple([z.number(), z.number(), z.number(), z.number()]).describe('[topLeft, topRight, bottomRight, bottomLeft]'),
-  ]).optional().describe('Corner radius. Used when property="cornerRadius".'),
+  // cornerRadius params (split to avoid oneOf in JSON Schema)
+  radius: z.number().optional().describe('Uniform corner radius in pixels. Used when property="cornerRadius". Use radiusCorners for per-corner control.'),
+  radiusCorners: z.array(z.number()).length(4).optional().describe('Per-corner radii as [topLeft, topRight, bottomRight, bottomLeft]. Used when property="cornerRadius". Overrides radius if both are provided.'),
 };
 
 export const styleTextRangeSchema = {
@@ -135,8 +134,12 @@ async function handleSetStyle(params: Record<string, unknown>, sendDesignCommand
       return wrap(await sendDesignCommand('set_stroke', { nodeId: params.nodeId, color: params.color, width: params.width }));
     case 'effects':
       return wrap(await sendDesignCommand('set_effects', { nodeId: params.nodeId, effects: params.effects }));
-    case 'cornerRadius':
-      return wrap(await sendDesignCommand('set_corner_radius', { nodeId: params.nodeId, radius: params.radius }));
+    case 'cornerRadius': {
+      // Fold per-corner radiusCorners back into radius (overrides scalar if both given).
+      const corners = params.radiusCorners as number[] | undefined;
+      const radius = Array.isArray(corners) && corners.length === 4 ? corners : params.radius;
+      return wrap(await sendDesignCommand('set_corner_radius', { nodeId: params.nodeId, radius }));
+    }
     case 'opacity':
       return wrap(await sendDesignCommand('set_opacity', { nodeId: params.nodeId, opacity: params.opacity }));
     default:

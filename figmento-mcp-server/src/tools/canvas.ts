@@ -6,6 +6,32 @@ import { buildSiblingWarning } from './design-system/showcase-tracker';
 
 type SendDesignCommand = (action: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
+/**
+ * Shared corner-radius schema fields. Split into a uniform scalar + a per-corner
+ * tuple so the JSON Schema is union-free (Codex CLI's Rust→OpenAI converter
+ * rejects `oneOf` in untagged enums; Claude SDK accepts unions but doesn't need
+ * them either). The handler folds `cornerRadiusCorners` back into a single
+ * `cornerRadius` value before forwarding to the plugin, which already accepts
+ * either a number or a 4-tuple in that field.
+ */
+const cornerRadiusScalarField = z.number().optional().describe(
+  'Uniform corner radius in pixels. Use cornerRadiusCorners for per-corner control.',
+);
+const cornerRadiusCornersField = z
+  .array(z.number())
+  .length(4)
+  .optional()
+  .describe('Per-corner radii as [topLeft, topRight, bottomRight, bottomLeft]. Overrides cornerRadius if both are provided.');
+
+/** Fold the split fields back into a single cornerRadius value the plugin understands. */
+function foldCornerRadius<T extends Record<string, unknown>>(params: T): Omit<T, 'cornerRadiusCorners'> {
+  const { cornerRadiusCorners, ...rest } = params as T & { cornerRadiusCorners?: number[] };
+  if (Array.isArray(cornerRadiusCorners) && cornerRadiusCorners.length === 4) {
+    (rest as Record<string, unknown>).cornerRadius = cornerRadiusCorners;
+  }
+  return rest;
+}
+
 const fillsArraySchema = z.array(z.object({
   type: z.string().describe('Fill type: SOLID or GRADIENT_LINEAR'),
   color: z.string().optional().describe('Hex color (e.g. "#FF5733")'),
@@ -27,7 +53,8 @@ export const createFrameSchema = {
   parentId: z.string().optional().describe('Parent frame nodeId to append to'),
   fillColor: z.string().optional().describe('Shorthand solid fill: hex color (e.g. "#FF5733"). Use instead of the fills array for a single solid color.'),
   fills: fillsArraySchema.optional().describe('Fill paints array. Use fillColor instead for a single solid color.'),
-  cornerRadius: z.union([z.number(), z.tuple([z.number(), z.number(), z.number(), z.number()])]).optional(),
+  cornerRadius: cornerRadiusScalarField,
+  cornerRadiusCorners: cornerRadiusCornersField,
   layoutMode: z.string().optional().describe('Auto-layout direction: HORIZONTAL, VERTICAL, or NONE'),
   itemSpacing: z.number().optional().describe('Gap between auto-layout children'),
   paddingTop: z.number().optional(),
@@ -85,7 +112,8 @@ export const createRectangleSchema = {
     color: z.string(),
     width: z.number(),
   }).optional(),
-  cornerRadius: z.union([z.number(), z.tuple([z.number(), z.number(), z.number(), z.number()])]).optional(),
+  cornerRadius: cornerRadiusScalarField,
+  cornerRadiusCorners: cornerRadiusCornersField,
 };
 
 export const createEllipseSchema = {
@@ -110,7 +138,8 @@ export const createImageSchema = {
   x: z.number().optional(),
   y: z.number().optional(),
   parentId: z.string().optional(),
-  cornerRadius: z.union([z.number(), z.tuple([z.number(), z.number(), z.number(), z.number()])]).optional(),
+  cornerRadius: cornerRadiusScalarField,
+  cornerRadiusCorners: cornerRadiusCornersField,
   scaleMode: z.string().optional().describe('Image scale mode: FILL, FIT, CROP, or TILE (default: FILL)'),
 };
 
@@ -122,7 +151,8 @@ export const placeGeneratedImageSchema = {
   x: z.number().optional().describe('X position'),
   y: z.number().optional().describe('Y position'),
   parentId: z.string().optional().describe('Parent frame nodeId to append the image to'),
-  cornerRadius: z.union([z.number(), z.tuple([z.number(), z.number(), z.number(), z.number()])]).optional(),
+  cornerRadius: cornerRadiusScalarField,
+  cornerRadiusCorners: cornerRadiusCornersField,
   scaleMode: z.string().optional().describe('Image scale mode: FILL, FIT, CROP, or TILE (default: FILL)'),
 };
 
@@ -170,7 +200,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
     'Create a frame (container) on the Figma canvas. Frames can have auto-layout, fills, padding, and contain children. Returns the nodeId of the created frame.',
     createFrameSchema,
     async (params) => {
-      const data = await sendDesignCommand('create_frame', params);
+      const data = await sendDesignCommand('create_frame', foldCornerRadius(params));
       // DQ-HF-1: warn on likely-sibling-of-recent-showcase mistakes (never blocks)
       const siblingWarning = buildSiblingWarning({ parentId: params.parentId, width: params.width });
       const payload = siblingWarning ? { ...data, warning: siblingWarning } : data;
@@ -193,7 +223,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
     'Create a rectangle shape on the Figma canvas.',
     createRectangleSchema,
     async (params) => {
-      const data = await sendDesignCommand('create_rectangle', params);
+      const data = await sendDesignCommand('create_rectangle', foldCornerRadius(params));
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
   );
@@ -203,7 +233,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
     'Create an ellipse/circle on the Figma canvas.',
     createEllipseSchema,
     async (params) => {
-      const data = await sendDesignCommand('create_ellipse', params);
+      const data = await sendDesignCommand('create_ellipse', foldCornerRadius(params));
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
   );
@@ -213,7 +243,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
     'Place an image on the Figma canvas from base64 data. Use this after generating an image with mcp-image — read the file and pass the base64 content.',
     createImageSchema,
     async (params) => {
-      const data = await sendDesignCommand('create_image', params);
+      const data = await sendDesignCommand('create_image', foldCornerRadius(params));
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
   );
@@ -251,6 +281,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
       const mime = mimeMap[ext] || 'image/png';
       const base64 = `data:${mime};base64,${buffer.toString('base64')}`;
 
+      const folded = foldCornerRadius(params);
       const data = await sendDesignCommand('create_image', {
         imageData: base64,
         name: params.name,
@@ -259,7 +290,7 @@ export function registerCanvasTools(server: McpServer, sendDesignCommand: SendDe
         x: params.x,
         y: params.y,
         parentId: params.parentId,
-        cornerRadius: params.cornerRadius,
+        cornerRadius: (folded as { cornerRadius?: unknown }).cornerRadius,
         scaleMode: params.scaleMode,
       });
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
