@@ -1,6 +1,6 @@
 # Figmento — Project Status (Agent Quick-Reference)
 
-> **Last synced:** 2026-04-22 — **Workspace clean, Ready queue empty, 15 commits ahead of remote.** epic-DMD CLOSED. DQ-HF-1 shipped. Skills MCP infrastructure (`list_skills` / `load_skill`) committed. All three packages build clean; 838 tests total pass (450 MCP server + 388 plugin). Awaiting @devops push.
+> **Last synced:** 2026-04-28 — **Workspace clean, pushed to origin/master.** CDX-1 (Codex agentic engine) shipped + HTML-1 (interpretive HTML import) shipped — both in commits `51ac77a` + `0e2886b`. HTML-2 (pixel-perfect HTML import) drafted. Codex now reaches full tool/instruction parity with Claude Code; "taste" of the model is the only remaining engine difference. All three packages build clean; typecheck across MCP/relay/plugin = green.
 > **Purpose:** Single source of truth for "what's active, what's parked, what's shipped"
 > so any agent (@pm, @po, @sm, @dev, @qa, @architect) can orient in one read.
 > **Update this file** whenever a story lands, gets blocked, or changes priority.
@@ -9,6 +9,9 @@
 
 ## TL;DR
 
+- **CDX-1 — Done.** Codex CLI agentic engine alongside Claude Code, shipped 2026-04-28 (`51ac77a` + `0e2886b`). Full parity with Claude Code: same MCP toolset (~55 curated), same FIGMENTO_DESIGN_PROMPT design rules (delivered via AGENTS.md for Codex, systemPrompt for Claude), same lifecycle. Mid-conversation engine switch supported. Codex schema-incompat tools (5 with `z.union`) refactored to non-union split fields — re-enabled for both engines. Legacy in-process Codex provider gated behind `chatSettings.legacyCodexProvider` flag.
+- **HTML-1 — Done.** Interpretive HTML import V1 in same commit. Drop a `.html` file in chat, agent recreates the layout in Figma using the existing canvas tools. Works on both engines. Ships with explicit "this is interpretive, not pixel-perfect" caveat.
+- **HTML-2 — Drafted.** Pixel-perfect HTML import via Puppeteer computed-style extraction. New MCP tool `import_html_layout`, 1:1 fidelity with rendered DOM. ~3-5 days work, queued for when needed.
 - **epic-DMD — CLOSED.** Phase A (DMD-1..5) + Phase B (DMD-6..7) all shipped. 7 seeded systems with canonical DESIGN.md files, round-trip PASS, 86/86 ds-md tests green, plugin drag-drop works, CLAUDE.md + authoring guide published at `docs/guides/design-md-authoring.md`.
 - **DQ-HF-1 — Done.** Post-showcase contrast + nesting discipline shipped 2026-04-22. CLAUDE.md rules added; `create_frame` now emits a soft warning when a sibling of a recent showcase is created without `parentId`; 12 regression tests + fixture + manual regression note.
 - **Skills MCP infrastructure — shipped** (`4208cec`). New tools `list_skills` + `load_skill` expose markdown recipes (with YAML frontmatter) to any MCP client. First recipe: `design-system.md`. Server instructions block added so agents default to the skills-first workflow instead of drifting to Instagram-post output on brand briefs.
@@ -16,7 +19,7 @@
 - **6 epics active** — DMD is executing; the other 5 are parked on strategic decisions or external blockers.
 - **75 story files + 8 fully-Done epics** archived to `_archived/`.
 
-If you're an agent looking for "what to work on next" — no stories in the active Ready queue. Next activations: DM-2 (external blocker), epic-DQ expansion, epic-MQ drafting, ODS Phase C drafting.
+If you're an agent looking for "what to work on next" — no stories in the active Ready queue. Next activations: DM-2 (external blocker), HTML-2 (when pixel-perfect import is needed), epic-DQ expansion, epic-MQ drafting, ODS Phase C drafting.
 If you want to unblock something, see `## Parked / On-Standby` below for external blockers.
 
 ---
@@ -33,6 +36,9 @@ If you want to unblock something, see `## Parked / On-Standby` below for externa
 | [DMD-6 — Plugin Drag-Drop + createVariables](docs/stories — implemented directly, no story file) | **Done** | Shipped 2026-04-16 (`4fea544`) — drag `.md`/`.markdown` into chat, agent calls `import_design_system_from_md` with `previewInFigma: true` + `createVariables: true`. | @dev (shipped) |
 | [DMD-7 — Documentation: CLAUDE.md + Authoring Guide](DMD-7-documentation-claude-md-authoring-guide.story.md) | **Done** | Shipped 2026-04-22 — CLAUDE.md "Starting Any Design" updated with DESIGN.md as first-class path + `docs/guides/design-md-authoring.md` published. Closes epic-DMD. | @dev (shipped) |
 | [DQ-HF-1 — Design Agent Showcase Discipline](DQ-HF-1-design-agent-showcase-discipline.story.md) | **Done** | Shipped 2026-04-22 — CLAUDE.md "Post-Showcase Extension Discipline" rules + `showcase-tracker.ts` + soft sibling warning in `create_frame` + fixture + 12 regression tests + manual regression note. | @dev (shipped) |
+| [CDX-1 — Codex agentic engine](CDX-1-codex-agentic-engine.story.md) | **Done** | Shipped 2026-04-28 — `51ac77a` (schema refactor) + `0e2886b` (engine + HTML-1 + cleanup discipline). Codex full parity with Claude Code. | @dev (shipped) |
+| [HTML-1 — Interpretive HTML import V1](#) | **Done** | Shipped 2026-04-28 in `0e2886b`. No standalone story file — bundled with CDX-1. Drop `.html` → directive injection → agent recreates via existing canvas tools. | @dev (shipped) |
+| [HTML-2 — Pixel-perfect HTML import](HTML-2-pixel-perfect-html-import.story.md) | **Draft** | Awaiting prioritization. Spec ready: Puppeteer computed-style extractor + new MCP tool `import_html_layout`. ~3-5 days. | unassigned |
 | [DM-2 — Anthropic OAuth](DM-2-oauth-login.story.md) | **Scaffolded** | External (OAuth app registration + callback page hosting) | @dev |
 
 **DM-2 activation requires:**
