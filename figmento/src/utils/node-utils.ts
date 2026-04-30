@@ -17,7 +17,7 @@ export function serializeNode(node: BaseNode, currentDepth: number, maxDepth: nu
 
   if ('fills' in node && Array.isArray((node as GeometryMixin).fills)) {
     const fills = (node as GeometryMixin).fills as Paint[];
-    info.fills = fills.map(f => {
+    info.fills = fills.map((f) => {
       if (f.type === 'SOLID') {
         return { type: 'SOLID', color: rgbToHex(f.color), opacity: f.opacity };
       }
@@ -54,9 +54,9 @@ export function serializeNode(node: BaseNode, currentDepth: number, maxDepth: nu
     const children = (node as FrameNode).children;
     info.childCount = children.length;
     if (currentDepth < maxDepth) {
-      info.children = children.map(c => serializeNode(c, currentDepth + 1, maxDepth));
+      info.children = children.map((c) => serializeNode(c, currentDepth + 1, maxDepth));
     } else {
-      info.children = children.map(c => ({
+      info.children = children.map((c) => ({
         id: c.id,
         name: c.name,
         type: c.type,

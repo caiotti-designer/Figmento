@@ -22,7 +22,10 @@ const FORMAT_PATTERNS: FormatPattern[] = [
   // Instagram
   { id: 'ig-post', patterns: [/instagram\s*post/i, /ig\s*post/i, /insta\s*post/i] },
   { id: 'ig-square', patterns: [/instagram\s*square/i] },
-  { id: 'ig-story', patterns: [/instagram\s*stor(y|ies)/i, /ig\s*stor(y|ies)/i, /insta\s*stor(y|ies)/i, /instagram\s*reel/i] },
+  {
+    id: 'ig-story',
+    patterns: [/instagram\s*stor(y|ies)/i, /ig\s*stor(y|ies)/i, /insta\s*stor(y|ies)/i, /instagram\s*reel/i],
+  },
   { id: 'ig-carousel', patterns: [/instagram\s*carousel/i, /ig\s*carousel/i, /insta\s*carousel/i] },
   // Facebook
   { id: 'fb-post', patterns: [/facebook\s*post/i, /fb\s*post/i] },
@@ -71,7 +74,10 @@ interface MoodPattern {
 const MOOD_PATTERNS: MoodPattern[] = [
   { id: 'moody-dark', keywords: ['moody', 'dark', 'dramatic', 'cinematic', 'noir', 'coffee', 'whiskey'] },
   { id: 'fresh-light', keywords: ['fresh', 'light', 'airy', 'spring', 'clean', 'health', 'wellness'] },
-  { id: 'corporate-professional', keywords: ['corporate', 'professional', 'business', 'trustworthy', 'finance', 'enterprise'] },
+  {
+    id: 'corporate-professional',
+    keywords: ['corporate', 'professional', 'business', 'trustworthy', 'finance', 'enterprise'],
+  },
   { id: 'luxury-premium', keywords: ['luxury', 'premium', 'gold', 'elegant', 'exclusive', 'fashion', 'jewelry'] },
   { id: 'playful-fun', keywords: ['playful', 'fun', 'colorful', 'vibrant', 'kids', 'games', 'party'] },
   { id: 'nature-organic', keywords: ['nature', 'organic', 'earth', 'botanical', 'sustainable', 'eco', 'garden'] },
@@ -106,7 +112,7 @@ export function detectBrief(userMessage: string): DesignBrief {
   // Extract format
   let format: string | null = null;
   for (const fp of FORMAT_PATTERNS) {
-    if (fp.patterns.some(p => p.test(userMessage))) {
+    if (fp.patterns.some((p) => p.test(userMessage))) {
       format = fp.id;
       break;
     }
@@ -128,17 +134,45 @@ export function detectBrief(userMessage: string): DesignBrief {
 
   // Extract design type
   let designType: 'single' | 'multi-section' | null = null;
-  if (MULTI_SECTION_PATTERNS.some(p => p.test(userMessage))) {
+  if (MULTI_SECTION_PATTERNS.some((p) => p.test(userMessage))) {
     designType = 'multi-section';
   } else if (format || mood) {
     designType = 'single';
   }
 
   // Collect raw keywords (nouns/adjectives that might be useful for fallback)
-  const stopWords = new Set(['a', 'an', 'the', 'for', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'of', 'is', 'it', 'my', 'me', 'i', 'with', 'this', 'that', 'create', 'make', 'design', 'please', 'can', 'you', 'want', 'need', 'like']);
-  const keywords = words
-    .filter(w => w.length > 2 && !stopWords.has(w))
-    .slice(0, 20);
+  const stopWords = new Set([
+    'a',
+    'an',
+    'the',
+    'for',
+    'and',
+    'or',
+    'but',
+    'in',
+    'on',
+    'at',
+    'to',
+    'of',
+    'is',
+    'it',
+    'my',
+    'me',
+    'i',
+    'with',
+    'this',
+    'that',
+    'create',
+    'make',
+    'design',
+    'please',
+    'can',
+    'you',
+    'want',
+    'need',
+    'like',
+  ]);
+  const keywords = words.filter((w) => w.length > 2 && !stopWords.has(w)).slice(0, 20);
 
   return { format, mood, designType, keywords };
 }

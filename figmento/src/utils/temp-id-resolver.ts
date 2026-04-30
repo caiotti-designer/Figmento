@@ -47,7 +47,7 @@ function resolveValue(value: unknown, tempIdMap: TempIdMap): unknown {
     return resolveStringValue(value, tempIdMap);
   }
   if (Array.isArray(value)) {
-    return value.map(item => {
+    return value.map((item) => {
       if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
         return resolveTempIds(item as Record<string, unknown>, tempIdMap);
       }
@@ -74,6 +74,11 @@ function resolveStringValue(value: string, tempIdMap: TempIdMap): unknown {
 }
 
 export function isCreationAction(action: string): boolean {
-  return action.startsWith('create_') || action === 'clone_node' || action === 'clone_with_overrides'
-    || action === 'convert_to_component' || action === 'combine_as_variants';
+  return (
+    action.startsWith('create_') ||
+    action === 'clone_node' ||
+    action === 'clone_with_overrides' ||
+    action === 'convert_to_component' ||
+    action === 'combine_as_variants'
+  );
 }

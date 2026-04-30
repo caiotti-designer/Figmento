@@ -42,11 +42,7 @@ function fastHash(input: string): string {
  * Generate a cache key from the image data, provider, and settings object.
  * The key is a hex hash derived from the concatenation of all inputs.
  */
-export function generateCacheKey(
-  imageBase64: string,
-  provider: AIProvider,
-  settings: Record<string, unknown>
-): string {
+export function generateCacheKey(imageBase64: string, provider: AIProvider, settings: Record<string, unknown>): string {
   const settingsStr = JSON.stringify(settings);
   const combined = `${provider}:${settingsStr}:${imageBase64}`;
   return fastHash(combined);
@@ -141,10 +137,7 @@ export function getCacheStats(): {
  * Reconfigure cache limits. Existing entries that exceed the new max size
  * will be evicted (oldest first).
  */
-export function configureCache(options: {
-  maxSize?: number;
-  ttlMs?: number;
-}): void {
+export function configureCache(options: { maxSize?: number; ttlMs?: number }): void {
   if (options.maxSize !== undefined && options.maxSize > 0) {
     maxSize = options.maxSize;
   }

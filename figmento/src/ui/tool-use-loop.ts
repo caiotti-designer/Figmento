@@ -149,7 +149,7 @@ export function stripBase64FromResult(data: Record<string, unknown>): Record<str
 
 /** Delay helper — spreads API calls to avoid TPM rate limits. */
 function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** Retry wrapper for API calls — retries once on timeout, then throws a user-friendly error. */
@@ -179,12 +179,7 @@ async function callWithRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 200
 const TOOL_RESULT_MAX_CHARS = 300;
 
 /** Tools whose results carry context the model MUST see in full. */
-const CONTEXT_TOOLS = new Set([
-  'analyze_canvas_context',
-  'get_node_info',
-  'scan_frame_structure',
-  'get_page_nodes',
-]);
+const CONTEXT_TOOLS = new Set(['analyze_canvas_context', 'get_node_info', 'scan_frame_structure', 'get_page_nodes']);
 
 function truncateForHistory(content: string, toolName?: string): string {
   // Context-critical tools get a much higher budget (4KB)
@@ -197,15 +192,29 @@ function truncateForHistory(content: string, toolName?: string): string {
     if (typeof parsed === 'object' && parsed !== null) {
       const slim: Record<string, unknown> = {};
       // Keep essential identifiers + context fields
-      for (const key of ['nodeId', 'name', 'id', 'error', 'note', 'count', 'success', 'saved', 'width', 'height', 'texts', 'colors', 'structure', 'dimensions', 'images']) {
+      for (const key of [
+        'nodeId',
+        'name',
+        'id',
+        'error',
+        'note',
+        'count',
+        'success',
+        'saved',
+        'width',
+        'height',
+        'texts',
+        'colors',
+        'structure',
+        'dimensions',
+        'images',
+      ]) {
         if (key in parsed) slim[key] = parsed[key];
       }
       // For arrays (e.g. batch_execute results, get_page_nodes), keep count + first item
       if (Array.isArray(parsed)) {
         const first = parsed[0];
-        const slimFirst = first && typeof first === 'object'
-          ? { nodeId: first.nodeId, name: first.name }
-          : first;
+        const slimFirst = first && typeof first === 'object' ? { nodeId: first.nodeId, name: first.name } : first;
         return JSON.stringify({ count: parsed.length, first: slimFirst, note: `${parsed.length} items (truncated)` });
       }
       // If we extracted anything useful, return the slim version
@@ -218,7 +227,9 @@ function truncateForHistory(content: string, toolName?: string): string {
         return JSON.stringify(slim).slice(0, limit);
       }
     }
-  } catch { /* not JSON, fall through to simple truncation */ }
+  } catch {
+    /* not JSON, fall through to simple truncation */
+  }
 
   return content.slice(0, limit - 3) + '...';
 }
@@ -283,7 +294,7 @@ export function convertSchemaToGemini(schema: Record<string, unknown>): Record<s
 }
 
 function convertToolsToGemini(tools: ToolDefinition[]): Record<string, unknown>[] {
-  return tools.map(tool => ({
+  return tools.map((tool) => ({
     name: tool.name,
     description: tool.description,
     parameters: convertSchemaToGemini(tool.input_schema),
@@ -334,7 +345,7 @@ export function convertSchemaToOpenAI(schema: Record<string, unknown>): Record<s
 }
 
 function convertToolsToOpenAI(tools: ToolDefinition[]): Record<string, unknown>[] {
-  return tools.map(tool => ({
+  return tools.map((tool) => ({
     type: 'function',
     function: {
       name: tool.name,
@@ -359,12 +370,12 @@ async function callAnthropicAPI(
   apiKey: string,
   systemPrompt: string,
   tools: ToolDefinition[],
-  oauthToken?: string,
+  oauthToken?: string
 ): Promise<AnthropicAPIResponse> {
   // DM-2: When an OAuth access_token is present, send it as a Bearer header
   // and skip x-api-key. Falls back to API key header otherwise.
   const authHeaders: Record<string, string> = oauthToken
-    ? { 'Authorization': `Bearer ${oauthToken}` }
+    ? { Authorization: `Bearer ${oauthToken}` }
     : { 'x-api-key': apiKey };
 
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -415,7 +426,7 @@ async function callGeminiAPI(
   model: string,
   apiKey: string,
   systemPrompt: string,
-  tools: ToolDefinition[],
+  tools: ToolDefinition[]
 ): Promise<Record<string, unknown>> {
   const resp = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -446,13 +457,13 @@ async function callOpenAIAPI(
   model: string,
   apiKey: string,
   systemPrompt: string,
-  tools: ToolDefinition[],
+  tools: ToolDefinition[]
 ): Promise<Record<string, unknown>> {
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model,
@@ -477,13 +488,13 @@ async function callVeniceAPI(
   model: string,
   apiKey: string,
   systemPrompt: string,
-  tools: ToolDefinition[],
+  tools: ToolDefinition[]
 ): Promise<Record<string, unknown>> {
   const resp = await fetch('https://api.venice.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model,
@@ -550,7 +561,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
   /** Check if a batch of tool calls should be auto-batched. */
   const shouldAutoBatch = (calls: ToolCallEntry[]): boolean => {
     if (!onToolCallBatch) return false;
-    const canvasCount = calls.filter(tc => isCanvasCommand(tc.name)).length;
+    const canvasCount = calls.filter((tc) => isCanvasCommand(tc.name)).length;
     return canvasCount >= BATCH_THRESHOLD;
   };
 
@@ -593,7 +604,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
       }
 
       // Build tool call entries for auto-batch check
-      const geminiEntries: ToolCallEntry[] = functionCalls.map(fc => ({
+      const geminiEntries: ToolCallEntry[] = functionCalls.map((fc) => ({
         name: fc.functionCall!.name,
         args: fc.functionCall!.args,
       }));
@@ -603,7 +614,10 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
       if (shouldAutoBatch(geminiEntries)) {
         // Auto-batch path
         onProgress(`Auto-batching ${functionCalls.length} tool calls`);
-        for (const fc of functionCalls) { toolCallCount++; toolsUsed.add(fc.functionCall!.name); }
+        for (const fc of functionCalls) {
+          toolCallCount++;
+          toolsUsed.add(fc.functionCall!.name);
+        }
 
         const batchResults = await onToolCallBatch!(geminiEntries);
         responseParts = functionCalls.map((fc, i) => {
@@ -613,8 +627,11 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
           if (batchResults[i].is_error) {
             cleanedResponse = { error: trimmed };
           } else {
-            try { cleanedResponse = { result: JSON.parse(trimmed) }; }
-            catch { cleanedResponse = { result: trimmed }; }
+            try {
+              cleanedResponse = { result: JSON.parse(trimmed) };
+            } catch {
+              cleanedResponse = { result: trimmed };
+            }
           }
           return { functionResponse: { name, response: cleanedResponse } };
         });
@@ -642,8 +659,11 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
           if (result.is_error) {
             cleanedResponse = { error: trimmed };
           } else {
-            try { cleanedResponse = { result: JSON.parse(trimmed) }; }
-            catch { cleanedResponse = { result: trimmed }; }
+            try {
+              cleanedResponse = { result: JSON.parse(trimmed) };
+            } catch {
+              cleanedResponse = { result: trimmed };
+            }
           }
 
           responseParts.push({
@@ -655,7 +675,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
       history.push({ role: 'user', parts: responseParts });
     }
 
-  // ── OpenAI / Venice branch ────────────────────────────────────
+    // ── OpenAI / Venice branch ────────────────────────────────────
   } else if (provider === 'openai' || provider === 'venice') {
     const history = messages as Array<Record<string, unknown>>;
     const callFn = provider === 'venice' ? callVeniceAPI : callOpenAIAPI;
@@ -684,16 +704,19 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
       }
 
       // Parse all tool calls first for auto-batch check
-      const parsedToolCalls = toolCalls.map(tc => {
+      const parsedToolCalls = toolCalls.map((tc) => {
         const fn = tc.function as Record<string, unknown>;
         const fnName = fn.name as string;
         let args: Record<string, unknown>;
-        try { args = JSON.parse(fn.arguments as string); }
-        catch { args = {}; }
+        try {
+          args = JSON.parse(fn.arguments as string);
+        } catch {
+          args = {};
+        }
         return { tc, fnName, args };
       });
 
-      const openaiEntries: ToolCallEntry[] = parsedToolCalls.map(p => ({
+      const openaiEntries: ToolCallEntry[] = parsedToolCalls.map((p) => ({
         name: p.fnName,
         args: p.args,
       }));
@@ -701,7 +724,10 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
       if (shouldAutoBatch(openaiEntries)) {
         // Auto-batch path
         onProgress(`Auto-batching ${toolCalls.length} tool calls`);
-        for (const p of parsedToolCalls) { toolCallCount++; toolsUsed.add(p.fnName); }
+        for (const p of parsedToolCalls) {
+          toolCallCount++;
+          toolsUsed.add(p.fnName);
+        }
 
         const batchResults = await onToolCallBatch!(openaiEntries);
         for (let i = 0; i < parsedToolCalls.length; i++) {
@@ -740,7 +766,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
       }
     }
 
-  // ── Anthropic / claude branch ────────────────────────────────
+    // ── Anthropic / claude branch ────────────────────────────────
   } else {
     const history = messages as AnthropicMessage[];
     let remaining = maxIterations;
@@ -748,7 +774,9 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
     while (remaining-- > 0) {
       if (iterationsUsed > 0) await sleep(500);
       iterationsUsed++;
-      const response = await callWithRetry(() => callAnthropicAPI(history, model, apiKey, systemPrompt, resolveTools(), oauthToken));
+      const response = await callWithRetry(() =>
+        callAnthropicAPI(history, model, apiKey, systemPrompt, resolveTools(), oauthToken)
+      );
 
       const textParts: string[] = [];
       const toolUses: ContentBlock[] = [];
@@ -769,7 +797,7 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
       history.push({ role: 'assistant', content: response.content });
 
       // Build the list of tool calls for this turn
-      const entries: ToolCallEntry[] = toolUses.map(tu => ({
+      const entries: ToolCallEntry[] = toolUses.map((tu) => ({
         name: tu.name!,
         args: tu.input || {},
       }));
@@ -779,7 +807,10 @@ export async function runToolUseLoop(options: ToolUseLoopOptions): Promise<ToolU
       if (shouldAutoBatch(entries)) {
         // Auto-batch path: bundle canvas commands into one batch_execute
         onProgress(`Auto-batching ${toolUses.length} tool calls`);
-        for (const tu of toolUses) { toolCallCount++; toolsUsed.add(tu.name!); }
+        for (const tu of toolUses) {
+          toolCallCount++;
+          toolsUsed.add(tu.name!);
+        }
 
         const batchResults = await onToolCallBatch!(entries);
         toolResults = toolUses.map((toolUse, i) => ({

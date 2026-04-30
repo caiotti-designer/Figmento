@@ -23,9 +23,20 @@ const DEFAULT_LEARNING_CONFIG: LearningConfig = {
 
 // Commands that modify the canvas and should trigger an auto-snapshot
 export const SNAPSHOT_WORTHY_COMMANDS = new Set([
-  'create_frame', 'create_text', 'create_rectangle', 'create_ellipse',
-  'create_image', 'create_icon', 'set_fill', 'set_text', 'set_auto_layout',
-  'resize_node', 'set_effects', 'set_stroke', 'set_corner_radius', 'move_node',
+  'create_frame',
+  'create_text',
+  'create_rectangle',
+  'create_ellipse',
+  'create_image',
+  'create_icon',
+  'set_fill',
+  'set_text',
+  'set_auto_layout',
+  'resize_node',
+  'set_effects',
+  'set_stroke',
+  'set_corner_radius',
+  'move_node',
   'batch_execute',
 ]);
 
@@ -86,7 +97,7 @@ export async function autoSnapshotAfterCommand(
     // FIFO eviction
     const keys = Object.keys(store);
     if (keys.length >= MAX_SNAPSHOTS) {
-      const oldest = keys.reduce((a, b) => store[a].timestamp < store[b].timestamp ? a : b);
+      const oldest = keys.reduce((a, b) => (store[a].timestamp < store[b].timestamp ? a : b));
       delete store[oldest];
     }
 
@@ -103,14 +114,19 @@ export async function autoSnapshotAfterCommand(
  */
 export async function handleStorageMessage(msg: PluginMessage): Promise<boolean> {
   switch ((msg as any).type) {
-
     case 'take-snapshot': {
       try {
         const frameId = (msg as any).frameId as string;
         const frame = figma.getNodeById(frameId);
 
         if (!frame || (frame.type !== 'FRAME' && frame.type !== 'COMPONENT')) {
-          figma.ui.postMessage({ type: 'snapshot-taken', frameId, nodeCount: 0, success: false, error: 'Frame not found' });
+          figma.ui.postMessage({
+            type: 'snapshot-taken',
+            frameId,
+            nodeCount: 0,
+            success: false,
+            error: 'Frame not found',
+          });
           return true;
         }
 
@@ -129,7 +145,7 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
         // FIFO eviction if at capacity
         const keys = Object.keys(store);
         if (keys.length >= MAX_SNAPSHOTS) {
-          const oldest = keys.reduce((a, b) => store[a].timestamp < store[b].timestamp ? a : b);
+          const oldest = keys.reduce((a, b) => (store[a].timestamp < store[b].timestamp ? a : b));
           delete store[oldest];
         }
 
@@ -139,7 +155,13 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
 
         figma.ui.postMessage({ type: 'snapshot-taken', frameId, nodeCount: snapshot.length, success: true });
       } catch (e) {
-        figma.ui.postMessage({ type: 'snapshot-taken', frameId: (msg as any).frameId, nodeCount: 0, success: false, error: String(e) });
+        figma.ui.postMessage({
+          type: 'snapshot-taken',
+          frameId: (msg as any).frameId,
+          nodeCount: 0,
+          success: false,
+          error: String(e),
+        });
       }
       return true;
     }
@@ -187,9 +209,7 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
         }
 
         // Determine which frames to compare
-        const frameIds = targetFrameId
-          ? [targetFrameId]
-          : Object.keys(store);
+        const frameIds = targetFrameId ? [targetFrameId] : Object.keys(store);
 
         if (frameIds.length === 0 || (targetFrameId && !store[targetFrameId])) {
           figma.ui.postMessage({
@@ -227,10 +247,7 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
           }
 
           const currentSnapshot = serializeFrame(frame as FrameNode);
-          const corrections = calculateDiff(
-            entry.snapshot as Parameters<typeof calculateDiff>[0],
-            currentSnapshot
-          );
+          const corrections = calculateDiff(entry.snapshot as Parameters<typeof calculateDiff>[0], currentSnapshot);
 
           allCorrections = allCorrections.concat(corrections);
           comparedFrameId = fid;
@@ -263,7 +280,7 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
     case 'save-corrections': {
       try {
         const incoming = (msg as any).corrections as Array<Record<string, unknown>>;
-        const newEntries = incoming.map(c => ({ ...c, confirmed: true } as Record<string, unknown>));
+        const newEntries = incoming.map((c) => ({ ...c, confirmed: true }) as Record<string, unknown>);
 
         // Append to corrections store
         const existing: unknown[] = (await figma.clientStorage.getAsync(CORRECTIONS_STORAGE_KEY)) || [];
@@ -273,8 +290,7 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
         await figma.clientStorage.setAsync(CORRECTIONS_STORAGE_KEY, combined);
 
         // Delete consumed snapshots
-        const store: Record<string, unknown> =
-          (await figma.clientStorage.getAsync(SNAPSHOTS_STORAGE_KEY)) || {};
+        const store: Record<string, unknown> = (await figma.clientStorage.getAsync(SNAPSHOTS_STORAGE_KEY)) || {};
         for (const entry of newEntries) {
           if (entry.frameId) delete store[entry.frameId as string];
         }
@@ -293,12 +309,13 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
 
     case 'aggregate-preferences': {
       try {
-        const rawCorrections = await figma.clientStorage.getAsync(CORRECTIONS_STORAGE_KEY) || [];
-        const existing: LearnedPreference[] = await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY) || [];
+        const rawCorrections = (await figma.clientStorage.getAsync(CORRECTIONS_STORAGE_KEY)) || [];
+        const existing: LearnedPreference[] = (await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY)) || [];
         const updated = aggregateCorrections(rawCorrections as Parameters<typeof aggregateCorrections>[0], existing);
-        const trimmed = updated.length > MAX_PREFERENCES
-          ? updated.sort((a, b) => b.createdAt - a.createdAt).slice(0, MAX_PREFERENCES)
-          : updated;
+        const trimmed =
+          updated.length > MAX_PREFERENCES
+            ? updated.sort((a, b) => b.createdAt - a.createdAt).slice(0, MAX_PREFERENCES)
+            : updated;
         await figma.clientStorage.setAsync(PREFERENCES_STORAGE_KEY, trimmed);
         figma.ui.postMessage({ type: 'preferences-aggregated', preferences: trimmed, count: trimmed.length });
       } catch (err) {
@@ -309,7 +326,7 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
 
     case 'get-preferences': {
       try {
-        const prefs = await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY) || [];
+        const prefs = (await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY)) || [];
         figma.ui.postMessage({ type: 'preferences-loaded', preferences: prefs });
       } catch (err) {
         figma.ui.postMessage({ type: 'get-preferences-error', error: String(err) });
@@ -320,9 +337,10 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
     case 'save-preferences': {
       try {
         const prefs = ((msg as any).preferences as LearnedPreference[]) || [];
-        const trimmed = prefs.length > MAX_PREFERENCES
-          ? prefs.sort((a, b) => a.createdAt - b.createdAt).slice(prefs.length - MAX_PREFERENCES)
-          : prefs;
+        const trimmed =
+          prefs.length > MAX_PREFERENCES
+            ? prefs.sort((a, b) => a.createdAt - b.createdAt).slice(prefs.length - MAX_PREFERENCES)
+            : prefs;
         await figma.clientStorage.setAsync(PREFERENCES_STORAGE_KEY, trimmed);
         figma.ui.postMessage({ type: 'preferences-saved', success: true, count: trimmed.length });
       } catch (err) {
@@ -334,10 +352,14 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
     case 'update-preference': {
       try {
         const pref = (msg as any).preference as LearnedPreference;
-        const stored = await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY) as LearnedPreference[] | undefined;
+        const stored = (await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY)) as LearnedPreference[] | undefined;
         const prefs = stored || [];
-        const idx = prefs.findIndex(p => p.id === pref.id);
-        if (idx !== -1) { prefs[idx] = pref; } else { prefs.push(pref); }
+        const idx = prefs.findIndex((p) => p.id === pref.id);
+        if (idx !== -1) {
+          prefs[idx] = pref;
+        } else {
+          prefs.push(pref);
+        }
         await figma.clientStorage.setAsync(PREFERENCES_STORAGE_KEY, prefs);
         figma.ui.postMessage({ type: 'update-preference-result', success: true });
       } catch (err) {
@@ -349,8 +371,8 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
     case 'delete-preference': {
       try {
         const preferenceId = (msg as any).preferenceId as string;
-        const stored = await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY) as LearnedPreference[] | undefined;
-        const prefs = (stored || []).filter(p => p.id !== preferenceId);
+        const stored = (await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY)) as LearnedPreference[] | undefined;
+        const prefs = (stored || []).filter((p) => p.id !== preferenceId);
         await figma.clientStorage.setAsync(PREFERENCES_STORAGE_KEY, prefs);
         figma.ui.postMessage({ type: 'delete-preference-result', success: true });
       } catch (err) {
@@ -362,7 +384,7 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
     // FN-17: Brand kit retrieval for skill export
     case 'get-brand-kit': {
       try {
-        const brandKit = await figma.clientStorage.getAsync('figmento-brand-kit') || null;
+        const brandKit = (await figma.clientStorage.getAsync('figmento-brand-kit')) || null;
         figma.ui.postMessage({ type: 'brand-kit-loaded', brandKit });
       } catch (err) {
         figma.ui.postMessage({ type: 'get-brand-kit-error', error: String(err) });
@@ -372,8 +394,8 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
 
     case 'get-selection-snapshot': {
       const selection = figma.currentPage.selection
-        .filter(node => 'width' in node && 'height' in node)
-        .map(node => ({
+        .filter((node) => 'width' in node && 'height' in node)
+        .map((node) => ({
           id: node.id,
           type: node.type,
           name: node.name,
@@ -396,7 +418,7 @@ export async function handleStorageMessage(msg: PluginMessage): Promise<boolean>
 
     case 'get-learning-config': {
       try {
-        const config = await figma.clientStorage.getAsync(LEARNING_CONFIG_STORAGE_KEY) || DEFAULT_LEARNING_CONFIG;
+        const config = (await figma.clientStorage.getAsync(LEARNING_CONFIG_STORAGE_KEY)) || DEFAULT_LEARNING_CONFIG;
         figma.ui.postMessage({ type: 'learning-config-loaded', config });
       } catch (err) {
         figma.ui.postMessage({ type: 'get-learning-config-error', error: String(err) });

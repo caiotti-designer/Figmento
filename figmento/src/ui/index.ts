@@ -1,6 +1,5 @@
 // Main entry point for the plugin UI
 // Wires together all modules and initializes the application
-// CU-6: Removed legacy tool flows (text-layout, template, presentation, hero-generator, ad-analyzer mode UI)
 
 import { initDomRefs, dom, screenshotState } from './state';
 import { postMessage, cleanupAllListeners } from './utils';
@@ -40,10 +39,10 @@ import { AIProvider } from '../types';
 import { apiState, imageGenState } from './state';
 import { addToQueue, startBatchProcessing, clearQueue, notifyDesignCreated } from './batch';
 import { initChat, resolveChatCommand, loadMemoryEntries, getChatSettings, restoreChatHistory } from './chat';
-import { initBridge, handleBridgeCommandResult, autoConnectBridge, restoreBridgeRelayUrl, getBridgeConnected, getBridgeChannelId, getBridgeCommandCount, getBridgeErrorCount, setOnBridgeStateChange } from './bridge';
+import { initBridge, handleBridgeCommandResult, autoConnectBridge, restoreBridgeRelayUrl } from './bridge';
 import { initChatSettings, loadChatSettings } from './chat-settings';
 import { initPreferencesPanel, reloadPreferencesPanel } from './preferences-panel';
-import { designSystemState, statusTabState, dsToggleState } from './state';
+import { designSystemState, dsToggleState } from './state';
 import { initSkillExport } from './skill-export';
 import { initImageStudio } from './image-studio';
 import type { DesignSystemCache } from '../types';
@@ -57,27 +56,13 @@ const DS_STALENESS_MS = 60 * 60 * 1000; // 1 hour
 function handleDesignSystemScanned(cache: DesignSystemCache | null, error?: string): void {
   designSystemState.isScanning = false;
 
-  // Settings panel elements
   const btn = document.getElementById('ds-scan-btn') as HTMLButtonElement | null;
   const summary = document.getElementById('ds-scan-summary');
   const status = document.getElementById('ds-scan-status');
 
-  // Status Tab elements (FN-15)
-  const statusScanBtn = document.getElementById('status-ds-scan-btn') as HTMLButtonElement | null;
-  const statusScanned = document.getElementById('status-ds-scanned');
-  const statusEmpty = document.getElementById('status-ds-empty');
-  const statusComps = document.getElementById('status-ds-components');
-  const statusVars = document.getElementById('status-ds-variables');
-  const statusStyles = document.getElementById('status-ds-styles');
-  const statusStaleness = document.getElementById('status-ds-staleness');
-
   if (btn) {
     btn.disabled = false;
     btn.textContent = cache ? 'Rescan' : 'Scan Design System';
-  }
-  if (statusScanBtn) {
-    statusScanBtn.disabled = false;
-    statusScanBtn.textContent = cache ? 'Rescan' : 'Scan';
   }
 
   if (error) {
@@ -86,10 +71,6 @@ function handleDesignSystemScanned(cache: DesignSystemCache | null, error?: stri
       status.className = 'ds-scan-status error';
     }
     if (summary) summary.textContent = '';
-    if (statusStaleness) {
-      statusStaleness.textContent = 'Scan failed: ' + error;
-      statusStaleness.className = 'status-staleness warning';
-    }
     return;
   }
 
@@ -97,24 +78,25 @@ function handleDesignSystemScanned(cache: DesignSystemCache | null, error?: stri
 
   if (!cache) {
     if (summary) summary.textContent = '';
-    if (status) { status.textContent = ''; status.className = 'ds-scan-status'; }
-    if (statusScanned) statusScanned.style.display = 'none';
-    if (statusEmpty) statusEmpty.style.display = '';
+    if (status) {
+      status.textContent = '';
+      status.className = 'ds-scan-status';
+    }
     return;
   }
 
   const compCount = cache.components.length;
   const varCount = cache.variables.length;
-  const styleCount = (cache.paintStyles as unknown[]).length + (cache.textStyles as unknown[]).length + (cache.effectStyles as unknown[]).length;
+  const styleCount =
+    (cache.paintStyles as unknown[]).length +
+    (cache.textStyles as unknown[]).length +
+    (cache.effectStyles as unknown[]).length;
 
   if (compCount === 0 && varCount === 0 && styleCount === 0) {
     if (summary) summary.textContent = 'No design system found in this file';
-    if (status) { status.textContent = ''; status.className = 'ds-scan-status'; }
-    if (statusScanned) statusScanned.style.display = 'none';
-    if (statusEmpty) {
-      statusEmpty.style.display = '';
-      const emptyText = statusEmpty.querySelector('.status-card-empty');
-      if (emptyText) emptyText.textContent = 'No design system found in this file';
+    if (status) {
+      status.textContent = '';
+      status.className = 'ds-scan-status';
     }
     return;
   }
@@ -122,14 +104,6 @@ function handleDesignSystemScanned(cache: DesignSystemCache | null, error?: stri
   const compLabel = cache.truncated ? `${compCount}+ components (showing first 500)` : `${compCount} components`;
   if (summary) summary.textContent = `Found ${compLabel}, ${varCount} variables, ${styleCount} styles`;
 
-  // Update Status Tab DS card
-  if (statusScanned) statusScanned.style.display = '';
-  if (statusEmpty) statusEmpty.style.display = 'none';
-  if (statusComps) statusComps.textContent = cache.truncated ? `${compCount}+` : String(compCount);
-  if (statusVars) statusVars.textContent = String(varCount);
-  if (statusStyles) statusStyles.textContent = String(styleCount);
-
-  // Staleness check
   const scannedTime = new Date(cache.scannedAt).getTime();
   const isStale = Date.now() - scannedTime > DS_STALENESS_MS;
 
@@ -141,17 +115,6 @@ function handleDesignSystemScanned(cache: DesignSystemCache | null, error?: stri
       const ago = Math.round((Date.now() - scannedTime) / 60000);
       status.textContent = ago < 1 ? 'Scanned just now' : `Scanned ${ago}m ago`;
       status.className = 'ds-scan-status fresh';
-    }
-  }
-
-  if (statusStaleness) {
-    if (isStale) {
-      statusStaleness.textContent = 'Stale (>1h) — consider rescanning';
-      statusStaleness.className = 'status-staleness warning';
-    } else {
-      const ago = Math.round((Date.now() - scannedTime) / 60000);
-      statusStaleness.textContent = ago < 1 ? 'Scanned just now' : `Scanned ${ago}m ago`;
-      statusStaleness.className = 'status-staleness fresh';
     }
   }
 
@@ -174,18 +137,6 @@ function triggerDesignSystemScan(): void {
     status.className = 'ds-scan-status scanning';
   }
 
-  // FN-15: Also update Status Tab scan button
-  const statusScanBtn = document.getElementById('status-ds-scan-btn') as HTMLButtonElement | null;
-  if (statusScanBtn) {
-    statusScanBtn.disabled = true;
-    statusScanBtn.textContent = 'Scanning...';
-  }
-  const statusStaleness = document.getElementById('status-ds-staleness');
-  if (statusStaleness) {
-    statusStaleness.textContent = 'Scanning design system...';
-    statusStaleness.className = 'status-staleness scanning';
-  }
-
   postMessage({ type: 'scan-design-system' });
 }
 
@@ -194,10 +145,10 @@ function initDesignSystemPanel(): void {
   if (btn) {
     btn.addEventListener('click', triggerDesignSystemScan);
   }
-  // FN-15: Status Tab scan button
-  const statusScanBtn = document.getElementById('status-ds-scan-btn');
-  if (statusScanBtn) {
-    statusScanBtn.addEventListener('click', triggerDesignSystemScan);
+
+  // If DS cache already exists (e.g. from a previous scan in this session), populate the UI
+  if (designSystemState.cache) {
+    handleDesignSystemScanned(designSystemState.cache);
   }
 }
 
@@ -218,29 +169,37 @@ function updateDsToggleUI(): void {
   if (!toggleRow || !toggleInput) return;
 
   const cache = designSystemState.cache;
-  const hasCache = cache !== null &&
-    (cache.components.length > 0 || cache.variables.length > 0 ||
-     (cache.paintStyles as unknown[]).length + (cache.textStyles as unknown[]).length + (cache.effectStyles as unknown[]).length > 0);
+  const hasCache =
+    cache !== null &&
+    (cache.components.length > 0 ||
+      cache.variables.length > 0 ||
+      (cache.paintStyles as unknown[]).length +
+        (cache.textStyles as unknown[]).length +
+        (cache.effectStyles as unknown[]).length >
+        0);
 
   if (!hasCache) {
-    // No DS scanned — disable toggle, show hint
-    toggleRow.classList.add('disabled');
-    toggleRow.classList.remove('active');
-    toggleInput.disabled = true;
-    toggleInput.checked = dsToggleState.enabled; // preserve stored preference
-    if (hint) hint.style.display = 'inline';
-    if (summary) summary.textContent = '';
-  } else if (dsToggleState.enabled) {
-    // DS scanned + toggle ON
+    // No DS scanned — hide the row entirely. Scanning lives in Settings → Design System.
+    toggleRow.style.display = 'none';
+    return;
+  }
+
+  // DS scanned — show the row
+  toggleRow.style.display = '';
+  if (hint) hint.style.display = 'none';
+
+  if (dsToggleState.enabled) {
     toggleRow.classList.remove('disabled');
     toggleRow.classList.add('active');
     toggleInput.disabled = false;
     toggleInput.checked = true;
-    if (hint) hint.style.display = 'none';
     if (summary) {
       const compCount = cache.components.length;
       const varCount = cache.variables.length;
-      const styleCount = (cache.paintStyles as unknown[]).length + (cache.textStyles as unknown[]).length + (cache.effectStyles as unknown[]).length;
+      const styleCount =
+        (cache.paintStyles as unknown[]).length +
+        (cache.textStyles as unknown[]).length +
+        (cache.effectStyles as unknown[]).length;
       const parts: string[] = [];
       if (compCount > 0) parts.push(`${compCount} components`);
       if (varCount > 0) parts.push(`${varCount} variables`);
@@ -248,12 +207,10 @@ function updateDsToggleUI(): void {
       summary.textContent = parts.length > 0 ? `(${parts.join(', ')})` : '';
     }
   } else {
-    // DS scanned + toggle OFF
     toggleRow.classList.remove('disabled');
     toggleRow.classList.remove('active');
     toggleInput.disabled = false;
     toggleInput.checked = false;
-    if (hint) hint.style.display = 'none';
     if (summary) summary.textContent = '';
   }
 }
@@ -295,95 +252,6 @@ function initDsToggle(): void {
 
   // Initial UI state
   updateDsToggleUI();
-}
-
-// ═══════════════════════════════════════════════════════════════
-// FN-15: Status Tab
-// ═══════════════════════════════════════════════════════════════
-
-function updateStatusTabMcp(connected: boolean, channelId: string | null, cmds: number, errs: number): void {
-  const dot = document.getElementById('status-mcp-dot');
-  const connectedDiv = document.getElementById('status-mcp-connected');
-  const disconnectedDiv = document.getElementById('status-mcp-disconnected');
-  const channelEl = document.getElementById('status-mcp-channel');
-  const cmdsEl = document.getElementById('status-mcp-cmds');
-  const errsEl = document.getElementById('status-mcp-errs');
-
-  if (dot) {
-    dot.className = 'status-dot-indicator ' + (connected ? 'connected' : 'disconnected');
-  }
-  if (connectedDiv) connectedDiv.style.display = connected ? '' : 'none';
-  if (disconnectedDiv) disconnectedDiv.style.display = connected ? 'none' : '';
-  if (channelEl) channelEl.textContent = channelId || '---';
-  if (cmdsEl) cmdsEl.textContent = String(cmds);
-  if (errsEl) errsEl.textContent = String(errs);
-}
-
-function updateStatusTabPreferences(count: number): void {
-  statusTabState.preferencesCount = count;
-  const text = document.getElementById('status-prefs-count-text');
-  const viewBtn = document.getElementById('status-prefs-view');
-  if (text) {
-    text.textContent = count > 0 ? `${count} preference${count !== 1 ? 's' : ''} learned` : 'No preferences learned yet';
-  }
-  if (viewBtn) {
-    viewBtn.style.display = count > 0 ? '' : 'none';
-  }
-}
-
-function initStatusTab(): void {
-  // Wire bridge state changes to Status Tab MCP card
-  setOnBridgeStateChange(updateStatusTabMcp);
-  // Set initial state
-  updateStatusTabMcp(getBridgeConnected(), getBridgeChannelId(), getBridgeCommandCount(), getBridgeErrorCount());
-
-  // "Configure" link opens Settings sheet and scrolls to Advanced section
-  const configureBtn = document.getElementById('status-mcp-configure');
-  if (configureBtn) {
-    configureBtn.addEventListener('click', () => {
-      openSettings();
-      // Wait for sheet animation, then scroll to Advanced section
-      setTimeout(() => {
-        const advSection = document.getElementById('bridge-advanced-section');
-        if (advSection) {
-          (advSection as HTMLDetailsElement).open = true;
-          advSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 200);
-    });
-  }
-
-  // "View" link opens Settings sheet and scrolls to Preferences section
-  const viewPrefsBtn = document.getElementById('status-prefs-view');
-  if (viewPrefsBtn) {
-    viewPrefsBtn.addEventListener('click', () => {
-      openSettings();
-      setTimeout(() => {
-        const prefSection = document.getElementById('preferences-section');
-        if (prefSection) {
-          prefSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 200);
-    });
-  }
-
-  // Listen for preferences-loaded to update count
-  window.addEventListener('message', (event: MessageEvent) => {
-    const msg = event.data?.pluginMessage;
-    if (!msg) return;
-    if (msg.type === 'preferences-loaded') {
-      const prefs = (msg.preferences as unknown[]) || [];
-      updateStatusTabPreferences(prefs.length);
-    }
-  });
-
-  // Request initial preferences count
-  postMessage({ type: 'get-preferences' });
-
-  // If DS cache already exists (e.g. from a previous scan in this session), populate the card
-  if (designSystemState.cache) {
-    handleDesignSystemScanned(designSystemState.cache);
-  }
 }
 
 function setupEventListeners(): void {
@@ -603,9 +471,19 @@ function setupEventListeners(): void {
     onCommandResult: (response: Record<string, unknown>) => {
       const cmdId = response.id as string;
       if (cmdId && cmdId.startsWith('chat-')) {
-        resolveChatCommand(cmdId, !!response.success, (response.data || {}) as Record<string, unknown>, response.error as string | undefined);
+        resolveChatCommand(
+          cmdId,
+          !!response.success,
+          (response.data || {}) as Record<string, unknown>,
+          response.error as string | undefined
+        );
       } else if (cmdId && cmdId.startsWith('screenshot-')) {
-        resolveScreenshotCommand(cmdId, !!response.success, (response.data || {}) as Record<string, unknown>, response.error as string | undefined);
+        resolveScreenshotCommand(
+          cmdId,
+          !!response.success,
+          (response.data || {}) as Record<string, unknown>,
+          response.error as string | undefined
+        );
       } else {
         handleBridgeCommandResult(response);
       }
@@ -622,15 +500,15 @@ function setupEventListeners(): void {
       // the local relay is always available — no need to gate auto-connect on
       // model selection. Bridge routes MCP tool calls for ALL models.
       const cs = getChatSettings();
-      const relayBar = document.getElementById('relay-status-bar');
       const useClaudeCode = cs.model === 'claude-code';
       const isCodexModel = typeof cs.model === 'string' && cs.model.endsWith('-codex');
       const needsLocalRelay = useClaudeCode || isCodexModel;
 
-      if (relayBar) relayBar.style.display = 'flex';
       const relayUrl = needsLocalRelay
         ? 'http://localhost:3055'
-        : (cs.chatRelayEnabled ? (cs.chatRelayUrl || 'https://figmento-ws-relay.fly.dev') : 'http://localhost:3055');
+        : cs.chatRelayEnabled
+          ? cs.chatRelayUrl || 'https://figmento-ws-relay.fly.dev'
+          : 'http://localhost:3055';
       autoConnectBridge(relayUrl, (settings as any).bridgeChannel || undefined);
     },
     onMemoryLoaded: (entries) => {
@@ -669,9 +547,7 @@ function initializeApp(): void {
   updateImageGenVisibility();
   updateModelDropdownVisibility();
 
-  // CU-6: Steps 5-9 removed (mode UI, template fill, presentation, hero generator, ad analyzer)
-
-  // 10. Initialize unified tabs (Chat, Settings)
+  // Initialize tabs and feature modules
   initUnifiedTabs();
   initMainTabs();
   initChat();
@@ -680,20 +556,17 @@ function initializeApp(): void {
   initPreferencesPanel();
   initDesignSystemPanel();
   initDsToggle();
-  initStatusTab();
   initSkillExport();
   initImageStudio();
-
-  // CU-6: Steps 11-12 removed (saved mode restore, drop zone focus)
 }
 
 /** Initialize the unified tab layout. */
 function initUnifiedTabs() {
-  document.querySelectorAll('.unified-tab-btn').forEach(btn => {
+  document.querySelectorAll('.unified-tab-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const tab = (btn as HTMLElement).dataset.tab!;
-      document.querySelectorAll('.unified-tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.unified-tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.unified-tab-btn').forEach((b) => b.classList.remove('active'));
+      document.querySelectorAll('.unified-tab-content').forEach((c) => c.classList.remove('active'));
       btn.classList.add('active');
       const tabEl = document.getElementById(tab);
       if (tabEl) tabEl.classList.add('active');
@@ -717,13 +590,13 @@ function initMainTabs(): void {
   let chatScrollTop = 0;
   const chatMessages = document.getElementById('chat-messages');
 
-  tabBtns.forEach(btn => {
+  tabBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       const tab = btn.dataset.tab;
       if (!tab) return;
 
       // Update button states
-      tabBtns.forEach(b => b.classList.remove('active'));
+      tabBtns.forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
 
       if (tab === 'chat') {

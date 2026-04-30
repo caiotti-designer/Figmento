@@ -52,8 +52,14 @@ function sendScreenshotCommand(action: string, params: Record<string, unknown>):
     }, 30000);
 
     pendingScreenshotCommands.set(cmdId, {
-      resolve: (data) => { clearTimeout(timer); resolve(data); },
-      reject: (err) => { clearTimeout(timer); reject(err); },
+      resolve: (data) => {
+        clearTimeout(timer);
+        resolve(data);
+      },
+      reject: (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
     });
 
     postMessage({
@@ -77,7 +83,7 @@ export function resolveScreenshotCommand(
   cmdId: string,
   success: boolean,
   data: Record<string, unknown>,
-  error?: string,
+  error?: string
 ): void {
   const pending = pendingScreenshotCommands.get(cmdId);
   if (!pending) return;
@@ -118,7 +124,7 @@ Do NOT return any JSON or text description — call the design tools directly to
  */
 function buildScreenshotInitialMessages(
   imageBase64: string,
-  provider: 'claude' | 'gemini' | 'openai',
+  provider: 'claude' | 'gemini' | 'openai'
 ): AnthropicMessage[] | GeminiContent[] | Array<Record<string, unknown>> {
   // Extract MIME type and raw base64 from data URL
   const match = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
@@ -126,37 +132,43 @@ function buildScreenshotInitialMessages(
   const rawBase64 = match ? match[2] : imageBase64;
 
   if (provider === 'gemini') {
-    const messages: GeminiContent[] = [{
-      role: 'user',
-      parts: [
-        { inlineData: { mimeType, data: rawBase64 } } as Record<string, unknown> as any,
-        { text: SCREENSHOT_INSTRUCTION },
-      ],
-    }];
+    const messages: GeminiContent[] = [
+      {
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType, data: rawBase64 } } as Record<string, unknown> as any,
+          { text: SCREENSHOT_INSTRUCTION },
+        ],
+      },
+    ];
     return messages;
   }
 
   if (provider === 'openai') {
-    return [{
-      role: 'user',
-      content: [
-        { type: 'image_url', image_url: { url: imageBase64 } },
-        { type: 'text', text: SCREENSHOT_INSTRUCTION },
-      ],
-    }];
+    return [
+      {
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: imageBase64 } },
+          { type: 'text', text: SCREENSHOT_INSTRUCTION },
+        ],
+      },
+    ];
   }
 
   // Anthropic (claude)
-  const messages: AnthropicMessage[] = [{
-    role: 'user',
-    content: [
-      {
-        type: 'image',
-        source: { type: 'base64', media_type: mimeType, data: rawBase64 },
-      } as unknown as ContentBlock,
-      { type: 'text', text: SCREENSHOT_INSTRUCTION } as ContentBlock,
-    ],
-  }];
+  const messages: AnthropicMessage[] = [
+    {
+      role: 'user',
+      content: [
+        {
+          type: 'image',
+          source: { type: 'base64', media_type: mimeType, data: rawBase64 },
+        } as unknown as ContentBlock,
+        { type: 'text', text: SCREENSHOT_INSTRUCTION } as ContentBlock,
+      ],
+    },
+  ];
   return messages;
 }
 
@@ -650,14 +662,15 @@ export const startProcessing = async (): Promise<void> => {
           setProgress(percent, toolNameToProgressMessage(toolName, 'screenshot'));
         }
       },
-      onTextChunk: () => { /* screenshot mode has no text output UI */ },
+      onTextChunk: () => {
+        /* screenshot mode has no text output UI */
+      },
     });
 
     if (!screenshotState.isProcessing) return;
 
     setProgress(100, 'Complete!');
     setTimeout(() => showSuccess(), 500);
-
   } catch (error: unknown) {
     if (!screenshotState.isProcessing) return;
 
@@ -670,7 +683,10 @@ export const startProcessing = async (): Promise<void> => {
 
     stopSimulation();
 
-    const retry = () => { goToStep(3); startProcessing(); };
+    const retry = () => {
+      goToStep(3);
+      startProcessing();
+    };
 
     if (classified.code === 'TIMEOUT') {
       showToast(classified.message, 'error', 8000, retry);

@@ -21,7 +21,7 @@ export interface ImageReference {
   id: string;
   name: string;
   type: ReferenceType;
-  data: string;           // base64 (no prefix)
+  data: string; // base64 (no prefix)
   mimeType: string;
   thumbnailDataUrl: string; // data URL for <img> src
   addedAt: number;
@@ -40,12 +40,14 @@ const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 let references: ImageReference[] = [];
 let nameCounter = 0;
 
-export function getReferences(): ImageReference[] { return references; }
+export function getReferences(): ImageReference[] {
+  return references;
+}
 export function getReferenceById(id: string): ImageReference | undefined {
-  return references.find(r => r.id === id);
+  return references.find((r) => r.id === id);
 }
 export function getReferenceByName(name: string): ImageReference | undefined {
-  return references.find(r => r.name === name);
+  return references.find((r) => r.name === name);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -80,7 +82,9 @@ function canAdd(type: ReferenceType): boolean {
 }
 
 /** Compress and create thumbnail from a File */
-async function processImageFile(file: File): Promise<{ data: string; mimeType: string; thumbnailDataUrl: string } | null> {
+async function processImageFile(
+  file: File
+): Promise<{ data: string; mimeType: string; thumbnailDataUrl: string } | null> {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = async () => {
@@ -109,7 +113,10 @@ function generateThumbnail(dataUrl: string, size: number): Promise<string> {
       canvas.width = size;
       canvas.height = size;
       const ctx = canvas.getContext('2d');
-      if (!ctx) { resolve(dataUrl); return; }
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
 
       // Center-crop to square
       const min = Math.min(img.width, img.height);
@@ -162,7 +169,7 @@ export async function addReference(file: File, type: ReferenceType): Promise<Ima
 }
 
 export function removeReference(id: string): void {
-  references = references.filter(r => r.id !== id);
+  references = references.filter((r) => r.id !== id);
   stripRemovedRefTokens(id);
   renderReferences();
 }
@@ -170,11 +177,11 @@ export function removeReference(id: string): void {
 export function renameReference(id: string, newName: string): boolean {
   const sanitized = newName.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20);
   if (!sanitized) return false;
-  if (references.some(r => r.id !== id && r.name === sanitized)) {
+  if (references.some((r) => r.id !== id && r.name === sanitized)) {
     showToast('Name already in use', 'error');
     return false;
   }
-  const ref = references.find(r => r.id === id);
+  const ref = references.find((r) => r.id === id);
   if (ref) {
     ref.name = sanitized;
     renderReferences();
@@ -212,7 +219,7 @@ function renderReferences(): void {
   // Render existing references grouped by type
   const typeOrder: ReferenceType[] = ['style', 'character', 'content'];
   for (const type of typeOrder) {
-    const refs = references.filter(r => r.type === type);
+    const refs = references.filter((r) => r.type === type);
     for (const ref of refs) {
       container.appendChild(createRefCard(ref));
     }
@@ -220,8 +227,16 @@ function renderReferences(): void {
 
   // Render category slot buttons
   const slots: { type: ReferenceType; icon: string; label: string }[] = [
-    { type: 'style', icon: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>', label: 'Style' },
-    { type: 'character', icon: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>', label: 'Character' },
+    {
+      type: 'style',
+      icon: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+      label: 'Style',
+    },
+    {
+      type: 'character',
+      icon: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+      label: 'Character',
+    },
   ];
 
   for (const slot of slots) {
@@ -243,7 +258,8 @@ function renderReferences(): void {
     addEl.className = 'is-ref-slot';
     addEl.dataset.type = 'add';
     addEl.title = 'Add content reference';
-    addEl.innerHTML = '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>Add</span>';
+    addEl.innerHTML =
+      '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>Add</span>';
     addEl.addEventListener('click', () => openFilePicker('content'));
     setupSlotDropZone(addEl, 'content');
     container.appendChild(addEl);
@@ -289,7 +305,7 @@ function createRefCard(ref: ImageReference): HTMLElement {
 }
 
 function startInlineRename(refId: string, nameEl: HTMLElement): void {
-  const ref = references.find(r => r.id === refId);
+  const ref = references.find((r) => r.id === refId);
   if (!ref) return;
 
   const input = document.createElement('input');
@@ -314,8 +330,14 @@ function startInlineRename(refId: string, nameEl: HTMLElement): void {
   };
 
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      finish(true);
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      finish(false);
+    }
   });
   input.addEventListener('blur', () => finish(true));
 }
@@ -422,20 +444,20 @@ function updateGenerateState(): void {
 
 // Aspect ratio options with labels and icons
 const ASPECT_OPTIONS: { value: string; label: string; icon: string }[] = [
-  { value: '1:1',  label: 'Square',             icon: '◻' },
-  { value: '16:9', label: 'Widescreen',         icon: '▬' },
-  { value: '9:16', label: 'Social story',       icon: '▮' },
-  { value: '4:3',  label: 'Classic',            icon: '▭' },
-  { value: '3:4',  label: 'Portrait classic',   icon: '▯' },
-  { value: '4:5',  label: 'Social post',        icon: '▯' },
-  { value: '5:4',  label: 'Landscape post',     icon: '▭' },
-  { value: '3:2',  label: 'Photo landscape',    icon: '▬' },
-  { value: '2:3',  label: 'Photo portrait',     icon: '▮' },
-  { value: '21:9', label: 'Ultrawide',          icon: '━' },
-  { value: '1:4',  label: 'Vertical banner',    icon: '▏' },
-  { value: '1:8',  label: 'Vertical panoramic', icon: '▏' },
-  { value: '8:1',  label: 'Panoramic',          icon: '━' },
-  { value: '4:1',  label: 'Banner',             icon: '━' },
+  { value: '1:1', label: 'Square', icon: '◻' },
+  { value: '16:9', label: 'Widescreen', icon: '▬' },
+  { value: '9:16', label: 'Social story', icon: '▮' },
+  { value: '4:3', label: 'Classic', icon: '▭' },
+  { value: '3:4', label: 'Portrait classic', icon: '▯' },
+  { value: '4:5', label: 'Social post', icon: '▯' },
+  { value: '5:4', label: 'Landscape post', icon: '▭' },
+  { value: '3:2', label: 'Photo landscape', icon: '▬' },
+  { value: '2:3', label: 'Photo portrait', icon: '▮' },
+  { value: '21:9', label: 'Ultrawide', icon: '━' },
+  { value: '1:4', label: 'Vertical banner', icon: '▏' },
+  { value: '1:8', label: 'Vertical panoramic', icon: '▏' },
+  { value: '8:1', label: 'Panoramic', icon: '━' },
+  { value: '4:1', label: 'Banner', icon: '━' },
 ];
 
 /** Map aspect ratio + resolution to pixel dimensions */
@@ -479,13 +501,15 @@ function setupControls(): void {
   const aspectDropdown = aspectWrapper.querySelector('#is-aspect-dropdown') as HTMLElement;
 
   // Populate dropdown
-  aspectDropdown.innerHTML = ASPECT_OPTIONS.map(opt => `
+  aspectDropdown.innerHTML = ASPECT_OPTIONS.map(
+    (opt) => `
     <div class="is-dropdown-item ${opt.value === currentAspectRatio ? 'is-dropdown-selected' : ''}" data-value="${opt.value}">
       <span class="is-dropdown-icon">${opt.icon}</span>
       <span class="is-dropdown-label">${opt.value}</span>
       <span class="is-dropdown-desc">${opt.label}</span>
     </div>
-  `).join('');
+  `
+  ).join('');
 
   aspectBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -494,12 +518,12 @@ function setupControls(): void {
     if (!isOpen) aspectDropdown.classList.add('is-dropdown-open');
   });
 
-  aspectDropdown.querySelectorAll('.is-dropdown-item').forEach(item => {
+  aspectDropdown.querySelectorAll('.is-dropdown-item').forEach((item) => {
     item.addEventListener('click', (e) => {
       e.stopPropagation();
       currentAspectRatio = (item as HTMLElement).dataset.value!;
       aspectBtn.querySelector('.is-chip-value')!.textContent = currentAspectRatio;
-      aspectDropdown.querySelectorAll('.is-dropdown-item').forEach(i => i.classList.remove('is-dropdown-selected'));
+      aspectDropdown.querySelectorAll('.is-dropdown-item').forEach((i) => i.classList.remove('is-dropdown-selected'));
       item.classList.add('is-dropdown-selected');
       closeAllDropdowns();
     });
@@ -530,7 +554,7 @@ function setupControls(): void {
 }
 
 function closeAllDropdowns(): void {
-  document.querySelectorAll('.is-dropdown-open').forEach(d => d.classList.remove('is-dropdown-open'));
+  document.querySelectorAll('.is-dropdown-open').forEach((d) => d.classList.remove('is-dropdown-open'));
 }
 
 function createControlChip(id: string, icon: string, value: string): HTMLElement {
@@ -575,8 +599,8 @@ async function triggerGeneration(): Promise<void> {
   let refsToSend: ImageReference[];
   if (consistencyMode) {
     // All refs, but tagged ones first (in prompt order)
-    const taggedIds = new Set(taggedRefs.map(r => r.id));
-    refsToSend = [...taggedRefs, ...references.filter(r => !taggedIds.has(r.id))];
+    const taggedIds = new Set(taggedRefs.map((r) => r.id));
+    refsToSend = [...taggedRefs, ...references.filter((r) => !taggedIds.has(r.id))];
   } else {
     // Only @tagged refs
     refsToSend = taggedRefs;
@@ -590,7 +614,7 @@ async function triggerGeneration(): Promise<void> {
     content: 'Content reference',
   };
   refsToSend.forEach((ref, i) => {
-    const isTagged = taggedRefs.some(r => r.id === ref.id);
+    const isTagged = taggedRefs.some((r) => r.id === ref.id);
     const label = isTagged
       ? `Image ${i + 1} (@${ref.name} — ${roleLabels[ref.type]})`
       : `Image ${i + 1} (Reference image)`;
@@ -612,7 +636,8 @@ async function triggerGeneration(): Promise<void> {
   } finally {
     isGenerating = false;
     btn.disabled = false;
-    btn.innerHTML = 'Generate <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
+    btn.innerHTML =
+      'Generate <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
     updateGenerateState();
   }
 }
@@ -621,7 +646,7 @@ async function callImageGeneration(
   prompt: string,
   refs: ImageReference[],
   aspectRatio: string,
-  resolution: string,
+  resolution: string
 ): Promise<{ imageBase64: string; mimeType: string } | null> {
   const geminiKey = getGeminiKey();
   if (!geminiKey) {
@@ -646,7 +671,7 @@ async function callGeminiDirect(
   refs: ImageReference[],
   aspectRatio: string,
   resolution: string,
-  apiKey: string,
+  apiKey: string
 ): Promise<{ imageBase64: string; mimeType: string } | null> {
   const geminiModel = 'gemini-3.1-flash-image-preview'; // TODO: accept from caller when Image Studio gets model selector
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
@@ -679,7 +704,9 @@ async function callGeminiDirect(
     try {
       const errJson = JSON.parse(errText);
       msg = errJson.error?.message || msg;
-    } catch { msg = errText.slice(0, 200); }
+    } catch {
+      msg = errText.slice(0, 200);
+    }
     throw new Error(msg);
   }
 
@@ -708,11 +735,11 @@ async function callViaRelay(
   refs: ImageReference[],
   aspectRatio: string,
   resolution: string,
-  apiKey: string,
+  apiKey: string
 ): Promise<{ imageBase64: string; mimeType: string } | null> {
   const relayUrl = getRelayUrl();
   const channel = getChannel();
-  const referenceImages = refs.map(ref => ({ data: ref.data, mimeType: ref.mimeType }));
+  const referenceImages = refs.map((ref) => ({ data: ref.data, mimeType: ref.mimeType }));
 
   const response = await fetch(`${relayUrl}/api/chat/turn`, {
     method: 'POST',
@@ -804,10 +831,12 @@ export function extractTaggedRefIds(rawValue: string): string[] {
 
 /** Get clean prompt text for API (tokens replaced with @names) */
 function getCleanPrompt(rawValue: string): string {
-  return rawValue.replace(TAG_TOKEN_RE, (_, id) => {
-    const ref = getReferenceById(id);
-    return ref ? `@${ref.name}` : '';
-  }).trim();
+  return rawValue
+    .replace(TAG_TOKEN_RE, (_, id) => {
+      const ref = getReferenceById(id);
+      return ref ? `@${ref.name}` : '';
+    })
+    .trim();
 }
 
 /** Build labeled API parts from @tagged references */
@@ -816,7 +845,7 @@ export function buildTaggedParts(rawValue: string): { prompt: string; taggedRefs
   const taggedRefs: ImageReference[] = [];
   for (const id of ids) {
     const ref = getReferenceById(id);
-    if (ref && !taggedRefs.some(r => r.id === ref.id)) {
+    if (ref && !taggedRefs.some((r) => r.id === ref.id)) {
       taggedRefs.push(ref);
     }
   }
@@ -838,10 +867,26 @@ function setupTagAutocomplete(): void {
   // Keyboard navigation for autocomplete
   textarea.addEventListener('keydown', (e) => {
     if (autocompleteActive) {
-      if (e.key === 'ArrowDown') { e.preventDefault(); moveAutocomplete(1); return; }
-      if (e.key === 'ArrowUp') { e.preventDefault(); moveAutocomplete(-1); return; }
-      if (e.key === 'Enter') { e.preventDefault(); selectAutocomplete(); return; }
-      if (e.key === 'Escape') { e.preventDefault(); closeAutocomplete(); return; }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        moveAutocomplete(1);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        moveAutocomplete(-1);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        selectAutocomplete();
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeAutocomplete();
+        return;
+      }
     }
     // Ctrl+Enter still generates
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -933,9 +978,7 @@ function showAutocomplete(atPos: number): void {
     return;
   }
 
-  const filtered = references.filter(r =>
-    r.name.toLowerCase().includes(autocompleteFilter)
-  );
+  const filtered = references.filter((r) => r.name.toLowerCase().includes(autocompleteFilter));
 
   if (filtered.length === 0) {
     closeAutocomplete();
@@ -957,19 +1000,23 @@ function showAutocomplete(atPos: number): void {
     content: '📷',
   };
 
-  autocompleteDropdown.innerHTML = filtered.map((ref, i) => `
+  autocompleteDropdown.innerHTML = filtered
+    .map(
+      (ref, i) => `
     <div class="is-ac-item ${i === 0 ? 'is-ac-selected' : ''}" data-ref-id="${ref.id}" data-at-pos="${atPos}">
       <img class="is-ac-thumb" src="${ref.thumbnailDataUrl}" alt="" />
       <span class="is-ac-name">@${ref.name}</span>
       <span class="is-ac-type">${typeIcons[ref.type]}</span>
     </div>
-  `).join('');
+  `
+    )
+    .join('');
 
   // Position dropdown above the textarea
   autocompleteDropdown.style.display = 'block';
 
   // Click handler on items
-  autocompleteDropdown.querySelectorAll('.is-ac-item').forEach(item => {
+  autocompleteDropdown.querySelectorAll('.is-ac-item').forEach((item) => {
     item.addEventListener('mousedown', (e) => {
       e.preventDefault();
       const refId = (item as HTMLElement).dataset.refId!;
@@ -1198,12 +1245,11 @@ async function callDescribeApi(base64: string, mimeType: string, mode: 'recreate
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{
-        parts: [
-          { inlineData: { mimeType, data: base64 } },
-          { text: DESCRIBE_PROMPTS[mode] },
-        ],
-      }],
+      contents: [
+        {
+          parts: [{ inlineData: { mimeType, data: base64 } }, { text: DESCRIBE_PROMPTS[mode] }],
+        },
+      ],
       generationConfig: { responseModalities: ['TEXT'] },
     }),
   });
@@ -1314,9 +1360,11 @@ async function callEnhanceApi(prompt: string): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{
-        parts: [{ text: `${ENHANCE_SYSTEM_PROMPT}\n\nPrompt to improve:\n${prompt}` }],
-      }],
+      contents: [
+        {
+          parts: [{ text: `${ENHANCE_SYSTEM_PROMPT}\n\nPrompt to improve:\n${prompt}` }],
+        },
+      ],
       generationConfig: { responseModalities: ['TEXT'] },
     }),
   });
@@ -1338,14 +1386,16 @@ function showEnhanceDiff(original: string, enhanced: string): void {
   // Simple word-level diff
   const origWords = original.split(/\s+/);
   const enhWords = enhanced.split(/\s+/);
-  const origSet = new Set(origWords.map(w => w.toLowerCase()));
+  const origSet = new Set(origWords.map((w) => w.toLowerCase()));
 
-  const diffHtml = enhWords.map(word => {
-    if (!origSet.has(word.toLowerCase())) {
-      return `<span class="is-diff-added">${escapeHtml(word)}</span>`;
-    }
-    return escapeHtml(word);
-  }).join(' ');
+  const diffHtml = enhWords
+    .map((word) => {
+      if (!origSet.has(word.toLowerCase())) {
+        return `<span class="is-diff-added">${escapeHtml(word)}</span>`;
+      }
+      return escapeHtml(word);
+    })
+    .join(' ');
 
   container.innerHTML = `
     <div class="is-diff-content">${diffHtml}</div>
@@ -1371,7 +1421,9 @@ function showEnhanceDiff(original: string, enhanced: string): void {
   });
 
   // Auto-dismiss after 30s
-  setTimeout(() => { container.style.display = 'none'; }, 30000);
+  setTimeout(() => {
+    container.style.display = 'none';
+  }, 30000);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1383,7 +1435,7 @@ interface HistoryEntry {
   imageBase64: string;
   mimeType: string;
   thumbnailDataUrl: string;
-  rawPrompt: string;       // with {{ref:id}} tokens
+  rawPrompt: string; // with {{ref:id}} tokens
   aspectRatio: string;
   resolution: string;
   timestamp: number;
@@ -1394,10 +1446,7 @@ const HISTORY_THUMB_SIZE = 64;
 let history: HistoryEntry[] = [];
 
 async function addToHistory(imageBase64: string, mimeType: string, rawPrompt: string): Promise<void> {
-  const thumbDataUrl = await generateThumbnail(
-    `data:${mimeType};base64,${imageBase64}`,
-    HISTORY_THUMB_SIZE
-  );
+  const thumbDataUrl = await generateThumbnail(`data:${mimeType};base64,${imageBase64}`, HISTORY_THUMB_SIZE);
 
   const entry: HistoryEntry = {
     id: 'hist_' + Date.now().toString(36),
@@ -1430,17 +1479,21 @@ function renderHistory(): void {
     return;
   }
 
-  strip.innerHTML = history.map(entry => `
+  strip.innerHTML = history
+    .map(
+      (entry) => `
     <div class="is-history-thumb" data-hist-id="${entry.id}" title="${new Date(entry.timestamp).toLocaleTimeString()}">
       <img src="${entry.thumbnailDataUrl}" alt="Generated" />
     </div>
-  `).join('');
+  `
+    )
+    .join('');
 
   // Click to open modal
-  strip.querySelectorAll('.is-history-thumb').forEach(thumb => {
+  strip.querySelectorAll('.is-history-thumb').forEach((thumb) => {
     thumb.addEventListener('click', () => {
       const id = (thumb as HTMLElement).dataset.histId!;
-      const entry = history.find(h => h.id === id);
+      const entry = history.find((h) => h.id === id);
       if (entry) openHistoryModal(entry);
     });
   });
@@ -1480,7 +1533,10 @@ function openHistoryModal(entry: HistoryEntry): void {
     if (e.target === modal) closeHistoryModal();
   });
   const escHandler = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') { closeHistoryModal(); document.removeEventListener('keydown', escHandler); }
+    if (e.key === 'Escape') {
+      closeHistoryModal();
+      document.removeEventListener('keydown', escHandler);
+    }
   };
   document.addEventListener('keydown', escHandler);
 
@@ -1537,23 +1593,39 @@ async function sendToCanvas(imageBase64: string, mimeType: string, promptText: s
   // Disable buttons while placing
   const modalBtn = document.getElementById('is-modal-canvas') as HTMLButtonElement | null;
   const previewBtn = document.getElementById('is-preview-canvas') as HTMLButtonElement | null;
-  if (modalBtn) { modalBtn.disabled = true; modalBtn.textContent = 'Placing...'; }
-  if (previewBtn) { previewBtn.disabled = true; previewBtn.textContent = 'Placing...'; }
+  if (modalBtn) {
+    modalBtn.disabled = true;
+    modalBtn.textContent = 'Placing...';
+  }
+  if (previewBtn) {
+    previewBtn.disabled = true;
+    previewBtn.textContent = 'Placing...';
+  }
 
-  const frameName = (promptText.slice(0, 40).replace(/[^\w\s-]/g, '').trim() || 'Image Studio') + ' — Image Studio';
+  const frameName =
+    (promptText
+      .slice(0, 40)
+      .replace(/[^\w\s-]/g, '')
+      .trim() || 'Image Studio') + ' — Image Studio';
 
   // Use tracked dimensions from generation, or compute from current settings
-  const dims = lastGenDimensions.width > 0 ? lastGenDimensions : getPixelDimensions(currentAspectRatio, currentResolution);
+  const dims =
+    lastGenDimensions.width > 0 ? lastGenDimensions : getPixelDimensions(currentAspectRatio, currentResolution);
 
   // Direct postMessage to plugin sandbox — no relay needed
-  parent.postMessage({ pluginMessage: {
-    type: 'place-studio-image',
-    imageBase64,
-    mimeType,
-    name: frameName,
-    width: dims.width,
-    height: dims.height,
-  }}, '*');
+  parent.postMessage(
+    {
+      pluginMessage: {
+        type: 'place-studio-image',
+        imageBase64,
+        mimeType,
+        name: frameName,
+        width: dims.width,
+        height: dims.height,
+      },
+    },
+    '*'
+  );
 
   // Listen for response
   const handler = (event: MessageEvent) => {
@@ -1572,13 +1644,21 @@ async function sendToCanvas(imageBase64: string, mimeType: string, promptText: s
 
   const cleanup = () => {
     window.removeEventListener('message', handler);
-    if (modalBtn) { modalBtn.disabled = false; modalBtn.textContent = 'Send to Canvas'; }
-    if (previewBtn) { previewBtn.disabled = false; previewBtn.textContent = 'Send to Canvas'; }
+    if (modalBtn) {
+      modalBtn.disabled = false;
+      modalBtn.textContent = 'Send to Canvas';
+    }
+    if (previewBtn) {
+      previewBtn.disabled = false;
+      previewBtn.textContent = 'Send to Canvas';
+    }
   };
 
   window.addEventListener('message', handler);
   // Timeout safety
-  setTimeout(() => { cleanup(); }, 10000);
+  setTimeout(() => {
+    cleanup();
+  }, 10000);
 }
 
 // Send to Canvas button is now wired directly in showGenerationResult
@@ -1623,8 +1703,9 @@ function setupDescribeModeToggle(): void {
   toggle.addEventListener('click', () => {
     describeMode = describeMode === 'recreate' ? 'inspire' : 'recreate';
     toggle.textContent = describeMode === 'recreate' ? 'Recreate' : 'Inspire';
-    toggle.title = describeMode === 'recreate'
-      ? 'Detailed prompt for faithful reproduction'
-      : 'Abstract prompt capturing mood and essence';
+    toggle.title =
+      describeMode === 'recreate'
+        ? 'Detailed prompt for faithful reproduction'
+        : 'Abstract prompt capturing mood and essence';
   });
 }

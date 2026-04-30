@@ -29,7 +29,7 @@ function rgbToHex(r: number, g: number, b: number): string {
 
 function serializeFills(fills: readonly Paint[] | typeof figma.mixed): SerializedFill[] {
   if (fills === figma.mixed || !fills) return [];
-  return fills.map(fill => {
+  return fills.map((fill) => {
     if (fill.type === 'SOLID') {
       return {
         type: 'SOLID',
@@ -45,7 +45,7 @@ function serializeFills(fills: readonly Paint[] | typeof figma.mixed): Serialize
 
 function serializeEffects(effects: readonly Effect[]): SerializedEffect[] {
   if (!effects) return [];
-  return effects.map(effect => {
+  return effects.map((effect) => {
     const out: SerializedEffect = { type: effect.type };
     if ('color' in effect && effect.color) {
       out.color = rgbToHex(effect.color.r, effect.color.g, effect.color.b);
@@ -117,11 +117,11 @@ export function serializeNode(node: SceneNode): NodeSnapshot {
 
     // fontSize — handle figma.mixed
     const fs = textNode.fontSize;
-    snapshot.fontSize = fs === figma.mixed ? textNode.getRangeFontSize(0, 1) as number : fs;
+    snapshot.fontSize = fs === figma.mixed ? (textNode.getRangeFontSize(0, 1) as number) : fs;
 
     // fontName — handle figma.mixed
     const fn = textNode.fontName;
-    const resolvedFont = fn === figma.mixed ? textNode.getRangeFontName(0, 1) as FontName : fn;
+    const resolvedFont = fn === figma.mixed ? (textNode.getRangeFontName(0, 1) as FontName) : fn;
     snapshot.fontFamily = resolvedFont.family;
     // Map style string to weight
     snapshot.fontWeight = fontStyleToWeight(resolvedFont.style);

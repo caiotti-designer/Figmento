@@ -7,14 +7,75 @@ import { resolveTempIds, isCreationAction } from '../utils/temp-id-resolver';
 import type { TempIdMap } from '../utils/temp-id-resolver';
 
 // Import all handlers needed by executeSingleAction
-import { handleCreateFrame, handleCreateText, handleCreateRectangle, handleCreateEllipse, handleCreateImage, handleCreateIcon, handleCreateVector } from './canvas-create';
-import { handleSetFill, handleSetStroke, handleSetEffects, handleSetCornerRadius, handleSetOpacity, handleSetAutoLayout, handleSetText, handleStyleTextRange } from './canvas-style';
-import { handleDeleteNode, handleMoveNode, handleResizeNode, handleRenameNode, handleAppendChild, handleReorderChild, handleCloneNode, handleCloneWithOverrides, handleGroupNodes, handleGetSelection, handleGetNodeInfo, handleGetPageNodes, handleFindNodes, handleListAvailableFonts, handleBooleanOperation, handleFlattenNodes, handleImportComponentByKey, handleImportStyleByKey } from './canvas-scene';
-import { handleExportNode, handleGetScreenshot, handleReadFigmaContext, handleBindVariable, handleApplyPaintStyle, handleApplyTextStyle, handleApplyEffectStyle, handleCreateFigmaVariables, handleCreateVariableCollections, handleCreateTextStyles, handleCreateDSComponents, handleScanFrameStructure, handleExportAsSvg, handleSetConstraints } from './canvas-query';
+import {
+  handleCreateFrame,
+  handleCreateText,
+  handleCreateRectangle,
+  handleCreateEllipse,
+  handleCreateImage,
+  handleCreateIcon,
+  handleCreateVector,
+} from './canvas-create';
+import {
+  handleSetFill,
+  handleSetStroke,
+  handleSetEffects,
+  handleSetCornerRadius,
+  handleSetOpacity,
+  handleSetAutoLayout,
+  handleSetText,
+  handleStyleTextRange,
+} from './canvas-style';
+import {
+  handleDeleteNode,
+  handleMoveNode,
+  handleResizeNode,
+  handleRenameNode,
+  handleAppendChild,
+  handleReorderChild,
+  handleCloneNode,
+  handleCloneWithOverrides,
+  handleGroupNodes,
+  handleGetSelection,
+  handleGetNodeInfo,
+  handleGetPageNodes,
+  handleFindNodes,
+  handleListAvailableFonts,
+  handleBooleanOperation,
+  handleFlattenNodes,
+  handleImportComponentByKey,
+  handleImportStyleByKey,
+} from './canvas-scene';
+import {
+  handleExportNode,
+  handleGetScreenshot,
+  handleReadFigmaContext,
+  handleBindVariable,
+  handleApplyPaintStyle,
+  handleApplyTextStyle,
+  handleApplyEffectStyle,
+  handleCreateFigmaVariables,
+  handleCreateVariableCollections,
+  handleCreateTextStyles,
+  handleCreateDSComponents,
+  handleScanFrameStructure,
+  handleExportAsSvg,
+  handleSetConstraints,
+} from './canvas-query';
 import { getDesignSystemCache } from './design-system-discovery';
 import { tryComponentInstance, isComponentMatchableFrame } from './component-matcher';
 import { tryBindFillVariable, tryBindSpacingVariables, tryBindTextVariables } from './variable-binder';
-import { handleCreateComponent, handleConvertToComponent, handleCombineAsVariants, handleCreateInstance, handleDetachInstance, handleSetReactions, handleGetReactions, handleMakeInteractive, handleCreatePrototypeFlow } from './canvas-components';
+import {
+  handleCreateComponent,
+  handleConvertToComponent,
+  handleCombineAsVariants,
+  handleCreateInstance,
+  handleDetachInstance,
+  handleSetReactions,
+  handleGetReactions,
+  handleMakeInteractive,
+  handleCreatePrototypeFlow,
+} from './canvas-components';
 import type { DesignSystemCache } from '../types';
 
 // ═══════════════════════════════════════════════════════════════
@@ -95,7 +156,9 @@ function evaluateIndexExpression(expr: string, i: number): number {
     if (op2 === '-') return product - m;
   }
 
-  throw new Error(`Unsupported expression in repeat template: \${${expr}}. Allowed: \${i}, \${i * N}, \${i + N}, \${i - N}, \${i * N + M}, \${i * N - M}`);
+  throw new Error(
+    `Unsupported expression in repeat template: \${${expr}}. Allowed: \${i}, \${i * N}, \${i + N}, \${i - N}, \${i * N + M}, \${i * N - M}`
+  );
 }
 
 /**
@@ -124,7 +187,7 @@ function interpolateValue(value: unknown, i: number): unknown {
     return interpolateString(value, i);
   }
   if (Array.isArray(value)) {
-    return value.map(item => interpolateValue(item, i));
+    return value.map((item) => interpolateValue(item, i));
   }
   if (typeof value === 'object' && value !== null) {
     const result: Record<string, unknown> = {};
@@ -218,7 +281,7 @@ async function applyDsBindings(
   action: string,
   params: Record<string, unknown>,
   response: Record<string, unknown>,
-  _dsCache: DesignSystemCache,
+  _dsCache: DesignSystemCache
 ): Promise<void> {
   const nodeId = response.nodeId as string;
   if (!nodeId) return;
@@ -245,13 +308,17 @@ async function applyDsBindings(
       if (mode === 'NONE') break;
       const node = figma.getNodeById(nodeId);
       if (!node || node.type !== 'FRAME') break;
-      const boundSpacing = await tryBindSpacingVariables(node as FrameNode, {
-        paddingTop: params.paddingTop as number | undefined,
-        paddingRight: params.paddingRight as number | undefined,
-        paddingBottom: params.paddingBottom as number | undefined,
-        paddingLeft: params.paddingLeft as number | undefined,
-        itemSpacing: params.itemSpacing as number | undefined,
-      }, autoBindParam);
+      const boundSpacing = await tryBindSpacingVariables(
+        node as FrameNode,
+        {
+          paddingTop: params.paddingTop as number | undefined,
+          paddingRight: params.paddingRight as number | undefined,
+          paddingBottom: params.paddingBottom as number | undefined,
+          paddingLeft: params.paddingLeft as number | undefined,
+          itemSpacing: params.itemSpacing as number | undefined,
+        },
+        autoBindParam
+      );
       if (Object.keys(boundSpacing).length > 0) {
         response.boundSpacingVariables = boundSpacing;
       }
@@ -267,7 +334,7 @@ async function applyDsBindings(
         node as TextNode,
         textColor,
         (params.fontSize as number) || undefined,
-        autoBindParam,
+        autoBindParam
       );
       if (textBindResult.boundColor) {
         response.boundColor = textBindResult.boundColor.variableName;
@@ -295,7 +362,7 @@ export async function handleBatchExecute(params: Record<string, unknown>): Promi
   if (expandedTotal > MAX_EXPANDED_COMMANDS) {
     throw new Error(
       `Batch expansion would produce ${expandedTotal} commands, exceeding the maximum of ${MAX_EXPANDED_COMMANDS}. ` +
-      `Reduce repeat counts or split into multiple batch_execute calls.`
+        `Reduce repeat counts or split into multiple batch_execute calls.`
     );
   }
 
@@ -425,8 +492,8 @@ export async function handleBatchExecute(params: Record<string, unknown>): Promi
   // Execute the full command list
   await executeCommandList(commands, 0);
 
-  const succeeded = results.filter(r => r.success).length;
-  const failed = results.filter(r => !r.success).length;
+  const succeeded = results.filter((r) => r.success).length;
+  const failed = results.filter((r) => !r.success).length;
 
   // Build tempIdResolutions: for backward compat, serialize full result objects
   const tempIdResolutions: Record<string, Record<string, unknown>> = {};
@@ -443,7 +510,10 @@ export async function handleBatchExecute(params: Record<string, unknown>): Promi
   };
 }
 
-export async function executeSingleAction(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+export async function executeSingleAction(
+  action: string,
+  params: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   switch (action) {
     case 'create_frame': {
       // FN-7: Intercept create_frame calls that match a discovered component
@@ -455,85 +525,150 @@ export async function executeSingleAction(action: string, params: Record<string,
       }
       return await handleCreateFrame(params);
     }
-    case 'create_text': return await handleCreateText(params);
-    case 'set_fill': return await handleSetFill(params);
-    case 'export_node': return await handleExportNode(params);
-    case 'get_screenshot': return await handleGetScreenshot(params);
-    case 'get_selection': return await handleGetSelection();
-    case 'create_rectangle': return await handleCreateRectangle(params);
-    case 'create_ellipse': return await handleCreateEllipse(params);
-    case 'create_image': return await handleCreateImage(params);
-    case 'set_stroke': return await handleSetStroke(params);
-    case 'set_effects': return await handleSetEffects(params);
-    case 'set_corner_radius': return await handleSetCornerRadius(params);
-    case 'set_opacity': return await handleSetOpacity(params);
+    case 'create_text':
+      return await handleCreateText(params);
+    case 'set_fill':
+      return await handleSetFill(params);
+    case 'export_node':
+      return await handleExportNode(params);
+    case 'get_screenshot':
+      return await handleGetScreenshot(params);
+    case 'get_selection':
+      return await handleGetSelection();
+    case 'create_rectangle':
+      return await handleCreateRectangle(params);
+    case 'create_ellipse':
+      return await handleCreateEllipse(params);
+    case 'create_image':
+      return await handleCreateImage(params);
+    case 'set_stroke':
+      return await handleSetStroke(params);
+    case 'set_effects':
+      return await handleSetEffects(params);
+    case 'set_corner_radius':
+      return await handleSetCornerRadius(params);
+    case 'set_opacity':
+      return await handleSetOpacity(params);
     case 'set_style': {
       // TC-1: Consolidated style tool — routes to the appropriate granular handler
       // based on `property` discriminator. Matches the MCP surface where Claude Code
       // sees a single `set_style` tool. FN-P4-1 added this case.
       const property = params.property as string;
       switch (property) {
-        case 'fill': return await handleSetFill(params);
-        case 'stroke': return await handleSetStroke(params);
-        case 'effects': return await handleSetEffects(params);
-        case 'cornerRadius': return await handleSetCornerRadius(params);
-        case 'opacity': return await handleSetOpacity(params);
+        case 'fill':
+          return await handleSetFill(params);
+        case 'stroke':
+          return await handleSetStroke(params);
+        case 'effects':
+          return await handleSetEffects(params);
+        case 'cornerRadius':
+          return await handleSetCornerRadius(params);
+        case 'opacity':
+          return await handleSetOpacity(params);
         default:
           throw new Error(
             `set_style requires a 'property' parameter: fill | stroke | effects | cornerRadius | opacity (got: ${property || 'undefined'})`
           );
       }
     }
-    case 'set_auto_layout': return await handleSetAutoLayout(params);
-    case 'delete_node': return await handleDeleteNode(params);
-    case 'move_node': return await handleMoveNode(params);
-    case 'resize_node': return await handleResizeNode(params);
-    case 'rename_node': return await handleRenameNode(params);
-    case 'append_child': return await handleAppendChild(params);
-    case 'reorder_child': return await handleReorderChild(params);
-    case 'clone_node': return await handleCloneNode(params);
-    case 'group_nodes': return await handleGroupNodes(params);
-    case 'get_node_info': return await handleGetNodeInfo(params);
-    case 'get_page_nodes': return await handleGetPageNodes();
-    case 'create_design': return await handleCreateDesignCmd(params);
-    case 'create_icon': return await handleCreateIcon(params);
-    case 'scan_template': return await handleScanTemplateCmd(params);
-    case 'apply_template_text': return await handleApplyTemplateTextCmd(params);
-    case 'apply_template_image': return await handleApplyTemplateImageCmd(params);
-    case 'clone_with_overrides': return await handleCloneWithOverrides(params);
-    case 'set_text': return await handleSetText(params);
-    case 'style_text_range': return await handleStyleTextRange(params);
-    case 'find_nodes': return await handleFindNodes(params);
-    case 'list_available_fonts': return await handleListAvailableFonts(params);
-    case 'create_vector': return await handleCreateVector(params);
-    case 'boolean_operation': return await handleBooleanOperation(params);
-    case 'flatten_nodes': return await handleFlattenNodes(params);
-    case 'import_component_by_key': return await handleImportComponentByKey(params);
-    case 'import_style_by_key': return await handleImportStyleByKey(params);
-    case 'export_as_svg': return await handleExportAsSvg(params);
-    case 'set_constraints': return await handleSetConstraints(params);
-    case 'read_figma_context': return await handleReadFigmaContext();
-    case 'bind_variable': return await handleBindVariable(params);
-    case 'apply_paint_style': return await handleApplyPaintStyle(params);
-    case 'apply_text_style': return await handleApplyTextStyle(params);
-    case 'apply_effect_style': return await handleApplyEffectStyle(params);
-    case 'create_figma_variables': return await handleCreateFigmaVariables(params);
-    case 'create_variable_collections': return await handleCreateVariableCollections(params);
-    case 'create_text_styles': return await handleCreateTextStyles(params);
-    case 'create_ds_components': return await handleCreateDSComponents(params);
-    case 'scan_frame_structure': return await handleScanFrameStructure(params);
-    case 'run_refinement_check': return await runRefinementCheck(String(params.nodeId));
+    case 'set_auto_layout':
+      return await handleSetAutoLayout(params);
+    case 'delete_node':
+      return await handleDeleteNode(params);
+    case 'move_node':
+      return await handleMoveNode(params);
+    case 'resize_node':
+      return await handleResizeNode(params);
+    case 'rename_node':
+      return await handleRenameNode(params);
+    case 'append_child':
+      return await handleAppendChild(params);
+    case 'reorder_child':
+      return await handleReorderChild(params);
+    case 'clone_node':
+      return await handleCloneNode(params);
+    case 'group_nodes':
+      return await handleGroupNodes(params);
+    case 'get_node_info':
+      return await handleGetNodeInfo(params);
+    case 'get_page_nodes':
+      return await handleGetPageNodes();
+    case 'create_design':
+      return await handleCreateDesignCmd(params);
+    case 'create_icon':
+      return await handleCreateIcon(params);
+    case 'scan_template':
+      return await handleScanTemplateCmd(params);
+    case 'apply_template_text':
+      return await handleApplyTemplateTextCmd(params);
+    case 'apply_template_image':
+      return await handleApplyTemplateImageCmd(params);
+    case 'clone_with_overrides':
+      return await handleCloneWithOverrides(params);
+    case 'set_text':
+      return await handleSetText(params);
+    case 'style_text_range':
+      return await handleStyleTextRange(params);
+    case 'find_nodes':
+      return await handleFindNodes(params);
+    case 'list_available_fonts':
+      return await handleListAvailableFonts(params);
+    case 'create_vector':
+      return await handleCreateVector(params);
+    case 'boolean_operation':
+      return await handleBooleanOperation(params);
+    case 'flatten_nodes':
+      return await handleFlattenNodes(params);
+    case 'import_component_by_key':
+      return await handleImportComponentByKey(params);
+    case 'import_style_by_key':
+      return await handleImportStyleByKey(params);
+    case 'export_as_svg':
+      return await handleExportAsSvg(params);
+    case 'set_constraints':
+      return await handleSetConstraints(params);
+    case 'read_figma_context':
+      return await handleReadFigmaContext();
+    case 'bind_variable':
+      return await handleBindVariable(params);
+    case 'apply_paint_style':
+      return await handleApplyPaintStyle(params);
+    case 'apply_text_style':
+      return await handleApplyTextStyle(params);
+    case 'apply_effect_style':
+      return await handleApplyEffectStyle(params);
+    case 'create_figma_variables':
+      return await handleCreateFigmaVariables(params);
+    case 'create_variable_collections':
+      return await handleCreateVariableCollections(params);
+    case 'create_text_styles':
+      return await handleCreateTextStyles(params);
+    case 'create_ds_components':
+      return await handleCreateDSComponents(params);
+    case 'scan_frame_structure':
+      return await handleScanFrameStructure(params);
+    case 'run_refinement_check':
+      return await runRefinementCheck(String(params.nodeId));
     // IC-1/2/3: Component actions
-    case 'create_component_node': return await handleCreateComponent(params);
-    case 'convert_to_component': return await handleConvertToComponent(params);
-    case 'combine_as_variants': return await handleCombineAsVariants(params);
-    case 'create_instance': return await handleCreateInstance(params);
-    case 'detach_instance': return await handleDetachInstance(params);
-    case 'set_reactions': return await handleSetReactions(params);
-    case 'get_reactions': return await handleGetReactions(params);
+    case 'create_component_node':
+      return await handleCreateComponent(params);
+    case 'convert_to_component':
+      return await handleConvertToComponent(params);
+    case 'combine_as_variants':
+      return await handleCombineAsVariants(params);
+    case 'create_instance':
+      return await handleCreateInstance(params);
+    case 'detach_instance':
+      return await handleDetachInstance(params);
+    case 'set_reactions':
+      return await handleSetReactions(params);
+    case 'get_reactions':
+      return await handleGetReactions(params);
     // IC-10/12: Smart interactions
-    case 'make_interactive': return await handleMakeInteractive(params);
-    case 'create_prototype_flow': return await handleCreatePrototypeFlow(params);
+    case 'make_interactive':
+      return await handleMakeInteractive(params);
+    case 'create_prototype_flow':
+      return await handleCreatePrototypeFlow(params);
     default:
       throw new Error(`Unknown action in batch: ${action}`);
   }
@@ -549,10 +684,12 @@ export async function handleCreateDesignCmd(params: Record<string, unknown>): Pr
   const mainFrame = figma.createFrame();
   mainFrame.name = frameName;
   mainFrame.resize(analysis.width, analysis.height);
-  mainFrame.fills = [{
-    type: 'SOLID',
-    color: hexToRgb(analysis.backgroundColor),
-  }];
+  mainFrame.fills = [
+    {
+      type: 'SOLID',
+      color: hexToRgb(analysis.backgroundColor),
+    },
+  ];
 
   const center = figma.viewport.center;
   mainFrame.x = center.x - analysis.width / 2;
@@ -683,11 +820,13 @@ export async function handleApplyTemplateImageCmd(params: Record<string, unknown
   const scaleMode = (params.scaleMode as 'FILL' | 'FIT' | 'CROP' | 'TILE') || 'FILL';
 
   if ('fills' in node) {
-    (node as GeometryMixin).fills = [{
-      type: 'IMAGE',
-      imageHash: image.hash,
-      scaleMode,
-    }];
+    (node as GeometryMixin).fills = [
+      {
+        type: 'IMAGE',
+        imageHash: image.hash,
+        scaleMode,
+      },
+    ];
   } else {
     throw new Error(`Node ${nodeId} does not support image fills`);
   }
@@ -733,9 +872,15 @@ export async function runRefinementCheck(nodeId: string): Promise<{
   }
 
   function solidToHex(paint: SolidPaint): string {
-    const r = Math.round(paint.color.r * 255).toString(16).padStart(2, '0');
-    const g = Math.round(paint.color.g * 255).toString(16).padStart(2, '0');
-    const b = Math.round(paint.color.b * 255).toString(16).padStart(2, '0');
+    const r = Math.round(paint.color.r * 255)
+      .toString(16)
+      .padStart(2, '0');
+    const g = Math.round(paint.color.g * 255)
+      .toString(16)
+      .padStart(2, '0');
+    const b = Math.round(paint.color.b * 255)
+      .toString(16)
+      .padStart(2, '0');
     return '#' + r + g + b;
   }
 
@@ -764,14 +909,15 @@ export async function runRefinementCheck(nodeId: string): Promise<{
 
     // Gradient direction check
     if ('fills' in sceneNode && Array.isArray(sceneNode.fills)) {
-      const gradientFill = (sceneNode.fills as Paint[]).find(
-        (f): f is GradientPaint => f.type === 'GRADIENT_LINEAR'
-      );
+      const gradientFill = (sceneNode.fills as Paint[]).find((f): f is GradientPaint => f.type === 'GRADIENT_LINEAR');
       if (gradientFill && 'children' in sceneNode) {
         const textNodes = collectTextChildren(sceneNode);
         if (textNodes.length === 0) {
           issues.push({
-            nodeId: id, nodeName: name, check: 'gradient', severity: 'warning',
+            nodeId: id,
+            nodeName: name,
+            check: 'gradient',
+            severity: 'warning',
             description: `"${name}" has a gradient fill but no sibling text nodes — verify gradient direction manually.`,
           });
         } else {
@@ -785,16 +931,22 @@ export async function runRefinementCheck(nodeId: string): Promise<{
             const dy = Math.abs(handles[1].y - handles[0].y);
             const dx = Math.abs(handles[1].x - handles[0].x);
             if (dy >= dx) {
-              if ((solidEnd.y > 0.5) !== (textCentroidY > 0.5)) {
+              if (solidEnd.y > 0.5 !== textCentroidY > 0.5) {
                 issues.push({
-                  nodeId: id, nodeName: name, check: 'gradient', severity: 'error',
+                  nodeId: id,
+                  nodeName: name,
+                  check: 'gradient',
+                  severity: 'error',
                   description: `"${name}" gradient solid end (${solidEnd.y > 0.5 ? 'bottom' : 'top'}) faces away from text zone (${textCentroidY > 0.5 ? 'bottom' : 'top'}).`,
                 });
               }
             } else {
-              if ((solidEnd.x > 0.5) !== (textCentroidX > 0.5)) {
+              if (solidEnd.x > 0.5 !== textCentroidX > 0.5) {
                 issues.push({
-                  nodeId: id, nodeName: name, check: 'gradient', severity: 'error',
+                  nodeId: id,
+                  nodeName: name,
+                  check: 'gradient',
+                  severity: 'error',
                   description: `"${name}" gradient solid end (${solidEnd.x > 0.5 ? 'right' : 'left'}) faces away from text zone (${textCentroidX > 0.5 ? 'right' : 'left'}).`,
                 });
               }
@@ -809,13 +961,19 @@ export async function runRefinementCheck(nodeId: string): Promise<{
       const frame = node as FrameNode;
       if (frame.children.length > 2 && frame.layoutMode === 'NONE') {
         issues.push({
-          nodeId: id, nodeName: name, check: 'auto-layout', severity: 'warning',
+          nodeId: id,
+          nodeName: name,
+          check: 'auto-layout',
+          severity: 'warning',
           description: `Frame "${name}" has ${frame.children.length} children but no auto-layout (layoutMode: NONE).`,
         });
       }
       if (frame.layoutMode !== 'NONE' && frame.itemSpacing !== 0 && !SPACING_SCALE_SET.has(frame.itemSpacing)) {
         issues.push({
-          nodeId: id, nodeName: name, check: 'spacing', severity: 'warning',
+          nodeId: id,
+          nodeName: name,
+          check: 'spacing',
+          severity: 'warning',
           description: `Frame "${name}" itemSpacing ${frame.itemSpacing}px is not on the 8px scale [4,8,12,16,20,24,32,40,48,64,80,96,128].`,
         });
       }
@@ -839,7 +997,10 @@ export async function runRefinementCheck(nodeId: string): Promise<{
       }
       if (isDefaultName || hasPlaceholderColor) {
         issues.push({
-          nodeId: id, nodeName: name, check: 'placeholder', severity: 'warning',
+          nodeId: id,
+          nodeName: name,
+          check: 'placeholder',
+          severity: 'warning',
           description: `"${name}" appears to be an unfilled placeholder (default name or placeholder fill color).`,
         });
       }
@@ -862,7 +1023,10 @@ export async function runRefinementCheck(nodeId: string): Promise<{
     const maxSize = uniqueSizes[uniqueSizes.length - 1];
     if (maxSize < 2 * minSize) {
       issues.push({
-        nodeId, nodeName: root.name, check: 'typography', severity: 'error',
+        nodeId,
+        nodeName: root.name,
+        check: 'typography',
+        severity: 'error',
         description: `Typography lacks hierarchy — largest font (${maxSize}px) is less than 2× smallest (${minSize}px). Increase headline size.`,
       });
     }
@@ -872,6 +1036,6 @@ export async function runRefinementCheck(nodeId: string): Promise<{
     nodeId,
     totalChecked,
     issues,
-    passed: issues.every(i => i.severity !== 'error'),
+    passed: issues.every((i) => i.severity !== 'error'),
   };
 }

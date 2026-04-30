@@ -1,11 +1,6 @@
 /// <reference types="@figma/plugin-typings" />
 
-import {
-  TemplatePlaceholder,
-  TemplateSlide,
-  TemplateScanResult,
-  TemplateTextResponse,
-} from '../types';
+import { TemplatePlaceholder, TemplateSlide, TemplateScanResult, TemplateTextResponse } from '../types';
 
 /**
  * Gets the selected image from Figma and sends it to the UI

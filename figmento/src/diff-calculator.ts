@@ -45,7 +45,10 @@ function parseHex255(hex: string): { r: number; g: number; b: number } | null {
   if (!hex || typeof hex !== 'string') return null;
   let clean = hex.replace('#', '');
   if (clean.length === 3) {
-    clean = clean.split('').map(c => c + c).join('');
+    clean = clean
+      .split('')
+      .map((c) => c + c)
+      .join('');
   }
   const m = /^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(clean);
   if (!m) return null;
@@ -62,8 +65,8 @@ function parseHex255(hex: string): { r: number; g: number; b: number } | null {
  */
 function colorDelta(before: SerializedFill[], after: SerializedFill[]): number {
   // Compare first fill's color only (solid fill case)
-  const bFill = before.find(f => f.color);
-  const aFill = after.find(f => f.color);
+  const bFill = before.find((f) => f.color);
+  const aFill = after.find((f) => f.color);
   if (!bFill?.color || !aFill?.color) return -1;
   if (bFill.color === aFill.color) return -1;
   const bRgb = parseHex255(bFill.color);
@@ -75,9 +78,7 @@ function colorDelta(before: SerializedFill[], after: SerializedFill[]): number {
 /**
  * Map a property name to its correction category.
  */
-export function categorizeProperty(
-  property: string
-): 'typography' | 'color' | 'spacing' | 'shape' {
+export function categorizeProperty(property: string): 'typography' | 'color' | 'spacing' | 'shape' {
   if (['fontSize', 'fontFamily', 'fontWeight', 'lineHeight', 'letterSpacing'].includes(property)) {
     return 'typography';
   }
@@ -132,10 +133,7 @@ function generateId(): string {
  * - Additions and deletions are NOT returned as corrections (they are skipped).
  * - Only property changes on nodes present in both snapshots are evaluated.
  */
-export function calculateDiff(
-  before: NodeSnapshot[],
-  after: NodeSnapshot[]
-): CorrectionEntry[] {
+export function calculateDiff(before: NodeSnapshot[], after: NodeSnapshot[]): CorrectionEntry[] {
   const corrections: CorrectionEntry[] = [];
 
   // Build a lookup map for before nodes
@@ -213,8 +211,8 @@ export function calculateDiff(
     if (beforeNode.fills && afterNode.fills) {
       const delta = colorDelta(beforeNode.fills, afterNode.fills);
       if (delta >= DELTA_THRESHOLDS.colorChannelSum) {
-        const bColor = beforeNode.fills.find(f => f.color)?.color ?? '';
-        const aColor = afterNode.fills.find(f => f.color)?.color ?? '';
+        const bColor = beforeNode.fills.find((f) => f.color)?.color ?? '';
+        const aColor = afterNode.fills.find((f) => f.color)?.color ?? '';
         corrections.push({
           id: generateId(),
           frameId: rootFrameId,

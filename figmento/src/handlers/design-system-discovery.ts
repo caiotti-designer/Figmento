@@ -45,9 +45,7 @@ function categorizeComponent(name: string): string {
 // ── Component Scanner ────────────────────────────────────────────────────────
 
 function discoverComponents(): { components: DiscoveredComponent[]; truncated: boolean } {
-  const allNodes = figma.root.findAll(node =>
-    node.type === 'COMPONENT' || node.type === 'COMPONENT_SET'
-  );
+  const allNodes = figma.root.findAll((node) => node.type === 'COMPONENT' || node.type === 'COMPONENT_SET');
 
   // Sort by name for deterministic truncation
   allNodes.sort((a, b) => a.name.localeCompare(b.name));
@@ -113,63 +111,93 @@ async function readVariablesAndStyles(): Promise<{
     }
   }
 
-  const variables = await Promise.all(rawVariables.map(async v => {
-    const resolvedValues: Record<string, unknown> = {};
-    for (const [modeId, value] of Object.entries(v.valuesByMode)) {
-      const modeName = modeNameMap.get(modeId) || modeId;
-      if (typeof value === 'object' && value !== null && 'type' in value && (value as unknown as Record<string, unknown>).type === 'VARIABLE_ALIAS') {
-        const aliasId = (value as VariableAlias).id;
-        const aliasVar = await figma.variables.getVariableByIdAsync(aliasId);
-        resolvedValues[modeName] = { alias: true, aliasName: aliasVar?.name || aliasId, aliasId };
-      } else if (v.resolvedType === 'COLOR' && typeof value === 'object' && value !== null && 'r' in value) {
-        const rgb = value as { r: number; g: number; b: number; a?: number };
-        resolvedValues[modeName] = { hex: rgbToHex(rgb), opacity: rgb.a !== undefined ? rgb.a : 1 };
-      } else {
-        resolvedValues[modeName] = value;
+  const variables = await Promise.all(
+    rawVariables.map(async (v) => {
+      const resolvedValues: Record<string, unknown> = {};
+      for (const [modeId, value] of Object.entries(v.valuesByMode)) {
+        const modeName = modeNameMap.get(modeId) || modeId;
+        if (
+          typeof value === 'object' &&
+          value !== null &&
+          'type' in value &&
+          (value as unknown as Record<string, unknown>).type === 'VARIABLE_ALIAS'
+        ) {
+          const aliasId = (value as VariableAlias).id;
+          const aliasVar = await figma.variables.getVariableByIdAsync(aliasId);
+          resolvedValues[modeName] = { alias: true, aliasName: aliasVar?.name || aliasId, aliasId };
+        } else if (v.resolvedType === 'COLOR' && typeof value === 'object' && value !== null && 'r' in value) {
+          const rgb = value as { r: number; g: number; b: number; a?: number };
+          resolvedValues[modeName] = { hex: rgbToHex(rgb), opacity: rgb.a !== undefined ? rgb.a : 1 };
+        } else {
+          resolvedValues[modeName] = value;
+        }
       }
-    }
-    return { id: v.id, name: v.name, resolvedType: v.resolvedType, valuesByMode: resolvedValues };
-  }));
+      return { id: v.id, name: v.name, resolvedType: v.resolvedType, valuesByMode: resolvedValues };
+    })
+  );
 
-  const collections = rawCollections.map(c => ({
+  const collections = rawCollections.map((c) => ({
     id: c.id,
     name: c.name,
-    modes: c.modes.map(m => ({ id: m.modeId, name: m.name })),
+    modes: c.modes.map((m) => ({ id: m.modeId, name: m.name })),
     variableIds: c.variableIds,
   }));
 
   const rawPaintStyles = await figma.getLocalPaintStylesAsync();
-  const paintStyles = rawPaintStyles.map(s => ({
+  const paintStyles = rawPaintStyles.map((s) => ({
     id: s.id,
     name: s.name,
     key: s.key,
-    paints: (s.paints as Paint[]).map(p => {
+    paints: (s.paints as Paint[]).map((p) => {
       if (p.type === 'SOLID') return { type: 'SOLID', color: rgbToHex(p.color), opacity: p.opacity ?? 1 };
-      if (p.type === 'GRADIENT_LINEAR') return { type: 'GRADIENT_LINEAR', stops: (p as GradientPaint).gradientStops.map(gs => ({ position: gs.position, color: rgbToHex({ r: gs.color.r, g: gs.color.g, b: gs.color.b }), opacity: gs.color.a })) };
+      if (p.type === 'GRADIENT_LINEAR')
+        return {
+          type: 'GRADIENT_LINEAR',
+          stops: (p as GradientPaint).gradientStops.map((gs) => ({
+            position: gs.position,
+            color: rgbToHex({ r: gs.color.r, g: gs.color.g, b: gs.color.b }),
+            opacity: gs.color.a,
+          })),
+        };
       return { type: p.type };
     }),
   }));
 
   const rawTextStyles = await figma.getLocalTextStylesAsync();
-  const textStyles = rawTextStyles.map(s => ({
-    id: s.id, name: s.name, key: s.key,
-    fontFamily: s.fontName.family, fontStyle: s.fontName.style,
-    fontSize: s.fontSize, letterSpacing: s.letterSpacing,
-    lineHeight: s.lineHeight, textCase: s.textCase, textDecoration: s.textDecoration,
+  const textStyles = rawTextStyles.map((s) => ({
+    id: s.id,
+    name: s.name,
+    key: s.key,
+    fontFamily: s.fontName.family,
+    fontStyle: s.fontName.style,
+    fontSize: s.fontSize,
+    letterSpacing: s.letterSpacing,
+    lineHeight: s.lineHeight,
+    textCase: s.textCase,
+    textDecoration: s.textDecoration,
   }));
 
   const rawEffectStyles = await figma.getLocalEffectStylesAsync();
-  const effectStyles = rawEffectStyles.map(s => ({
-    id: s.id, name: s.name, key: s.key,
-    effects: s.effects.map(e => ({
-      type: e.type, visible: e.visible,
-      ...(e.type === 'DROP_SHADOW' || e.type === 'INNER_SHADOW' ? {
-        color: rgbToHex({ r: (e as DropShadowEffect).color.r, g: (e as DropShadowEffect).color.g, b: (e as DropShadowEffect).color.b }),
-        opacity: (e as DropShadowEffect).color.a,
-        offset: (e as DropShadowEffect).offset,
-        radius: (e as DropShadowEffect).radius,
-        spread: (e as DropShadowEffect).spread,
-      } : {}),
+  const effectStyles = rawEffectStyles.map((s) => ({
+    id: s.id,
+    name: s.name,
+    key: s.key,
+    effects: s.effects.map((e) => ({
+      type: e.type,
+      visible: e.visible,
+      ...(e.type === 'DROP_SHADOW' || e.type === 'INNER_SHADOW'
+        ? {
+            color: rgbToHex({
+              r: (e as DropShadowEffect).color.r,
+              g: (e as DropShadowEffect).color.g,
+              b: (e as DropShadowEffect).color.b,
+            }),
+            opacity: (e as DropShadowEffect).color.a,
+            offset: (e as DropShadowEffect).offset,
+            radius: (e as DropShadowEffect).radius,
+            spread: (e as DropShadowEffect).spread,
+          }
+        : {}),
     })),
   }));
 
@@ -208,7 +236,9 @@ export async function handleScanDesignSystem(): Promise<DesignSystemCache> {
   await figma.clientStorage.setAsync(DS_CACHE_STORAGE_KEY, cache);
 
   const elapsed = Date.now() - startTime;
-  console.log(`[FN-6] Design system scan complete in ${elapsed}ms: ${components.length} components, ${variables.length} variables, ${paintStyles.length + textStyles.length + effectStyles.length} styles${truncated ? ' (TRUNCATED)' : ''}`);
+  console.log(
+    `[FN-6] Design system scan complete in ${elapsed}ms: ${components.length} components, ${variables.length} variables, ${paintStyles.length + textStyles.length + effectStyles.length} styles${truncated ? ' (TRUNCATED)' : ''}`
+  );
 
   return cache;
 }
@@ -219,7 +249,7 @@ export async function handleScanDesignSystem(): Promise<DesignSystemCache> {
  */
 export async function getDesignSystemCache(): Promise<DesignSystemCache | null> {
   try {
-    const cache = await figma.clientStorage.getAsync(DS_CACHE_STORAGE_KEY) as DesignSystemCache | null;
+    const cache = (await figma.clientStorage.getAsync(DS_CACHE_STORAGE_KEY)) as DesignSystemCache | null;
     return cache || null;
   } catch (_e) {
     return null;

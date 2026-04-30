@@ -60,7 +60,10 @@ export function showToast(
     const retryBtn = document.createElement('button');
     retryBtn.className = 'toast-retry';
     retryBtn.textContent = 'Retry';
-    retryBtn.addEventListener('click', () => { hideToast(toast); retryCallback(); });
+    retryBtn.addEventListener('click', () => {
+      hideToast(toast);
+      retryCallback();
+    });
     toast.appendChild(retryBtn);
   }
 
@@ -295,79 +298,79 @@ export function computeToolCallProgress(callsCompleted: number, complete?: boole
 export type ProgressModeContext = 'screenshot' | 'text-layout' | 'multi-frame' | 'generic';
 
 const TOOL_MESSAGES_GENERIC: Record<string, string> = {
-  create_frame:         'Creating frame...',
-  create_text:          'Adding text...',
-  create_rectangle:     'Drawing shape...',
-  create_ellipse:       'Drawing shape...',
-  set_fill:             'Applying colors...',
-  set_stroke:           'Styling borders...',
-  set_auto_layout:      'Organizing layout...',
-  set_effects:          'Adding effects...',
-  set_corner_radius:    'Rounding corners...',
-  create_image:         'Placing image...',
-  create_icon:          'Adding icon...',
-  set_text:             'Updating text...',
-  move_node:            'Positioning element...',
-  resize_node:          'Adjusting size...',
+  create_frame: 'Creating frame...',
+  create_text: 'Adding text...',
+  create_rectangle: 'Drawing shape...',
+  create_ellipse: 'Drawing shape...',
+  set_fill: 'Applying colors...',
+  set_stroke: 'Styling borders...',
+  set_auto_layout: 'Organizing layout...',
+  set_effects: 'Adding effects...',
+  set_corner_radius: 'Rounding corners...',
+  create_image: 'Placing image...',
+  create_icon: 'Adding icon...',
+  set_text: 'Updating text...',
+  move_node: 'Positioning element...',
+  resize_node: 'Adjusting size...',
   run_refinement_check: 'Checking quality...',
-  read_figma_context:   'Reading design context...',
+  read_figma_context: 'Reading design context...',
 };
 
 const TOOL_MESSAGES_SCREENSHOT: Record<string, string> = {
-  create_frame:         'Recreating frame...',
-  create_text:          'Recreating text...',
-  create_rectangle:     'Recreating shape...',
-  create_ellipse:       'Recreating shape...',
-  set_fill:             'Matching colors...',
-  set_stroke:           'Matching borders...',
-  set_auto_layout:      'Recreating layout...',
-  set_effects:          'Adding effects...',
-  set_corner_radius:    'Rounding corners...',
-  create_image:         'Placing image...',
-  create_icon:          'Identifying icon...',
-  set_text:             'Recreating text...',
-  move_node:            'Positioning element...',
-  resize_node:          'Matching size...',
+  create_frame: 'Recreating frame...',
+  create_text: 'Recreating text...',
+  create_rectangle: 'Recreating shape...',
+  create_ellipse: 'Recreating shape...',
+  set_fill: 'Matching colors...',
+  set_stroke: 'Matching borders...',
+  set_auto_layout: 'Recreating layout...',
+  set_effects: 'Adding effects...',
+  set_corner_radius: 'Rounding corners...',
+  create_image: 'Placing image...',
+  create_icon: 'Identifying icon...',
+  set_text: 'Recreating text...',
+  move_node: 'Positioning element...',
+  resize_node: 'Matching size...',
   run_refinement_check: 'Checking fidelity...',
-  read_figma_context:   'Identifying frame...',
+  read_figma_context: 'Identifying frame...',
 };
 
 const TOOL_MESSAGES_TEXT_LAYOUT: Record<string, string> = {
-  create_frame:         'Setting up canvas...',
-  create_text:          'Adding content...',
-  create_rectangle:     'Building structure...',
-  create_ellipse:       'Building structure...',
-  set_fill:             'Applying colors...',
-  set_stroke:           'Styling borders...',
-  set_auto_layout:      'Organizing sections...',
-  set_effects:          'Applying polish...',
-  set_corner_radius:    'Rounding corners...',
-  create_image:         'Placing image...',
-  create_icon:          'Adding icon...',
-  set_text:             'Inserting content...',
-  move_node:            'Arranging layout...',
-  resize_node:          'Adjusting proportions...',
+  create_frame: 'Setting up canvas...',
+  create_text: 'Adding content...',
+  create_rectangle: 'Building structure...',
+  create_ellipse: 'Building structure...',
+  set_fill: 'Applying colors...',
+  set_stroke: 'Styling borders...',
+  set_auto_layout: 'Organizing sections...',
+  set_effects: 'Applying polish...',
+  set_corner_radius: 'Rounding corners...',
+  create_image: 'Placing image...',
+  create_icon: 'Adding icon...',
+  set_text: 'Inserting content...',
+  move_node: 'Arranging layout...',
+  resize_node: 'Adjusting proportions...',
   run_refinement_check: 'Reviewing layout...',
-  read_figma_context:   'Reading design context...',
+  read_figma_context: 'Reading design context...',
 };
 
 const TOOL_MESSAGES_MULTI_FRAME: Record<string, string> = {
-  create_frame:         'Creating slide frame...',
-  create_text:          'Adding slide content...',
-  create_rectangle:     'Drawing element...',
-  create_ellipse:       'Drawing element...',
-  set_fill:             'Applying slide colors...',
-  set_stroke:           'Styling borders...',
-  set_auto_layout:      'Organizing slide layout...',
-  set_effects:          'Adding visual effects...',
-  set_corner_radius:    'Rounding corners...',
-  create_image:         'Placing image...',
-  create_icon:          'Adding icon...',
-  set_text:             'Updating slide text...',
-  move_node:            'Positioning element...',
-  resize_node:          'Adjusting size...',
+  create_frame: 'Creating slide frame...',
+  create_text: 'Adding slide content...',
+  create_rectangle: 'Drawing element...',
+  create_ellipse: 'Drawing element...',
+  set_fill: 'Applying slide colors...',
+  set_stroke: 'Styling borders...',
+  set_auto_layout: 'Organizing slide layout...',
+  set_effects: 'Adding visual effects...',
+  set_corner_radius: 'Rounding corners...',
+  create_image: 'Placing image...',
+  create_icon: 'Adding icon...',
+  set_text: 'Updating slide text...',
+  move_node: 'Positioning element...',
+  resize_node: 'Adjusting size...',
   run_refinement_check: 'Reviewing slide quality...',
-  read_figma_context:   'Reading slide context...',
+  read_figma_context: 'Reading slide context...',
 };
 
 /**
@@ -381,10 +384,17 @@ const TOOL_MESSAGES_MULTI_FRAME: Record<string, string> = {
 export function toolNameToProgressMessage(toolName: string, modeContext: ProgressModeContext = 'generic'): string {
   let table: Record<string, string>;
   switch (modeContext) {
-    case 'screenshot':   table = TOOL_MESSAGES_SCREENSHOT;  break;
-    case 'text-layout':  table = TOOL_MESSAGES_TEXT_LAYOUT; break;
-    case 'multi-frame':  table = TOOL_MESSAGES_MULTI_FRAME; break;
-    default:             table = TOOL_MESSAGES_GENERIC;
+    case 'screenshot':
+      table = TOOL_MESSAGES_SCREENSHOT;
+      break;
+    case 'text-layout':
+      table = TOOL_MESSAGES_TEXT_LAYOUT;
+      break;
+    case 'multi-frame':
+      table = TOOL_MESSAGES_MULTI_FRAME;
+      break;
+    default:
+      table = TOOL_MESSAGES_GENERIC;
   }
   return table[toolName] ?? 'Building design...';
 }
@@ -404,11 +414,7 @@ export function toolNameToProgressMessage(toolName: string, modeContext: Progres
  * @param totalSlides Total number of slides.
  * @param toolName    Tool name (optional). Shows generic label when omitted.
  */
-export function formatMultiFrameProgressMessage(
-  slideIndex: number,
-  totalSlides: number,
-  toolName?: string,
-): string {
+export function formatMultiFrameProgressMessage(slideIndex: number, totalSlides: number, toolName?: string): string {
   const slideLabel = `Slide ${slideIndex} of ${totalSlides}`;
   if (!toolName) return `${slideLabel} — Building...`;
   const toolMsg = toolNameToProgressMessage(toolName, 'multi-frame');

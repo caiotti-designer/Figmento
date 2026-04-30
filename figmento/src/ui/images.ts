@@ -20,7 +20,7 @@ async function generateWithVeniceImage(prompt: string, apiKey: string, model: st
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model,
@@ -67,7 +67,12 @@ export function collectImageElements(elements: UIElement[]): UIElement[] {
   return images;
 }
 
-export function generateImageWithGemini(prompt: string, apiKey: string, model?: string, veniceApiKey?: string): Promise<string | null> {
+export function generateImageWithGemini(
+  prompt: string,
+  apiKey: string,
+  model?: string,
+  veniceApiKey?: string
+): Promise<string | null> {
   if (model && isVeniceImageModel(model) && veniceApiKey) {
     return generateWithVeniceImage(prompt, veniceApiKey, model);
   }
@@ -211,7 +216,7 @@ export async function generateHeroImage(
   input: HeroGeneratorInput,
   apiKey: string,
   abortSignal?: AbortSignal,
-  model?: string,
+  model?: string
 ): Promise<string | null> {
   const geminiModel = model || 'gemini-3.1-flash-image-preview';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`;
@@ -269,11 +274,7 @@ export async function generateHeroImage(
   const hasElements = input.elements.length > 0;
 
   let masterPrompt =
-    'Generate a high-quality hero background image at ' +
-    aspectRatio +
-    ' resolution. ' +
-    positionInstruction +
-    ' ';
+    'Generate a high-quality hero background image at ' + aspectRatio + ' resolution. ' + positionInstruction + ' ';
 
   if (hasSubjects) {
     masterPrompt +=
@@ -281,8 +282,7 @@ export async function generateHeroImage(
   }
 
   if (hasElements) {
-    masterPrompt +=
-      'Subtly composite the provided branding elements into the scene in a natural, non-intrusive way. ';
+    masterPrompt += 'Subtly composite the provided branding elements into the scene in a natural, non-intrusive way. ';
   }
 
   masterPrompt +=

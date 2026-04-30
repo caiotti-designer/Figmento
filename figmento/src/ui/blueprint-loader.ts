@@ -62,11 +62,7 @@ export const getRelevantBlueprint = (
 ): Blueprint | null => {
   if (!category) return null;
 
-  const moodList = !mood
-    ? []
-    : Array.isArray(mood)
-    ? mood.map((m) => m.toLowerCase())
-    : [mood.toLowerCase()];
+  const moodList = !mood ? [] : Array.isArray(mood) ? mood.map((m) => m.toLowerCase()) : [mood.toLowerCase()];
 
   let bestMatch: Blueprint | null = null;
   let bestScore = -1;

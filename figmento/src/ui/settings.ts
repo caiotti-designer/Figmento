@@ -120,13 +120,16 @@ export const saveSettings = (): void => {
 export const saveDesignOverrides = (): void => {
   try {
     const isEnabled = dom.designSettingsPanel?.classList.contains('enabled') || false;
-    safeSetItem(STORAGE_KEY_DESIGN_OVERRIDES, JSON.stringify({
-      enabled: isEnabled,
-      font: designSettings.selectedFontFamily,
-      colors: designSettings.brandColors,
-      grid: designSettings.enableGridSystem,
-      prompt: designSettings.customPrompt,
-    }));
+    safeSetItem(
+      STORAGE_KEY_DESIGN_OVERRIDES,
+      JSON.stringify({
+        enabled: isEnabled,
+        font: designSettings.selectedFontFamily,
+        colors: designSettings.brandColors,
+        grid: designSettings.enableGridSystem,
+        prompt: designSettings.customPrompt,
+      })
+    );
   } catch (_e) {
     // Ignore
   }
@@ -501,20 +504,9 @@ export const updateApiKeyInput = (): void => {
 };
 
 export const updateStatusDot = (): void => {
-  if (!dom.statusDot) return;
-
-  // Clear all classes
-  dom.statusDot.classList.remove('connected', 'warning', 'error');
-
-  if (apiState.validatedKeys[apiState.currentProvider]) {
-    dom.statusDot.classList.add('connected');
-    if (dom.settingsBtn) dom.settingsBtn.setAttribute('data-tooltip', 'API key: verified');
-  } else if (apiState.savedApiKeys[apiState.currentProvider]) {
-    dom.statusDot.classList.add('warning');
-    if (dom.settingsBtn) dom.settingsBtn.setAttribute('data-tooltip', 'API key: not verified');
-  } else {
-    if (dom.settingsBtn) dom.settingsBtn.setAttribute('data-tooltip', 'API key: not configured');
-  }
+  // The header status dot (inside settingsBtn) reflects RELAY state, driven
+  // by bridge.ts notifyRelayStatus(). API key state is shown per-provider in
+  // the settings sheet via the dots below.
 
   // Update provider status dots in settings
   (['gemini', 'claude', 'openai'] as AIProvider[]).forEach((provider) => {
@@ -564,7 +556,6 @@ export const updateModelDropdownVisibility = (): void => {
     dom.openaiModelSelectWrapper.style.display = apiState.currentProvider === 'openai' ? 'block' : 'none';
   }
 };
-
 
 // ═══════════════════════════════════════════════════════════════
 // API KEY MANAGEMENT

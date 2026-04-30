@@ -15,10 +15,7 @@ import {
   isTokenExpired,
   isTokenExpiringSoon,
   CODEX_OAUTH_CONFIG,
-  ANTHROPIC_OAUTH_CONFIG,
-  isAnthropicOAuthConfigured,
   decodeActivationCode,
-  validateAnthropicToken,
   type OAuthToken,
 } from './oauth-flow';
 
@@ -79,25 +76,15 @@ export function initChatSettings() {
     codexDisconnectBtn.addEventListener('click', handleCodexDisconnect);
   }
 
-  // DM-2: Anthropic OAuth button wiring — visible only when OAuth app is registered
-  const anthropicSection = document.getElementById('anthropic-oauth-section');
-  if (anthropicSection && isAnthropicOAuthConfigured()) {
-    anthropicSection.style.display = 'block';
-    document.getElementById('anthropic-oauth-connect')?.addEventListener('click', handleAnthropicConnect);
-    document.getElementById('anthropic-activate-btn')?.addEventListener('click', handleAnthropicActivate);
-    document.getElementById('anthropic-oauth-disconnect')?.addEventListener('click', handleAnthropicDisconnect);
-    // Reflect current token state
-    if (getChatSettings().anthropicToken) {
-      updateAnthropicOAuthUI(true);
-    }
-  }
-
   updateSettingsUI();
   updateRelaySettingsUI();
 }
 
 export function loadChatSettings(saved: Record<string, string>) {
-  console.log('[Figmento ChatSettings] loadChatSettings received:', { chatRelayEnabled: saved.chatRelayEnabled, chatRelayUrl: saved.chatRelayUrl });
+  console.log('[Figmento ChatSettings] loadChatSettings received:', {
+    chatRelayEnabled: saved.chatRelayEnabled,
+    chatRelayUrl: saved.chatRelayUrl,
+  });
   const s = getChatSettings();
 
   if (saved.anthropicApiKey) {
@@ -107,7 +94,7 @@ export function loadChatSettings(saved: Record<string, string>) {
   if (saved.model) {
     const select = $('settings-model') as HTMLSelectElement;
     // Validate the saved model exists in the dropdown — if not, fall back to default
-    const optionExists = Array.from(select.options).some(opt => opt.value === saved.model);
+    const optionExists = Array.from(select.options).some((opt) => opt.value === saved.model);
     if (optionExists) {
       s.model = saved.model;
       select.value = saved.model;
@@ -162,13 +149,6 @@ export function loadChatSettings(saved: Record<string, string>) {
     s.claudeCodeModel = saved.claudeCodeModel;
     const ccModel = document.getElementById('settings-cc-model') as HTMLSelectElement;
     if (ccModel) ccModel.value = saved.claudeCodeModel;
-  }
-
-  // DM-2: Load Anthropic OAuth token state (scaffolded — activation pending
-  // Anthropic OAuth app registration + hosted callback page)
-  if (saved.anthropicToken) {
-    const token = saved.anthropicToken as unknown as OAuthToken;
-    s.anthropicToken = token;
   }
 
   // DM-3: Load Codex OAuth token state
@@ -234,10 +214,10 @@ function updateSettingsUI() {
   const useSpecial = useClaudeCode || useCodex || useCustom;
 
   // Hide ALL API key fields for special providers (Claude Code, Codex OAuth, Custom)
-  $('key-gemini-chat').style.display = (!useSpecial && useGemini) ? 'block' : 'none';
-  $('key-anthropic-chat').style.display = (!useSpecial && !useGemini && !useOpenAI && !useVenice) ? 'block' : 'none';
-  $('key-openai-chat').style.display = (!useSpecial && useOpenAI) ? 'block' : 'none';
-  $('key-venice-chat').style.display = (!useSpecial && useVenice) ? 'block' : 'none';
+  $('key-gemini-chat').style.display = !useSpecial && useGemini ? 'block' : 'none';
+  $('key-anthropic-chat').style.display = !useSpecial && !useGemini && !useOpenAI && !useVenice ? 'block' : 'none';
+  $('key-openai-chat').style.display = !useSpecial && useOpenAI ? 'block' : 'none';
+  $('key-venice-chat').style.display = !useSpecial && useVenice ? 'block' : 'none';
 
   // MA-1: Custom provider fields
   const customSection = document.getElementById('key-custom-chat');
@@ -254,8 +234,8 @@ function updateSettingsUI() {
   // Image gen: hidden for Claude Code, Codex, and Custom; otherwise normal logic
   const imageGenSection = document.getElementById('section-image-gen');
   if (imageGenSection) imageGenSection.style.display = useSpecial ? 'none' : 'block';
-  $('image-gen-separate').style.display = (!useSpecial && !useGemini) ? 'block' : 'none';
-  $('image-gen-shared').style.display = (!useSpecial && useGemini) ? 'block' : 'none';
+  $('image-gen-separate').style.display = !useSpecial && !useGemini ? 'block' : 'none';
+  $('image-gen-shared').style.display = !useSpecial && useGemini ? 'block' : 'none';
 }
 
 function saveChatSettings() {
@@ -268,10 +248,12 @@ function saveChatSettings() {
   const ccModelSelect = document.getElementById('settings-cc-model') as HTMLSelectElement;
 
   // MA-1: Custom provider fields — trim trailing slash on baseUrl to be forgiving
-  const customBaseUrlRaw = (document.getElementById('settings-custom-base-url') as HTMLInputElement | null)?.value.trim() || '';
+  const customBaseUrlRaw =
+    (document.getElementById('settings-custom-base-url') as HTMLInputElement | null)?.value.trim() || '';
   const customBaseUrl = customBaseUrlRaw.replace(/\/+$/, '');
   const customModel = (document.getElementById('settings-custom-model') as HTMLInputElement | null)?.value.trim() || '';
-  const customApiKey = (document.getElementById('settings-custom-api-key') as HTMLInputElement | null)?.value.trim() || '';
+  const customApiKey =
+    (document.getElementById('settings-custom-api-key') as HTMLInputElement | null)?.value.trim() || '';
 
   const currentSettings = getChatSettings();
   const s: ChatSettings = {
@@ -321,13 +303,9 @@ function saveChatSettings() {
   const autoDetect = (document.getElementById('settings-auto-detect') as HTMLInputElement)?.checked ?? false;
   postToSandbox({ type: 'save-learning-config', config: { enabled: true, autoDetect, confidenceThreshold: 3 } });
 
-  // Trigger auto-connect/disconnect based on relay setting
-  const relayBar = document.getElementById('relay-status-bar');
+  // Trigger auto-connect based on relay setting
   if (s.chatRelayEnabled) {
-    if (relayBar) relayBar.style.display = 'flex';
     triggerAutoConnectBridge(s.chatRelayUrl);
-  } else {
-    if (relayBar) relayBar.style.display = 'none';
   }
 
   showSettingsStatus('Settings saved!', false);
@@ -338,15 +316,11 @@ function updateRelaySettingsUI() {
   const enabled = toggle ? toggle.checked : getChatSettings().chatRelayEnabled;
   const relayFields = document.getElementById('relay-settings-fields');
   const apiKeyHint = document.getElementById('api-key-relay-hint');
-  const relayBar = document.getElementById('relay-status-bar');
   if (relayFields) {
     relayFields.style.display = enabled ? 'block' : 'none';
   }
   if (apiKeyHint) {
     apiKeyHint.style.display = enabled ? 'block' : 'none';
-  }
-  if (relayBar) {
-    relayBar.style.display = enabled ? 'flex' : 'none';
   }
 }
 
@@ -355,7 +329,9 @@ function showSettingsStatus(text: string, isError: boolean) {
   el.textContent = text;
   el.className = 'settings-status ' + (isError ? 'error' : 'success');
   el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 3000);
+  setTimeout(() => {
+    el.style.display = 'none';
+  }, 3000);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -446,78 +422,4 @@ function handleCodexDisconnect() {
   postToSandbox({ type: 'clear-codex-token' });
   updateCodexOAuthUI(false);
   showSettingsStatus('Disconnected from ChatGPT.', false);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// DM-2: ANTHROPIC OAUTH HANDLERS
-// ═══════════════════════════════════════════════════════════════
-// All three handlers mirror the Codex pattern exactly. They will no-op at
-// runtime until ANTHROPIC_OAUTH_CONFIG is activated (see oauth-flow.ts).
-// The UI gates visibility on isAnthropicOAuthConfigured() so nothing is
-// surfaced to end users until the prerequisite OAuth app is registered.
-
-function updateAnthropicOAuthUI(connected: boolean) {
-  const disconnected = document.getElementById('anthropic-oauth-disconnected');
-  const connectedEl = document.getElementById('anthropic-oauth-connected');
-  if (disconnected) disconnected.style.display = connected ? 'none' : 'block';
-  if (connectedEl) connectedEl.style.display = connected ? 'block' : 'none';
-  const activationSection = document.getElementById('anthropic-activation-section');
-  if (activationSection && connected) activationSection.style.display = 'none';
-}
-
-async function handleAnthropicConnect() {
-  try {
-    const { url, verifier, state } = await buildAuthorizationUrl(ANTHROPIC_OAUTH_CONFIG);
-    savePkceSession(verifier, state);
-    const activationSection = document.getElementById('anthropic-activation-section');
-    if (activationSection) activationSection.style.display = 'block';
-    postToSandbox({ type: 'open-external', url });
-    showSettingsStatus('Browser opened — complete login and paste the activation code.', false);
-  } catch (err) {
-    showSettingsStatus('Failed to start OAuth flow: ' + (err as Error).message, true);
-  }
-}
-
-async function handleAnthropicActivate() {
-  const input = document.getElementById('anthropic-activation-input') as HTMLInputElement;
-  const rawCode = input?.value?.trim();
-  if (!rawCode) {
-    showSettingsStatus('Please paste the activation code from the browser.', true);
-    return;
-  }
-
-  // The Anthropic callback page encodes the token as base64(JSON) — same shape
-  // as the Codex flow. decodeActivationCode handles both.
-  const decoded = decodeActivationCode(rawCode);
-  if (!decoded) {
-    showSettingsStatus('Invalid activation code. Please try again.', true);
-    return;
-  }
-
-  // Validate against api.anthropic.com/v1/models before accepting
-  showSettingsStatus('Validating token...', false);
-  const valid = await validateAnthropicToken(decoded.access_token);
-  if (!valid) {
-    showSettingsStatus('Token validation failed. Please reconnect.', true);
-    return;
-  }
-
-  clearPkceSession();
-  const s = getChatSettings();
-  s.anthropicToken = decoded;
-  updateChatSettings(s);
-  postToSandbox({ type: 'save-anthropic-token', token: decoded });
-
-  updateAnthropicOAuthUI(true);
-  input.value = '';
-  showSettingsStatus('Connected via Claude.ai ✓', false);
-}
-
-function handleAnthropicDisconnect() {
-  const s = getChatSettings();
-  s.anthropicToken = undefined;
-  updateChatSettings(s);
-  postToSandbox({ type: 'clear-anthropic-token' });
-  updateAnthropicOAuthUI(false);
-  showSettingsStatus('Disconnected from Claude.ai.', false);
 }

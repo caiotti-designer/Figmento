@@ -65,7 +65,12 @@ async function loadFont(family: string, weight: number): Promise<FontName> {
   }
 }
 
-function createSectionTitle(text: string, fontName: FontName, parent: FrameNode | ComponentNode, textColor: string): TextNode {
+function createSectionTitle(
+  text: string,
+  fontName: FontName,
+  parent: FrameNode | ComponentNode,
+  textColor: string
+): TextNode {
   const node = figma.createText();
   node.fontName = fontName;
   node.characters = text;
@@ -93,7 +98,20 @@ function createDivider(parent: FrameNode, color: string, width: number): Rectang
 export async function handleCreateDSShowcase(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const config = params as unknown as ShowcaseParams;
   const { brandName, colors, typography, spacing } = config;
-  const icons = config.icons || ['home', 'search', 'settings', 'user', 'mail', 'phone', 'star', 'heart', 'zap', 'shield', 'globe', 'camera'];
+  const icons = config.icons || [
+    'home',
+    'search',
+    'settings',
+    'user',
+    'mail',
+    'phone',
+    'star',
+    'heart',
+    'zap',
+    'shield',
+    'globe',
+    'camera',
+  ];
 
   const FRAME_W = 1440;
   const PAD = 80;
@@ -117,14 +135,10 @@ export async function handleCreateDSShowcase(params: Record<string, unknown>): P
   const isDarkBg = bgLum < 0.5;
 
   const rawText = colors.text || '#1A202C';
-  const TEXT_COLOR = Math.abs(luminance(rawText) - bgLum) < 0.3
-    ? (isDarkBg ? '#FFFFFF' : '#1A202C')
-    : rawText;
+  const TEXT_COLOR = Math.abs(luminance(rawText) - bgLum) < 0.3 ? (isDarkBg ? '#FFFFFF' : '#1A202C') : rawText;
 
   const rawMuted = colors.muted || '#718096';
-  const MUTED_COLOR = Math.abs(luminance(rawMuted) - bgLum) < 0.2
-    ? (isDarkBg ? '#A0A0A0' : '#718096')
-    : rawMuted;
+  const MUTED_COLOR = Math.abs(luminance(rawMuted) - bgLum) < 0.2 ? (isDarkBg ? '#A0A0A0' : '#718096') : rawMuted;
 
   // Load fonts
   const headingFontName = await loadFont(typography.headingFont, typography.headingWeight);
@@ -267,7 +281,13 @@ export async function handleCreateDSShowcase(params: Record<string, unknown>): P
   semanticLabel.layoutSizingVertical = 'HUG';
   semanticRow.appendChild(semanticLabel);
 
-  for (const [name, hex] of Object.entries({ background: colors.background, text: colors.text, muted: colors.muted, surface: colors.surface, accent: colors.accent })) {
+  for (const [name, hex] of Object.entries({
+    background: colors.background,
+    text: colors.text,
+    muted: colors.muted,
+    surface: colors.surface,
+    accent: colors.accent,
+  })) {
     if (!hex) continue;
     const sf = figma.createFrame();
     sf.name = name;
@@ -363,14 +383,44 @@ export async function handleCreateDSShowcase(params: Record<string, unknown>): P
 
   // Type scale specimens
   const typeScaleData = [
-    { name: 'Display', size: 56, weight: typography.headingWeight, font: typography.headingFont, sample: 'Design System' },
+    {
+      name: 'Display',
+      size: 56,
+      weight: typography.headingWeight,
+      font: typography.headingFont,
+      sample: 'Design System',
+    },
     { name: 'H1', size: 48, weight: typography.headingWeight, font: typography.headingFont, sample: 'Heading One' },
     { name: 'H2', size: 32, weight: typography.headingWeight, font: typography.headingFont, sample: 'Heading Two' },
     { name: 'H3', size: 24, weight: typography.headingWeight, font: typography.headingFont, sample: 'Heading Three' },
-    { name: 'Body Large', size: 20, weight: typography.bodyWeight, font: typography.bodyFont, sample: 'Body large text for lead paragraphs and introductions.' },
-    { name: 'Body', size: 16, weight: typography.bodyWeight, font: typography.bodyFont, sample: 'Regular body text for paragraphs, descriptions, and general content.' },
-    { name: 'Body Small', size: 14, weight: typography.bodyWeight, font: typography.bodyFont, sample: 'Small body text for secondary information and metadata.' },
-    { name: 'Caption', size: 12, weight: typography.bodyWeight, font: typography.bodyFont, sample: 'Caption text for labels, timestamps, and fine print.' },
+    {
+      name: 'Body Large',
+      size: 20,
+      weight: typography.bodyWeight,
+      font: typography.bodyFont,
+      sample: 'Body large text for lead paragraphs and introductions.',
+    },
+    {
+      name: 'Body',
+      size: 16,
+      weight: typography.bodyWeight,
+      font: typography.bodyFont,
+      sample: 'Regular body text for paragraphs, descriptions, and general content.',
+    },
+    {
+      name: 'Body Small',
+      size: 14,
+      weight: typography.bodyWeight,
+      font: typography.bodyFont,
+      sample: 'Small body text for secondary information and metadata.',
+    },
+    {
+      name: 'Caption',
+      size: 12,
+      weight: typography.bodyWeight,
+      font: typography.bodyFont,
+      sample: 'Caption text for labels, timestamps, and fine print.',
+    },
   ];
 
   for (const ts of typeScaleData) {
@@ -481,7 +531,7 @@ export async function handleCreateDSShowcase(params: Record<string, unknown>): P
   spacingRow.itemSpacing = 12;
   spacingRow.fills = [];
 
-  for (const val of (spacing.scale || []).filter(v => v <= 96)) {
+  for (const val of (spacing.scale || []).filter((v) => v <= 96)) {
     const col = figma.createFrame();
     col.name = `sp-${val}`;
     col.layoutMode = 'VERTICAL';
@@ -512,7 +562,7 @@ export async function handleCreateDSShowcase(params: Record<string, unknown>): P
   root.appendChild(spacingSection);
 
   // ── Place on DS page ──────────────────────────────────────
-  let dsPage = figma.root.children.find(p => p.name === 'Design System') as PageNode | undefined;
+  let dsPage = figma.root.children.find((p) => p.name === 'Design System') as PageNode | undefined;
   if (!dsPage) {
     dsPage = figma.createPage();
     dsPage.name = 'Design System';
@@ -522,7 +572,7 @@ export async function handleCreateDSShowcase(params: Record<string, unknown>): P
   root.y = 0;
 
   // Move existing DS components below the showcase if they exist
-  const existingComponents = dsPage.children.filter(n => n.name.startsWith('DS/') && n.id !== root.id);
+  const existingComponents = dsPage.children.filter((n) => n.name.startsWith('DS/') && n.id !== root.id);
   let yOffset = root.height + 100;
   for (const comp of existingComponents) {
     comp.x = 0;

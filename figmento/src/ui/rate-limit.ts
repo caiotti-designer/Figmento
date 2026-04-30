@@ -120,11 +120,7 @@ function checkAndWarn(provider: AIProvider): void {
       const resetMsg = info.requestsReset ? ' Resets at ' + info.requestsReset + '.' : '';
       showToast('Rate limit reached for ' + provider + '.' + resetMsg + ' Switch providers or wait.', 'warning', 8000);
     } else if (ratio <= 0.1) {
-      showToast(
-        provider + ': ' + requestsRemaining + '/' + requestsLimit + ' requests remaining.',
-        'warning',
-        5000
-      );
+      showToast(provider + ': ' + requestsRemaining + '/' + requestsLimit + ' requests remaining.', 'warning', 5000);
     }
   }
 }

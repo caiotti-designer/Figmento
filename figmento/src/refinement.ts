@@ -10,9 +10,7 @@
 const VALID_SPACING = [0, 4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96, 128];
 
 function nearestValidSpacing(val: number): number {
-  return VALID_SPACING.reduce((a, b) =>
-    Math.abs(b - val) < Math.abs(a - val) ? b : a
-  );
+  return VALID_SPACING.reduce((a, b) => (Math.abs(b - val) < Math.abs(a - val) ? b : a));
 }
 
 export function countNodes(node: SceneNode): number {
@@ -56,11 +54,11 @@ export async function postCreationRefinement(rootNode: SceneNode): Promise<void>
       // detect "which end is solid" requires utilities not yet in gradient-utils.ts.
       // Log awareness only when gradient + text children are both present.
       if ('fills' in frame && Array.isArray(frame.fills)) {
-        const hasGradient = (frame.fills as Paint[]).some(f => f.type === 'GRADIENT_LINEAR');
+        const hasGradient = (frame.fills as Paint[]).some((f) => f.type === 'GRADIENT_LINEAR');
         if (hasGradient && 'children' in frame) {
           const hasText = (frame.children as SceneNode[]).some(
-            c => c.type === 'TEXT' ||
-              ('children' in c && (c as ChildrenMixin).children.some(gc => gc.type === 'TEXT'))
+            (c) =>
+              c.type === 'TEXT' || ('children' in c && (c as ChildrenMixin).children.some((gc) => gc.type === 'TEXT'))
           );
           if (hasText) {
             console.log(`MQ Refinement: gradient direction ambiguous, skipped on "${frame.name}"`);

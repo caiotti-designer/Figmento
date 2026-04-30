@@ -277,16 +277,36 @@ export const designSettings = {
   customPrompt: '',
 };
 
+// FN-6 / FN-16: Design System state — backed by nanostores atoms in stores.ts.
+// These exports are compatibility shims so existing consumers (chat.ts, index.ts,
+// skill-export.ts, command-queue.ts) keep working with `designSystemState.cache` /
+// `dsToggleState.enabled` syntax. New code should import atoms directly:
+//   import { $dsCache, $dsToggleEnabled, $effectiveDsCache } from './stores';
 
-// FN-6: Design System Discovery state
+import { $dsCache, $dsScanning, $dsToggleEnabled, $effectiveDsCache } from './stores';
+
 export const designSystemState = {
-  cache: null as DesignSystemCache | null,
-  isScanning: false,
+  get cache(): DesignSystemCache | null {
+    return $dsCache.get();
+  },
+  set cache(value: DesignSystemCache | null) {
+    $dsCache.set(value);
+  },
+  get isScanning(): boolean {
+    return $dsScanning.get();
+  },
+  set isScanning(value: boolean) {
+    $dsScanning.set(value);
+  },
 };
 
-// FN-16: "Use My Design System" toggle state
 export const dsToggleState = {
-  enabled: true, // default ON — but disabled in UI when cache is null
+  get enabled(): boolean {
+    return $dsToggleEnabled.get();
+  },
+  set enabled(value: boolean) {
+    $dsToggleEnabled.set(value);
+  },
 };
 
 /**
@@ -294,7 +314,7 @@ export const dsToggleState = {
  * Use this in buildSystemPrompt() and matchComponent() call sites.
  */
 export function isDesignSystemToggleOn(): boolean {
-  return dsToggleState.enabled && designSystemState.cache !== null;
+  return $effectiveDsCache.get() !== null;
 }
 
 /**
@@ -302,29 +322,8 @@ export function isDesignSystemToggleOn(): boolean {
  * Convenience for gating buildSystemPrompt's dsCache parameter.
  */
 export function getEffectiveDsCache(): DesignSystemCache | null {
-  return isDesignSystemToggleOn() ? designSystemState.cache : null;
+  return $effectiveDsCache.get();
 }
-
-// FN-15: Status Tab state
-export const statusTabState = {
-  preferencesCount: 0,
-};
-
-export const adAnalyzerState = {
-  imageBase64: null as string | null,
-  imageMimeType: null as string | null,
-  imageWidth: 0,
-  imageHeight: 0,
-  productName: '',
-  productCategory: '',
-  platform: 'instagram-4x5' as string,
-  notes: '',
-  isWatching: false,
-  lastActivityTime: 0,
-  report: null as string | null,
-  carouselNodeId: null as string | null,
-  variantNodeIds: null as string[] | null,
-};
 
 // ═══════════════════════════════════════════════════════════════
 // DOM ELEMENT REFERENCES

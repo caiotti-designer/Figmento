@@ -10,11 +10,7 @@
  * with the designer's specific system.
  */
 
-import {
-  designSystemState,
-  designSettings,
-  modeState,
-} from './state';
+import { designSystemState, designSettings, modeState } from './state';
 import { postMessage } from './utils';
 import type { DesignSystemCache, DiscoveredComponent, LearnedPreference } from '../types';
 
@@ -47,7 +43,10 @@ function getSkillTitle(brandKit: BrandKitData | null): string {
 
 function getFileName(brandKit: BrandKitData | null): string {
   if (brandKit?.name) {
-    const slug = brandKit.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const slug = brandKit.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
     return `${slug}-design-skill.md`;
   }
   return 'figmento-design-skill.md';
@@ -91,7 +90,7 @@ No brand kit configured. Set brand colors and fonts in the plugin Settings to en
     }
   }
   if (hasBrandColors) {
-    const existing = new Set(colorLines.map(l => l.match(/`(#[^`]+)`/)?.[1]));
+    const existing = new Set(colorLines.map((l) => l.match(/`(#[^`]+)`/)?.[1]));
     for (const hex of designSettings.brandColors) {
       if (!existing.has(hex)) {
         colorLines.push(`- \`${hex}\``);
@@ -111,7 +110,7 @@ No brand kit configured. Set brand colors and fonts in the plugin Settings to en
       if (font) fontLines.push(`- **${role}:** ${font}`);
     }
   }
-  if (hasFont && !fontLines.some(l => l.includes(designSettings.selectedFontFamily))) {
+  if (hasFont && !fontLines.some((l) => l.includes(designSettings.selectedFontFamily))) {
     fontLines.push(`- **Primary font:** ${designSettings.selectedFontFamily}`);
   }
   if (fontLines.length > 0) {
@@ -303,7 +302,7 @@ Design system scanned but no components, variables, or styles found.
 }
 
 function buildPreferencesSection(preferences: LearnedPreference[]): string {
-  const enabled = preferences.filter(p => p.enabled !== false);
+  const enabled = preferences.filter((p) => p.enabled !== false);
 
   if (enabled.length === 0) {
     return `## Design Preferences
@@ -319,7 +318,7 @@ No preferences learned yet. Create designs and confirm corrections to build your
     return b.correctionCount - a.correctionCount;
   });
 
-  const lines = sorted.map(p => {
+  const lines = sorted.map((p) => {
     const badge = p.confidence === 'high' ? '**ALWAYS**' : p.confidence === 'medium' ? '**PREFER**' : '*consider*';
     return `- ${badge} ${p.context} ${p.property}: ${p.description}`;
   });
@@ -337,14 +336,18 @@ function buildFormatDefaultsSection(): string {
 
   const format = modeState.currentFormat;
   if (format && typeof format === 'object' && 'name' in format) {
-    parts.push(`- **Preferred format:** ${(format as { name: string }).name} (${(format as { width: number }).width}x${(format as { height: number }).height})`);
+    parts.push(
+      `- **Preferred format:** ${(format as { name: string }).name} (${(format as { width: number }).width}x${(format as { height: number }).height})`
+    );
   } else if (format && typeof format === 'string') {
     parts.push(`- **Preferred format:** ${format}`);
   }
 
   const theme = modeState.activeColorTheme;
   if (theme) {
-    parts.push(`- **Color theme:** ${typeof theme === 'object' && 'name' in theme ? (theme as { name: string }).name : theme}`);
+    parts.push(
+      `- **Color theme:** ${typeof theme === 'object' && 'name' in theme ? (theme as { name: string }).name : theme}`
+    );
   }
 
   if (designSettings.enableGridSystem) {
@@ -614,7 +617,9 @@ function copyToClipboard(text: string): void {
   textarea.select();
   try {
     document.execCommand('copy');
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   document.body.removeChild(textarea);
 }
 

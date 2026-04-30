@@ -57,18 +57,38 @@ export async function setAutoBindEnabled(enabled: boolean): Promise<void> {
 // ── Semantic name patterns ───────────────────────────────────────────────────
 
 const COLOR_SEMANTIC_NAMES = [
-  'primary', 'secondary', 'accent', 'surface', 'background', 'foreground',
-  'text', 'muted', 'border', 'error', 'warning', 'success', 'info',
-  'on-primary', 'on-secondary', 'on-surface', 'on-background',
+  'primary',
+  'secondary',
+  'accent',
+  'surface',
+  'background',
+  'foreground',
+  'text',
+  'muted',
+  'border',
+  'error',
+  'warning',
+  'success',
+  'info',
+  'on-primary',
+  'on-secondary',
+  'on-surface',
+  'on-background',
 ];
 
-const SPACING_SEMANTIC_NAMES = [
-  'spacing', 'space', 'padding', 'margin', 'gap', 'size', 'radius',
-];
+const SPACING_SEMANTIC_NAMES = ['spacing', 'space', 'padding', 'margin', 'gap', 'size', 'radius'];
 
 const TYPOGRAPHY_SEMANTIC_NAMES = [
-  'font-size', 'fontSize', 'text', 'type', 'heading', 'body', 'caption',
-  'display', 'title', 'label',
+  'font-size',
+  'fontSize',
+  'text',
+  'type',
+  'heading',
+  'body',
+  'caption',
+  'display',
+  'title',
+  'label',
 ];
 
 // Collections preferred for color matching
@@ -120,24 +140,24 @@ function resolvedHex(value: unknown): string | null {
 
 function isSemanticSpacingName(name: string): boolean {
   const lower = name.toLowerCase();
-  return SPACING_SEMANTIC_NAMES.some(kw => lower.includes(kw));
+  return SPACING_SEMANTIC_NAMES.some((kw) => lower.includes(kw));
 }
 
 function isSemanticTypographyName(name: string): boolean {
   const lower = name.toLowerCase();
-  return TYPOGRAPHY_SEMANTIC_NAMES.some(kw => lower.includes(kw));
+  return TYPOGRAPHY_SEMANTIC_NAMES.some((kw) => lower.includes(kw));
 }
 
 function collectionPreferenceScore(collectionName: string, preferredNames: string[]): number {
   const lower = collectionName.toLowerCase();
-  return preferredNames.some(n => lower.includes(n)) ? 1 : 0;
+  return preferredNames.some((n) => lower.includes(n)) ? 1 : 0;
 }
 
 function semanticNameScore(varName: string): number {
   const lower = varName.toLowerCase();
   // Prefer names that contain semantic tokens (e.g. "primary" over "blue-500")
   const semanticAll = [...COLOR_SEMANTIC_NAMES, ...SPACING_SEMANTIC_NAMES];
-  return semanticAll.some(s => lower.includes(s)) ? 1 : 0;
+  return semanticAll.some((s) => lower.includes(s)) ? 1 : 0;
 }
 
 // ── matchVariable (COLOR) ────────────────────────────────────────────────────
@@ -145,7 +165,7 @@ function semanticNameScore(varName: string): number {
 export function matchColorVariable(
   hex: string,
   variables: CachedVariable[],
-  collections: CachedCollection[],
+  collections: CachedCollection[]
 ): VariableMatch | null {
   const collectionMap = buildCollectionMap(collections);
   const targetHex = hex.toUpperCase();
@@ -202,7 +222,7 @@ export function matchFloatVariable(
   value: number,
   variables: CachedVariable[],
   collections: CachedCollection[],
-  options: { requireSemanticSpacing?: boolean; requireSemanticTypography?: boolean } = {},
+  options: { requireSemanticSpacing?: boolean; requireSemanticTypography?: boolean } = {}
 ): VariableMatch | null {
   const collectionMap = buildCollectionMap(collections);
 
@@ -266,7 +286,7 @@ export function matchFloatVariable(
 export async function tryBindFillVariable(
   node: SceneNode,
   hex: string,
-  autoBindParam?: boolean,
+  autoBindParam?: boolean
 ): Promise<VariableMatch | null> {
   // Check opt-out
   if (autoBindParam === false) return null;
@@ -289,8 +309,10 @@ export async function tryBindFillVariable(
     if (existing[0].type !== 'SOLID') return null; // Don't bind gradients
 
     // Check if setBoundVariable API exists
-    if (typeof (node as any).setBoundVariable !== 'function' &&
-        typeof figma.variables.setBoundVariableForPaint !== 'function') {
+    if (
+      typeof (node as any).setBoundVariable !== 'function' &&
+      typeof figma.variables.setBoundVariableForPaint !== 'function'
+    ) {
       return null;
     }
 
@@ -315,7 +337,7 @@ export async function tryBindFillVariable(
 export async function tryBindSpacingVariables(
   node: FrameNode,
   spacingValues: Record<string, number | undefined>,
-  autoBindParam?: boolean,
+  autoBindParam?: boolean
 ): Promise<Record<string, string>> {
   const bound: Record<string, string> = {};
 
@@ -367,7 +389,7 @@ export async function tryBindTextVariables(
   node: TextNode,
   textColor: string,
   fontSize?: number,
-  autoBindParam?: boolean,
+  autoBindParam?: boolean
 ): Promise<{ boundColor: VariableMatch | null; boundFontSize: VariableMatch | null }> {
   const result = { boundColor: null as VariableMatch | null, boundFontSize: null as VariableMatch | null };
 

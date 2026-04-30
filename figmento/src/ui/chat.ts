@@ -24,7 +24,14 @@ import {
 import { LOCAL_TOOL_HANDLERS } from './local-intelligence';
 import { createBatchToolCallHandler } from './command-queue';
 import { designSystemState, getEffectiveDsCache } from './state';
-import { autoConnectBridge, getBridgeChannelId, getBridgeConnected, sendBridgeMessage, setClaudeCodeResultHandler, setClaudeCodeProgressHandler } from './bridge';
+import {
+  autoConnectBridge,
+  getBridgeChannelId,
+  getBridgeConnected,
+  sendBridgeMessage,
+  setClaudeCodeResultHandler,
+  setClaudeCodeProgressHandler,
+} from './bridge';
 import { renderDiffPanel } from './diff-panel';
 import { openSettings, closeSettings } from './settings';
 import type { CorrectionEntry, LearnedPreference } from '../types';
@@ -66,13 +73,10 @@ export interface ChatSettings {
   chatRelayEnabled: boolean;
   chatRelayUrl: string;
   codexToken?: import('./oauth-flow').OAuthToken;
-  // DM-2: Anthropic OAuth token — when present, used instead of anthropicApiKey
-  // for direct Claude API calls. Gated on ANTHROPIC_OAUTH_CONFIG being activated.
-  anthropicToken?: import('./oauth-flow').OAuthToken;
   // MA-1: Custom OpenAI-compatible provider (Ollama, LM Studio, OpenRouter, etc.)
-  customBaseUrl?: string;   // e.g. "http://localhost:11434/v1"
-  customModel?: string;     // e.g. "gemma3:4b"
-  customApiKey?: string;    // optional — empty for local models
+  customBaseUrl?: string; // e.g. "http://localhost:11434/v1"
+  customModel?: string; // e.g. "gemma3:4b"
+  customApiKey?: string; // optional — empty for local models
   // CDX-1: When true, Codex models route through the legacy in-process provider
   // (HTTP /chat/turn, in-process tool loop). Default false → routes through the
   // agentic Codex CLI subprocess via WS, sharing the same engine path as Claude Code.
@@ -157,7 +161,7 @@ let activeQuickAction: QuickAction | null = null;
 let quickActionValues: Record<string, string> = {};
 
 function registerQuickAction(action: QuickAction): void {
-  if (!quickActionRegistry.find(a => a.id === action.id)) {
+  if (!quickActionRegistry.find((a) => a.id === action.id)) {
     quickActionRegistry.push(action);
   }
 }
@@ -180,7 +184,14 @@ const DESIGN_SETTINGS_KEY = 'figmento-design-settings';
 const VALID_IMAGE_MODELS = ['gemini-3.1-flash-image-preview', 'gemini-3.1-pro-preview', 'grok-imagine-image-pro'];
 
 function loadDesignSettings(): DesignSettingsState {
-  const defaults: DesignSettingsState = { imageModel: 'gemini-3.1-flash-image-preview', imageQuality: '2k', imageStyle: 'auto', defaultFont: 'auto', brandColors: [], gridEnabled: true };
+  const defaults: DesignSettingsState = {
+    imageModel: 'gemini-3.1-flash-image-preview',
+    imageQuality: '2k',
+    imageStyle: 'auto',
+    defaultFont: 'auto',
+    brandColors: [],
+    gridEnabled: true,
+  };
   try {
     const raw = localStorage.getItem(DESIGN_SETTINGS_KEY);
     if (raw) {
@@ -191,22 +202,30 @@ function loadDesignSettings(): DesignSettingsState {
       }
       return parsed;
     }
-  } catch { /* localStorage unavailable in Figma iframe */ }
+  } catch {
+    /* localStorage unavailable in Figma iframe */
+  }
   return defaults;
 }
 
 function saveDesignSettings(s: DesignSettingsState): void {
-  try { localStorage.setItem(DESIGN_SETTINGS_KEY, JSON.stringify(s)); } catch { /* */ }
+  try {
+    localStorage.setItem(DESIGN_SETTINGS_KEY, JSON.stringify(s));
+  } catch {
+    /* */
+  }
 }
 
 let designSettings: DesignSettingsState = loadDesignSettings();
 
-export function getDesignSettings(): DesignSettingsState { return designSettings; }
+export function getDesignSettings(): DesignSettingsState {
+  return designSettings;
+}
 let autoDetectEnabled = false; // LC-8: updated when learning-config-loaded arrives
 let learnedPreferences: LearnedPreference[] = []; // LC-9: updated each relay turn
 
 function loadPreferencesFromSandbox(): Promise<LearnedPreference[]> {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     const timeout = setTimeout(() => resolve([]), 2000);
     const handler = (event: MessageEvent) => {
       const msg = event.data?.pluginMessage;
@@ -222,7 +241,7 @@ function loadPreferencesFromSandbox(): Promise<LearnedPreference[]> {
 }
 
 function getSelectionSnapshot(): Promise<SelectionNode[]> {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     const timeout = setTimeout(() => resolve([]), 500);
     const handler = (event: MessageEvent) => {
       const msg = event.data?.pluginMessage;
@@ -311,11 +330,18 @@ function getActiveProvider(): ChatSession['provider'] {
 
 function getActiveHistory(): unknown[] {
   switch (getActiveProvider()) {
-    case 'gemini': return geminiHistory;
-    case 'openai': case 'venice': case 'custom': return openaiHistory;
-    case 'codex': return codexHistory;
-    case 'claude-code': return claudeCodeHistory;
-    default: return conversationHistory;
+    case 'gemini':
+      return geminiHistory;
+    case 'openai':
+    case 'venice':
+    case 'custom':
+      return openaiHistory;
+    case 'codex':
+      return codexHistory;
+    case 'claude-code':
+      return claudeCodeHistory;
+    default:
+      return conversationHistory;
   }
 }
 
@@ -333,9 +359,9 @@ function getActiveHistory(): unknown[] {
 const IMAGE_STUB_TEXT = '[image from earlier turn — not persisted]';
 
 function sanitizeGeminiHistory(history: GeminiContent[]): GeminiContent[] {
-  return history.map(msg => ({
+  return history.map((msg) => ({
     role: msg.role,
-    parts: (msg.parts || []).map(part => {
+    parts: (msg.parts || []).map((part) => {
       if (part && typeof part === 'object' && 'inlineData' in part) {
         return { text: IMAGE_STUB_TEXT };
       }
@@ -344,10 +370,8 @@ function sanitizeGeminiHistory(history: GeminiContent[]): GeminiContent[] {
   }));
 }
 
-function sanitizeOpenAIHistory(
-  history: Array<Record<string, unknown>>,
-): Array<Record<string, unknown>> {
-  return history.map(msg => {
+function sanitizeOpenAIHistory(history: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  return history.map((msg) => {
     const copy = { ...msg };
     const content = copy.content;
     if (Array.isArray(content)) {
@@ -363,12 +387,12 @@ function sanitizeOpenAIHistory(
 }
 
 function sanitizeAnthropicHistory(history: AnthropicMessage[]): AnthropicMessage[] {
-  return history.map(msg => {
+  return history.map((msg) => {
     if (typeof msg.content === 'string') return { ...msg };
     const blocks = msg.content as unknown as Array<Record<string, unknown>>;
     return {
       role: msg.role,
-      content: blocks.map(block => {
+      content: blocks.map((block) => {
         if (block && typeof block === 'object' && block.type === 'image') {
           return { type: 'text', text: IMAGE_STUB_TEXT };
         }
@@ -378,10 +402,7 @@ function sanitizeAnthropicHistory(history: AnthropicMessage[]): AnthropicMessage
   });
 }
 
-function sanitizeHistoryForProvider(
-  history: unknown[],
-  provider: ChatSession['provider'],
-): unknown[] {
+function sanitizeHistoryForProvider(history: unknown[], provider: ChatSession['provider']): unknown[] {
   switch (provider) {
     case 'gemini':
       return sanitizeGeminiHistory(history as GeminiContent[]);
@@ -391,7 +412,7 @@ function sanitizeHistoryForProvider(
     case 'custom':
       return sanitizeOpenAIHistory(history as Array<Record<string, unknown>>);
     case 'claude-code':
-      return history.map(m => ({ ...(m as Record<string, unknown>) }));
+      return history.map((m) => ({ ...(m as Record<string, unknown>) }));
     default:
       return sanitizeAnthropicHistory(history as AnthropicMessage[]);
   }
@@ -400,8 +421,8 @@ function sanitizeHistoryForProvider(
 function collectDisplayLog(): ChatSession['displayLog'] {
   const bubbles = document.querySelectorAll('#chat-messages .chat-bubble');
   const log: ChatSession['displayLog'] = [];
-  bubbles.forEach(el => {
-    const role = el.classList.contains('user') ? 'user' as const : 'assistant' as const;
+  bubbles.forEach((el) => {
+    const role = el.classList.contains('user') ? ('user' as const) : ('assistant' as const);
     log.push({ role, html: el.innerHTML });
   });
   return log.slice(-50);
@@ -412,7 +433,7 @@ function saveChatHistory() {
   const displayLog = collectDisplayLog();
   if (history.length === 0 && displayLog.length === 0) return;
 
-  const firstUserMsg = displayLog.find(e => e.role === 'user');
+  const firstUserMsg = displayLog.find((e) => e.role === 'user');
   const titleHtml = firstUserMsg ? firstUserMsg.html : 'Untitled';
   const tmp = document.createElement('div');
   tmp.innerHTML = titleHtml;
@@ -430,7 +451,7 @@ function saveChatHistory() {
   };
 
   // Upsert into sessions list
-  const idx = chatSessions.findIndex(s => s.id === session.id);
+  const idx = chatSessions.findIndex((s) => s.id === session.id);
   if (idx >= 0) {
     chatSessions[idx] = session;
   } else {
@@ -460,7 +481,9 @@ function loadSession(session: ChatSession) {
     case 'gemini':
       geminiHistory.push(...(clean as GeminiContent[]));
       break;
-    case 'openai': case 'venice': case 'custom':
+    case 'openai':
+    case 'venice':
+    case 'custom':
       openaiHistory.push(...(clean as Array<Record<string, unknown>>));
       break;
     case 'claude-code':
@@ -473,14 +496,14 @@ function loadSession(session: ChatSession) {
   // Re-render display log
   const messagesEl = document.getElementById('chat-messages');
   if (messagesEl) messagesEl.innerHTML = '';
-  session.displayLog.forEach(entry => appendChatBubble(entry.role, entry.html));
+  session.displayLog.forEach((entry) => appendChatBubble(entry.role, entry.html));
   activeSessionId = session.id;
   renderSessionsList();
   toggleSessionsDrawer(false);
 }
 
 function deleteSession(id: string) {
-  chatSessions = chatSessions.filter(s => s.id !== id);
+  chatSessions = chatSessions.filter((s) => s.id !== id);
   if (activeSessionId === id) activeSessionId = null;
   postToSandbox({ type: 'save-chat-history', data: chatSessions });
   renderSessionsList();
@@ -591,8 +614,13 @@ function startRenameSession(id: string, titleEl: HTMLElement) {
   };
 
   const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Enter') { e.preventDefault(); commit(); }
-    else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commit();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancel();
+    }
   };
   const onBlur = () => commit();
 
@@ -606,7 +634,7 @@ function startRenameSession(id: string, titleEl: HTMLElement) {
 }
 
 function renameSession(id: string, newTitle: string) {
-  const idx = chatSessions.findIndex(s => s.id === id);
+  const idx = chatSessions.findIndex((s) => s.id === id);
   if (idx < 0) return;
   chatSessions[idx].title = newTitle.slice(0, 80); // cap at 80 chars
   postToSandbox({ type: 'save-chat-history', data: chatSessions });
@@ -655,7 +683,7 @@ function syncModelToolbarLabel() {
   // Re-populate dropdown active state
   const modelDropdown = document.getElementById('modelDropdown');
   if (modelDropdown) {
-    modelDropdown.querySelectorAll('.dropdown-item').forEach(item => {
+    modelDropdown.querySelectorAll('.dropdown-item').forEach((item) => {
       const el = item as HTMLElement;
       el.classList.toggle('active', el.dataset.model === chatSettings.model);
     });
@@ -668,7 +696,7 @@ export function getChatSettings(): ChatSettings {
 
 /** Load memory entries from sandbox into chat state. */
 export function loadMemoryEntries(entries: Array<{ entry: string; timestamp: string }>) {
-  memoryEntries = entries.map(e => e.entry);
+  memoryEntries = entries.map((e) => e.entry);
 }
 
 /** Resolve a pending chat command (called by message router). */
@@ -701,20 +729,65 @@ interface PromptTemplate {
 }
 
 const CHAT_TEMPLATES: ChatTemplate[] = [
-  { icon: '📸', label: 'Instagram Ad',  prompt: 'Create an Instagram post (1080×1350) for a hippie coffee shop — warm earthy tones, vintage feel, include a CTA' },
-  { icon: '💼', label: 'LinkedIn Post', prompt: 'Create a LinkedIn post banner (1200×627) for a SaaS productivity tool — modern, clean, corporate blue' },
-  { icon: '🎬', label: 'YouTube Thumb', prompt: 'Create a YouTube thumbnail (1280×720) for a coding tutorial — dark background, bold text, tech feel' },
-  { icon: '🌐', label: 'Web Hero',      prompt: 'Create a web hero section (1440×800) for a wellness app — soft greens, organic shapes, minimal' },
-  { icon: '📊', label: 'Slide Deck',    prompt: 'Create a presentation title slide (1920×1080) for a startup pitch — bold, modern, dark theme' },
-  { icon: '📄', label: 'A4 Flyer',      prompt: 'Create an A4 flyer (2480×3508) for a summer music festival — vibrant, energetic, neon accents' },
+  {
+    icon: '📸',
+    label: 'Instagram Ad',
+    prompt:
+      'Create an Instagram post (1080×1350) for a hippie coffee shop — warm earthy tones, vintage feel, include a CTA',
+  },
+  {
+    icon: '💼',
+    label: 'LinkedIn Post',
+    prompt: 'Create a LinkedIn post banner (1200×627) for a SaaS productivity tool — modern, clean, corporate blue',
+  },
+  {
+    icon: '🎬',
+    label: 'YouTube Thumb',
+    prompt: 'Create a YouTube thumbnail (1280×720) for a coding tutorial — dark background, bold text, tech feel',
+  },
+  {
+    icon: '🌐',
+    label: 'Web Hero',
+    prompt: 'Create a web hero section (1440×800) for a wellness app — soft greens, organic shapes, minimal',
+  },
+  {
+    icon: '📊',
+    label: 'Slide Deck',
+    prompt: 'Create a presentation title slide (1920×1080) for a startup pitch — bold, modern, dark theme',
+  },
+  {
+    icon: '📄',
+    label: 'A4 Flyer',
+    prompt: 'Create an A4 flyer (2480×3508) for a summer music festival — vibrant, energetic, neon accents',
+  },
 ];
 
 // CU-5: Prompt templates replacing killed tools (Text to Layout, Template Fill, Presentation, Hero Generator)
 const TOOL_REPLACEMENT_TEMPLATES: PromptTemplate[] = [
-  { icon: '🎨', label: 'Create a social post', prompt: 'Create a {format: Instagram/Twitter/LinkedIn} post about {topic}. Style: {mood}. Font: {font or "auto"}.', prefill: true },
-  { icon: '📋', label: 'Fill a template', prompt: 'Scan the selected frame and fill all #-prefixed placeholders with content about {topic}.', prefill: true },
-  { icon: '📊', label: 'Build a presentation', prompt: 'Create a {count}-slide presentation about {topic}. Format: {16:9/A4}. Style: {minimal/vibrant/dark}.', prefill: true },
-  { icon: '🖼', label: 'Generate a hero image', prompt: 'Generate a hero image: {subject description}. Position: {center/left/right}. Quality: {2k/4k}.', prefill: true },
+  {
+    icon: '🎨',
+    label: 'Create a social post',
+    prompt: 'Create a {format: Instagram/Twitter/LinkedIn} post about {topic}. Style: {mood}. Font: {font or "auto"}.',
+    prefill: true,
+  },
+  {
+    icon: '📋',
+    label: 'Fill a template',
+    prompt: 'Scan the selected frame and fill all #-prefixed placeholders with content about {topic}.',
+    prefill: true,
+  },
+  {
+    icon: '📊',
+    label: 'Build a presentation',
+    prompt: 'Create a {count}-slide presentation about {topic}. Format: {16:9/A4}. Style: {minimal/vibrant/dark}.',
+    prefill: true,
+  },
+  {
+    icon: '🖼',
+    label: 'Generate a hero image',
+    prompt: 'Generate a hero image: {subject description}. Position: {center/left/right}. Quality: {2k/4k}.',
+    prefill: true,
+  },
 ];
 
 function renderChatTemplates(): void {
@@ -764,7 +837,10 @@ function renderChatTemplates(): void {
     if (tpl.label === 'Fill a template') {
       card.addEventListener('click', () => {
         if (currentSelection.nodes.length === 0) {
-          appendChatBubble('assistant', '<span class="chat-warning">Select a frame with #-prefixed layers first, then use this template.</span>');
+          appendChatBubble(
+            'assistant',
+            '<span class="chat-warning">Select a frame with #-prefixed layers first, then use this template.</span>'
+          );
         }
       });
     }
@@ -856,7 +932,7 @@ function extractTextFromDataUri(dataUri: string): string {
  * Async because PDF extraction uses pdf.js.
  */
 async function buildClientFileContext(attachments: AttachmentFile[]): Promise<string> {
-  const nonImageFiles = attachments.filter(f => !f.type.startsWith('image/') || f.type === 'image/svg+xml');
+  const nonImageFiles = attachments.filter((f) => !f.type.startsWith('image/') || f.type === 'image/svg+xml');
   if (nonImageFiles.length === 0) return '';
 
   const blocks: string[] = [];
@@ -918,8 +994,13 @@ async function buildClientFileContext(attachments: AttachmentFile[]): Promise<st
   // DMD-6: if a DESIGN.md was attached, inject an explicit directive so the
   // agent calls the import tool rather than just discussing the content.
   if (designMdFile) {
-    const inferredName = designMdFile.name.replace(/\.(md|markdown)$/i, '').replace(/[^a-z0-9-]/gi, '').toLowerCase() || 'imported';
-    context += `\n\n[FIGMENTO DESIGN.md DETECTED]\n` +
+    const inferredName =
+      designMdFile.name
+        .replace(/\.(md|markdown)$/i, '')
+        .replace(/[^a-z0-9-]/gi, '')
+        .toLowerCase() || 'imported';
+    context +=
+      `\n\n[FIGMENTO DESIGN.md DETECTED]\n` +
       `A Figmento DESIGN.md file (${designMdFile.name}) was attached. You MUST call the MCP tool ` +
       `\`import_design_system_from_md\` with these exact parameters:\n` +
       `  content: <the full markdown content shown above>\n` +
@@ -934,7 +1015,8 @@ async function buildClientFileContext(attachments: AttachmentFile[]): Promise<st
   // layout in Figma using the existing canvas tools. Treats the markup as
   // design intent (structure + copy + style tokens), not literal DOM.
   if (htmlFile) {
-    context += `\n\n[FIGMENTO HTML LAYOUT DETECTED]\n` +
+    context +=
+      `\n\n[FIGMENTO HTML LAYOUT DETECTED]\n` +
       `An HTML file (${htmlFile.name}) was attached. The user wants you to recreate this layout in Figma.\n\n` +
       `Plan:\n` +
       `1. Read the HTML to identify visual sections (navbar, hero, feature grid, cards, footer, etc).\n` +
@@ -959,7 +1041,8 @@ function getFileTypeInfo(file: { name: string; type: string }): { icon: string; 
   if (file.type === 'application/pdf') return { icon: '📄', badge: 'PDF', isImage: false };
   if (file.type === 'text/plain') return { icon: '📝', badge: 'TXT', isImage: false };
   if (file.type === 'image/svg+xml') return { icon: '🎨', badge: 'SVG', isImage: false };
-  if (file.type === 'text/html' || /\.(html?|htm)$/i.test(file.name)) return { icon: '🌐', badge: 'HTML', isImage: false };
+  if (file.type === 'text/html' || /\.(html?|htm)$/i.test(file.name))
+    return { icon: '🌐', badge: 'HTML', isImage: false };
   if (/\.(md|markdown)$/i.test(file.name)) return { icon: '📑', badge: 'MD', isImage: false };
   return { icon: '🖼', badge: 'IMG', isImage: true };
 }
@@ -985,15 +1068,15 @@ function addAttachment(name: string, type: string, dataUri: string, size: number
   }
   pendingAttachments.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), name, type, dataUri, size });
   // Legacy compat: keep first image as pendingAttachment for API paths
-  const firstImage = pendingAttachments.find(f => f.type.startsWith('image/'));
+  const firstImage = pendingAttachments.find((f) => f.type.startsWith('image/'));
   pendingAttachment = firstImage?.dataUri || null;
   renderAttachmentQueue();
   return true;
 }
 
 function removeAttachment(id: string): void {
-  pendingAttachments = pendingAttachments.filter(f => f.id !== id);
-  const firstImage = pendingAttachments.find(f => f.type.startsWith('image/'));
+  pendingAttachments = pendingAttachments.filter((f) => f.id !== id);
+  const firstImage = pendingAttachments.find((f) => f.type.startsWith('image/'));
   pendingAttachment = firstImage?.dataUri || null;
   renderAttachmentQueue();
 }
@@ -1134,6 +1217,9 @@ async function placePastedImage(placeBtn: HTMLButtonElement, attachment: string)
 function setLearnButtonEnabled(enabled: boolean): void {
   const btn = document.getElementById('chat-learn') as HTMLButtonElement | null;
   if (!btn) return;
+  // Hide the button entirely when no snapshot is available — surfaces only
+  // after the first AI generation, when "Learn from my edits" is meaningful.
+  btn.style.display = enabled ? '' : 'none';
   btn.disabled = !enabled;
   btn.classList.toggle('active', enabled);
 }
@@ -1177,7 +1263,7 @@ function handleSnapshotCompared(msg: Record<string, unknown>): void {
       const p = document.getElementById('learn-diff-panel');
       if (p) p.remove();
       updateLearnButtonState();
-    },
+    }
   );
 
   $('chat-messages').appendChild(panel);
@@ -1192,7 +1278,10 @@ function handleCorrectionsSaved(msg: Record<string, unknown>): void {
   if (panel) panel.remove();
 
   // Success toast in chat
-  appendChatBubble('assistant', `✅ Learned ${count} correction${count === 1 ? '' : 's'}. Your preferences have been saved.`);
+  appendChatBubble(
+    'assistant',
+    `✅ Learned ${count} correction${count === 1 ? '' : 's'}. Your preferences have been saved.`
+  );
 
   // Snapshots consumed — disable button
   setLearnButtonEnabled(false);
@@ -1280,11 +1369,15 @@ function handleAutoDetectCompared(msg: Record<string, unknown>): void {
     actions.replaceWith(savedMsg);
 
     // Auto-remove after 3s
-    setTimeout(() => { notice.remove(); }, 3000);
+    setTimeout(() => {
+      notice.remove();
+    }, 3000);
   });
 
   // Dismiss handler
-  dismissBtn.addEventListener('click', () => { notice.remove(); });
+  dismissBtn.addEventListener('click', () => {
+    notice.remove();
+  });
 
   // Insert before the last child (user bubble) in chat messages
   const messagesEl = $('chat-messages');
@@ -1348,11 +1441,24 @@ export function initChat() {
     if (!file) return;
 
     // Validate file type
-    const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'application/pdf', 'text/plain', 'text/markdown', 'text/x-markdown', 'text/html'];
+    const validTypes = [
+      'image/png',
+      'image/jpeg',
+      'image/webp',
+      'image/svg+xml',
+      'application/pdf',
+      'text/plain',
+      'text/markdown',
+      'text/x-markdown',
+      'text/html',
+    ];
     const isMarkdownByExt = /\.(md|markdown)$/i.test(file.name);
     const isHtmlByExt = /\.(html?|htm)$/i.test(file.name);
     if (!validTypes.includes(file.type) && !isMarkdownByExt && !isHtmlByExt) {
-      appendChatBubble('assistant', '<span class="chat-error">Unsupported file type. Please upload PNG, JPG, WEBP, SVG, PDF, TXT, MD, or HTML.</span>');
+      appendChatBubble(
+        'assistant',
+        '<span class="chat-error">Unsupported file type. Please upload PNG, JPG, WEBP, SVG, PDF, TXT, MD, or HTML.</span>'
+      );
       fileInput.value = '';
       return;
     }
@@ -1461,24 +1567,20 @@ export function initChat() {
     }
   });
 
-  // ── Theme toggle wiring ───────────────────────────────────────
-  const themeToggleBtn = document.getElementById('themeToggleBtn');
-  const themeIconSun = document.getElementById('themeIconSun');
-  const themeIconMoon = document.getElementById('themeIconMoon');
-
+  // ── Theme toggle wiring (segmented control in Settings) ───────
   function applyTheme(theme: string) {
     document.documentElement.dataset.theme = theme;
-    if (themeIconSun && themeIconMoon) {
-      themeIconSun.style.display = theme === 'light' ? '' : 'none';
-      themeIconMoon.style.display = theme === 'dark' ? '' : 'none';
-    }
+    document.querySelectorAll<HTMLButtonElement>('.theme-toggle-btn').forEach((btn) => {
+      btn.setAttribute('aria-pressed', btn.dataset.theme === theme ? 'true' : 'false');
+    });
   }
 
-  themeToggleBtn?.addEventListener('click', () => {
-    const current = document.documentElement.dataset.theme || 'light';
-    const next = current === 'light' ? 'dark' : 'light';
-    applyTheme(next);
-    postToSandbox({ type: 'save-theme', theme: next });
+  document.querySelectorAll<HTMLButtonElement>('.theme-toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const next = btn.dataset.theme || 'light';
+      applyTheme(next);
+      postToSandbox({ type: 'save-theme', theme: next });
+    });
   });
 
   // Listen for theme loaded from storage on startup
@@ -1492,22 +1594,12 @@ export function initChat() {
   // Request saved theme from sandbox
   postToSandbox({ type: 'get-theme' });
 
-  // ── Migrate settings + bridge content into sheet on init ──────
+  // ── Migrate settings content into sheet on init ───────────────
+  // (Bridge UI lives in the Advanced section inside tab-settings now)
   const sheetBody = document.getElementById('settingsSheetBody');
   if (sheetBody && sheetBody.children.length === 0) {
     const settingsContent = document.querySelector('#tab-settings .chat-settings-content');
     if (settingsContent) sheetBody.appendChild(settingsContent);
-    const bridgeContent = document.querySelector('#tab-bridge .bridge-content');
-    if (bridgeContent) {
-      const bridgeSection = document.createElement('div');
-      bridgeSection.className = 'sheet-section';
-      const bridgeTitle = document.createElement('div');
-      bridgeTitle.className = 'sheet-section-title';
-      bridgeTitle.textContent = 'MCP Bridge';
-      bridgeSection.appendChild(bridgeTitle);
-      bridgeSection.appendChild(bridgeContent);
-      sheetBody.appendChild(bridgeSection);
-    }
   }
   // Note: open/close handled by settings.ts via dom.settingsPanel/settingsOverlay (redirected to sheet in state.ts)
 
@@ -1521,14 +1613,14 @@ export function initChat() {
       e.stopPropagation();
       const isOpen = menu.classList.contains('open');
       // Close all dropdowns first
-      document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+      document.querySelectorAll('.dropdown-menu.open').forEach((m) => m.classList.remove('open'));
       if (!isOpen) menu.classList.add('open');
     });
   }
 
   // Close dropdowns on outside click
   document.addEventListener('click', () => {
-    document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+    document.querySelectorAll('.dropdown-menu.open').forEach((m) => m.classList.remove('open'));
   });
 
   setupDropdown('modelSelectorBtn', 'modelDropdown');
@@ -1546,9 +1638,7 @@ export function initChat() {
 
     let lastGroup = '';
     for (const opt of Array.from(settingsModelSelect.options)) {
-      const group = opt.parentElement?.tagName === 'OPTGROUP'
-        ? (opt.parentElement as HTMLOptGroupElement).label
-        : '';
+      const group = opt.parentElement?.tagName === 'OPTGROUP' ? (opt.parentElement as HTMLOptGroupElement).label : '';
       if (group && group !== lastGroup) {
         if (lastGroup) {
           const div = document.createElement('div');
@@ -1596,13 +1686,11 @@ export function initChat() {
     });
 
     // Refresh dropdown active state + label
-    modelDropdown.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
+    modelDropdown.querySelectorAll('.dropdown-item').forEach((i) => i.classList.remove('active'));
     item.classList.add('active');
     if (modelSelectorLabel) modelSelectorLabel.textContent = item.textContent?.trim() || 'Model';
     modelDropdown.classList.remove('open');
   });
-
-  // CU-6: Mode dropdown removed — replaced by QuickAction dropdown
 
   // ── CU-1: Register built-in quick actions ────────────────────
   registerBuiltinQuickActions();
@@ -1656,12 +1744,24 @@ export function initChat() {
 
     // Escape → cancel chat (if processing) → dismiss layers (quick action → design drawer → settings → dropdowns)
     if (e.key === 'Escape') {
-      if (isProcessing && chatAbortController) { cancelChat(); return; }
-      if (activeQuickAction) { dismissQuickActionCard(); return; }
+      if (isProcessing && chatAbortController) {
+        cancelChat();
+        return;
+      }
+      if (activeQuickAction) {
+        dismissQuickActionCard();
+        return;
+      }
       const designDrawer = document.getElementById('design-drawer');
-      if (designDrawer?.classList.contains('open')) { closeDesignDrawer(); return; }
-      if (sheetEl?.classList.contains('open')) { closeSettings(); return; }
-      document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+      if (designDrawer?.classList.contains('open')) {
+        closeDesignDrawer();
+        return;
+      }
+      if (sheetEl?.classList.contains('open')) {
+        closeSettings();
+        return;
+      }
+      document.querySelectorAll('.dropdown-menu.open').forEach((m) => m.classList.remove('open'));
       return;
     }
 
@@ -1715,7 +1815,10 @@ export function initChat() {
   }
 
   function stopPlaceholderRotation() {
-    if (placeholderInterval) { clearInterval(placeholderInterval); placeholderInterval = null; }
+    if (placeholderInterval) {
+      clearInterval(placeholderInterval);
+      placeholderInterval = null;
+    }
   }
 
   chatTextarea.addEventListener('focus', stopPlaceholderRotation);
@@ -1776,7 +1879,17 @@ export function initChat() {
       const files = e.dataTransfer?.files;
       if (!files || files.length === 0) return;
 
-      const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'application/pdf', 'text/plain', 'text/markdown', 'text/x-markdown', 'text/html'];
+      const validTypes = [
+        'image/png',
+        'image/jpeg',
+        'image/webp',
+        'image/svg+xml',
+        'application/pdf',
+        'text/plain',
+        'text/markdown',
+        'text/x-markdown',
+        'text/html',
+      ];
       for (const file of Array.from(files)) {
         const isMarkdownByExt = /\.(md|markdown)$/i.test(file.name);
         const isHtmlByExt = /\.(html?|htm)$/i.test(file.name);
@@ -1858,9 +1971,10 @@ function renderSelectionHint(): void {
 
     const n = currentSelection.nodes[0];
     const name = n.name.length > 25 ? n.name.slice(0, 22) + '...' : n.name;
-    const suggestions = currentSelection.nodes.length === 1
-      ? `Try: "redesign ${name}" or "fill template placeholders"`
-      : `Try: "redesign these frames" or "make them consistent"`;
+    const suggestions =
+      currentSelection.nodes.length === 1
+        ? `Try: "redesign ${name}" or "fill template placeholders"`
+        : `Try: "redesign these frames" or "make them consistent"`;
 
     hint.textContent = suggestions;
     inputArea.appendChild(hint);
@@ -1912,7 +2026,10 @@ function renderQuickActionCard(): void {
       dropZone.className = 'qa-file-zone';
       dropZone.id = `qa-field-${field.key}`;
       dropZone.innerHTML = `<span class="qa-file-zone-label">${field.placeholder || 'Drop image here'}</span>`;
-      dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+      dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+      });
       dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
       dropZone.addEventListener('click', () => {
         const fi = document.createElement('input');
@@ -1941,7 +2058,9 @@ function renderQuickActionCard(): void {
         o.textContent = opt.label;
         sel.appendChild(o);
       }
-      sel.addEventListener('change', () => { quickActionValues[field.key] = sel.value; });
+      sel.addEventListener('change', () => {
+        quickActionValues[field.key] = sel.value;
+      });
       quickActionValues[field.key] = sel.value;
 
       const label = document.createElement('label');
@@ -1958,7 +2077,9 @@ function renderQuickActionCard(): void {
       ta.id = `qa-field-${field.key}`;
       ta.placeholder = field.placeholder || '';
       ta.rows = 2;
-      ta.addEventListener('input', () => { quickActionValues[field.key] = ta.value; });
+      ta.addEventListener('input', () => {
+        quickActionValues[field.key] = ta.value;
+      });
       wrapper.appendChild(label);
       wrapper.appendChild(ta);
     } else {
@@ -1970,7 +2091,9 @@ function renderQuickActionCard(): void {
       inp.type = 'text';
       inp.id = `qa-field-${field.key}`;
       inp.placeholder = field.placeholder || '';
-      inp.addEventListener('input', () => { quickActionValues[field.key] = inp.value; });
+      inp.addEventListener('input', () => {
+        quickActionValues[field.key] = inp.value;
+      });
       if (!field.required) quickActionValues[field.key] = '';
       wrapper.appendChild(label);
       wrapper.appendChild(inp);
@@ -2021,9 +2144,7 @@ function updateQuickActionSubmitState(): void {
   const btn = document.getElementById('qa-card-submit') as HTMLButtonElement | null;
   if (!btn) return;
 
-  const allRequired = activeQuickAction.fields
-    .filter(f => f.required)
-    .every(f => quickActionValues[f.key]?.trim());
+  const allRequired = activeQuickAction.fields.filter((f) => f.required).every((f) => quickActionValues[f.key]?.trim());
 
   btn.disabled = !allRequired || isProcessing;
   if (isProcessing) btn.title = 'Processing...';
@@ -2052,7 +2173,7 @@ function dismissQuickActionCard(): void {
 }
 
 function activateQuickAction(id: string): void {
-  const action = quickActionRegistry.find(a => a.id === id);
+  const action = quickActionRegistry.find((a) => a.id === id);
   if (!action) return;
   activeQuickAction = action;
   quickActionValues = {};
@@ -2135,18 +2256,37 @@ function renderDesignDrawer(): void {
   (drawer.querySelector('#ds-style') as HTMLSelectElement).value = s.imageStyle;
   (drawer.querySelector('#ds-font') as HTMLSelectElement).value = s.defaultFont;
   (drawer.querySelector('#ds-grid') as HTMLInputElement).checked = s.gridEnabled;
-  const qualityRadio = drawer.querySelector(`input[name="ds-quality"][value="${s.imageQuality}"]`) as HTMLInputElement | null;
+  const qualityRadio = drawer.querySelector(
+    `input[name="ds-quality"][value="${s.imageQuality}"]`
+  ) as HTMLInputElement | null;
   if (qualityRadio) qualityRadio.checked = true;
 
   // Render color chips
   renderColorChips();
 
   // Bind change events
-  drawer.querySelector('#ds-image-model')?.addEventListener('change', (e) => { designSettings.imageModel = (e.target as HTMLSelectElement).value; saveDesignSettings(designSettings); });
-  drawer.querySelector('#ds-style')?.addEventListener('change', (e) => { designSettings.imageStyle = (e.target as HTMLSelectElement).value; saveDesignSettings(designSettings); });
-  drawer.querySelector('#ds-font')?.addEventListener('change', (e) => { designSettings.defaultFont = (e.target as HTMLSelectElement).value; saveDesignSettings(designSettings); });
-  drawer.querySelector('#ds-grid')?.addEventListener('change', (e) => { designSettings.gridEnabled = (e.target as HTMLInputElement).checked; saveDesignSettings(designSettings); });
-  drawer.querySelectorAll('input[name="ds-quality"]').forEach(r => r.addEventListener('change', (e) => { designSettings.imageQuality = (e.target as HTMLInputElement).value; saveDesignSettings(designSettings); }));
+  drawer.querySelector('#ds-image-model')?.addEventListener('change', (e) => {
+    designSettings.imageModel = (e.target as HTMLSelectElement).value;
+    saveDesignSettings(designSettings);
+  });
+  drawer.querySelector('#ds-style')?.addEventListener('change', (e) => {
+    designSettings.imageStyle = (e.target as HTMLSelectElement).value;
+    saveDesignSettings(designSettings);
+  });
+  drawer.querySelector('#ds-font')?.addEventListener('change', (e) => {
+    designSettings.defaultFont = (e.target as HTMLSelectElement).value;
+    saveDesignSettings(designSettings);
+  });
+  drawer.querySelector('#ds-grid')?.addEventListener('change', (e) => {
+    designSettings.gridEnabled = (e.target as HTMLInputElement).checked;
+    saveDesignSettings(designSettings);
+  });
+  drawer.querySelectorAll('input[name="ds-quality"]').forEach((r) =>
+    r.addEventListener('change', (e) => {
+      designSettings.imageQuality = (e.target as HTMLInputElement).value;
+      saveDesignSettings(designSettings);
+    })
+  );
 }
 
 function renderColorChips(): void {
@@ -2212,15 +2352,28 @@ function registerBuiltinQuickActions(): void {
     icon: '📸',
     description: 'Convert screenshots into Figma designs',
     fields: [
-      { key: 'image', label: 'Screenshot', type: 'file', required: true, placeholder: 'Drop screenshot here or click to upload', accept: '.png,.jpg,.jpeg,.webp' },
-      { key: 'format', label: 'Format', type: 'select', required: false, options: [
-        { value: 'auto', label: 'Auto-detect' },
-        { value: '1080x1350', label: 'Instagram (1080×1350)' },
-        { value: '1200x627', label: 'LinkedIn (1200×627)' },
-        { value: '1280x720', label: 'YouTube (1280×720)' },
-        { value: '1440x800', label: 'Web Hero (1440×800)' },
-        { value: '1920x1080', label: 'Presentation (1920×1080)' },
-      ]},
+      {
+        key: 'image',
+        label: 'Screenshot',
+        type: 'file',
+        required: true,
+        placeholder: 'Drop screenshot here or click to upload',
+        accept: '.png,.jpg,.jpeg,.webp',
+      },
+      {
+        key: 'format',
+        label: 'Format',
+        type: 'select',
+        required: false,
+        options: [
+          { value: 'auto', label: 'Auto-detect' },
+          { value: '1080x1350', label: 'Instagram (1080×1350)' },
+          { value: '1200x627', label: 'LinkedIn (1200×627)' },
+          { value: '1280x720', label: 'YouTube (1280×720)' },
+          { value: '1440x800', label: 'Web Hero (1440×800)' },
+          { value: '1920x1080', label: 'Presentation (1920×1080)' },
+        ],
+      },
     ],
     buildPrompt: (values) => {
       const fmt = values.format && values.format !== 'auto' ? ` Target format: ${values.format}.` : '';
@@ -2235,16 +2388,41 @@ function registerBuiltinQuickActions(): void {
     icon: '🎯',
     description: 'Analyze ads and build 3 redesigned variants',
     fields: [
-      { key: 'image', label: 'Ad Image', type: 'file', required: true, placeholder: 'Drop ad image here', accept: '.png,.jpg,.jpeg,.webp' },
-      { key: 'product', label: 'Product Name', type: 'text', required: true, placeholder: 'e.g. Café Noir Premium Blend' },
+      {
+        key: 'image',
+        label: 'Ad Image',
+        type: 'file',
+        required: true,
+        placeholder: 'Drop ad image here',
+        accept: '.png,.jpg,.jpeg,.webp',
+      },
+      {
+        key: 'product',
+        label: 'Product Name',
+        type: 'text',
+        required: true,
+        placeholder: 'e.g. Café Noir Premium Blend',
+      },
       { key: 'category', label: 'Category', type: 'text', required: false, placeholder: 'e.g. Coffee, SaaS, Fashion' },
-      { key: 'platform', label: 'Platform', type: 'select', required: false, options: [
-        { value: 'instagram-4x5', label: 'Instagram 4:5' },
-        { value: 'instagram-1x1', label: 'Instagram 1:1' },
-        { value: 'instagram-story', label: 'Instagram Story' },
-        { value: 'facebook-feed', label: 'Facebook Feed' },
-      ]},
-      { key: 'notes', label: 'Notes', type: 'textarea', required: false, placeholder: 'Additional context or requirements...' },
+      {
+        key: 'platform',
+        label: 'Platform',
+        type: 'select',
+        required: false,
+        options: [
+          { value: 'instagram-4x5', label: 'Instagram 4:5' },
+          { value: 'instagram-1x1', label: 'Instagram 1:1' },
+          { value: 'instagram-story', label: 'Instagram Story' },
+          { value: 'facebook-feed', label: 'Facebook Feed' },
+        ],
+      },
+      {
+        key: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        required: false,
+        placeholder: 'Additional context or requirements...',
+      },
     ],
     buildPrompt: (values) => {
       const parts = [`Analyze this ad image and create 3 redesigned variants.`];
@@ -2260,10 +2438,10 @@ function registerBuiltinQuickActions(): void {
 
 function addChatWelcome() {
   const messagesEl = $('chat-messages');
+  // Brand wordmark already shown in header + OS title bar — keep welcome compact.
   messagesEl.innerHTML = `<div class="welcome-state">
     <div class="welcome-logo">F</div>
-    <div class="welcome-title">Figmento</div>
-    <div class="welcome-subtitle">Your AI design assistant. Describe what you want to create.</div>
+    <div class="welcome-subtitle">Describe what you want to create.</div>
   </div>`;
   renderChatTemplates();
 }
@@ -2334,15 +2512,24 @@ async function sendMessage() {
   // MA-1: Custom provider requires baseUrl + model name; apiKey is optional (local models)
   if (useCustom) {
     if (!chatSettings.customBaseUrl) {
-      appendChatBubble('assistant', '<span class="chat-error">Set a Custom Base URL in Settings first (e.g. http://localhost:11434/v1).</span>');
+      appendChatBubble(
+        'assistant',
+        '<span class="chat-error">Set a Custom Base URL in Settings first (e.g. http://localhost:11434/v1).</span>'
+      );
       return;
     }
     if (!chatSettings.customModel) {
-      appendChatBubble('assistant', '<span class="chat-error">Set a Custom Model name in Settings first (e.g. gemma3:4b).</span>');
+      appendChatBubble(
+        'assistant',
+        '<span class="chat-error">Set a Custom Model name in Settings first (e.g. gemma3:4b).</span>'
+      );
       return;
     }
     if (!chatSettings.chatRelayEnabled) {
-      appendChatBubble('assistant', '<span class="chat-error">Custom providers require the WS relay. Enable it in Settings → Advanced → Bridge.</span>');
+      appendChatBubble(
+        'assistant',
+        '<span class="chat-error">Custom providers require the WS relay. Enable it in Settings → Advanced → Bridge.</span>'
+      );
       return;
     }
   } else if (!useClaudeCode && !useCodex) {
@@ -2358,10 +2545,8 @@ async function sendMessage() {
       appendChatBubble('assistant', '<span class="chat-error">Set your Venice API key in Settings first.</span>');
       return;
     }
-    if (!useGemini && !useOpenAI && !useVenice && !chatSettings.anthropicApiKey && !chatSettings.anthropicToken?.access_token) {
-      // DM-2: accept OAuth token as a valid auth source for Anthropic — the user
-      // connected via "Connect with Claude" instead of pasting an API key.
-      appendChatBubble('assistant', '<span class="chat-error">Set your Anthropic API key in Settings first (or connect with Claude via OAuth).</span>');
+    if (!useGemini && !useOpenAI && !useVenice && !chatSettings.anthropicApiKey) {
+      appendChatBubble('assistant', '<span class="chat-error">Set your Anthropic API key in Settings first.</span>');
       return;
     }
   }
@@ -2371,7 +2556,10 @@ async function sendMessage() {
   // - Agentic engine (default): the relay reads ~/.codex/auth.json directly via the Codex SDK,
   //   so no client-side token is required. The user must have run `codex login` once.
   if (useCodex && chatSettings.legacyCodexProvider && !chatSettings.codexToken?.access_token) {
-    appendChatBubble('assistant', '<span class="chat-error">Connect with ChatGPT in Settings first (legacy provider mode).</span>');
+    appendChatBubble(
+      'assistant',
+      '<span class="chat-error">Connect with ChatGPT in Settings first (legacy provider mode).</span>'
+    );
     return;
   }
 
@@ -2381,8 +2569,7 @@ async function sendMessage() {
   clearAttachments();
 
   // MF-5: Capture selection context at send time
-  const capturedSelection = selectionIncluded && currentSelection.nodes.length > 0
-    ? { ...currentSelection } : null;
+  const capturedSelection = selectionIncluded && currentSelection.nodes.length > 0 ? { ...currentSelection } : null;
 
   // MF-4: Build file analysis instructions if attachments present
   if (capturedAttachments.length > 0) {
@@ -2397,9 +2584,9 @@ async function sendMessage() {
     }
 
     // Also include metadata for image attachments the AI should analyze visually
-    const imageFiles = capturedAttachments.filter(f => f.type.startsWith('image/') && f.type !== 'image/svg+xml');
+    const imageFiles = capturedAttachments.filter((f) => f.type.startsWith('image/') && f.type !== 'image/svg+xml');
     if (imageFiles.length > 0) {
-      const imgList = imageFiles.map(f => `- ${f.name} (${formatFileSize(f.size)})`).join('\n');
+      const imgList = imageFiles.map((f) => `- ${f.name} (${formatFileSize(f.size)})`).join('\n');
       text += `\n\n[ATTACHED IMAGES]\n${imgList}\nAnalyze these images visually.`;
     }
   }
@@ -2407,8 +2594,11 @@ async function sendMessage() {
   // MF-5: Inject selection context
   if (capturedSelection && capturedSelection.nodes.length > 0) {
     const nodes = capturedSelection.nodes.slice(0, 20);
-    const nodeList = nodes.map(n => `- nodeId: "${n.id}", name: "${n.name}", type: ${n.type}, size: ${n.width}×${n.height}`).join('\n');
-    const extra = capturedSelection.nodes.length > 20 ? `\n...and ${capturedSelection.nodes.length - 20} more nodes` : '';
+    const nodeList = nodes
+      .map((n) => `- nodeId: "${n.id}", name: "${n.name}", type: ${n.type}, size: ${n.width}×${n.height}`)
+      .join('\n');
+    const extra =
+      capturedSelection.nodes.length > 20 ? `\n...and ${capturedSelection.nodes.length - 20} more nodes` : '';
     text += `\n\n[FIGMA SELECTION CONTEXT]\nSelected nodes (use these nodeIds for edits):\n${nodeList}${extra}`;
   }
 
@@ -2416,10 +2606,19 @@ async function sendMessage() {
 
   // Show user bubble with optional attachment/selection indicators
   const badges: string[] = [];
-  if (capturedAttachments.length > 0) badges.push(`📎 ${capturedAttachments.length} file${capturedAttachments.length > 1 ? 's' : ''} attached`);
-  if (capturedSelection) badges.push(`🔲 ${capturedSelection.nodes.length} frame${capturedSelection.nodes.length > 1 ? 's' : ''} selected`);
+  if (capturedAttachments.length > 0)
+    badges.push(`📎 ${capturedAttachments.length} file${capturedAttachments.length > 1 ? 's' : ''} attached`);
+  if (capturedSelection)
+    badges.push(`🔲 ${capturedSelection.nodes.length} frame${capturedSelection.nodes.length > 1 ? 's' : ''} selected`);
   const badgeHtml = badges.length > 0 ? `<br><span class="chat-attachment-indicator">${badges.join(' · ')}</span>` : '';
-  const userHtml = escapeHtml(text.split('\n\n[EXTRACTED FILE CONTENT]')[0].split('\n\n[ATTACHED IMAGES]')[0].split('\n\n[ATTACHED FILES]')[0].split('\n\n[FIGMA SELECTION')[0]) + badgeHtml;
+  const userHtml =
+    escapeHtml(
+      text
+        .split('\n\n[EXTRACTED FILE CONTENT]')[0]
+        .split('\n\n[ATTACHED IMAGES]')[0]
+        .split('\n\n[ATTACHED FILES]')[0]
+        .split('\n\n[FIGMA SELECTION')[0]
+    ) + badgeHtml;
   appendChatBubble('user', userHtml);
 
   // Detect design brief from the user's message (KI-2)
@@ -2436,28 +2635,32 @@ async function sendMessage() {
   const relayEnabled = chatSettings.chatRelayEnabled;
   const bridgeConnected = getBridgeConnected();
   const channelId = getBridgeChannelId();
-  console.log(`[Figmento Chat] sendMessage path: relayEnabled=${relayEnabled} bridgeConnected=${bridgeConnected} channelId=${channelId} model=${chatSettings.model} relayUrl=${chatSettings.chatRelayUrl}`);
+  console.log(
+    `[Figmento Chat] sendMessage path: relayEnabled=${relayEnabled} bridgeConnected=${bridgeConnected} channelId=${channelId} model=${chatSettings.model} relayUrl=${chatSettings.chatRelayUrl}`
+  );
 
   try {
     // Claude Code: always routes through local relay WS
     if (useClaudeCode) {
       if (!bridgeConnected) {
         autoConnectBridge(LOCAL_RELAY_URL);
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 1500));
         if (!getBridgeConnected()) {
           throw new Error('Relay not reachable. Run "npm run dev" in the Figmento project to start the relay.');
         }
       }
       console.log('[Figmento Chat] → CLAUDE CODE path (WS)');
       await runClaudeCodeTurn(text, capturedAttachment, capturedAttachments);
-    // CDX-1: Codex always routes through LOCAL relay WS (agentic path via Codex CLI subprocess).
-    // The legacy in-process Codex provider (HTTP /chat/turn) is gated behind chatSettings.legacyCodexProvider.
+      // CDX-1: Codex always routes through LOCAL relay WS (agentic path via Codex CLI subprocess).
+      // The legacy in-process Codex provider (HTTP /chat/turn) is gated behind chatSettings.legacyCodexProvider.
     } else if (useCodex) {
       if (!bridgeConnected) {
         autoConnectBridge(LOCAL_RELAY_URL);
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 1500));
         if (!getBridgeConnected()) {
-          throw new Error('Relay not reachable. Codex requires the relay. Start it with "npm start" in figmento-ws-relay/.');
+          throw new Error(
+            'Relay not reachable. Codex requires the relay. Start it with "npm start" in figmento-ws-relay/.'
+          );
         }
       }
       if (chatSettings.legacyCodexProvider) {
@@ -2467,19 +2670,21 @@ async function sendMessage() {
         console.log('[Figmento Chat] → CODEX path (WS — agentic engine)');
         await runClaudeCodeTurn(text, capturedAttachment, capturedAttachments, 'codex');
       }
-    // MA-1: Custom provider always routes through relay (Node.js fetch — no CORS issues
-    // with local servers like Ollama, unlike browser iframe fetch).
+      // MA-1: Custom provider always routes through relay (Node.js fetch — no CORS issues
+      // with local servers like Ollama, unlike browser iframe fetch).
     } else if (useCustom) {
       if (!bridgeConnected) {
         autoConnectBridge(chatSettings.chatRelayUrl);
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 1500));
         if (!getBridgeConnected()) {
-          throw new Error('Relay not reachable. Custom providers require the relay — start it with "npm run dev" in figmento-ws-relay/.');
+          throw new Error(
+            'Relay not reachable. Custom providers require the relay — start it with "npm run dev" in figmento-ws-relay/.'
+          );
         }
       }
       console.log('[Figmento Chat] → CUSTOM path (relay)');
       await runRelayTurn(text, useGemini, useOpenAI, useVenice, capturedAttachment, capturedAttachments, true);
-    // Route through relay if enabled and bridge is connected
+      // Route through relay if enabled and bridge is connected
     } else if (relayEnabled && bridgeConnected) {
       console.log('[Figmento Chat] → RELAY path');
       await runRelayTurn(text, useGemini, useOpenAI, useVenice, capturedAttachment, capturedAttachments);
@@ -2539,7 +2744,15 @@ function updateRelayStatus(state: RelayConnectionState) {
 // CHAT — RELAY TURN (POST /chat/turn)
 // ═══════════════════════════════════════════════════════════════
 
-async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean, useVenice: boolean, attachment: string | null, allAttachments?: AttachmentFile[], useCustom: boolean = false): Promise<void> {
+async function runRelayTurn(
+  text: string,
+  useGemini: boolean,
+  useOpenAI: boolean,
+  useVenice: boolean,
+  attachment: string | null,
+  allAttachments?: AttachmentFile[],
+  useCustom: boolean = false
+): Promise<void> {
   const channelId = getBridgeChannelId();
   if (!channelId) {
     throw new Error('Bridge channel not available. Falling back to direct API.');
@@ -2566,7 +2779,7 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
           refreshed = true;
           break;
         } catch {
-          if (attempt === 0) await new Promise(r => setTimeout(r, 1000));
+          if (attempt === 0) await new Promise((r) => setTimeout(r, 1000));
         }
       }
       if (!refreshed) {
@@ -2578,19 +2791,39 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
   }
 
   // MA-1: custom provider routes through OpenAI-compatible endpoint with user-supplied baseUrl.
-  const provider = useCustom ? 'custom' : useCodex ? 'codex' : useGemini ? 'gemini' : useOpenAI ? 'openai' : useVenice ? 'venice' : 'claude';
-  const apiKey = useCustom ? (chatSettings.customApiKey || '')
-    : useCodex ? (chatSettings.codexToken?.access_token || '')
-    : useGemini ? chatSettings.geminiApiKey
-    : useOpenAI ? chatSettings.openaiApiKey
-    : useVenice ? chatSettings.veniceApiKey
-    : chatSettings.anthropicApiKey;
-  const history = useCustom ? openaiHistory
-    : useCodex ? codexHistory
-    : useGemini ? geminiHistory
-    : useOpenAI ? openaiHistory
-    : useVenice ? openaiHistory
-    : conversationHistory;
+  const provider = useCustom
+    ? 'custom'
+    : useCodex
+      ? 'codex'
+      : useGemini
+        ? 'gemini'
+        : useOpenAI
+          ? 'openai'
+          : useVenice
+            ? 'venice'
+            : 'claude';
+  const apiKey = useCustom
+    ? chatSettings.customApiKey || ''
+    : useCodex
+      ? chatSettings.codexToken?.access_token || ''
+      : useGemini
+        ? chatSettings.geminiApiKey
+        : useOpenAI
+          ? chatSettings.openaiApiKey
+          : useVenice
+            ? chatSettings.veniceApiKey
+            : chatSettings.anthropicApiKey;
+  const history = useCustom
+    ? openaiHistory
+    : useCodex
+      ? codexHistory
+      : useGemini
+        ? geminiHistory
+        : useOpenAI
+          ? openaiHistory
+          : useVenice
+            ? openaiHistory
+            : conversationHistory;
 
   // DM-3: Codex always uses local relay, regardless of saved relay URL
   const relayBase = useCodex ? LOCAL_RELAY_URL : chatSettings.chatRelayUrl;
@@ -2598,8 +2831,8 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
 
   // Collect non-image file attachments for server-side text extraction (PDFs, TXT, SVG)
   const fileAttachments = (allAttachments || [])
-    .filter(f => !f.type.startsWith('image/') || f.type === 'image/svg+xml')
-    .map(f => ({ name: f.name, type: f.type, dataUri: f.dataUri }));
+    .filter((f) => !f.type.startsWith('image/') || f.type === 'image/svg+xml')
+    .map((f) => ({ name: f.name, type: f.type, dataUri: f.dataUri }));
 
   const body: Record<string, unknown> = {
     message: text,
@@ -2607,7 +2840,7 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
     provider,
     apiKey,
     // MA-1: for custom provider, send the user's customModel name instead of the dropdown sentinel "custom".
-    model: useCustom ? (chatSettings.customModel || '') : chatSettings.model,
+    model: useCustom ? chatSettings.customModel || '' : chatSettings.model,
     history,
     memory: memoryEntries,
     preferences: learnedPreferences,
@@ -2683,7 +2916,12 @@ async function runRelayTurn(text: string, useGemini: boolean, useOpenAI: boolean
 // CHAT — CLAUDE CODE TURN (WS → local relay → SDK subprocess)
 // ═══════════════════════════════════════════════════════════════
 
-async function runClaudeCodeTurn(text: string, attachment?: string | null, allAttachments?: AttachmentFile[], engine: 'claude-code' | 'codex' = 'claude-code'): Promise<void> {
+async function runClaudeCodeTurn(
+  text: string,
+  attachment?: string | null,
+  allAttachments?: AttachmentFile[],
+  engine: 'claude-code' | 'codex' = 'claude-code'
+): Promise<void> {
   const channelId = getBridgeChannelId();
   if (!channelId) {
     throw new Error('Bridge channel not available. Connect to the local relay first.');
@@ -2691,8 +2929,8 @@ async function runClaudeCodeTurn(text: string, attachment?: string | null, allAt
 
   // ODS-1a: Collect non-image file attachments for server-side processing (PDFs, TXT, SVG)
   const fileAttachments = (allAttachments || [])
-    .filter(f => !f.type.startsWith('image/') || f.type === 'image/svg+xml')
-    .map(f => ({ name: f.name, type: f.type, dataUri: f.dataUri }));
+    .filter((f) => !f.type.startsWith('image/') || f.type === 'image/svg+xml')
+    .map((f) => ({ name: f.name, type: f.type, dataUri: f.dataUri }));
 
   // Send claude-code-turn message through the bridge WS.
   // CDX-1: `engine` selects the session manager on the relay (claude-code | codex).
@@ -2702,8 +2940,10 @@ async function runClaudeCodeTurn(text: string, attachment?: string | null, allAt
   // session for this channel and boots fresh — history travels via the request payload.
   const isCodex = engine === 'codex';
   const modelForEngine = isCodex
-    ? (chatSettings.model && isCodexModel(chatSettings.model) ? chatSettings.model : 'gpt-5.4-codex')
-    : (chatSettings.claudeCodeModel || undefined);
+    ? chatSettings.model && isCodexModel(chatSettings.model)
+      ? chatSettings.model
+      : 'gpt-5.4-codex'
+    : chatSettings.claudeCodeModel || undefined;
   const sent = sendBridgeMessage({
     type: 'claude-code-turn',
     channel: channelId,
@@ -2718,7 +2958,9 @@ async function runClaudeCodeTurn(text: string, attachment?: string | null, allAt
   });
 
   if (!sent) {
-    throw new Error('Relay connection lost. Make sure Claude Code is running — the relay starts automatically with the MCP server.');
+    throw new Error(
+      'Relay connection lost. Make sure Claude Code is running — the relay starts automatically with the MCP server.'
+    );
   }
 
   // Stream progress events — show tool execution in real-time instead of "Thinking..."
@@ -2772,11 +3014,20 @@ async function runClaudeCodeTurn(text: string, attachment?: string | null, allAt
 }
 
 /** Direct API path — used when relay is disabled or as fallback. */
-async function runDirectLoop(text: string, useGemini: boolean, useOpenAI: boolean, useVenice: boolean, attachment: string | null, allAttachments?: AttachmentFile[]): Promise<void> {
+async function runDirectLoop(
+  text: string,
+  useGemini: boolean,
+  useOpenAI: boolean,
+  useVenice: boolean,
+  attachment: string | null,
+  allAttachments?: AttachmentFile[]
+): Promise<void> {
   // In direct mode, non-image files can't be server-extracted — append a hint to use MCP tools
-  const nonImageFiles = (allAttachments || []).filter(f => !f.type.startsWith('image/') || f.type === 'image/svg+xml');
+  const nonImageFiles = (allAttachments || []).filter(
+    (f) => !f.type.startsWith('image/') || f.type === 'image/svg+xml'
+  );
   if (nonImageFiles.length > 0 && text.indexOf('[ATTACHED FILES]') === -1) {
-    const fileList = nonImageFiles.map(f => `- ${f.name} (${f.type})`).join('\n');
+    const fileList = nonImageFiles.map((f) => `- ${f.name} (${f.type})`).join('\n');
     text += `\n\n[ATTACHED FILES — requires tool extraction]\n${fileList}\nUse store_temp_file then import_pdf (for PDFs) to extract text content. The files have been attached but need server-side processing.`;
   }
 
@@ -2787,10 +3038,7 @@ async function runDirectLoop(text: string, useGemini: boolean, useOpenAI: boolea
       const mimeType = mimeMatch?.[1] || 'image/png';
       geminiHistory.push({
         role: 'user',
-        parts: [
-          { inlineData: { mimeType, data: base64 } } as unknown as { text: string },
-          { text },
-        ],
+        parts: [{ inlineData: { mimeType, data: base64 } } as unknown as { text: string }, { text }],
       });
     } else {
       geminiHistory.push({ role: 'user', parts: [{ text }] });
@@ -2866,19 +3114,18 @@ function buildBatchToolCallHandler() {
 }
 
 async function runAnthropicLoop(): Promise<void> {
-  // DM-2: prefer OAuth token over API key when present
-  const oauthToken = chatSettings.anthropicToken?.access_token;
   await runToolUseLoop({
     provider: 'claude',
     apiKey: chatSettings.anthropicApiKey,
-    oauthToken,
     model: chatSettings.model,
     systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences, getEffectiveDsCache()),
     tools: chatToolResolver(),
     messages: conversationHistory,
     onToolCall: buildToolCallHandler(),
     onToolCallBatch: buildBatchToolCallHandler(),
-    onProgress: () => { /* progress reserved for future mode UI */ },
+    onProgress: () => {
+      /* progress reserved for future mode UI */
+    },
     onTextChunk: (text) => appendChatBubble('assistant', formatMarkdown(text)),
   });
 }
@@ -2893,7 +3140,9 @@ async function runGeminiLoop(): Promise<void> {
     messages: geminiHistory,
     onToolCall: buildToolCallHandler(),
     onToolCallBatch: buildBatchToolCallHandler(),
-    onProgress: () => { /* progress reserved for future mode UI */ },
+    onProgress: () => {
+      /* progress reserved for future mode UI */
+    },
     onTextChunk: (text) => appendChatBubble('assistant', formatMarkdown(text)),
   });
 }
@@ -2908,7 +3157,9 @@ async function runOpenAILoop(): Promise<void> {
     messages: openaiHistory,
     onToolCall: buildToolCallHandler(),
     onToolCallBatch: buildBatchToolCallHandler(),
-    onProgress: () => { /* progress reserved for future mode UI */ },
+    onProgress: () => {
+      /* progress reserved for future mode UI */
+    },
     onTextChunk: (text) => appendChatBubble('assistant', formatMarkdown(text)),
   });
 }
@@ -2923,7 +3174,9 @@ async function runVeniceLoop(): Promise<void> {
     messages: openaiHistory,
     onToolCall: buildToolCallHandler(),
     onToolCallBatch: buildBatchToolCallHandler(),
-    onProgress: () => { /* progress reserved for future mode UI */ },
+    onProgress: () => {
+      /* progress reserved for future mode UI */
+    },
     onTextChunk: (text) => appendChatBubble('assistant', formatMarkdown(text)),
   });
 }
@@ -2960,7 +3213,12 @@ function buildToolCallHandler(): (name: string, args: Record<string, unknown>) =
     if (name in LOCAL_TOOL_HANDLERS) {
       const result = LOCAL_TOOL_HANDLERS[name](args);
       const content = JSON.stringify(result);
-      appendToolAction(name, typeof result === 'object' && result !== null && 'error' in result ? (result as Record<string, string>).error : 'Done');
+      appendToolAction(
+        name,
+        typeof result === 'object' && result !== null && 'error' in result
+          ? (result as Record<string, string>).error
+          : 'Done'
+      );
       return { content, is_error: false };
     }
 
@@ -2996,8 +3254,14 @@ function sendCommandToSandbox(action: string, params: Record<string, unknown>): 
     }, 30000);
 
     pendingChatCommands.set(cmdId, {
-      resolve: (data) => { clearTimeout(timer); resolve(data); },
-      reject: (err) => { clearTimeout(timer); reject(err); },
+      resolve: (data) => {
+        clearTimeout(timer);
+        resolve(data);
+      },
+      reject: (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
     });
 
     postToSandbox({
@@ -3026,7 +3290,10 @@ function formatToolSummary(name: string, data: Record<string, unknown>): string 
 // ═══════════════════════════════════════════════════════════════
 
 // CX-5: Recursive helpers for deep context extraction
-function extractTextsFromTree(node: Record<string, unknown>, results: Array<{ text: string; fontSize: number; fontFamily?: string; y: number; x: number }> = []) {
+function extractTextsFromTree(
+  node: Record<string, unknown>,
+  results: Array<{ text: string; fontSize: number; fontFamily?: string; y: number; x: number }> = []
+) {
   if (node.type === 'TEXT' && node.characters) {
     results.push({
       text: (node.characters as string).slice(0, 200),
@@ -3064,8 +3331,8 @@ async function executeAnalyzeCanvasContext(args: Record<string, unknown>): Promi
     if (nodeIds.length === 0) {
       const selection = await sendCommandToSandbox('get_selection', {});
       const selNodes = (selection.nodes as Array<Record<string, unknown>>) || [];
-      const frames = selNodes.filter(n => n.type === 'FRAME');
-      nodeIds = (frames.length > 0 ? frames : selNodes).map(n => n.nodeId as string).slice(0, 5);
+      const frames = selNodes.filter((n) => n.type === 'FRAME');
+      nodeIds = (frames.length > 0 ? frames : selNodes).map((n) => n.nodeId as string).slice(0, 5);
     }
 
     if (nodeIds.length === 0) {
@@ -3088,7 +3355,7 @@ async function executeAnalyzeCanvasContext(args: Record<string, unknown>): Promi
       // Recursive text extraction, sorted by position, capped at 30
       const allTexts = extractTextsFromTree(nodeInfo);
       allTexts.sort((a, b) => a.y - b.y || a.x - b.x);
-      const texts = allTexts.slice(0, 30).map(t => ({
+      const texts = allTexts.slice(0, 30).map((t) => ({
         text: t.text,
         fontSize: t.fontSize,
         font: t.fontFamily || undefined,
@@ -3107,7 +3374,10 @@ async function executeAnalyzeCanvasContext(args: Record<string, unknown>): Promi
         note: 'Use the texts, colors, and structure above to understand the full page content and design context.',
       });
 
-      appendToolAction('analyze_canvas_context', `Analyzed "${nodeInfo.name || id}" — ${colors.length} colors, ${texts.length} text elements`);
+      appendToolAction(
+        'analyze_canvas_context',
+        `Analyzed "${nodeInfo.name || id}" — ${colors.length} colors, ${texts.length} text elements`
+      );
     }
 
     const content = JSON.stringify(contexts.length === 1 ? contexts[0] : contexts);
@@ -3142,7 +3412,7 @@ async function executeGenerateImage(input: Record<string, unknown>): Promise<Too
       // Venice OpenAI-compatible images endpoint
       const resp = await fetch('https://api.venice.ai/api/v1/images/generations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${chatSettings.veniceApiKey}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${chatSettings.veniceApiKey}` },
         body: JSON.stringify({ model: imageModel, prompt, n: 1, response_format: 'b64_json' }),
       });
       if (!resp.ok) throw new Error(`Venice API error ${resp.status}`);

@@ -18,18 +18,48 @@ export interface ComponentMatch {
 
 // ── Category keywords for recognizing matchable frame names ──────────────────
 const COMPONENT_KEYWORDS: string[] = [
-  'button', 'btn', 'cta',
+  'button',
+  'btn',
+  'cta',
   'card',
-  'input', 'textfield', 'text-field', 'textarea', 'field',
-  'badge', 'tag', 'chip', 'pill', 'label',
+  'input',
+  'textfield',
+  'text-field',
+  'textarea',
+  'field',
+  'badge',
+  'tag',
+  'chip',
+  'pill',
+  'label',
   'icon',
   'avatar',
-  'nav', 'navbar', 'header', 'sidebar', 'menu', 'breadcrumb', 'tab', 'tabs',
-  'modal', 'dialog', 'popup', 'drawer', 'sheet',
-  'toggle', 'switch', 'checkbox', 'radio',
-  'select', 'dropdown', 'picker', 'combobox',
-  'divider', 'separator',
-  'list', 'table', 'row',
+  'nav',
+  'navbar',
+  'header',
+  'sidebar',
+  'menu',
+  'breadcrumb',
+  'tab',
+  'tabs',
+  'modal',
+  'dialog',
+  'popup',
+  'drawer',
+  'sheet',
+  'toggle',
+  'switch',
+  'checkbox',
+  'radio',
+  'select',
+  'dropdown',
+  'picker',
+  'combobox',
+  'divider',
+  'separator',
+  'list',
+  'table',
+  'row',
 ];
 
 // ── Score thresholds ─────────────────────────────────────────────────────────
@@ -47,7 +77,7 @@ const MEDIUM_THRESHOLD = 4;
 export function matchComponent(
   intent: string,
   category?: string,
-  cache?: DesignSystemCache | null,
+  cache?: DesignSystemCache | null
 ): ComponentMatch | null {
   if (!cache || !cache.components || cache.components.length === 0) return null;
 
@@ -77,11 +107,11 @@ export function matchComponent(
     }
 
     // Keyword overlap — split intent and name by space, slash, dash
-    const intentWords = intentLower.split(/[\s/\-_]+/).filter(w => w.length > 0);
-    const nameWords = nameLower.split(/[\s/\-_]+/).filter(w => w.length > 0);
+    const intentWords = intentLower.split(/[\s/\-_]+/).filter((w) => w.length > 0);
+    const nameWords = nameLower.split(/[\s/\-_]+/).filter((w) => w.length > 0);
     for (const iw of intentWords) {
       if (iw.length < 2) continue; // skip single-char fragments
-      if (nameWords.some(nw => nw.includes(iw) || iw.includes(nw))) {
+      if (nameWords.some((nw) => nw.includes(iw) || iw.includes(nw))) {
         score += 1;
       }
     }
@@ -96,8 +126,7 @@ export function matchComponent(
 
   const best = candidates[0];
   const confidence: MatchConfidence =
-    best.score >= HIGH_THRESHOLD ? 'HIGH' :
-    best.score >= MEDIUM_THRESHOLD ? 'MEDIUM' : 'LOW';
+    best.score >= HIGH_THRESHOLD ? 'HIGH' : best.score >= MEDIUM_THRESHOLD ? 'MEDIUM' : 'LOW';
 
   // AC1b: Only return HIGH and MEDIUM; LOW = too risky for false positives
   if (confidence === 'LOW') return null;
@@ -113,10 +142,7 @@ export function matchComponent(
  * AC5b: If no hints, use defaultVariant.
  * AC5c: Matching is case-insensitive and supports partial matching.
  */
-export function selectVariant(
-  componentSet: ComponentSetNode,
-  variantHints?: Record<string, string>,
-): ComponentNode {
+export function selectVariant(componentSet: ComponentSetNode, variantHints?: Record<string, string>): ComponentNode {
   // If no hints, use default
   if (!variantHints || Object.keys(variantHints).length === 0) {
     return (componentSet.defaultVariant || componentSet.children[0]) as ComponentNode;
@@ -138,9 +164,9 @@ export function selectVariant(
 
       // Check if variant name contains "Property=Value" (case-insensitive, partial)
       // e.g., "Size=Small" matches hint { size: "sm" }
-      const parts = childNameLower.split(',').map(p => p.trim());
+      const parts = childNameLower.split(',').map((p) => p.trim());
       for (const part of parts) {
-        const [propPart, valPart] = part.split('=').map(s => s.trim());
+        const [propPart, valPart] = part.split('=').map((s) => s.trim());
         if (!propPart || !valPart) continue;
 
         // Property name match (partial)
@@ -177,7 +203,7 @@ export function selectVariant(
  */
 export async function applyInstanceOverrides(
   instance: InstanceNode,
-  params: Record<string, unknown>,
+  params: Record<string, unknown>
 ): Promise<{ textOverrideApplied: boolean; fillOverrideApplied: boolean; resizeApplied: boolean }> {
   const result = { textOverrideApplied: false, fillOverrideApplied: false, resizeApplied: false };
 
@@ -185,7 +211,7 @@ export async function applyInstanceOverrides(
   const textContent = (params.text as string) || (params.content as string) || (params.name as string);
   if (textContent) {
     try {
-      const textNode = instance.findOne(n => n.type === 'TEXT') as TextNode | null;
+      const textNode = instance.findOne((n) => n.type === 'TEXT') as TextNode | null;
       if (textNode) {
         // Load the font before changing characters
         const fontName = textNode.fontName;
@@ -220,10 +246,7 @@ export async function applyInstanceOverrides(
   const height = params.height as number | undefined;
   if (width || height) {
     try {
-      instance.resize(
-        width || instance.width,
-        height || instance.height,
-      );
+      instance.resize(width || instance.width, height || instance.height);
       result.resizeApplied = true;
     } catch (e) {
       console.warn('[FN-7] Resize override failed:', e);
@@ -241,7 +264,7 @@ export async function applyInstanceOverrides(
 export function isComponentMatchableFrame(name: string): boolean {
   if (!name) return false;
   const lower = name.toLowerCase();
-  return COMPONENT_KEYWORDS.some(kw => lower.includes(kw));
+  return COMPONENT_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
 /**
@@ -291,7 +314,7 @@ export function inferCategoryFromName(name: string): string | undefined {
  */
 export async function tryComponentInstance(
   params: Record<string, unknown>,
-  cache: DesignSystemCache | null,
+  cache: DesignSystemCache | null
 ): Promise<Record<string, unknown> | null> {
   // AC3c: Opt-out check
   if (params.useDesignSystem === false) return null;
@@ -311,12 +334,16 @@ export async function tryComponentInstance(
 
   // AC3b: Only auto-intercept on HIGH confidence
   if (match.confidence === 'MEDIUM') {
-    console.log(`[FN-7] MEDIUM confidence match: "${name}" → "${match.component.name}" (score: ${match.score}). Using primitives. A component was available.`);
+    console.log(
+      `[FN-7] MEDIUM confidence match: "${name}" → "${match.component.name}" (score: ${match.score}). Using primitives. A component was available.`
+    );
     return null;
   }
 
   // HIGH confidence — attempt createInstance
-  console.log(`[FN-7] HIGH confidence match: "${name}" → "${match.component.name}" (score: ${match.score}). Creating instance.`);
+  console.log(
+    `[FN-7] HIGH confidence match: "${name}" → "${match.component.name}" (score: ${match.score}). Creating instance.`
+  );
 
   try {
     let targetComponent: ComponentNode;

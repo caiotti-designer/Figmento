@@ -375,7 +375,6 @@
       }
     }
 
-    /* CU-6: Flow/mode transition animations removed */
 
     /* ═══════════════════════════════════════════════════════════════
        STEP INDICATOR
@@ -2008,7 +2007,6 @@
       display: none !important;
     }
 
-    /* CU-6: Mode selector, text-layout flow, template fill, presentation, hero generator, ad analyzer CSS blocks removed (~2467 lines) */
 
     /* ═══════════════════════════════════════════════════════════════
        REDUCED MOTION PREFERENCE
@@ -2124,12 +2122,13 @@
       padding: var(--space-sm);
     }
     .sessions-list:empty::after {
-      content: 'No saved conversations';
+      content: 'No conversations yet. Send a message to start one.';
       display: block;
       text-align: center;
       padding: var(--space-xl) var(--space-md);
       color: var(--text-tertiary);
       font-size: var(--text-sm);
+      line-height: 1.5;
     }
     .session-item {
       display: flex;
@@ -3425,38 +3424,29 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      flex: 1;
-      padding: var(--space-xl) var(--space-lg);
-      gap: var(--space-lg);
+      flex: 0 0 auto;
+      padding: var(--space-md) var(--space-lg) var(--space-sm);
+      gap: var(--space-sm);
     }
 
     .welcome-logo {
-      width: 40px;
-      height: 40px;
+      width: 32px;
+      height: 32px;
       background: var(--accent);
       border-radius: var(--radius-md);
       display: flex;
       align-items: center;
       justify-content: center;
       color: var(--accent-on);
-      font-size: 18px;
+      font-size: 14px;
       font-weight: 800;
-    }
-
-    .welcome-title {
-      font-size: var(--text-lg);
-      font-weight: var(--font-bold);
-      color: var(--text-primary);
-      margin-top: var(--space-xs);
     }
 
     .welcome-subtitle {
       font-size: var(--text-sm);
-      color: var(--text-tertiary);
+      color: var(--text-secondary);
       text-align: center;
       max-width: 240px;
-      margin-top: -4px;
     }
 
     .welcome-templates {
@@ -3500,7 +3490,8 @@
 
     .template-card-desc {
       font-size: var(--text-sm);
-      color: var(--text-secondary);
+      color: var(--text-primary);
+      opacity: 0.78;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
@@ -4068,7 +4059,6 @@
 
     .color-chip-add:hover { border-color: var(--accent); color: var(--accent); }
 
-    /* CU-6: Mode flow overlay CSS removed */
     /* Tab system removed — replaced by single-surface chat (UI-2) */
     .unified-tab-bar { display: none !important; }
     .unified-tab-content { display: none; }
@@ -4709,6 +4699,41 @@
       margin-top: 4px;
     }
 
+    /* Theme toggle (segmented control) */
+    .theme-toggle-group {
+      display: flex;
+      gap: 0;
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-secondary);
+      padding: 2px;
+    }
+    .theme-toggle-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: var(--space-sm) var(--space-md);
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-sans);
+      font-size: var(--text-sm);
+      font-weight: var(--font-medium);
+      border-radius: calc(var(--radius-sm) - 2px);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    .theme-toggle-btn:hover { color: var(--text-primary); }
+    .theme-toggle-btn[aria-pressed="true"] {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    }
+    .theme-toggle-btn svg { flex-shrink: 0; }
+
     .chat-settings-save-btn {
       width: 100%;
       background: var(--accent);
@@ -4755,12 +4780,8 @@
       <button class="icon-btn" id="chat-sessions-btn" title="Conversations">
         <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/></svg>
       </button>
-      <button class="icon-btn" id="chat-learn" disabled title="Learn from my edits">
+      <button class="icon-btn" id="chat-learn" style="display:none" title="Learn from my edits — captures what you changed since the last AI generation and feeds it back as a preference">
         <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-      </button>
-      <button class="icon-btn" id="themeToggleBtn" title="Toggle theme">
-        <svg viewBox="0 0 24 24" id="themeIconSun"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-        <svg viewBox="0 0 24 24" id="themeIconMoon" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       </button>
       <button class="icon-btn" id="settingsBtn" title="Settings">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15 1.65 1.65 0 0 0 3.09 14H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6 1.65 1.65 0 0 0 10 3.09V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -4788,11 +4809,6 @@
 
   <!-- Main Chat Surface -->
   <main class="chat-surface">
-    <div id="relay-status-bar" class="relay-status-bar" style="display:none;">
-      <span id="relay-status-dot" class="relay-dot disconnected"></span>
-      <span id="relay-status-label" class="relay-status-label">Relay: Off</span>
-      <span id="relay-channel-display" class="relay-channel-id"></span>
-    </div>
     <div id="chat-messages" class="chat-messages"></div>
     <div id="chat-loading" class="chat-loading">
       <div class="spinner"></div>
@@ -4818,7 +4834,6 @@
             <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
             <div class="dropdown-menu" id="modelDropdown"></div>
           </div>
-          <!-- CU-6: Mode selector dropdown removed — replaced by QuickAction "+" button -->
         </div>
         <div class="input-toolbar-right">
           <!-- CU-1: Quick Action "+" button -->
@@ -4826,9 +4841,9 @@
             <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <div class="dropdown-menu dropdown-menu-right" id="quickActionDropdown"></div>
           </div>
-          <!-- CU-4: Design Settings drawer toggle -->
-          <button class="icon-btn" id="designDrawerBtn" title="Design settings">
-            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <!-- CU-4: Design Settings drawer toggle (sliders icon = per-generation design controls) -->
+          <button class="icon-btn" id="designDrawerBtn" title="Design controls (model, quality, fonts, brand colors)">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
           </button>
           <button class="icon-btn" id="chat-upload-btn" title="Attach files">
             <svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
@@ -4936,129 +4951,25 @@
     </div>
   </aside>
 
-  <!-- Legacy tabs hidden (content moved to sheet) -->
-  <div id="tab-chat" class="unified-tab-content" style="display:none !important"></div>
-
-  <!-- CU-6: Mode Flows removed — chat is the only interface now -->
-
-  <!-- Status Tab (FN-15: replaces Bridge tab) -->
-  <div id="tab-status" style="display:none">
-    <div class="status-tab-content">
-      <!-- MCP Connection Card -->
-      <div class="status-card">
-        <div class="status-card-header">
-          <div id="status-mcp-dot" class="status-dot-indicator disconnected"></div>
-          <span class="status-card-title">MCP Connection</span>
-          <button class="status-card-action" id="status-mcp-configure">Configure</button>
-        </div>
-        <div class="status-card-body">
-          <div id="status-mcp-connected" style="display:none;">
-            <div class="status-row">
-              <span class="status-row-label">Channel</span>
-              <span class="status-row-value mono" id="status-mcp-channel" title="Click to copy" onclick="copyChannelId()">---</span>
-            </div>
-            <div class="status-row">
-              <span class="status-row-label">Commands</span>
-              <span class="status-row-value" id="status-mcp-cmds">0</span>
-            </div>
-            <div class="status-row">
-              <span class="status-row-label">Errors</span>
-              <span class="status-row-value" id="status-mcp-errs">0</span>
-            </div>
-          </div>
-          <div id="status-mcp-disconnected">
-            <span class="status-card-empty">Not connected to relay</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Design System Card -->
-      <div class="status-card">
-        <div class="status-card-header">
-          <span class="status-card-title">Design System</span>
-        </div>
-        <div class="status-card-body">
-          <div id="status-ds-scanned" style="display:none;">
-            <div class="status-row">
-              <span class="status-row-label">Components</span>
-              <span class="status-row-value" id="status-ds-components">0</span>
-            </div>
-            <div class="status-row">
-              <span class="status-row-label">Variables</span>
-              <span class="status-row-value" id="status-ds-variables">0</span>
-            </div>
-            <div class="status-row">
-              <span class="status-row-label">Styles</span>
-              <span class="status-row-value" id="status-ds-styles">0</span>
-            </div>
-            <div id="status-ds-staleness" class="status-staleness"></div>
-          </div>
-          <div id="status-ds-empty">
-            <span class="status-card-empty">No design system scanned</span>
-          </div>
-          <button id="status-ds-scan-btn" class="status-scan-btn">Scan Design System</button>
-        </div>
-      </div>
-
-      <!-- Preferences Card -->
-      <div class="status-card">
-        <div class="status-card-header">
-          <span class="status-card-title">Learned Preferences</span>
-          <button class="status-card-action" id="status-prefs-view" style="display:none;">View</button>
-        </div>
-        <div class="status-card-body">
-          <div id="status-prefs-has">
-            <span class="status-row-value" id="status-prefs-count-text">No preferences learned yet</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Bridge config (relocated from tab-bridge for FN-15, used by bridge.ts) -->
-  <div id="tab-bridge" style="display:none">
-    <div class="bridge-content">
-      <div class="bridge-header">
-        <div id="bridge-dot" class="status-dot"></div>
-        <h2 style="font-size:var(--text-lg);font-weight:var(--font-semibold);color:var(--text-primary);">MCP Bridge</h2>
-        <span id="bridge-status" style="font-size:var(--text-sm);color:var(--text-tertiary);">Disconnected</span>
-      </div>
-
-      <div class="bridge-section">
-        <label class="bridge-section-label">WebSocket Server</label>
-        <div class="bridge-input-row">
-          <select id="bridge-url" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-hover);color:var(--text-primary);font-size:var(--text-sm);">
-            <option value="wss://figmento-ws-relay.fly.dev">Cloud (figmento-ws-relay.fly.dev)</option>
-            <option value="ws://localhost:3055">Local (localhost:3055)</option>
-          </select>
-          <button id="bridge-connect" class="bridge-btn">Connect</button>
-        </div>
-      </div>
-
-      <div class="bridge-section">
-        <label class="bridge-section-label">Channel ID</label>
-        <div class="channel-display" id="channel-display" onclick="copyChannelId()">
-          <span id="bridge-channel">---</span>
-          <div class="channel-hint" id="channel-hint">Click to copy</div>
-        </div>
-      </div>
-
-      <div class="bridge-section">
-        <label class="bridge-section-label">Activity Log</label>
-        <div id="bridge-log" class="log-area"></div>
-      </div>
-
-      <div class="bridge-stats">
-        Commands: <span id="bridge-cmd-count">0</span>
-        &nbsp;&nbsp;|&nbsp;&nbsp;
-        Errors: <span id="bridge-err-count">0</span>
-      </div>
-    </div>
-  </div>
-
   <!-- Settings Tab (hidden, content accessible via Settings sheet) -->
   <div id="tab-settings" style="display:none">
     <div class="chat-settings-content">
+      <div class="chat-settings-group">
+        <h3>Appearance</h3>
+        <div class="chat-settings-field">
+          <label>Theme</label>
+          <div class="theme-toggle-group" role="radiogroup" aria-label="Theme">
+            <button type="button" class="theme-toggle-btn" data-theme="light" id="settings-theme-light" aria-pressed="true">
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              Light
+            </button>
+            <button type="button" class="theme-toggle-btn" data-theme="dark" id="settings-theme-dark" aria-pressed="false">
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+              Dark
+            </button>
+          </div>
+        </div>
+      </div>
       <div class="chat-settings-group">
         <h3>Chat Model</h3>
         <div class="chat-settings-field">
@@ -5118,26 +5029,6 @@
           <label>Anthropic API Key</label>
           <input type="password" id="settings-api-key" placeholder="sk-ant-..." />
           <div class="hint">Get one at console.anthropic.com</div>
-          <!-- DM-2: Connect-with-Claude section, hidden until ANTHROPIC_OAUTH_CONFIG is activated -->
-          <div id="anthropic-oauth-section" style="display:none; margin-top:12px;">
-            <div id="anthropic-oauth-disconnected">
-              <div class="hint" style="color:var(--accent);font-weight:500;padding:12px;background:var(--bg-hover);border-radius:8px;border:1px solid var(--border);margin-bottom:8px;">
-                Or connect with your Claude.ai account — no API key needed.
-              </div>
-              <button id="anthropic-oauth-connect" style="width:100%;padding:10px 16px;background:var(--accent);color:var(--bg-primary);border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:var(--text-sm);margin-bottom:8px;">Connect with Claude</button>
-              <div id="anthropic-activation-section" style="display:none;margin-top:8px;">
-                <label>Paste Activation Code</label>
-                <input type="text" id="anthropic-activation-input" placeholder="Paste activation code from browser..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-hover);color:var(--text-primary);font-size:var(--text-sm);font-family:monospace;" />
-                <button id="anthropic-activate-btn" style="width:100%;padding:8px 16px;background:var(--accent);color:var(--bg-primary);border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:var(--text-sm);margin-top:6px;">Activate</button>
-              </div>
-            </div>
-            <div id="anthropic-oauth-connected" style="display:none;">
-              <div class="hint" style="color:#22c55e;font-weight:500;padding:12px;background:var(--bg-hover);border-radius:8px;border:1px solid #22c55e33;margin-bottom:8px;">
-                Connected via Claude.ai ✓
-              </div>
-              <button id="anthropic-oauth-disconnect" style="width:100%;padding:8px 16px;background:transparent;color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:var(--text-sm);">Disconnect</button>
-            </div>
-          </div>
         </div>
         <div id="key-openai-chat" class="chat-settings-field" style="display:none;">
           <label>OpenAI API Key</label>
@@ -5161,7 +5052,7 @@
             </div>
           </div>
           <div id="codex-oauth-connected" style="display:none;">
-            <div class="hint" style="color:#22c55e;font-weight:500;padding:12px;background:var(--bg-hover);border-radius:8px;border:1px solid #22c55e33;margin-bottom:8px;">
+            <div class="hint" style="color:var(--success);font-weight:500;padding:12px;background:var(--bg-hover);border-radius:8px;border:1px solid var(--success-dim);margin-bottom:8px;">
               Connected via ChatGPT ✓
             </div>
             <button id="codex-oauth-disconnect" style="width:100%;padding:8px 16px;background:transparent;color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:var(--text-sm);">Disconnect</button>
@@ -5264,7 +5155,7 @@
         <details class="bridge-advanced-details" id="bridge-advanced-section">
           <summary>Advanced: MCP Bridge</summary>
           <div class="bridge-content">
-            <div class="bridge-section" style="padding:10px 12px;background:var(--bg-hover);border-radius:6px;border-left:3px solid var(--color-accent, #4ade80);">
+            <div class="bridge-section" style="padding:10px 12px;background:var(--bg-hover);border-radius:6px;border-left:3px solid var(--success);">
               <div style="font-size:var(--text-xs);color:var(--text-secondary);line-height:1.5;">
                 <strong style="color:var(--text-primary);">Managed automatically.</strong> The local relay runs in the background via pm2 and auto-starts on login. You don't need to touch anything here — the controls below are for debugging only.
               </div>
@@ -5304,7 +5195,7 @@
     </div>
   </div>
 
-  <!-- SCRIPT_PLACEHOLDER -->
+  <script type="module" src="/src/ui/index.ts"></script>
 </body>
 
 </html>

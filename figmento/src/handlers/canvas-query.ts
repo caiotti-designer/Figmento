@@ -48,7 +48,7 @@ export async function handleGetScreenshot(params: Record<string, unknown>): Prom
   const scales = [requestedScale, 0.75, 0.5, 0.35, 0.25];
   // Also try JPG as last resort (much smaller for photos/complex designs)
   const attempts: Array<{ scale: number; format: 'PNG' | 'JPG' }> = [
-    ...scales.map(s => ({ scale: s, format: 'PNG' as const })),
+    ...scales.map((s) => ({ scale: s, format: 'PNG' as const })),
     { scale: 0.5, format: 'JPG' as const },
     { scale: 0.25, format: 'JPG' as const },
   ];
@@ -152,10 +152,10 @@ export async function handleScanFrameStructure(params: Record<string, unknown>):
     if (!Array.isArray(strokes) || strokes.length === 0) return null;
     const first = strokes[0];
     if (first.type === 'SOLID') {
-      const sw = ('strokeWeight' in n) ? (n as GeometryMixin).strokeWeight : 1;
+      const sw = 'strokeWeight' in n ? (n as GeometryMixin).strokeWeight : 1;
       return {
         color: rgbToHex(first.color),
-        weight: sw === figma.mixed ? 1 : sw as number,
+        weight: sw === figma.mixed ? 1 : (sw as number),
       };
     }
     return null;
@@ -185,12 +185,7 @@ export async function handleScanFrameStructure(params: Record<string, unknown>):
     const cr = (n as CornerMixin).cornerRadius;
     if (cr === figma.mixed) {
       const rn = n as RectangleCornerMixin;
-      return [
-        rn.topLeftRadius,
-        rn.topRightRadius,
-        rn.bottomRightRadius,
-        rn.bottomLeftRadius,
-      ];
+      return [rn.topLeftRadius, rn.topRightRadius, rn.bottomRightRadius, rn.bottomLeftRadius];
     }
     return cr;
   }
@@ -287,7 +282,7 @@ export async function handleScanFrameStructure(params: Record<string, unknown>):
     if ('children' in n && currentDepth < maxDepth) {
       const parent = n as ChildrenMixin;
       if (parent.children.length > 0) {
-        result.children = parent.children.map(child => scanNode(child as SceneNode, currentDepth + 1));
+        result.children = parent.children.map((child) => scanNode(child as SceneNode, currentDepth + 1));
       }
     }
 
@@ -312,63 +307,93 @@ export async function handleReadFigmaContext(): Promise<Record<string, unknown>>
     }
   }
 
-  const variables = await Promise.all(rawVariables.map(async v => {
-    const resolvedValues: Record<string, unknown> = {};
-    for (const [modeId, value] of Object.entries(v.valuesByMode)) {
-      const modeName = modeNameMap.get(modeId) || modeId;
-      if (typeof value === 'object' && value !== null && 'type' in value && (value as unknown as Record<string, unknown>).type === 'VARIABLE_ALIAS') {
-        const aliasId = (value as VariableAlias).id;
-        const aliasVar = await figma.variables.getVariableByIdAsync(aliasId);
-        resolvedValues[modeName] = { alias: true, aliasName: aliasVar?.name || aliasId, aliasId };
-      } else if (v.resolvedType === 'COLOR' && typeof value === 'object' && value !== null && 'r' in value) {
-        const rgb = value as { r: number; g: number; b: number; a?: number };
-        resolvedValues[modeName] = { hex: rgbToHex(rgb), opacity: rgb.a !== undefined ? rgb.a : 1 };
-      } else {
-        resolvedValues[modeName] = value;
+  const variables = await Promise.all(
+    rawVariables.map(async (v) => {
+      const resolvedValues: Record<string, unknown> = {};
+      for (const [modeId, value] of Object.entries(v.valuesByMode)) {
+        const modeName = modeNameMap.get(modeId) || modeId;
+        if (
+          typeof value === 'object' &&
+          value !== null &&
+          'type' in value &&
+          (value as unknown as Record<string, unknown>).type === 'VARIABLE_ALIAS'
+        ) {
+          const aliasId = (value as VariableAlias).id;
+          const aliasVar = await figma.variables.getVariableByIdAsync(aliasId);
+          resolvedValues[modeName] = { alias: true, aliasName: aliasVar?.name || aliasId, aliasId };
+        } else if (v.resolvedType === 'COLOR' && typeof value === 'object' && value !== null && 'r' in value) {
+          const rgb = value as { r: number; g: number; b: number; a?: number };
+          resolvedValues[modeName] = { hex: rgbToHex(rgb), opacity: rgb.a !== undefined ? rgb.a : 1 };
+        } else {
+          resolvedValues[modeName] = value;
+        }
       }
-    }
-    return { id: v.id, name: v.name, resolvedType: v.resolvedType, valuesByMode: resolvedValues };
-  }));
+      return { id: v.id, name: v.name, resolvedType: v.resolvedType, valuesByMode: resolvedValues };
+    })
+  );
 
-  const collections = rawCollections.map(c => ({
+  const collections = rawCollections.map((c) => ({
     id: c.id,
     name: c.name,
-    modes: c.modes.map(m => ({ id: m.modeId, name: m.name })),
+    modes: c.modes.map((m) => ({ id: m.modeId, name: m.name })),
     variableIds: c.variableIds,
   }));
 
   const rawPaintStyles = await figma.getLocalPaintStylesAsync();
-  const paintStyles = rawPaintStyles.map(s => ({
+  const paintStyles = rawPaintStyles.map((s) => ({
     id: s.id,
     name: s.name,
     key: s.key,
-    paints: (s.paints as Paint[]).map(p => {
+    paints: (s.paints as Paint[]).map((p) => {
       if (p.type === 'SOLID') return { type: 'SOLID', color: rgbToHex(p.color), opacity: p.opacity ?? 1 };
-      if (p.type === 'GRADIENT_LINEAR') return { type: 'GRADIENT_LINEAR', stops: (p as GradientPaint).gradientStops.map(gs => ({ position: gs.position, color: rgbToHex({ r: gs.color.r, g: gs.color.g, b: gs.color.b }), opacity: gs.color.a })) };
+      if (p.type === 'GRADIENT_LINEAR')
+        return {
+          type: 'GRADIENT_LINEAR',
+          stops: (p as GradientPaint).gradientStops.map((gs) => ({
+            position: gs.position,
+            color: rgbToHex({ r: gs.color.r, g: gs.color.g, b: gs.color.b }),
+            opacity: gs.color.a,
+          })),
+        };
       return { type: p.type };
     }),
   }));
 
   const rawTextStyles = await figma.getLocalTextStylesAsync();
-  const textStyles = rawTextStyles.map(s => ({
-    id: s.id, name: s.name, key: s.key,
-    fontFamily: s.fontName.family, fontStyle: s.fontName.style,
-    fontSize: s.fontSize, letterSpacing: s.letterSpacing,
-    lineHeight: s.lineHeight, textCase: s.textCase, textDecoration: s.textDecoration,
+  const textStyles = rawTextStyles.map((s) => ({
+    id: s.id,
+    name: s.name,
+    key: s.key,
+    fontFamily: s.fontName.family,
+    fontStyle: s.fontName.style,
+    fontSize: s.fontSize,
+    letterSpacing: s.letterSpacing,
+    lineHeight: s.lineHeight,
+    textCase: s.textCase,
+    textDecoration: s.textDecoration,
   }));
 
   const rawEffectStyles = await figma.getLocalEffectStylesAsync();
-  const effectStyles = rawEffectStyles.map(s => ({
-    id: s.id, name: s.name, key: s.key,
-    effects: s.effects.map(e => ({
-      type: e.type, visible: e.visible,
-      ...(e.type === 'DROP_SHADOW' || e.type === 'INNER_SHADOW' ? {
-        color: rgbToHex({ r: (e as DropShadowEffect).color.r, g: (e as DropShadowEffect).color.g, b: (e as DropShadowEffect).color.b }),
-        opacity: (e as DropShadowEffect).color.a,
-        offset: (e as DropShadowEffect).offset,
-        radius: (e as DropShadowEffect).radius,
-        spread: (e as DropShadowEffect).spread,
-      } : {}),
+  const effectStyles = rawEffectStyles.map((s) => ({
+    id: s.id,
+    name: s.name,
+    key: s.key,
+    effects: s.effects.map((e) => ({
+      type: e.type,
+      visible: e.visible,
+      ...(e.type === 'DROP_SHADOW' || e.type === 'INNER_SHADOW'
+        ? {
+            color: rgbToHex({
+              r: (e as DropShadowEffect).color.r,
+              g: (e as DropShadowEffect).color.g,
+              b: (e as DropShadowEffect).color.b,
+            }),
+            opacity: (e as DropShadowEffect).color.a,
+            offset: (e as DropShadowEffect).offset,
+            radius: (e as DropShadowEffect).radius,
+            spread: (e as DropShadowEffect).spread,
+          }
+        : {}),
     })),
   }));
 
@@ -399,12 +424,20 @@ export async function handleBindVariable(params: Record<string, unknown>): Promi
   if (!variable) throw new Error(`Variable not found: ${variableId}`);
 
   const fieldMapping: Record<string, VariableBindableNodeField> = {
-    fills: 'fills' as VariableBindableNodeField, strokes: 'strokes' as VariableBindableNodeField, opacity: 'opacity',
-    width: 'width', height: 'height',
-    paddingTop: 'paddingTop', paddingRight: 'paddingRight',
-    paddingBottom: 'paddingBottom', paddingLeft: 'paddingLeft',
-    itemSpacing: 'itemSpacing', cornerRadius: 'topLeftRadius',
-    fontSize: 'fontSize' as VariableBindableNodeField, fontFamily: 'fontFamily' as VariableBindableNodeField, fontWeight: 'fontWeight' as VariableBindableNodeField,
+    fills: 'fills' as VariableBindableNodeField,
+    strokes: 'strokes' as VariableBindableNodeField,
+    opacity: 'opacity',
+    width: 'width',
+    height: 'height',
+    paddingTop: 'paddingTop',
+    paddingRight: 'paddingRight',
+    paddingBottom: 'paddingBottom',
+    paddingLeft: 'paddingLeft',
+    itemSpacing: 'itemSpacing',
+    cornerRadius: 'topLeftRadius',
+    fontSize: 'fontSize' as VariableBindableNodeField,
+    fontFamily: 'fontFamily' as VariableBindableNodeField,
+    fontWeight: 'fontWeight' as VariableBindableNodeField,
   };
 
   const figmaField = fieldMapping[field];
@@ -414,14 +447,20 @@ export async function handleBindVariable(params: Record<string, unknown>): Promi
     if (!('fills' in node)) throw new Error(`Node ${nodeId} does not support fills/strokes`);
     const geom = node as GeometryMixin;
     const existing = (field === 'fills' ? geom.fills : geom.strokes) as Paint[];
-    const basePaint: SolidPaint = existing.length > 0 && existing[0].type === 'SOLID'
-      ? existing[0] as SolidPaint
-      : { type: 'SOLID', color: { r: 0, g: 0, b: 0 } };
+    const basePaint: SolidPaint =
+      existing.length > 0 && existing[0].type === 'SOLID'
+        ? (existing[0] as SolidPaint)
+        : { type: 'SOLID', color: { r: 0, g: 0, b: 0 } };
     const boundPaint = figma.variables.setBoundVariableForPaint(basePaint, 'color', variable);
     if (field === 'fills') geom.fills = [boundPaint];
     else geom.strokes = [boundPaint];
   } else if (field === 'cornerRadius') {
-    for (const corner of ['topLeftRadius', 'topRightRadius', 'bottomLeftRadius', 'bottomRightRadius'] as VariableBindableNodeField[]) {
+    for (const corner of [
+      'topLeftRadius',
+      'topRightRadius',
+      'bottomLeftRadius',
+      'bottomRightRadius',
+    ] as VariableBindableNodeField[]) {
       (node as SceneNode).setBoundVariable(corner, variable);
     }
   } else {
@@ -429,7 +468,11 @@ export async function handleBindVariable(params: Record<string, unknown>): Promi
   }
 
   return {
-    success: true, nodeId, variableId, variableName: variable.name, field,
+    success: true,
+    nodeId,
+    variableId,
+    variableName: variable.name,
+    field,
     message: `Bound variable "${variable.name}" to ${field} on node "${(node as SceneNode).name}"`,
   };
 }
@@ -447,7 +490,13 @@ export async function handleApplyPaintStyle(params: Record<string, unknown>): Pr
   if (!style) throw new Error(`Style not found: ${styleId}`);
 
   (node as GeometryMixin).fillStyleId = styleId;
-  return { success: true, nodeId, styleId, styleName: style.name, message: `Applied paint style "${style.name}" to node "${(node as SceneNode).name}"` };
+  return {
+    success: true,
+    nodeId,
+    styleId,
+    styleName: style.name,
+    message: `Applied paint style "${style.name}" to node "${(node as SceneNode).name}"`,
+  };
 }
 
 export async function handleApplyTextStyle(params: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -464,7 +513,13 @@ export async function handleApplyTextStyle(params: Record<string, unknown>): Pro
 
   await figma.loadFontAsync((style as TextStyle).fontName);
   (node as TextNode).textStyleId = styleId;
-  return { success: true, nodeId, styleId, styleName: style.name, message: `Applied text style "${style.name}" to node "${(node as SceneNode).name}"` };
+  return {
+    success: true,
+    nodeId,
+    styleId,
+    styleName: style.name,
+    message: `Applied text style "${style.name}" to node "${(node as SceneNode).name}"`,
+  };
 }
 
 export async function handleApplyEffectStyle(params: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -480,7 +535,13 @@ export async function handleApplyEffectStyle(params: Record<string, unknown>): P
   if (!style) throw new Error(`Style not found: ${styleId}`);
 
   (node as BlendMixin).effectStyleId = styleId;
-  return { success: true, nodeId, styleId, styleName: style.name, message: `Applied effect style "${style.name}" to node "${(node as SceneNode).name}"` };
+  return {
+    success: true,
+    nodeId,
+    styleId,
+    styleName: style.name,
+    message: `Applied effect style "${style.name}" to node "${(node as SceneNode).name}"`,
+  };
 }
 
 export async function handleExportAsSvg(params: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -540,8 +601,10 @@ export async function handleSetConstraints(params: Record<string, unknown>): Pro
   const vertical = (params.vertical as string) || 'MIN';
 
   const validValues = ['MIN', 'CENTER', 'MAX', 'STRETCH', 'SCALE'];
-  if (!validValues.includes(horizontal)) throw new Error(`Invalid horizontal constraint: ${horizontal}. Must be one of: ${validValues.join(', ')}`);
-  if (!validValues.includes(vertical)) throw new Error(`Invalid vertical constraint: ${vertical}. Must be one of: ${validValues.join(', ')}`);
+  if (!validValues.includes(horizontal))
+    throw new Error(`Invalid horizontal constraint: ${horizontal}. Must be one of: ${validValues.join(', ')}`);
+  if (!validValues.includes(vertical))
+    throw new Error(`Invalid vertical constraint: ${vertical}. Must be one of: ${validValues.join(', ')}`);
 
   (node as ConstraintMixin).constraints = {
     horizontal: horizontal as ConstraintType,
@@ -566,16 +629,16 @@ export async function handleCreateFigmaVariables(params: Record<string, unknown>
 
   // Check if collection already exists
   const existingCollections = await figma.variables.getLocalVariableCollectionsAsync();
-  const existing = existingCollections.find(c => c.name === collectionName);
+  const existing = existingCollections.find((c) => c.name === collectionName);
   if (existing) {
     const existingVars = await figma.variables.getLocalVariablesAsync();
-    const collectionVars = existingVars.filter(v => existing.variableIds.includes(v.id));
+    const collectionVars = existingVars.filter((v) => existing.variableIds.includes(v.id));
     return {
       alreadyExists: true,
       collectionId: existing.id,
       collectionName: existing.name,
       variableCount: collectionVars.length,
-      variables: collectionVars.map(v => ({ id: v.id, name: v.name, resolvedType: v.resolvedType })),
+      variables: collectionVars.map((v) => ({ id: v.id, name: v.name, resolvedType: v.resolvedType })),
     };
   }
 
@@ -616,7 +679,9 @@ export async function handleCreateFigmaVariables(params: Record<string, unknown>
  * ODS-4: Create multiple Figma Variable Collections in one call.
  * Supports upsert — if a collection exists, adds new variables to it (skips duplicates).
  */
-export async function handleCreateVariableCollections(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+export async function handleCreateVariableCollections(
+  params: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   const collections = params.collections as Array<{
     name: string;
     variables: Array<{
@@ -653,12 +718,12 @@ export async function handleCreateVariableCollections(params: Record<string, unk
     let existingVarNames: Set<string>;
 
     // Check if collection already exists
-    const existing = existingCollections.find(c => c.name === collDef.name);
+    const existing = existingCollections.find((c) => c.name === collDef.name);
     if (existing) {
       collection = existing;
       // Build set of existing variable names for dedup
-      const collVars = allExistingVars.filter(v => existing.variableIds.includes(v.id));
-      existingVarNames = new Set(collVars.map(v => v.name));
+      const collVars = allExistingVars.filter((v) => existing.variableIds.includes(v.id));
+      existingVarNames = new Set(collVars.map((v) => v.name));
     } else {
       collection = figma.variables.createVariableCollection(collDef.name);
       created = true;
@@ -727,7 +792,7 @@ export async function handleCreateTextStyles(params: Record<string, unknown>): P
     fontFamily: string;
     fontSize: number;
     fontWeight: number;
-    lineHeight: number;   // pixels
+    lineHeight: number; // pixels
     letterSpacing: number; // pixels
   }>;
 
@@ -737,7 +802,7 @@ export async function handleCreateTextStyles(params: Record<string, unknown>): P
 
   // Check for existing text styles to support upsert (skip duplicates)
   const existingStyles = await figma.getLocalTextStylesAsync();
-  const existingNames = new Set(existingStyles.map(s => s.name));
+  const existingNames = new Set(existingStyles.map((s) => s.name));
 
   const createdStyles: Array<{ id: string; name: string; fontFamily: string; fontSize: number }> = [];
   const skipped: string[] = [];
@@ -803,7 +868,10 @@ export async function handleCreateTextStyles(params: Record<string, unknown>): P
  */
 
 /** Adjust a Figma 0-1 RGB color toward white (factor > 0) or black (factor < 0). */
-function adjustFillColor(rgb: { r: number; g: number; b: number }, factor: number): { r: number; g: number; b: number } {
+function adjustFillColor(
+  rgb: { r: number; g: number; b: number },
+  factor: number
+): { r: number; g: number; b: number } {
   if (factor > 0) {
     return { r: rgb.r + (1 - rgb.r) * factor, g: rgb.g + (1 - rgb.g) * factor, b: rgb.b + (1 - rgb.b) * factor };
   }
@@ -815,7 +883,7 @@ async function cloneComponentForVariant(
   source: ComponentNode,
   variantName: string,
   fillRgb: { r: number; g: number; b: number },
-  parent: PageNode,
+  parent: PageNode
 ): Promise<ComponentNode> {
   // Create a new component with same dimensions
   const clone = figma.createComponent();
@@ -872,18 +940,18 @@ export async function handleCreateDSComponents(params: Record<string, unknown>):
     components: Array<{
       type: 'button' | 'card' | 'badge';
       name: string;
-      fillColor: string;       // hex fallback
-      textColor: string;       // hex for text fill
+      fillColor: string; // hex fallback
+      textColor: string; // hex for text fill
       fontFamily: string;
       fontSize: number;
       fontWeight: number;
-      lineHeight: number;      // px
-      text: string;            // default label
+      lineHeight: number; // px
+      text: string; // default label
       cornerRadius: number;
       padding: { top: number; right: number; bottom: number; left: number };
       itemSpacing: number;
-      width?: number;          // fixed width (for Card)
-      textStyleId?: string;    // from ODS-5
+      width?: number; // fixed width (for Card)
+      textStyleId?: string; // from ODS-5
       fillVariableId?: string; // from ODS-4 for variable binding
       // Card-specific
       children?: Array<{
@@ -904,13 +972,19 @@ export async function handleCreateDSComponents(params: Record<string, unknown>):
   }
 
   // Get or create "Design System" page
-  let dsPage = figma.root.children.find(p => p.name === 'Design System') as PageNode | undefined;
+  let dsPage = figma.root.children.find((p) => p.name === 'Design System') as PageNode | undefined;
   if (!dsPage) {
     dsPage = figma.createPage();
     dsPage.name = 'Design System';
   }
 
-  const createdComponents: Array<{ id: string; name: string; type: string; variantSetId?: string; variants?: string[] }> = [];
+  const createdComponents: Array<{
+    id: string;
+    name: string;
+    type: string;
+    variantSetId?: string;
+    variants?: string[];
+  }> = [];
   const warnings: string[] = [];
   let xOffset = 0;
 
@@ -970,15 +1044,17 @@ export async function handleCreateDSComponents(params: Record<string, unknown>):
     }
 
     // Create text children
-    const textDefs = compDef.children || [{
-      text: compDef.text,
-      fontFamily: compDef.fontFamily,
-      fontSize: compDef.fontSize,
-      fontWeight: compDef.fontWeight,
-      lineHeight: compDef.lineHeight,
-      textColor: compDef.textColor,
-      textStyleId: compDef.textStyleId,
-    }];
+    const textDefs = compDef.children || [
+      {
+        text: compDef.text,
+        fontFamily: compDef.fontFamily,
+        fontSize: compDef.fontSize,
+        fontWeight: compDef.fontWeight,
+        lineHeight: compDef.lineHeight,
+        textColor: compDef.textColor,
+        textStyleId: compDef.textStyleId,
+      },
+    ];
 
     for (const textDef of textDefs) {
       const textClampedWeight = textDef.fontWeight <= 500 ? 400 : 700;
@@ -1073,16 +1149,16 @@ export async function handleCreateDSComponents(params: Record<string, unknown>):
       componentSet.y = 0;
 
       // Find the default variant inside the set to wire reactions on it
-      const defaultVariant = componentSet.children.find(c =>
-        c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'default'
+      const defaultVariant = componentSet.children.find(
+        (c) => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'default'
       ) as ComponentNode | undefined;
 
-      const hoverVariant = componentSet.children.find(c =>
-        c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'hover'
+      const hoverVariant = componentSet.children.find(
+        (c) => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'hover'
       ) as ComponentNode | undefined;
 
-      const pressedVariant = componentSet.children.find(c =>
-        c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'pressed'
+      const pressedVariant = componentSet.children.find(
+        (c) => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'pressed'
       ) as ComponentNode | undefined;
 
       // Wire interactions on the default variant
@@ -1092,39 +1168,45 @@ export async function handleCreateDSComponents(params: Record<string, unknown>):
         // One-way hover: ON_HOVER → CHANGE_TO hover variant (Figma snaps back automatically)
         reactions.push({
           trigger: { type: 'ON_HOVER' } as Trigger,
-          actions: [{
-            type: 'NODE',
-            destinationId: hoverVariant.id,
-            navigation: 'CHANGE_TO' as Navigation,
-            transition: { type: 'SMART_ANIMATE', easing: { type: 'EASE_OUT' }, duration: 300 } as SimpleTransition,
-            resetScrollPosition: false,
-            resetInteractiveComponents: false,
-          } as Action],
+          actions: [
+            {
+              type: 'NODE',
+              destinationId: hoverVariant.id,
+              navigation: 'CHANGE_TO' as Navigation,
+              transition: { type: 'SMART_ANIMATE', easing: { type: 'EASE_OUT' }, duration: 300 } as SimpleTransition,
+              resetScrollPosition: false,
+              resetInteractiveComponents: false,
+            } as Action,
+          ],
         });
 
         // button-press preset: MOUSE_DOWN → pressed, MOUSE_UP → default (button/badge only)
         if (pressedVariant && !isCard) {
           reactions.push({
             trigger: { type: 'MOUSE_DOWN', delay: 0 } as Trigger,
-            actions: [{
-              type: 'NODE',
-              destinationId: pressedVariant.id,
-              navigation: 'CHANGE_TO' as Navigation,
-              transition: { type: 'SMART_ANIMATE', easing: { type: 'EASE_IN' }, duration: 80 } as SimpleTransition,
-              resetScrollPosition: false,
-              resetInteractiveComponents: false,
-            } as Action],
+            actions: [
+              {
+                type: 'NODE',
+                destinationId: pressedVariant.id,
+                navigation: 'CHANGE_TO' as Navigation,
+                transition: { type: 'SMART_ANIMATE', easing: { type: 'EASE_IN' }, duration: 80 } as SimpleTransition,
+                resetScrollPosition: false,
+                resetInteractiveComponents: false,
+              } as Action,
+            ],
           });
           reactions.push({
             trigger: { type: 'MOUSE_UP', delay: 0 } as Trigger,
-            actions: [{
-              type: 'NODE',
-              destinationId: defaultVariant.id,
-              navigation: 'CHANGE_TO' as Navigation,
-              transition: { type: 'SMART_ANIMATE', easing: { type: 'EASE_OUT' }, duration: 120 } as SimpleTransition,
-              resetScrollPosition: false,
-              resetInteractiveComponents: false,
-            } as Action],
+            actions: [
+              {
+                type: 'NODE',
+                destinationId: defaultVariant.id,
+                navigation: 'CHANGE_TO' as Navigation,
+                transition: { type: 'SMART_ANIMATE', easing: { type: 'EASE_OUT' }, duration: 120 } as SimpleTransition,
+                resetScrollPosition: false,
+                resetInteractiveComponents: false,
+              } as Action,
+            ],
           });
         }
 

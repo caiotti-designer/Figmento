@@ -97,7 +97,7 @@ type SingleToolCallFn = (name: string, args: Record<string, unknown>) => Promise
 function hexTo255(hex: string): { r: number; g: number; b: number } | null {
   if (!hex || typeof hex !== 'string') return null;
   let h = hex.replace('#', '');
-  if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
   const m = /^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);
   if (!m) return null;
   return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
@@ -116,9 +116,21 @@ const SNAP_THRESHOLD = 40;
 
 /** Colors that are always left alone (neutrals). */
 const NEUTRAL_COLORS = new Set([
-  '#000000', '#ffffff', '#f5f5f5', '#fafafa', '#e5e5e5',
-  '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040',
-  '#262626', '#171717', '#0a0a0a', '#f0f0f0', '#eeeeee',
+  '#000000',
+  '#ffffff',
+  '#f5f5f5',
+  '#fafafa',
+  '#e5e5e5',
+  '#d4d4d4',
+  '#a3a3a3',
+  '#737373',
+  '#525252',
+  '#404040',
+  '#262626',
+  '#171717',
+  '#0a0a0a',
+  '#f0f0f0',
+  '#eeeeee',
 ]);
 
 function isNeutralColor(hex: string): boolean {
@@ -188,10 +200,18 @@ function snapParamsColors(params: Record<string, unknown>, dsColors: DSColorEntr
 
 /** Commands whose params may contain hex color values. */
 const COLOR_BEARING_COMMANDS = new Set([
-  'set_fill', 'set_stroke', 'set_style',
-  'create_text', 'create_frame', 'create_rectangle', 'create_ellipse',
-  'create_image', 'create_icon', 'create_design',
-  'style_text_range', 'set_effects',
+  'set_fill',
+  'set_stroke',
+  'set_style',
+  'create_text',
+  'create_frame',
+  'create_rectangle',
+  'create_ellipse',
+  'create_image',
+  'create_icon',
+  'create_design',
+  'style_text_range',
+  'set_effects',
 ]);
 
 /**
@@ -204,7 +224,7 @@ const COLOR_BEARING_COMMANDS = new Set([
  */
 function snapColorsToDS(
   batchCommands: Array<{ action: string; params: Record<string, unknown>; tempId?: string }>,
-  cache: DesignSystemCache | null,
+  cache: DesignSystemCache | null
 ): void {
   if (!cache) return;
   const dsColors = buildDSColorTable(cache);
@@ -236,7 +256,7 @@ function snapColorsToDS(
 export function createBatchToolCallHandler(
   sendCommand: SendCommandFn,
   onToolCall: SingleToolCallFn,
-  formatResult: (toolName: string, data: Record<string, unknown>) => string,
+  formatResult: (toolName: string, data: Record<string, unknown>) => string
 ): (toolCalls: ToolCallEntry[]) => Promise<ToolCallBatchResult[]> {
   return async (toolCalls: ToolCallEntry[]): Promise<ToolCallBatchResult[]> => {
     // Separate canvas and non-canvas commands while preserving original indices

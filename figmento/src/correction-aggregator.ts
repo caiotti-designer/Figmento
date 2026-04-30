@@ -34,12 +34,7 @@ export function getConfidenceLevel(count: number): ConfidenceLevel {
 /**
  * Generate a human-readable description for a learned preference.
  */
-export function describePreference(
-  property: string,
-  context: string,
-  direction: string,
-  value: unknown,
-): string {
+export function describePreference(property: string, context: string, direction: string, value: unknown): string {
   const ctx = context || 'element';
 
   if (property === 'fontSize') {
@@ -89,7 +84,7 @@ export function describePreference(
  * If there are ties, returns the LATEST (most recent) run.
  */
 function findLongestConsistentRun(
-  sorted: CorrectionEntry[],
+  sorted: CorrectionEntry[]
 ): { startIdx: number; count: number; direction: 'increase' | 'decrease' | 'change' } | null {
   if (sorted.length === 0) return null;
 
@@ -135,10 +130,10 @@ function findLongestConsistentRun(
  */
 export function aggregateCorrections(
   corrections: CorrectionEntry[],
-  existingPreferences?: LearnedPreference[],
+  existingPreferences?: LearnedPreference[]
 ): LearnedPreference[] {
   // Step 1: filter to confirmed only
-  const confirmed = corrections.filter(c => c.confirmed === true);
+  const confirmed = corrections.filter((c) => c.confirmed === true);
 
   // Step 2: group by property::context
   const groups = new Map<string, CorrectionEntry[]>();
@@ -163,8 +158,8 @@ export function aggregateCorrections(
     const runDirection = run.direction;
 
     // Step 5: compute learnedValue or learnedRange
-    const afterValues = runEntries.map(e => e.afterValue);
-    const uniqueValues = new Set(afterValues.map(v => JSON.stringify(v)));
+    const afterValues = runEntries.map((e) => e.afterValue);
+    const uniqueValues = new Set(afterValues.map((v) => JSON.stringify(v)));
 
     let learnedValue: unknown = undefined;
     let learnedRange: { min: unknown; max: unknown } | undefined = undefined;
@@ -173,7 +168,7 @@ export function aggregateCorrections(
       learnedValue = afterValues[0];
     } else if (runDirection !== 'change') {
       // Numeric range
-      const nums = afterValues.filter(v => typeof v === 'number') as number[];
+      const nums = afterValues.filter((v) => typeof v === 'number') as number[];
       if (nums.length >= 2) {
         learnedRange = { min: Math.min(...nums), max: Math.max(...nums) };
       } else {
@@ -191,13 +186,11 @@ export function aggregateCorrections(
     const category = categorizeProperty(property);
     const now = Date.now();
 
-    const existing = existingPreferences?.find(
-      p => p.property === property && p.context === context,
-    );
+    const existing = existingPreferences?.find((p) => p.property === property && p.context === context);
 
     if (existing) {
       // Merge: accumulate correctionIds and correctionCount, update lastSeenAt
-      const newIds = runEntries.map(e => e.id).filter(id => !existing.correctionIds.includes(id));
+      const newIds = runEntries.map((e) => e.id).filter((id) => !existing.correctionIds.includes(id));
       if (newIds.length === 0) {
         // No new corrections — keep existing as-is
         result.push(existing);
@@ -230,7 +223,7 @@ export function aggregateCorrections(
         description: describePreference(property, context, runDirection, prefValue),
         confidence: getConfidenceLevel(run.count),
         correctionCount: run.count,
-        correctionIds: runEntries.map(e => e.id),
+        correctionIds: runEntries.map((e) => e.id),
         enabled: true,
         createdAt: now,
         lastSeenAt: now,

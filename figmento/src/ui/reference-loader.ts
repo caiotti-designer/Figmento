@@ -21,11 +21,7 @@ export const getRelevantReferences = (
   mood?: string | string[],
   limit: number = 1
 ): ReferenceEntry[] => {
-  const moodList = !mood
-    ? []
-    : Array.isArray(mood)
-    ? mood.map((m) => m.toLowerCase())
-    : [mood.toLowerCase()];
+  const moodList = !mood ? [] : Array.isArray(mood) ? mood.map((m) => m.toLowerCase()) : [mood.toLowerCase()];
 
   const scored: Array<{ ref: ReferenceEntry; score: number }> = [];
 

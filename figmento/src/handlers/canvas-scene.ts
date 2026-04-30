@@ -131,7 +131,9 @@ export async function handleCloneNode(params: Record<string, unknown>): Promise<
   // If the clone is an image placed into an auto-layout parent, set FILL sizing
   // so it stretches to cover the parent frame (e.g., background images).
   if (targetParent && 'layoutMode' in targetParent && targetParent.layoutMode !== 'NONE') {
-    const isImageNode = 'fills' in clone && Array.isArray((clone as GeometryMixin).fills) &&
+    const isImageNode =
+      'fills' in clone &&
+      Array.isArray((clone as GeometryMixin).fills) &&
       ((clone as GeometryMixin).fills as ReadonlyArray<Paint>).some((f: Paint) => f.type === 'IMAGE');
     if (isImageNode && 'layoutSizingHorizontal' in clone) {
       (clone as FrameNode).layoutSizingHorizontal = 'FILL';
@@ -236,10 +238,12 @@ export async function handleCloneWithOverrides(params: Record<string, unknown>):
         }
 
         if (props.color !== undefined && 'fills' in child) {
-          (child as GeometryMixin).fills = [{
-            type: 'SOLID',
-            color: hexToRgb(props.color),
-          }];
+          (child as GeometryMixin).fills = [
+            {
+              type: 'SOLID',
+              color: hexToRgb(props.color),
+            },
+          ];
         }
 
         if (props.opacity !== undefined && 'opacity' in child) {
@@ -271,7 +275,9 @@ export async function handleGroupNodes(params: Record<string, unknown>): Promise
   if (!parent) throw new Error(`Node ${nodeIds[0]} has no parent`);
   for (let i = 1; i < nodes.length; i++) {
     if (nodes[i].parent !== parent) {
-      throw new Error(`PARENT_MISMATCH: Nodes must share the same parent. "${nodes[i].name}" (${nodeIds[i]}) has a different parent than "${nodes[0].name}" (${nodeIds[0]})`);
+      throw new Error(
+        `PARENT_MISMATCH: Nodes must share the same parent. "${nodes[i].name}" (${nodeIds[i]}) has a different parent than "${nodes[0].name}" (${nodeIds[0]})`
+      );
     }
   }
 
@@ -320,7 +326,13 @@ export async function handleBooleanOperation(params: Record<string, unknown>): P
 
   if (params.name) result.name = params.name as string;
 
-  return { nodeId: result.id, name: result.name, type: result.type, width: Math.round(result.width), height: Math.round(result.height) };
+  return {
+    nodeId: result.id,
+    name: result.name,
+    type: result.type,
+    width: Math.round(result.width),
+    height: Math.round(result.height),
+  };
 }
 
 export async function handleFlattenNodes(params: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -341,7 +353,13 @@ export async function handleFlattenNodes(params: Record<string, unknown>): Promi
 
   if (params.name) result.name = params.name as string;
 
-  return { nodeId: result.id, name: result.name, type: result.type, width: Math.round(result.width), height: Math.round(result.height) };
+  return {
+    nodeId: result.id,
+    name: result.name,
+    type: result.type,
+    width: Math.round(result.width),
+    height: Math.round(result.height),
+  };
 }
 
 export async function handleImportComponentByKey(params: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -366,8 +384,9 @@ export async function handleImportComponentByKey(params: Record<string, unknown>
   if (component.type === 'COMPONENT_SET') {
     const variantName = params.variantName as string | undefined;
     if (variantName) {
-      const variant = component.children.find(c => c.name === variantName) ||
-                       component.children.find(c => c.name.toLowerCase().includes(variantName.toLowerCase()));
+      const variant =
+        component.children.find((c) => c.name === variantName) ||
+        component.children.find((c) => c.name.toLowerCase().includes(variantName.toLowerCase()));
       targetComponent = (variant || component.defaultVariant || component.children[0]) as ComponentNode;
     } else {
       targetComponent = (component.defaultVariant || component.children[0]) as ComponentNode;
@@ -387,7 +406,7 @@ export async function handleImportComponentByKey(params: Record<string, unknown>
   // List variants if component set
   let variants: Array<{ id: string; name: string }> | null = null;
   if (component.type === 'COMPONENT_SET') {
-    variants = component.children.map(v => ({ id: v.id, name: v.name }));
+    variants = component.children.map((v) => ({ id: v.id, name: v.name }));
   }
 
   return {
@@ -521,7 +540,7 @@ export async function handleListAvailableFonts(params: Record<string, unknown>):
   // Sort alphabetically and limit
   const allFamilies = Array.from(familyMap.keys()).sort();
   const limitedFamilies = allFamilies.slice(0, limit);
-  const fonts = limitedFamilies.map(family => ({
+  const fonts = limitedFamilies.map((family) => ({
     family,
     styles: familyMap.get(family)!,
   }));
@@ -561,7 +580,7 @@ export async function handleGetSelection(): Promise<Record<string, unknown>> {
     return { count: 0, nodes: [] };
   }
 
-  const nodes = selection.map(node => ({
+  const nodes = selection.map((node) => ({
     nodeId: node.id,
     name: node.name,
     type: node.type,
@@ -587,7 +606,7 @@ export async function handleGetNodeInfo(params: Record<string, unknown>): Promis
 
 export async function handleGetPageNodes(): Promise<Record<string, unknown>> {
   const children = figma.currentPage.children;
-  const nodes = children.map(node => ({
+  const nodes = children.map((node) => ({
     nodeId: node.id,
     name: node.name,
     type: node.type,

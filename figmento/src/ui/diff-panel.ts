@@ -13,11 +13,16 @@ import type { CorrectionEntry } from '../types';
 
 export function getCategoryIcon(category: string): string {
   switch (category) {
-    case 'typography': return '🔤';
-    case 'color':      return '🎨';
-    case 'spacing':    return '📐';
-    case 'shape':      return '⬜';
-    default:           return '✏️';
+    case 'typography':
+      return '🔤';
+    case 'color':
+      return '🎨';
+    case 'spacing':
+      return '📐';
+    case 'shape':
+      return '⬜';
+    default:
+      return '✏️';
   }
 }
 
@@ -27,9 +32,19 @@ export function formatValue(property: string, value: unknown): string {
   if (value === null || value === undefined) return '—';
 
   const numericPxProps = new Set([
-    'width', 'height', 'x', 'y', 'fontSize', 'cornerRadius',
-    'itemSpacing', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-    'lineHeight', 'strokeWeight',
+    'width',
+    'height',
+    'x',
+    'y',
+    'fontSize',
+    'cornerRadius',
+    'itemSpacing',
+    'paddingTop',
+    'paddingRight',
+    'paddingBottom',
+    'paddingLeft',
+    'lineHeight',
+    'strokeWeight',
   ]);
 
   if (numericPxProps.has(property)) {
@@ -81,7 +96,7 @@ export function renderDiffPanel(
   panel.appendChild(header);
 
   // Track which entries are checked
-  const checkedState = new Map<string, boolean>(corrections.map(c => [c.id, true]));
+  const checkedState = new Map<string, boolean>(corrections.map((c) => [c.id, true]));
 
   const saveBtn = document.createElement('button');
   saveBtn.className = 'diff-save-btn';
@@ -149,7 +164,7 @@ export function renderDiffPanel(
 
   updateSaveLabel();
   saveBtn.addEventListener('click', () => {
-    const confirmed = corrections.filter(c => checkedState.get(c.id) === true);
+    const confirmed = corrections.filter((c) => checkedState.get(c.id) === true);
     onSave(confirmed);
   });
 

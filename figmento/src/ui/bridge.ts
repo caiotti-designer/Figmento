@@ -1,26 +1,30 @@
 /**
  * Figmento Bridge Module — WebSocket relay for MCP server.
- * FN-15: Updated to sync state across Status Tab, Settings Advanced section,
- * and the original hidden Bridge tab elements.
+ *
+ * State backed by nanostores (see stores.ts). Module-level mutations go
+ * through atoms so subscribers (status dot, future UI) react automatically.
+ * Backward-compat getter functions (getBridgeChannelId, etc.) wrap atom.get().
  */
+
+import {
+  $bridgeChannelId,
+  $bridgeCommandCount,
+  $bridgeConnected,
+  $bridgeErrorCount,
+  $relayState,
+} from './stores';
 
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════
 
 const DEFAULT_CHANNEL = 'figmento-local';
+
 // ═══════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════
 
 let ws: WebSocket | null = null;
-let bridgeChannelId: string | null = null;
-let isBridgeConnected = false;
-let bridgeCommandCount = 0;
-let bridgeErrorCount = 0;
-
-/** External callback invoked whenever bridge connection state changes. */
-let onBridgeStateChange: ((connected: boolean, channelId: string | null, cmds: number, errs: number) => void) | null = null;
 
 // ═══════════════════════════════════════════════════════════════
 // DOM HELPERS
@@ -38,26 +42,23 @@ function postToSandbox(msg: Record<string, unknown>) {
 // ═══════════════════════════════════════════════════════════════
 // PUBLIC API
 // ═══════════════════════════════════════════════════════════════
+// Thin wrappers around store atoms for back-compat with chat.ts / image-studio.ts.
+// New code should subscribe directly to atoms in stores.ts.
 
 export function getBridgeChannelId(): string | null {
-  return bridgeChannelId;
+  return $bridgeChannelId.get();
 }
 
 export function getBridgeConnected(): boolean {
-  return isBridgeConnected;
+  return $bridgeConnected.get();
 }
 
 export function getBridgeCommandCount(): number {
-  return bridgeCommandCount;
+  return $bridgeCommandCount.get();
 }
 
 export function getBridgeErrorCount(): number {
-  return bridgeErrorCount;
-}
-
-/** Register a callback for bridge state changes (used by Status Tab). */
-export function setOnBridgeStateChange(cb: ((connected: boolean, channelId: string | null, cmds: number, errs: number) => void) | null) {
-  onBridgeStateChange = cb;
+  return $bridgeErrorCount.get();
 }
 
 export function initBridge() {
@@ -72,12 +73,14 @@ export function initBridge() {
   // Sync dropdowns on change
   const urlSelect = $safe('bridge-url') as HTMLSelectElement | null;
   const advUrlSelect = $safe('bridge-adv-url') as HTMLSelectElement | null;
-  if (urlSelect) urlSelect.addEventListener('change', () => {
-    if (advUrlSelect) advUrlSelect.value = urlSelect.value;
-  });
-  if (advUrlSelect) advUrlSelect.addEventListener('change', () => {
-    if (urlSelect) urlSelect.value = advUrlSelect.value;
-  });
+  if (urlSelect)
+    urlSelect.addEventListener('change', () => {
+      if (advUrlSelect) advUrlSelect.value = urlSelect.value;
+    });
+  if (advUrlSelect)
+    advUrlSelect.addEventListener('change', () => {
+      if (urlSelect) urlSelect.value = advUrlSelect.value;
+    });
 }
 
 /** Restore saved relay URL into bridge dropdowns. Called when settings load. */
@@ -97,17 +100,22 @@ export function restoreBridgeRelayUrl(savedUrl: string) {
  * @param channel - Optional channel override. Falls back to stored or default channel.
  */
 export function autoConnectBridge(relayUrl: string, channel?: string) {
-  console.log(`[Figmento Bridge] autoConnectBridge called: connected=${isBridgeConnected} wsState=${ws?.readyState} url=${relayUrl} channel=${channel}`);
+  const connected = $bridgeConnected.get();
+  console.log(
+    `[Figmento Bridge] autoConnectBridge called: connected=${connected} wsState=${ws?.readyState} url=${relayUrl} channel=${channel}`
+  );
   // Already connected — just re-notify status (fixes stale "Relay: Off" label)
-  if (isBridgeConnected && ws && ws.readyState === WebSocket.OPEN) {
+  if (connected && ws && ws.readyState === WebSocket.OPEN) {
     console.log('[Figmento Bridge] already connected -> re-notifying relay status');
-    notifyRelayStatus('connected');
-    notifyStateChange();
+    $relayState.set('connected');
     return;
   }
 
   // Close any existing stale connection
-  if (ws) { ws.close(); ws = null; }
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
 
   // Convert HTTP(S) URL to WS(S) for the bridge connection
   let wsUrl = relayUrl;
@@ -116,9 +124,10 @@ export function autoConnectBridge(relayUrl: string, channel?: string) {
   if (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) wsUrl = 'wss://' + wsUrl;
 
   // DX-1 AC7/AC8: Use provided channel, or fall back to default
-  bridgeChannelId = channel || DEFAULT_CHANNEL;
+  const channelId = channel || DEFAULT_CHANNEL;
+  $bridgeChannelId.set(channelId);
   // Persist channel to clientStorage for next session
-  postToSandbox({ type: 'save-bridge-channel', channel: bridgeChannelId });
+  postToSandbox({ type: 'save-bridge-channel', channel: channelId });
   addBridgeLog(`[Auto] Connecting to ${wsUrl}...`, 'sys');
 
   // Sync dropdown selections
@@ -127,30 +136,33 @@ export function autoConnectBridge(relayUrl: string, channel?: string) {
   const advUrlSelect = $safe('bridge-adv-url') as HTMLSelectElement | null;
   if (advUrlSelect) advUrlSelect.value = wsUrl;
 
-  notifyRelayStatus('connecting');
-  notifyStateChange();
+  $relayState.set('connecting');
 
   try {
     ws = new WebSocket(wsUrl);
   } catch (e) {
     addBridgeLog(`[Auto] Failed: ${(e as Error).message}`, 'err');
-    notifyRelayStatus('error');
+    $relayState.set('error');
     return;
   }
 
   ws.onopen = () => {
     addBridgeLog('[Auto] WebSocket connected', 'ok');
-    ws!.send(JSON.stringify({ type: 'join', channel: bridgeChannelId }));
+    ws!.send(JSON.stringify({ type: 'join', channel: $bridgeChannelId.get() }));
   };
 
   ws.onmessage = (event) => {
     let msg: Record<string, unknown>;
-    try { msg = JSON.parse(event.data as string); } catch { return; }
+    try {
+      msg = JSON.parse(event.data as string);
+    } catch {
+      return;
+    }
 
     if (msg.type === 'joined') {
       setBridgeConnected(true);
       addBridgeLog(`[Auto] Joined channel: ${msg.channel} (${msg.clients} client(s))`, 'ok');
-      notifyRelayStatus('connected');
+      $relayState.set('connected');
       return;
     }
 
@@ -167,7 +179,7 @@ export function autoConnectBridge(relayUrl: string, channel?: string) {
     }
 
     if (msg.type === 'command') {
-      bridgeCommandCount++;
+      $bridgeCommandCount.set($bridgeCommandCount.get() + 1);
       updateCommandCounts();
       addBridgeLog(`CMD ${msg.id}: ${msg.action}`, 'cmd');
       postToSandbox({ type: 'execute-command', command: msg });
@@ -182,38 +194,43 @@ export function autoConnectBridge(relayUrl: string, channel?: string) {
   ws.onclose = () => {
     setBridgeConnected(false);
     addBridgeLog('[Auto] WebSocket disconnected', 'err');
-    notifyRelayStatus('disconnected');
+    $relayState.set('disconnected');
     ws = null;
   };
 
   ws.onerror = () => {
     addBridgeLog('[Auto] WebSocket error', 'err');
-    notifyRelayStatus('error');
+    $relayState.set('error');
   };
 }
 
-/** Update relay status indicator in the Chat tab. */
-function notifyRelayStatus(state: string) {
-  const dot = document.getElementById('relay-status-dot');
-  const label = document.getElementById('relay-status-label');
-  const channelDisplay = document.getElementById('relay-channel-display');
-  console.log(`[Figmento Bridge] notifyRelayStatus('${state}'): dot=${!!dot} label=${!!label} channelId=${bridgeChannelId}`);
-  if (!dot || !label) return;
+// Subscribe the header status dot (inside settingsBtn) to $relayState.
+// Atom-driven: green = connected, red = error, grey = off/connecting/fallback.
+// Subscription is set up once at module load — no need to call from elsewhere.
+$relayState.subscribe((state) => {
+  const dot = document.getElementById('statusDot');
+  const settingsBtn = document.getElementById('settingsBtn');
+  if (!dot) return;
 
-  dot.className = 'relay-dot ' + state;
-  const labels: Record<string, string> = {
-    disconnected: 'Relay: Off',
-    connecting: 'Relay: Connecting...',
-    connected: 'Relay: Connected',
-    fallback: 'Relay: Fallback (direct)',
-    error: 'Relay: Error',
-  };
-  label.textContent = labels[state] || 'Relay: Unknown';
-
-  if (channelDisplay) {
-    channelDisplay.textContent = (state === 'connected' && bridgeChannelId) ? bridgeChannelId : '';
+  dot.classList.remove('connected', 'error', 'warning');
+  if (state === 'connected') {
+    dot.classList.add('connected');
+  } else if (state === 'error') {
+    dot.classList.add('error');
   }
-}
+  // disconnected, connecting, fallback → no class → default grey
+
+  if (settingsBtn) {
+    const labels: Record<typeof state, string> = {
+      disconnected: 'Relay: Off',
+      connecting: 'Relay: Connecting…',
+      connected: 'Relay: Connected',
+      fallback: 'Relay: Fallback (direct API)',
+      error: 'Relay: Error',
+    };
+    settingsBtn.setAttribute('title', labels[state] || 'Settings');
+  }
+});
 
 /**
  * Send a raw message through the bridge WebSocket.
@@ -246,7 +263,7 @@ export function handleBridgeCommandResult(resp: Record<string, unknown>) {
   if (resp.success) {
     addBridgeLog(`RSP ${cmdId}: OK`, 'ok');
   } else {
-    bridgeErrorCount++;
+    $bridgeErrorCount.set($bridgeErrorCount.get() + 1);
     updateCommandCounts();
     addBridgeLog(`RSP ${cmdId}: ERR ${resp.error}`, 'err');
   }
@@ -260,32 +277,27 @@ export function handleBridgeCommandResult(resp: Record<string, unknown>) {
 // BRIDGE — INTERNALS
 // ═══════════════════════════════════════════════════════════════
 
-/** Notify the external state change listener (Status Tab). */
-function notifyStateChange() {
-  if (onBridgeStateChange) {
-    onBridgeStateChange(isBridgeConnected, bridgeChannelId, bridgeCommandCount, bridgeErrorCount);
-  }
-}
-
 /** Update command/error counts across all Bridge DOM locations. */
 function updateCommandCounts() {
+  const cmds = $bridgeCommandCount.get();
+  const errs = $bridgeErrorCount.get();
+
   // Original hidden Bridge tab
   const origCmd = $safe('bridge-cmd-count');
-  if (origCmd) origCmd.textContent = String(bridgeCommandCount);
+  if (origCmd) origCmd.textContent = String(cmds);
   const origErr = $safe('bridge-err-count');
-  if (origErr) origErr.textContent = String(bridgeErrorCount);
+  if (origErr) origErr.textContent = String(errs);
 
   // Settings Advanced section
   const advCmd = $safe('bridge-adv-cmd-count');
-  if (advCmd) advCmd.textContent = String(bridgeCommandCount);
+  if (advCmd) advCmd.textContent = String(cmds);
   const advErr = $safe('bridge-adv-err-count');
-  if (advErr) advErr.textContent = String(bridgeErrorCount);
-
-  notifyStateChange();
+  if (advErr) advErr.textContent = String(errs);
 }
 
 function setBridgeConnected(connected: boolean) {
-  isBridgeConnected = connected;
+  $bridgeConnected.set(connected);
+  const channelId = $bridgeChannelId.get();
 
   // Original hidden Bridge tab elements
   const origDot = $safe('bridge-dot');
@@ -298,7 +310,7 @@ function setBridgeConnected(connected: boolean) {
     origBtn.className = 'btn' + (connected ? ' btn-danger' : ' btn-primary');
   }
   const origChannel = $safe('bridge-channel');
-  if (origChannel) origChannel.textContent = connected ? bridgeChannelId! : '---';
+  if (origChannel) origChannel.textContent = connected && channelId ? channelId : '---';
   const origHint = $safe('channel-hint');
   if (origHint) origHint.textContent = connected ? 'Click to copy' : 'Select & copy to use with Claude Code';
 
@@ -309,7 +321,7 @@ function setBridgeConnected(connected: boolean) {
     advBtn.className = 'bridge-btn' + (connected ? ' btn-danger' : '');
   }
   const advChannel = $safe('bridge-adv-channel');
-  if (advChannel) advChannel.textContent = connected ? bridgeChannelId! : '---';
+  if (advChannel) advChannel.textContent = connected && channelId ? channelId : '---';
   const advHint = $safe('bridge-adv-hint');
   if (advHint) advHint.textContent = connected ? 'Click to copy' : 'Select & copy to use with Claude Code';
 
@@ -318,17 +330,22 @@ function setBridgeConnected(connected: boolean) {
 
 // Expose globally for onclick in HTML
 (window as any).copyChannelId = function copyChannelId() {
-  if (!bridgeChannelId) return;
+  const channelId = $bridgeChannelId.get();
+  if (!channelId) return;
 
   const ta = document.createElement('textarea');
-  ta.value = bridgeChannelId;
+  ta.value = channelId;
   ta.style.position = 'fixed';
   ta.style.left = '-9999px';
   ta.style.top = '-9999px';
   document.body.appendChild(ta);
   ta.select();
   let ok = false;
-  try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+  try {
+    ok = document.execCommand('copy');
+  } catch (_) {
+    ok = false;
+  }
   document.body.removeChild(ta);
 
   // Flash feedback on all channel display elements
@@ -348,7 +365,10 @@ function setBridgeConnected(connected: boolean) {
       if (el) {
         el.textContent = 'Copied!';
         el.style.color = '#4ade80';
-        setTimeout(() => { el.textContent = 'Click to copy'; el.style.color = ''; }, 1500);
+        setTimeout(() => {
+          el.textContent = 'Click to copy';
+          el.style.color = '';
+        }, 1500);
       }
     }
     // Also flash the Status Tab channel value
@@ -356,13 +376,20 @@ function setBridgeConnected(connected: boolean) {
     if (statusChannel) {
       const orig = statusChannel.style.color;
       statusChannel.style.color = '#4ade80';
-      setTimeout(() => { statusChannel.style.color = orig; }, 1500);
+      setTimeout(() => {
+        statusChannel.style.color = orig;
+      }, 1500);
     }
   }
 };
 
 function addBridgeLog(text: string, type: string = 'sys') {
-  const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const time = new Date().toLocaleTimeString('en-US', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
   const content = `${time}  ${text}`;
 
   // Write to both log areas
@@ -380,10 +407,13 @@ function addBridgeLog(text: string, type: string = 'sys') {
 }
 
 function toggleBridge() {
-  if (isBridgeConnected) {
-    if (ws) { ws.close(); ws = null; }
+  if ($bridgeConnected.get()) {
+    if (ws) {
+      ws.close();
+      ws = null;
+    }
     setBridgeConnected(false);
-    notifyRelayStatus('disconnected');
+    $relayState.set('disconnected');
     addBridgeLog('Disconnected', 'sys');
   } else {
     connectBridge('bridge-url');
@@ -391,10 +421,13 @@ function toggleBridge() {
 }
 
 function toggleBridgeFromAdvanced() {
-  if (isBridgeConnected) {
-    if (ws) { ws.close(); ws = null; }
+  if ($bridgeConnected.get()) {
+    if (ws) {
+      ws.close();
+      ws = null;
+    }
     setBridgeConnected(false);
-    notifyRelayStatus('disconnected');
+    $relayState.set('disconnected');
     addBridgeLog('Disconnected', 'sys');
   } else {
     connectBridge('bridge-adv-url');
@@ -415,9 +448,10 @@ function connectBridge(urlInputId: string) {
   postToSandbox({ type: 'save-bridge-relay-url', url });
 
   // AC10: Use current channel if already set (manual override), otherwise default
-  bridgeChannelId = bridgeChannelId || DEFAULT_CHANNEL;
+  const channelId = $bridgeChannelId.get() || DEFAULT_CHANNEL;
+  $bridgeChannelId.set(channelId);
   // Persist manual channel choice
-  postToSandbox({ type: 'save-bridge-channel', channel: bridgeChannelId });
+  postToSandbox({ type: 'save-bridge-channel', channel: channelId });
   addBridgeLog(`Connecting to ${url}...`, 'sys');
 
   try {
@@ -429,18 +463,22 @@ function connectBridge(urlInputId: string) {
 
   ws.onopen = () => {
     addBridgeLog('WebSocket connected', 'ok');
-    ws!.send(JSON.stringify({ type: 'join', channel: bridgeChannelId }));
+    ws!.send(JSON.stringify({ type: 'join', channel: $bridgeChannelId.get() }));
   };
 
   ws.onmessage = (event) => {
     let msg: Record<string, unknown>;
-    try { msg = JSON.parse(event.data as string); } catch { return; }
+    try {
+      msg = JSON.parse(event.data as string);
+    } catch {
+      return;
+    }
 
     if (msg.type === 'joined') {
       setBridgeConnected(true);
       addBridgeLog(`Joined channel: ${msg.channel} (${msg.clients} client(s))`, 'ok');
       // Update Chat tab relay status on manual bridge connect too
-      notifyRelayStatus('connected');
+      $relayState.set('connected');
       return;
     }
 
@@ -451,7 +489,7 @@ function connectBridge(urlInputId: string) {
     }
 
     if (msg.type === 'command') {
-      bridgeCommandCount++;
+      $bridgeCommandCount.set($bridgeCommandCount.get() + 1);
       updateCommandCounts();
       addBridgeLog(`CMD ${msg.id}: ${msg.action}`, 'cmd');
       postToSandbox({ type: 'execute-command', command: msg });
@@ -466,7 +504,7 @@ function connectBridge(urlInputId: string) {
   ws.onclose = () => {
     setBridgeConnected(false);
     addBridgeLog('WebSocket disconnected', 'err');
-    notifyRelayStatus('disconnected');
+    $relayState.set('disconnected');
     ws = null;
   };
 

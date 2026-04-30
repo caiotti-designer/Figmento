@@ -89,10 +89,10 @@ function renderPreferences(prefs: LearnedPreference[]): void {
   }
 
   // Toggle events
-  list.querySelectorAll<HTMLInputElement>('.pref-toggle').forEach(cb => {
+  list.querySelectorAll<HTMLInputElement>('.pref-toggle').forEach((cb) => {
     cb.addEventListener('change', () => {
       const id = cb.dataset.id!;
-      const pref = currentPreferences.find(p => p.id === id);
+      const pref = currentPreferences.find((p) => p.id === id);
       if (!pref) return;
       pref.enabled = cb.checked;
       cb.closest('.pref-card')?.classList.toggle('disabled', !cb.checked);
@@ -101,10 +101,10 @@ function renderPreferences(prefs: LearnedPreference[]): void {
   });
 
   // Delete events
-  list.querySelectorAll<HTMLButtonElement>('.pref-card-delete').forEach(btn => {
+  list.querySelectorAll<HTMLButtonElement>('.pref-card-delete').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.id!;
-      currentPreferences = currentPreferences.filter(p => p.id !== id);
+      currentPreferences = currentPreferences.filter((p) => p.id !== id);
       postToSandbox({ type: 'delete-preference', preferenceId: id });
       renderPreferences(currentPreferences);
     });

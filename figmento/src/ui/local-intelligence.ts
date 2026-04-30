@@ -4,13 +4,7 @@
  * These are the chat-mode equivalents of the MCP server's intelligence tools.
  */
 
-import {
-  PALETTES,
-  FONT_PAIRINGS,
-  SIZE_PRESETS,
-  BLUEPRINTS,
-  DESIGN_RULES,
-} from '../knowledge/compiled-knowledge';
+import { PALETTES, FONT_PAIRINGS, SIZE_PRESETS, BLUEPRINTS, DESIGN_RULES } from '../knowledge/compiled-knowledge';
 
 // ── Blueprint Lookup ──
 
@@ -30,20 +24,20 @@ export function lookupBlueprint(args: Record<string, unknown>): unknown {
   const mood = args.mood ? String(args.mood).toLowerCase() : null;
   const subcategory = args.subcategory ? String(args.subcategory).toLowerCase() : null;
 
-  let candidates = BLUEPRINTS.filter(b => b.category === category);
+  let candidates = BLUEPRINTS.filter((b) => b.category === category);
 
   if (subcategory) {
-    const subFiltered = candidates.filter(b => b.subcategory === subcategory);
+    const subFiltered = candidates.filter((b) => b.subcategory === subcategory);
     if (subFiltered.length > 0) candidates = subFiltered;
   }
 
   if (candidates.length === 0) {
-    const categories = [...new Set(BLUEPRINTS.map(b => b.category))];
+    const categories = [...new Set(BLUEPRINTS.map((b) => b.category))];
     return { error: `No blueprints found for category "${category}". Available: ${categories.join(', ')}` };
   }
 
   if (mood) {
-    const scored = candidates.map(b => ({
+    const scored = candidates.map((b) => ({
       blueprint: b,
       score: scoreMoodMatch(b.mood, mood),
     }));
@@ -65,11 +59,11 @@ export function lookupPalette(args: Record<string, unknown>): unknown {
   if (PALETTES[mood]) return PALETTES[mood];
 
   for (const palette of Object.values(PALETTES)) {
-    if (palette.mood_tags.some(t => t === mood)) return palette;
+    if (palette.mood_tags.some((t) => t === mood)) return palette;
   }
 
   for (const palette of Object.values(PALETTES)) {
-    if (palette.mood_tags.some(t => t.includes(mood) || mood.includes(t))) return palette;
+    if (palette.mood_tags.some((t) => t.includes(mood) || mood.includes(t))) return palette;
   }
 
   const keys = Object.keys(PALETTES);
@@ -84,11 +78,11 @@ export function lookupFonts(args: Record<string, unknown>): unknown {
   if (FONT_PAIRINGS[mood]) return FONT_PAIRINGS[mood];
 
   for (const fp of Object.values(FONT_PAIRINGS)) {
-    if (fp.mood_tags.some(t => t === mood)) return fp;
+    if (fp.mood_tags.some((t) => t === mood)) return fp;
   }
 
   for (const fp of Object.values(FONT_PAIRINGS)) {
-    if (fp.mood_tags.some(t => t.includes(mood) || mood.includes(t))) return fp;
+    if (fp.mood_tags.some((t) => t.includes(mood) || mood.includes(t))) return fp;
   }
 
   const keys = Object.keys(FONT_PAIRINGS);
@@ -121,7 +115,7 @@ function relativeLuminance(hex: string): number {
   const r = parseInt(h.slice(0, 2), 16) / 255;
   const g = parseInt(h.slice(2, 4), 16) / 255;
   const b = parseInt(h.slice(4, 6), 16) / 255;
-  const toLinear = (c: number) => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
   return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
 }
 
@@ -134,25 +128,37 @@ function contrastCheck(args: Record<string, unknown>): unknown {
   const darker = Math.min(fgLum, bgLum);
   const ratio = Math.round(((lighter + 0.05) / (darker + 0.05)) * 100) / 100;
   return {
-    foreground: fg, background: bg, ratio,
-    AA_normal_text: ratio >= 4.5, AA_large_text: ratio >= 3,
-    AAA_normal_text: ratio >= 7, AAA_large_text: ratio >= 4.5,
+    foreground: fg,
+    background: bg,
+    ratio,
+    AA_normal_text: ratio >= 4.5,
+    AA_large_text: ratio >= 3,
+    AAA_normal_text: ratio >= 7,
+    AAA_large_text: ratio >= 4.5,
   };
 }
 
 // ── Design Rules Lookup ──
 
 function lookupDesignRules(args: Record<string, unknown>): unknown {
-  const cat = String(args.category || 'all').toLowerCase().replace(/-/g, '_');
+  const cat = String(args.category || 'all')
+    .toLowerCase()
+    .replace(/-/g, '_');
   if (!DESIGN_RULES || Object.keys(DESIGN_RULES).length === 0) {
     return { error: 'Design rules not available.' };
   }
   if (cat === 'all') return DESIGN_RULES;
   const keyMap: Record<string, string> = {
-    anti_patterns: 'anti_patterns', antipatterns: 'anti_patterns',
-    gradients: 'gradients', taste: 'taste', typography: 'typography',
-    layout: 'layout', color: 'color', print: 'print',
-    evaluation: 'evaluation', refinement: 'refinement',
+    anti_patterns: 'anti_patterns',
+    antipatterns: 'anti_patterns',
+    gradients: 'gradients',
+    taste: 'taste',
+    typography: 'typography',
+    layout: 'layout',
+    color: 'color',
+    print: 'print',
+    evaluation: 'evaluation',
+    refinement: 'refinement',
   };
   const key = keyMap[cat] || cat;
   const result = (DESIGN_RULES as Record<string, unknown>)[key];
@@ -267,8 +273,8 @@ function suggestFontPairing(args: Record<string, unknown>): unknown {
   const fontLower = font.toLowerCase();
 
   // Find pairings where this font is used as heading or body
-  const asHeading = allPairings.filter(fp => fp.heading_font.toLowerCase() === fontLower);
-  const asBody = allPairings.filter(fp => fp.body_font.toLowerCase() === fontLower);
+  const asHeading = allPairings.filter((fp) => fp.heading_font.toLowerCase() === fontLower);
+  const asBody = allPairings.filter((fp) => fp.body_font.toLowerCase() === fontLower);
   const inPairing = [...asHeading, ...asBody];
 
   // Build similar suggestions (same mood family)
@@ -314,10 +320,10 @@ function suggestFontPairing(args: Record<string, unknown>): unknown {
 
   // Similar: fonts from pairings with overlapping mood tags
   if (inPairing.length > 0) {
-    const sourceMoods = new Set(inPairing.flatMap(fp => fp.mood_tags));
+    const sourceMoods = new Set(inPairing.flatMap((fp) => fp.mood_tags));
     for (const fp of allPairings) {
       if (inPairing.includes(fp)) continue;
-      const overlap = fp.mood_tags.filter(t => sourceMoods.has(t)).length;
+      const overlap = fp.mood_tags.filter((t) => sourceMoods.has(t)).length;
       if (overlap > 0) {
         // Add heading font if different from source
         if (fp.heading_font.toLowerCase() !== fontLower) {
@@ -371,7 +377,7 @@ function suggestFontPairing(args: Record<string, unknown>): unknown {
   // Deduplicate by font name
   const dedup = <T extends { font: string }>(arr: T[]): T[] => {
     const seen = new Set<string>();
-    return arr.filter(item => {
+    return arr.filter((item) => {
       if (seen.has(item.font)) return false;
       seen.add(item.font);
       return true;
@@ -410,7 +416,13 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
 
 function rgbToHex(r: number, g: number, b: number): string {
   const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
-  return '#' + [clamp(r), clamp(g), clamp(b)].map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase();
+  return (
+    '#' +
+    [clamp(r), clamp(g), clamp(b)]
+      .map((c) => c.toString(16).padStart(2, '0'))
+      .join('')
+      .toUpperCase()
+  );
 }
 
 function contrastRatio(hex1: string, hex2: string): number {
@@ -524,11 +536,17 @@ function generateAccessiblePalette(args: Record<string, unknown>): unknown {
 function designGuidanceDispatcher(args: Record<string, unknown>): unknown {
   const aspect = String(args.aspect || '').toLowerCase();
   switch (aspect) {
-    case 'color': return lookupPalette(args);
-    case 'font': case 'typography': return lookupFonts(args);
-    case 'size': return lookupSize(args);
-    case 'layout': return lookupBlueprint(args);
-    case 'contrast': return contrastCheck(args);
+    case 'color':
+      return lookupPalette(args);
+    case 'font':
+    case 'typography':
+      return lookupFonts(args);
+    case 'size':
+      return lookupSize(args);
+    case 'layout':
+      return lookupBlueprint(args);
+    case 'contrast':
+      return contrastCheck(args);
     default:
       return { error: `Unknown aspect "${aspect}". Use: color | font | size | layout | contrast` };
   }

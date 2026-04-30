@@ -14,7 +14,7 @@ import type { LearnedPreference, DesignSystemCache, DiscoveredComponent } from '
 const CONFIDENCE_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
 function buildPreferencesBlock(preferences: LearnedPreference[]): string {
-  const enabled = preferences.filter(p => p.enabled !== false);
+  const enabled = preferences.filter((p) => p.enabled !== false);
   if (enabled.length === 0) return '';
 
   const sorted = enabled.slice().sort((a, b) => {
@@ -25,8 +25,9 @@ function buildPreferencesBlock(preferences: LearnedPreference[]): string {
 
   const top20 = sorted.slice(0, 20);
 
-  const lines = top20.map(p =>
-    `- [${p.confidence} confidence] ${p.context} ${p.property}: ${p.description} (based on ${p.correctionCount} corrections)`
+  const lines = top20.map(
+    (p) =>
+      `- [${p.confidence} confidence] ${p.context} ${p.property}: ${p.description} (based on ${p.correctionCount} corrections)`
   );
 
   return `
@@ -72,13 +73,13 @@ function findBestBlueprint(brief: DesignBrief): Blueprint | null {
     if (brief.mood) {
       const moodWords = brief.mood.split('-');
       for (const mw of moodWords) {
-        if (bp.mood.some(m => m.includes(mw))) score += 2;
+        if (bp.mood.some((m) => m.includes(mw))) score += 2;
       }
     }
 
     // Keyword match against blueprint mood tags
     for (const kw of brief.keywords) {
-      if (bp.mood.some(m => m.includes(kw))) score += 0.5;
+      if (bp.mood.some((m) => m.includes(kw))) score += 0.5;
       if (bp.name.toLowerCase().includes(kw)) score += 1;
     }
 
@@ -92,9 +93,16 @@ function findBestBlueprint(brief: DesignBrief): Blueprint | null {
 }
 
 function mapFormatToCategory(format: string): string | null {
-  if (format.startsWith('ig-') || format.startsWith('fb-') || format.startsWith('x-') ||
-      format.startsWith('linkedin-') || format.startsWith('pinterest') ||
-      format.startsWith('tiktok') || format.startsWith('yt-') || format.startsWith('snapchat')) {
+  if (
+    format.startsWith('ig-') ||
+    format.startsWith('fb-') ||
+    format.startsWith('x-') ||
+    format.startsWith('linkedin-') ||
+    format.startsWith('pinterest') ||
+    format.startsWith('tiktok') ||
+    format.startsWith('yt-') ||
+    format.startsWith('snapchat')
+  ) {
     // Social formats often map to "ads" or "social" blueprints
     return 'ads';
   }
@@ -137,8 +145,8 @@ RECOMMENDED FONTS (${fp.name}):
   // Matching blueprint
   const blueprint = findBestBlueprint(brief);
   if (blueprint) {
-    const zoneLines = blueprint.zones.map(z => {
-      const elements = z.elements.map(e => e.role).join(', ');
+    const zoneLines = blueprint.zones.map((z) => {
+      const elements = z.elements.map((e) => e.role).join(', ');
       return `  ${z.name} (${Math.round(z.y_start_pct * 100)}%–${Math.round(z.y_end_pct * 100)}%): ${elements}`;
     });
 
@@ -148,7 +156,7 @@ Zone breakdown (multiply percentages by canvas height for pixel positions):
 ${zoneLines.join('\n')}
 
 Anti-generic rules (MUST follow):
-${blueprint.anti_generic.map(r => `  - ${r}`).join('\n')}
+${blueprint.anti_generic.map((r) => `  - ${r}`).join('\n')}
 
 Memorable element: ${blueprint.memorable_element || 'Create ONE standout visual element that makes this design unforgettable.'}
 Whitespace ratio: ${blueprint.whitespace_ratio || 0.45} (target content density)`);
@@ -164,7 +172,7 @@ MULTI-SECTION COMPOSITION RULES:
   Exception: ${cr.alternating_backgrounds.exception}
   Section gap: ${cr.vertical_rhythm.section_gap}px (${cr.vertical_rhythm.rule})
   Color continuity:
-${cr.color_continuity.rules.map(r => `    - ${r}`).join('\n')}
+${cr.color_continuity.rules.map((r) => `    - ${r}`).join('\n')}
   Pattern fills: hero_block=primary, feature_grid=surface, testimonial=surface, cta_banner=primary, content_section=background
   Never use the same background color on 3+ consecutive sections.`);
   }
@@ -180,7 +188,7 @@ function findBestFontPairing(mood: string): FontPairing | null {
   }
   // Tag match
   for (const fp of Object.values(FONT_PAIRINGS)) {
-    if (fp.mood_tags.some(t => mood.includes(t))) return fp;
+    if (fp.mood_tags.some((t) => mood.includes(t))) return fp;
   }
   return null;
 }
@@ -201,8 +209,18 @@ const DS_CHAR_CAP = 2000;
 
 /** Category sort priority — common UI categories surface first. */
 const CATEGORY_PRIORITY: Record<string, number> = {
-  button: 0, card: 1, input: 2, navigation: 3, badge: 4, avatar: 5,
-  icon: 6, modal: 7, menu: 8, tab: 9, header: 10, footer: 11,
+  button: 0,
+  card: 1,
+  input: 2,
+  navigation: 3,
+  badge: 4,
+  avatar: 5,
+  icon: 6,
+  modal: 7,
+  menu: 8,
+  tab: 9,
+  header: 10,
+  footer: 11,
 };
 
 function categorizePriority(cat: string): number {
@@ -237,9 +255,7 @@ export function buildDesignSystemBlock(cache: DesignSystemCache | null | undefin
     }
 
     // Sort categories by priority
-    const sortedCats = [...grouped.entries()].sort(
-      (a, b) => categorizePriority(a[0]) - categorizePriority(b[0])
-    );
+    const sortedCats = [...grouped.entries()].sort((a, b) => categorizePriority(a[0]) - categorizePriority(b[0]));
 
     const lines: string[] = [];
     let count = 0;
@@ -251,7 +267,7 @@ export function buildDesignSystemBlock(cache: DesignSystemCache | null | undefin
       const slice = comps.slice(0, remaining);
       count += slice.length;
 
-      const names = slice.map(c => {
+      const names = slice.map((c) => {
         if (c.nodeType === 'COMPONENT_SET' && c.variantProperties) {
           const variants = Object.entries(c.variantProperties)
             .map(([k, v]) => `${k}=${v.join('/')}`)
@@ -276,17 +292,31 @@ export function buildDesignSystemBlock(cache: DesignSystemCache | null | undefin
 
   // ── Color Variables (max 20, semantic first) — PRESCRIPTIVE ──
   if (hasVariables) {
-    const colorVars = (cache.variables as Array<{ name?: string; resolvedValue?: string; resolvedType?: string }>)
-      .filter(v => v.resolvedType === 'COLOR' && v.name && v.resolvedValue);
+    const colorVars = (
+      cache.variables as Array<{ name?: string; resolvedValue?: string; resolvedType?: string }>
+    ).filter((v) => v.resolvedType === 'COLOR' && v.name && v.resolvedValue);
 
     if (colorVars.length > 0) {
       // Sort: semantic names first (primary, secondary, surface, text, background, etc.)
-      const semanticKeywords = ['primary', 'secondary', 'accent', 'surface', 'background', 'text', 'muted', 'error', 'success', 'warning', 'border', 'foreground'];
+      const semanticKeywords = [
+        'primary',
+        'secondary',
+        'accent',
+        'surface',
+        'background',
+        'text',
+        'muted',
+        'error',
+        'success',
+        'warning',
+        'border',
+        'foreground',
+      ];
       const sorted = colorVars.slice().sort((a, b) => {
         const aName = (a.name || '').toLowerCase();
         const bName = (b.name || '').toLowerCase();
-        const aIdx = semanticKeywords.findIndex(kw => aName.includes(kw));
-        const bIdx = semanticKeywords.findIndex(kw => bName.includes(kw));
+        const aIdx = semanticKeywords.findIndex((kw) => aName.includes(kw));
+        const bIdx = semanticKeywords.findIndex((kw) => bName.includes(kw));
         const aPri = aIdx >= 0 ? aIdx : 100;
         const bPri = bIdx >= 0 ? bIdx : 100;
         return aPri - bPri;
@@ -296,7 +326,7 @@ export function buildDesignSystemBlock(cache: DesignSystemCache | null | undefin
       const slice = sorted.slice(0, MAX_COLORS);
 
       // Build prescriptive table rows: "| Role | Hex | Variable |"
-      const rows = slice.map(v => {
+      const rows = slice.map((v) => {
         // Derive role from variable name (last segment or full name)
         const role = (v.name || 'unknown').split('/').pop() || v.name || 'unknown';
         return `| ${role} | ${v.resolvedValue} | ${v.name} |`;
@@ -323,13 +353,14 @@ ${rows.join('\n')}
 
   // ── Text Styles (max 10) ──
   if (hasTextStyles) {
-    const styles = (cache.textStyles as Array<{ name?: string; fontFamily?: string; fontSize?: number; fontWeight?: number }>)
-      .filter(s => s.name);
+    const styles = (
+      cache.textStyles as Array<{ name?: string; fontFamily?: string; fontSize?: number; fontWeight?: number }>
+    ).filter((s) => s.name);
 
     if (styles.length > 0) {
       const MAX_TEXT_STYLES = 10;
       const slice = styles.slice(0, MAX_TEXT_STYLES);
-      const formatted = slice.map(s => {
+      const formatted = slice.map((s) => {
         const parts: string[] = [];
         if (s.fontFamily) parts.push(s.fontFamily);
         if (s.fontWeight && s.fontWeight >= 700) parts.push('Bold');
@@ -350,9 +381,9 @@ ${rows.join('\n')}
   // ── Behavioral instructions ──
   sections.push(
     `INSTRUCTIONS: Use the EXACT component names above with create_component — the system creates real component instances. ` +
-    `COLOR ENFORCEMENT: You MUST use ONLY the hex values from the color table above in set_style(property="fill"), set_style(property="stroke"), create_text(color), and create_frame(fillColor). ` +
-    `Do NOT invent new colors or use "close" shades. Copy-paste the hex from the table. ` +
-    `When setting typography, prefer listed text style names with apply_style(styleType="text").`
+      `COLOR ENFORCEMENT: You MUST use ONLY the hex values from the color table above in set_style(property="fill"), set_style(property="stroke"), create_text(color), and create_frame(fillColor). ` +
+      `Do NOT invent new colors or use "close" shades. Copy-paste the hex from the table. ` +
+      `When setting typography, prefer listed text style names with apply_style(styleType="text").`
   );
 
   let block = `\n\n═══════════════════════════════════════════════════════════
@@ -375,7 +406,7 @@ export function buildSystemPrompt(
   brief?: DesignBrief,
   memory?: string[],
   preferences?: LearnedPreference[],
-  designSystem?: DesignSystemCache | null,
+  designSystem?: DesignSystemCache | null
 ): string {
   let prompt = `You are Figmento, an expert design agent inside a Figma plugin. You create professional, polished designs directly on the Figma canvas using your tools. Use expert-level reasoning for layout, hierarchy, spacing, and color theory. Always use the brand kit when available.
 
@@ -797,4 +828,3 @@ ${memory.map((m, i) => `${i + 1}. ${m}`).join('\n')}`;
 
   return prompt;
 }
-

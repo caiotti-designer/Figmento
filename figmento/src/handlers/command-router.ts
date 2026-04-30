@@ -5,15 +5,84 @@ import { classifyError } from '../utils/error-classifier';
 import { PREFERENCES_STORAGE_KEY } from './storage';
 
 // Canvas handlers
-import { handleCreateFrame, handleCreateText, handleCreateRectangle, handleCreateEllipse, handleCreateImage, handleCreateIcon, handleCreateVector } from './canvas-create';
-import { handleSetFill, handleSetStroke, handleSetEffects, handleSetCornerRadius, handleSetOpacity, handleSetAutoLayout, handleSetText, handleFlipGradient, handleStyleTextRange } from './canvas-style';
-import { handleDeleteNode, handleMoveNode, handleResizeNode, handleRenameNode, handleAppendChild, handleReorderChild, handleCloneNode, handleCloneWithOverrides, handleGroupNodes, handleGetSelection, handleGetNodeInfo, handleGetPageNodes, handleFindNodes, handleListAvailableFonts, handleBooleanOperation, handleFlattenNodes, handleImportComponentByKey, handleImportStyleByKey } from './canvas-scene';
-import { handleExportNode, handleGetScreenshot, handleScanFrameStructure, handleReadFigmaContext, handleBindVariable, handleApplyPaintStyle, handleApplyTextStyle, handleApplyEffectStyle, handleCreateFigmaVariables, handleCreateVariableCollections, handleCreateTextStyles, handleCreateDSComponents, handleExportAsSvg, handleSetConstraints } from './canvas-query';
+import {
+  handleCreateFrame,
+  handleCreateText,
+  handleCreateRectangle,
+  handleCreateEllipse,
+  handleCreateImage,
+  handleCreateIcon,
+  handleCreateVector,
+} from './canvas-create';
+import {
+  handleSetFill,
+  handleSetStroke,
+  handleSetEffects,
+  handleSetCornerRadius,
+  handleSetOpacity,
+  handleSetAutoLayout,
+  handleSetText,
+  handleFlipGradient,
+  handleStyleTextRange,
+} from './canvas-style';
+import {
+  handleDeleteNode,
+  handleMoveNode,
+  handleResizeNode,
+  handleRenameNode,
+  handleAppendChild,
+  handleReorderChild,
+  handleCloneNode,
+  handleCloneWithOverrides,
+  handleGroupNodes,
+  handleGetSelection,
+  handleGetNodeInfo,
+  handleGetPageNodes,
+  handleFindNodes,
+  handleListAvailableFonts,
+  handleBooleanOperation,
+  handleFlattenNodes,
+  handleImportComponentByKey,
+  handleImportStyleByKey,
+} from './canvas-scene';
+import {
+  handleExportNode,
+  handleGetScreenshot,
+  handleScanFrameStructure,
+  handleReadFigmaContext,
+  handleBindVariable,
+  handleApplyPaintStyle,
+  handleApplyTextStyle,
+  handleApplyEffectStyle,
+  handleCreateFigmaVariables,
+  handleCreateVariableCollections,
+  handleCreateTextStyles,
+  handleCreateDSComponents,
+  handleExportAsSvg,
+  handleSetConstraints,
+} from './canvas-query';
 import { getDesignSystemCache, handleScanDesignSystem } from './design-system-discovery';
-import { handleBatchExecute, handleCreateDesignCmd, handleScanTemplateCmd, handleApplyTemplateTextCmd, handleApplyTemplateImageCmd, runRefinementCheck } from './canvas-batch';
+import {
+  handleBatchExecute,
+  handleCreateDesignCmd,
+  handleScanTemplateCmd,
+  handleApplyTemplateTextCmd,
+  handleApplyTemplateImageCmd,
+  runRefinementCheck,
+} from './canvas-batch';
 import { handleCreateDSShowcase } from './ds-showcase';
 import { tryComponentInstance, isComponentMatchableFrame } from './component-matcher';
-import { handleCreateComponent, handleConvertToComponent, handleCombineAsVariants, handleCreateInstance, handleDetachInstance, handleSetReactions, handleGetReactions, handleMakeInteractive, handleCreatePrototypeFlow } from './canvas-components';
+import {
+  handleCreateComponent,
+  handleConvertToComponent,
+  handleCombineAsVariants,
+  handleCreateInstance,
+  handleDetachInstance,
+  handleSetReactions,
+  handleGetReactions,
+  handleMakeInteractive,
+  handleCreatePrototypeFlow,
+} from './canvas-components';
 
 /**
  * Idempotency guard — prevents duplicate command execution from WebSocket replays
@@ -76,91 +145,134 @@ export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
         break;
       }
       case 'create_text':
-        data = await handleCreateText(cmd.params); break;
+        data = await handleCreateText(cmd.params);
+        break;
       case 'set_fill':
-        data = await handleSetFill(cmd.params); break;
+        data = await handleSetFill(cmd.params);
+        break;
       case 'flip_gradient':
-        data = handleFlipGradient(cmd.params); break;
+        data = handleFlipGradient(cmd.params);
+        break;
       case 'export_node':
-        data = await handleExportNode(cmd.params); break;
+        data = await handleExportNode(cmd.params);
+        break;
       case 'get_screenshot':
-        data = await handleGetScreenshot(cmd.params); break;
+        data = await handleGetScreenshot(cmd.params);
+        break;
       case 'get_selection':
-        data = await handleGetSelection(); break;
+        data = await handleGetSelection();
+        break;
       case 'create_rectangle':
-        data = await handleCreateRectangle(cmd.params); break;
+        data = await handleCreateRectangle(cmd.params);
+        break;
       case 'create_ellipse':
-        data = await handleCreateEllipse(cmd.params); break;
+        data = await handleCreateEllipse(cmd.params);
+        break;
       case 'create_image':
-        data = await handleCreateImage(cmd.params); break;
+        data = await handleCreateImage(cmd.params);
+        break;
       case 'set_stroke':
-        data = await handleSetStroke(cmd.params); break;
+        data = await handleSetStroke(cmd.params);
+        break;
       case 'set_effects':
-        data = await handleSetEffects(cmd.params); break;
+        data = await handleSetEffects(cmd.params);
+        break;
       case 'set_corner_radius':
-        data = await handleSetCornerRadius(cmd.params); break;
+        data = await handleSetCornerRadius(cmd.params);
+        break;
       case 'set_opacity':
-        data = await handleSetOpacity(cmd.params); break;
+        data = await handleSetOpacity(cmd.params);
+        break;
       case 'set_auto_layout':
-        data = await handleSetAutoLayout(cmd.params); break;
+        data = await handleSetAutoLayout(cmd.params);
+        break;
       case 'delete_node':
-        data = await handleDeleteNode(cmd.params); break;
+        data = await handleDeleteNode(cmd.params);
+        break;
       case 'move_node':
-        data = await handleMoveNode(cmd.params); break;
+        data = await handleMoveNode(cmd.params);
+        break;
       case 'resize_node':
-        data = await handleResizeNode(cmd.params); break;
+        data = await handleResizeNode(cmd.params);
+        break;
       case 'rename_node':
-        data = await handleRenameNode(cmd.params); break;
+        data = await handleRenameNode(cmd.params);
+        break;
       case 'append_child':
-        data = await handleAppendChild(cmd.params); break;
+        data = await handleAppendChild(cmd.params);
+        break;
       case 'reorder_child':
-        data = await handleReorderChild(cmd.params); break;
+        data = await handleReorderChild(cmd.params);
+        break;
       case 'clone_node':
-        data = await handleCloneNode(cmd.params); break;
+        data = await handleCloneNode(cmd.params);
+        break;
       case 'group_nodes':
-        data = await handleGroupNodes(cmd.params); break;
+        data = await handleGroupNodes(cmd.params);
+        break;
       case 'get_node_info':
-        data = await handleGetNodeInfo(cmd.params); break;
+        data = await handleGetNodeInfo(cmd.params);
+        break;
       case 'get_page_nodes':
-        data = await handleGetPageNodes(); break;
+        data = await handleGetPageNodes();
+        break;
       case 'create_design':
-        data = await handleCreateDesignCmd(cmd.params); break;
+        data = await handleCreateDesignCmd(cmd.params);
+        break;
       case 'create_icon':
-        data = await handleCreateIcon(cmd.params); break;
+        data = await handleCreateIcon(cmd.params);
+        break;
       case 'scan_template':
-        data = await handleScanTemplateCmd(cmd.params); break;
+        data = await handleScanTemplateCmd(cmd.params);
+        break;
       case 'apply_template_text':
-        data = await handleApplyTemplateTextCmd(cmd.params); break;
+        data = await handleApplyTemplateTextCmd(cmd.params);
+        break;
       case 'apply_template_image':
-        data = await handleApplyTemplateImageCmd(cmd.params); break;
+        data = await handleApplyTemplateImageCmd(cmd.params);
+        break;
       case 'batch_execute':
-        data = await handleBatchExecute(cmd.params); break;
+        data = await handleBatchExecute(cmd.params);
+        break;
       case 'clone_with_overrides':
-        data = await handleCloneWithOverrides(cmd.params); break;
+        data = await handleCloneWithOverrides(cmd.params);
+        break;
       case 'scan_frame_structure':
-        data = await handleScanFrameStructure(cmd.params); break;
+        data = await handleScanFrameStructure(cmd.params);
+        break;
       case 'set_text':
-        data = await handleSetText(cmd.params); break;
+        data = await handleSetText(cmd.params);
+        break;
       case 'style_text_range':
-        data = await handleStyleTextRange(cmd.params); break;
+        data = await handleStyleTextRange(cmd.params);
+        break;
       case 'find_nodes':
-        data = await handleFindNodes(cmd.params); break;
+        data = await handleFindNodes(cmd.params);
+        break;
       case 'list_available_fonts':
-        data = await handleListAvailableFonts(cmd.params); break;
+        data = await handleListAvailableFonts(cmd.params);
+        break;
       case 'create_vector':
-        data = await handleCreateVector(cmd.params); break;
+        data = await handleCreateVector(cmd.params);
+        break;
       case 'boolean_operation':
-        data = await handleBooleanOperation(cmd.params); break;
+        data = await handleBooleanOperation(cmd.params);
+        break;
       case 'flatten_nodes':
-        data = await handleFlattenNodes(cmd.params); break;
+        data = await handleFlattenNodes(cmd.params);
+        break;
       case 'import_component_by_key':
-        data = await handleImportComponentByKey(cmd.params); break;
+        data = await handleImportComponentByKey(cmd.params);
+        break;
       case 'import_style_by_key':
-        data = await handleImportStyleByKey(cmd.params); break;
+        data = await handleImportStyleByKey(cmd.params);
+        break;
       case 'export_as_svg':
-        data = await handleExportAsSvg(cmd.params); break;
+        data = await handleExportAsSvg(cmd.params);
+        break;
       case 'set_constraints':
-        data = await handleSetConstraints(cmd.params); break;
+        data = await handleSetConstraints(cmd.params);
+        break;
       case 'ad-analyzer-complete': {
         // Forward to UI iframe — this is a UI-only message, no Figma API action
         figma.ui.postMessage({
@@ -184,27 +296,37 @@ export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
         break;
       }
       case 'bind_variable':
-        data = await handleBindVariable(cmd.params); break;
+        data = await handleBindVariable(cmd.params);
+        break;
       case 'apply_paint_style':
-        data = await handleApplyPaintStyle(cmd.params); break;
+        data = await handleApplyPaintStyle(cmd.params);
+        break;
       case 'apply_text_style':
-        data = await handleApplyTextStyle(cmd.params); break;
+        data = await handleApplyTextStyle(cmd.params);
+        break;
       case 'apply_effect_style':
-        data = await handleApplyEffectStyle(cmd.params); break;
+        data = await handleApplyEffectStyle(cmd.params);
+        break;
       case 'create_figma_variables':
-        data = await handleCreateFigmaVariables(cmd.params); break;
+        data = await handleCreateFigmaVariables(cmd.params);
+        break;
       case 'create_variable_collections':
-        data = await handleCreateVariableCollections(cmd.params); break;
+        data = await handleCreateVariableCollections(cmd.params);
+        break;
       case 'create_text_styles':
-        data = await handleCreateTextStyles(cmd.params); break;
+        data = await handleCreateTextStyles(cmd.params);
+        break;
       case 'create_ds_components':
-        data = await handleCreateDSComponents(cmd.params); break;
+        data = await handleCreateDSComponents(cmd.params);
+        break;
       case 'create_ds_showcase':
-        data = await handleCreateDSShowcase(cmd.params); break;
+        data = await handleCreateDSShowcase(cmd.params);
+        break;
       case 'run_refinement_check':
-        data = await runRefinementCheck(String(cmd.params.nodeId)); break;
+        data = await runRefinementCheck(String(cmd.params.nodeId));
+        break;
       case 'get_preferences': {
-        const prefs = await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY) || [];
+        const prefs = (await figma.clientStorage.getAsync(PREFERENCES_STORAGE_KEY)) || [];
         data = { preferences: prefs };
         break;
       }
@@ -215,28 +337,37 @@ export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
       }
       // IC-1: Component creation
       case 'create_component_node':
-        data = await handleCreateComponent(cmd.params); break;
+        data = await handleCreateComponent(cmd.params);
+        break;
       case 'convert_to_component':
-        data = await handleConvertToComponent(cmd.params); break;
+        data = await handleConvertToComponent(cmd.params);
+        break;
       // IC-2: Variant management
       case 'combine_as_variants':
-        data = await handleCombineAsVariants(cmd.params); break;
+        data = await handleCombineAsVariants(cmd.params);
+        break;
       // IC-3: Instance management
       case 'create_instance':
-        data = await handleCreateInstance(cmd.params); break;
+        data = await handleCreateInstance(cmd.params);
+        break;
       case 'detach_instance':
-        data = await handleDetachInstance(cmd.params); break;
+        data = await handleDetachInstance(cmd.params);
+        break;
       // IC-5/8: Prototype interactions
       case 'set_reactions':
-        data = await handleSetReactions(cmd.params); break;
+        data = await handleSetReactions(cmd.params);
+        break;
       case 'get_reactions':
-        data = await handleGetReactions(cmd.params); break;
+        data = await handleGetReactions(cmd.params);
+        break;
       // IC-10: Make Interactive
       case 'make_interactive':
-        data = await handleMakeInteractive(cmd.params); break;
+        data = await handleMakeInteractive(cmd.params);
+        break;
       // IC-12: Prototype Flow Generator
       case 'create_prototype_flow':
-        data = await handleCreatePrototypeFlow(cmd.params); break;
+        data = await handleCreatePrototypeFlow(cmd.params);
+        break;
       default:
         return { ...baseResponse, success: false, error: `Unknown action: ${cmd.action}` };
     }
@@ -255,7 +386,13 @@ export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const { code, recoverable } = classifyError(errorMessage);
-    const errResponse: WSResponse = { ...baseResponse, success: false, error: errorMessage, errorCode: code, recoverable };
+    const errResponse: WSResponse = {
+      ...baseResponse,
+      success: false,
+      error: errorMessage,
+      errorCode: code,
+      recoverable,
+    };
     // Mark failed commands as processed too — prevent retry of known failures
     if (cmd.id) {
       markProcessed(cmd.id);

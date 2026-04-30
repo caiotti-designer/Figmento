@@ -9,14 +9,18 @@ import { tryBindTextVariables } from './variable-binder';
  * Resolve and validate a parentId — throws a descriptive error instead of silently
  * placing the node at the page root when the parent is invalid or not a container.
  */
-export function resolveParent(parentId: unknown): (FrameNode | GroupNode | ComponentNode | ComponentSetNode | SectionNode) | null {
+export function resolveParent(
+  parentId: unknown
+): (FrameNode | GroupNode | ComponentNode | ComponentSetNode | SectionNode) | null {
   if (!parentId) return null;
   const parent = figma.getNodeById(parentId as string);
   if (!parent) {
     throw new Error(`Parent node "${parentId}" not found — it may have been deleted or the ID is stale.`);
   }
   if (!('appendChild' in parent)) {
-    throw new Error(`Parent node "${parentId}" (${parent.type}) cannot contain children. Use a Frame, Group, or Component as parent.`);
+    throw new Error(
+      `Parent node "${parentId}" (${parent.type}) cannot contain children. Use a Frame, Group, or Component as parent.`
+    );
   }
   return parent as FrameNode | GroupNode | ComponentNode | ComponentSetNode | SectionNode;
 }
@@ -33,13 +37,15 @@ export async function handleCreateVector(params: Record<string, unknown>): Promi
 
   // Method 1: SVG path data strings (simplest — Figma accepts raw SVG path syntax)
   if (params.svgPath) {
-    vector.vectorPaths = [{
-      windingRule: (params.windingRule as string as VectorPath['windingRule']) || 'NONZERO',
-      data: params.svgPath as string,
-    }];
+    vector.vectorPaths = [
+      {
+        windingRule: (params.windingRule as string as VectorPath['windingRule']) || 'NONZERO',
+        data: params.svgPath as string,
+      },
+    ];
   } else if (params.vectorPaths) {
     const paths = params.vectorPaths as Array<{ data: string; windingRule?: string }>;
-    vector.vectorPaths = paths.map(p => ({
+    vector.vectorPaths = paths.map((p) => ({
       windingRule: (p.windingRule as VectorPath['windingRule']) || 'NONZERO',
       data: p.data,
     }));
@@ -48,12 +54,24 @@ export async function handleCreateVector(params: Record<string, unknown>): Promi
   // Method 2: VectorNetwork (vertices + segments) for programmatic shapes
   if (params.vectorNetwork) {
     const vn = params.vectorNetwork as {
-      vertices: Array<{ x: number; y: number; cornerRadius?: number; strokeCap?: string; strokeJoin?: string; handleMirroring?: string }>;
-      segments: Array<{ start: number; end: number; tangentStart?: { x: number; y: number }; tangentEnd?: { x: number; y: number } }>;
+      vertices: Array<{
+        x: number;
+        y: number;
+        cornerRadius?: number;
+        strokeCap?: string;
+        strokeJoin?: string;
+        handleMirroring?: string;
+      }>;
+      segments: Array<{
+        start: number;
+        end: number;
+        tangentStart?: { x: number; y: number };
+        tangentEnd?: { x: number; y: number };
+      }>;
       regions?: Array<Record<string, unknown>>;
     };
     vector.vectorNetwork = {
-      vertices: (vn.vertices || []).map(v => ({
+      vertices: (vn.vertices || []).map((v) => ({
         x: v.x,
         y: v.y,
         strokeCap: (v.strokeCap as VectorVertex['strokeCap']) || 'NONE',
@@ -61,7 +79,7 @@ export async function handleCreateVector(params: Record<string, unknown>): Promi
         cornerRadius: v.cornerRadius || 0,
         handleMirroring: (v.handleMirroring as VectorVertex['handleMirroring']) || 'NONE',
       })),
-      segments: (vn.segments || []).map(s => ({
+      segments: (vn.segments || []).map((s) => ({
         start: s.start,
         end: s.end,
         tangentStart: s.tangentStart || { x: 0, y: 0 },
@@ -75,7 +93,7 @@ export async function handleCreateVector(params: Record<string, unknown>): Promi
   if (params.vertices && !params.vectorNetwork) {
     const vertices = params.vertices as Array<{ x: number; y: number; cornerRadius?: number }>;
     if (vertices.length >= 3) {
-      const verts: VectorVertex[] = vertices.map(v => ({
+      const verts: VectorVertex[] = vertices.map((v) => ({
         x: v.x,
         y: v.y,
         strokeCap: 'NONE' as const,
@@ -107,7 +125,7 @@ export async function handleCreateVector(params: Record<string, unknown>): Promi
   } else if (params.fills) {
     // Accept fills array like create_rectangle
     const fills = params.fills as Array<{ type: string; color?: string; opacity?: number }>;
-    vector.fills = fills.map(f => ({
+    vector.fills = fills.map((f) => ({
       type: 'SOLID' as const,
       color: hexToRgb(f.color || '#000000'),
       opacity: f.opacity ?? 1,
@@ -131,8 +149,9 @@ export async function handleCreateVector(params: Record<string, unknown>): Promi
 }
 
 export async function handleCreateFrame(params: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const frameFills: UIElement['fills'] = params.fills as UIElement['fills'] | undefined
-    ?? (params.fillColor ? [{ type: 'SOLID' as const, color: params.fillColor as string }] : undefined);
+  const frameFills: UIElement['fills'] =
+    (params.fills as UIElement['fills'] | undefined) ??
+    (params.fillColor ? [{ type: 'SOLID' as const, color: params.fillColor as string }] : undefined);
 
   const element: UIElement = {
     id: 'frame',
@@ -184,7 +203,9 @@ export async function handleCreateFrame(params: Record<string, unknown>): Promis
       if (element.layoutSizingVertical) {
         (node as FrameNode).layoutSizingVertical = element.layoutSizingVertical;
       }
-    } catch { /* parent may not be auto-layout */ }
+    } catch {
+      /* parent may not be auto-layout */
+    }
   }
 
   figma.currentPage.selection = [node];
@@ -209,8 +230,7 @@ export async function handleCreateText(params: Record<string, unknown>): Promise
 
   if (!layoutSizingH && !layoutSizingV && params.parentId) {
     const potentialParent = figma.getNodeById(params.parentId as string);
-    if (potentialParent && 'layoutMode' in potentialParent &&
-        (potentialParent as FrameNode).layoutMode !== 'NONE') {
+    if (potentialParent && 'layoutMode' in potentialParent && (potentialParent as FrameNode).layoutMode !== 'NONE') {
       layoutSizingH = 'FILL';
       layoutSizingV = 'HUG';
     }
@@ -251,17 +271,27 @@ export async function handleCreateText(params: Record<string, unknown>): Promise
   if ('fills' in node) {
     try {
       (node as TextNode).fills = [{ type: 'SOLID', color: hexToRgb(textColor), opacity: 1 }];
-    } catch { /* ignore — best effort */ }
+    } catch {
+      /* ignore — best effort */
+    }
   }
 
   const textParent = resolveParent(params.parentId);
   if (textParent) {
     textParent.appendChild(node);
     if (layoutSizingH && 'layoutSizingHorizontal' in node) {
-      try { (node as any).layoutSizingHorizontal = layoutSizingH; } catch { /* ignore */ }
+      try {
+        (node as any).layoutSizingHorizontal = layoutSizingH;
+      } catch {
+        /* ignore */
+      }
     }
     if (layoutSizingV && 'layoutSizingVertical' in node) {
-      try { (node as any).layoutSizingVertical = layoutSizingV; } catch { /* ignore */ }
+      try {
+        (node as any).layoutSizingVertical = layoutSizingV;
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -274,7 +304,7 @@ export async function handleCreateText(params: Record<string, unknown>): Promise
       node as TextNode,
       textColor,
       (params.fontSize as number) || undefined,
-      autoBindParam,
+      autoBindParam
     );
     if (textBindResult.boundColor) boundColor = textBindResult.boundColor.variableName;
     if (textBindResult.boundFontSize) boundFontSize = textBindResult.boundFontSize.variableName;
@@ -286,8 +316,9 @@ export async function handleCreateText(params: Record<string, unknown>): Promise
 }
 
 export async function handleCreateRectangle(params: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const rectFills: UIElement['fills'] = params.fills as UIElement['fills'] | undefined
-    ?? (params.fillColor ? [{ type: 'SOLID' as const, color: params.fillColor as string }] : undefined);
+  const rectFills: UIElement['fills'] =
+    (params.fills as UIElement['fills'] | undefined) ??
+    (params.fillColor ? [{ type: 'SOLID' as const, color: params.fillColor as string }] : undefined);
 
   const element: UIElement = {
     id: 'rect',
@@ -313,8 +344,9 @@ export async function handleCreateRectangle(params: Record<string, unknown>): Pr
 }
 
 export async function handleCreateEllipse(params: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const ellipseFills: UIElement['fills'] = params.fills as UIElement['fills'] | undefined
-    ?? (params.fillColor ? [{ type: 'SOLID' as const, color: params.fillColor as string }] : undefined);
+  const ellipseFills: UIElement['fills'] =
+    (params.fills as UIElement['fills'] | undefined) ??
+    (params.fillColor ? [{ type: 'SOLID' as const, color: params.fillColor as string }] : undefined);
 
   const element: UIElement = {
     id: 'ellipse',

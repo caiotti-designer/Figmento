@@ -18,14 +18,22 @@ export async function handleSetFill(params: Record<string, unknown>): Promise<Re
   if (params.color) {
     const rgb = hexToRgb(params.color as string);
     const opacity = params.opacity as number | undefined;
-    (node as GeometryMixin).fills = [{
-      type: 'SOLID',
-      color: rgb,
-      opacity: opacity != null ? opacity : 1,
-    }];
+    (node as GeometryMixin).fills = [
+      {
+        type: 'SOLID',
+        color: rgb,
+        opacity: opacity != null ? opacity : 1,
+      },
+    ];
     solidHex = params.color as string;
   } else if (params.fills) {
-    const fills = params.fills as Array<{ type: string; color?: string; opacity?: number; gradientStops?: Array<{ position: number; color: string; opacity?: number }>; gradientDirection?: string }>;
+    const fills = params.fills as Array<{
+      type: string;
+      color?: string;
+      opacity?: number;
+      gradientStops?: Array<{ position: number; color: string; opacity?: number }>;
+      gradientDirection?: string;
+    }>;
     const paintFills: Paint[] = [];
 
     for (const fill of fills) {
@@ -41,7 +49,7 @@ export async function handleSetFill(params: Record<string, unknown>): Promise<Re
         paintFills.push({
           type: 'GRADIENT_LINEAR',
           gradientTransform: getGradientTransform(fill.gradientDirection as any),
-          gradientStops: fill.gradientStops.map(stop => ({
+          gradientStops: fill.gradientStops.map((stop) => ({
             position: stop.position,
             color: { ...hexToRgb(stop.color), a: stop.opacity != null ? stop.opacity : 1 },
           })),
@@ -109,7 +117,7 @@ export async function handleSetEffects(params: Record<string, unknown>): Promise
     return { nodeId, success: true };
   }
 
-  const figmaEffects: Effect[] = effects.map(e => {
+  const figmaEffects: Effect[] = effects.map((e) => {
     const rgb = hexToRgb(e.color);
     return {
       type: e.type,
@@ -179,8 +187,10 @@ export async function handleSetAutoLayout(params: Record<string, unknown>): Prom
   if (params.paddingRight !== undefined) frame.paddingRight = params.paddingRight as number;
   if (params.paddingBottom !== undefined) frame.paddingBottom = params.paddingBottom as number;
   if (params.paddingLeft !== undefined) frame.paddingLeft = params.paddingLeft as number;
-  if (params.primaryAxisAlignItems) frame.primaryAxisAlignItems = params.primaryAxisAlignItems as 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN';
-  if (params.counterAxisAlignItems) frame.counterAxisAlignItems = params.counterAxisAlignItems as 'MIN' | 'CENTER' | 'MAX';
+  if (params.primaryAxisAlignItems)
+    frame.primaryAxisAlignItems = params.primaryAxisAlignItems as 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN';
+  if (params.counterAxisAlignItems)
+    frame.counterAxisAlignItems = params.counterAxisAlignItems as 'MIN' | 'CENTER' | 'MAX';
 
   if (params.primaryAxisSizingMode !== undefined) {
     const raw = params.primaryAxisSizingMode as string;
@@ -196,13 +206,17 @@ export async function handleSetAutoLayout(params: Record<string, unknown>): Prom
   if ((mode as string) !== 'NONE') {
     try {
       const autoBindParam = params.autoBindVariables as boolean | undefined;
-      boundSpacingVariables = await tryBindSpacingVariables(frame, {
-        paddingTop: params.paddingTop as number | undefined,
-        paddingRight: params.paddingRight as number | undefined,
-        paddingBottom: params.paddingBottom as number | undefined,
-        paddingLeft: params.paddingLeft as number | undefined,
-        itemSpacing: params.itemSpacing as number | undefined,
-      }, autoBindParam);
+      boundSpacingVariables = await tryBindSpacingVariables(
+        frame,
+        {
+          paddingTop: params.paddingTop as number | undefined,
+          paddingRight: params.paddingRight as number | undefined,
+          paddingBottom: params.paddingBottom as number | undefined,
+          paddingLeft: params.paddingLeft as number | undefined,
+          itemSpacing: params.itemSpacing as number | undefined,
+        },
+        autoBindParam
+      );
     } catch {
       // Binding failure is silent
     }
@@ -225,11 +239,8 @@ export function handleFlipGradient(params: Record<string, unknown>): Record<stri
   }
 
   let flippedCount = 0;
-  const newFills: Paint[] = fills.map(fill => {
-    if (
-      (fill.type === 'GRADIENT_LINEAR' || fill.type === 'GRADIENT_RADIAL') &&
-      fill.gradientStops?.length
-    ) {
+  const newFills: Paint[] = fills.map((fill) => {
+    if ((fill.type === 'GRADIENT_LINEAR' || fill.type === 'GRADIENT_RADIAL') && fill.gradientStops?.length) {
       flippedCount++;
       return {
         ...fill,

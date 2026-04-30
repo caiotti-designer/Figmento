@@ -10,10 +10,7 @@ import { resolveParent } from './canvas-create';
 export async function handleCreateComponent(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const comp = figma.createComponent();
   comp.name = (params.name as string) || 'Component';
-  comp.resize(
-    (params.width as number) || 100,
-    (params.height as number) || 100
-  );
+  comp.resize((params.width as number) || 100, (params.height as number) || 100);
   comp.x = (params.x as number) || 0;
   comp.y = (params.y as number) || 0;
 
@@ -105,7 +102,8 @@ export async function handleConvertToComponent(params: Record<string, unknown>):
 
   const sceneNode = node as SceneNode;
   if (sceneNode.type === 'COMPONENT') throw new Error(`Node ${nodeId} is already a COMPONENT`);
-  if (sceneNode.type === 'INSTANCE') throw new Error(`Cannot convert INSTANCE to component — use detach_instance first`);
+  if (sceneNode.type === 'INSTANCE')
+    throw new Error(`Cannot convert INSTANCE to component — use detach_instance first`);
   if (sceneNode.type === 'COMPONENT_SET') throw new Error(`Node ${nodeId} is already a COMPONENT_SET`);
 
   // Check if inside an instance (reparenting restriction)
@@ -173,10 +171,7 @@ export async function handleCombineAsVariants(params: Record<string, unknown>): 
     ancestor = ancestor.parent;
   }
 
-  const componentSet = figma.combineAsVariants(
-    components,
-    parentNode as BaseNode & ChildrenMixin
-  );
+  const componentSet = figma.combineAsVariants(components, parentNode as BaseNode & ChildrenMixin);
   if (name) componentSet.name = name;
 
   // Match Figma's manual variant layout: vertical auto-layout with padding + spacing
@@ -243,9 +238,7 @@ export async function handleCreateInstance(params: Record<string, unknown>): Pro
         const vProps = variant.variantProperties;
         if (!vProps) continue;
 
-        const matches = Object.entries(variantProps).every(
-          ([key, val]) => vProps[key] === val
-        );
+        const matches = Object.entries(variantProps).every(([key, val]) => vProps[key] === val);
         if (matches) {
           targetComponent = variant;
           break;
@@ -255,8 +248,8 @@ export async function handleCreateInstance(params: Record<string, unknown>): Pro
       if (!targetComponent) {
         // List available variants for helpful error
         const available = componentSet.children
-          .filter(c => c.type === 'COMPONENT')
-          .map(c => {
+          .filter((c) => c.type === 'COMPONENT')
+          .map((c) => {
             const vp = (c as ComponentNode).variantProperties;
             return vp ? JSON.stringify(vp) : c.name;
           });
@@ -266,7 +259,8 @@ export async function handleCreateInstance(params: Record<string, unknown>): Pro
       }
     } else {
       // Default: use first variant
-      targetComponent = componentSet.children.find(c => c.type === 'COMPONENT') as ComponentNode | undefined ?? null;
+      targetComponent =
+        (componentSet.children.find((c) => c.type === 'COMPONENT') as ComponentNode | undefined) ?? null;
       if (!targetComponent) throw new Error('Component set has no variants');
     }
 
@@ -317,17 +311,17 @@ export async function handleDetachInstance(params: Record<string, unknown>): Pro
 
 /** Simplified reaction input from MCP */
 interface SimplifiedReaction {
-  trigger: string;       // ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, MOUSE_ENTER, MOUSE_LEAVE, AFTER_TIMEOUT, MOUSE_UP, MOUSE_DOWN
-  action: string;        // NODE, BACK, CLOSE, URL
-  destination?: string;  // nodeId for NODE actions
-  navigation?: string;   // NAVIGATE, SWAP, OVERLAY, SCROLL_TO, CHANGE_TO
-  transition?: string;   // DISSOLVE, SMART_ANIMATE, MOVE_IN, MOVE_OUT, PUSH, SLIDE_IN, SLIDE_OUT, SCROLL_ANIMATE
-  duration?: number;     // ms (default: 300)
-  easing?: string;       // EASE_IN, EASE_OUT, EASE_IN_AND_OUT, LINEAR, GENTLE, QUICK, BOUNCY, SLOW
-  delay?: number;        // ms for MOUSE_ENTER/LEAVE, MOUSE_UP/DOWN triggers (default: 0)
-  timeout?: number;      // ms for AFTER_TIMEOUT trigger
-  direction?: string;    // LEFT, RIGHT, TOP, BOTTOM for directional transitions
-  url?: string;          // for URL actions
+  trigger: string; // ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, MOUSE_ENTER, MOUSE_LEAVE, AFTER_TIMEOUT, MOUSE_UP, MOUSE_DOWN
+  action: string; // NODE, BACK, CLOSE, URL
+  destination?: string; // nodeId for NODE actions
+  navigation?: string; // NAVIGATE, SWAP, OVERLAY, SCROLL_TO, CHANGE_TO
+  transition?: string; // DISSOLVE, SMART_ANIMATE, MOVE_IN, MOVE_OUT, PUSH, SLIDE_IN, SLIDE_OUT, SCROLL_ANIMATE
+  duration?: number; // ms (default: 300)
+  easing?: string; // EASE_IN, EASE_OUT, EASE_IN_AND_OUT, LINEAR, GENTLE, QUICK, BOUNCY, SLOW
+  delay?: number; // ms for MOUSE_ENTER/LEAVE, MOUSE_UP/DOWN triggers (default: 0)
+  timeout?: number; // ms for AFTER_TIMEOUT trigger
+  direction?: string; // LEFT, RIGHT, TOP, BOTTOM for directional transitions
+  url?: string; // for URL actions
   openInNewTab?: boolean;
 }
 
@@ -389,7 +383,9 @@ function buildTrigger(simplified: SimplifiedReaction): Trigger {
       return { type, delay: simplified.delay ?? 0, deprecatedVersion: false } as Trigger;
 
     default:
-      throw new Error(`Unknown trigger type: ${type}. Valid: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT, MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN`);
+      throw new Error(
+        `Unknown trigger type: ${type}. Valid: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT, MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN`
+      );
   }
 }
 
@@ -505,7 +501,7 @@ export async function handleGetReactions(params: Record<string, unknown>): Promi
   }
 
   const reactions = (node as SceneNode & ReactionMixin).reactions;
-  const simplified = reactions.map(r => ({
+  const simplified = reactions.map((r) => ({
     trigger: simplifyTrigger(r.trigger),
     actions: (r.actions || (r.action ? [r.action] : [])).map(simplifyAction),
   }));
@@ -530,9 +526,11 @@ function detectElementType(node: SceneNode): DetectedType {
   if (!('children' in node)) return 'unknown';
   const frame = node as FrameNode;
 
-  const hasText = frame.children.some(c => c.type === 'TEXT');
-  const hasFill = Array.isArray(frame.fills) && (frame.fills as ReadonlyArray<Paint>).length > 0 &&
-    (frame.fills as ReadonlyArray<Paint>).some(f => f.type === 'SOLID' && f.visible !== false);
+  const hasText = frame.children.some((c) => c.type === 'TEXT');
+  const hasFill =
+    Array.isArray(frame.fills) &&
+    (frame.fills as ReadonlyArray<Paint>).length > 0 &&
+    (frame.fills as ReadonlyArray<Paint>).some((f) => f.type === 'SOLID' && f.visible !== false);
   const hasCornerRadius = typeof frame.cornerRadius === 'number' && frame.cornerRadius > 0;
   const hasAutoLayout = frame.layoutMode === 'HORIZONTAL' || frame.layoutMode === 'VERTICAL';
   const childCount = frame.children.length;
@@ -555,7 +553,7 @@ function detectElementType(node: SceneNode): DetectedType {
   if ((node.type as string) === 'TEXT') {
     const name = (node as SceneNode).name.toLowerCase();
     const linkPatterns = ['nav', 'link', 'menu', 'home', 'about', 'contact', 'pricing', 'sign', 'log'];
-    if (linkPatterns.some(p => name.includes(p))) {
+    if (linkPatterns.some((p) => name.includes(p))) {
       return 'nav-link';
     }
   }
@@ -584,7 +582,11 @@ function adjustColor(rgb: { r: number; g: number; b: number }, factor: number): 
   if (factor > 0) {
     return { r: rgb.r + (1 - rgb.r) * factor, g: rgb.g + (1 - rgb.g) * factor, b: rgb.b + (1 - rgb.b) * factor };
   }
-  return { r: Math.max(0, rgb.r * (1 + factor)), g: Math.max(0, rgb.g * (1 + factor)), b: Math.max(0, rgb.b * (1 + factor)) };
+  return {
+    r: Math.max(0, rgb.r * (1 + factor)),
+    g: Math.max(0, rgb.g * (1 + factor)),
+    b: Math.max(0, rgb.b * (1 + factor)),
+  };
 }
 
 export async function handleMakeInteractive(params: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -602,7 +604,13 @@ export async function handleMakeInteractive(params: Record<string, unknown>): Pr
     return { processed: 0, interactions: [], message: 'No interactive elements detected' };
   }
 
-  const results: Array<{ nodeId: string; name: string; elementType: string; presetApplied: string; skipped?: boolean }> = [];
+  const results: Array<{
+    nodeId: string;
+    name: string;
+    elementType: string;
+    presetApplied: string;
+    skipped?: boolean;
+  }> = [];
 
   for (const { node, elementType } of detected) {
     // Idempotency check: skip if already has reactions
@@ -618,7 +626,7 @@ export async function handleMakeInteractive(params: Record<string, unknown>): Pr
       // Create hover + pressed variants, combine, wire
       const frame = node as FrameNode;
       const fills = frame.fills as ReadonlyArray<Paint>;
-      const solidFill = fills.find(f => f.type === 'SOLID' && f.visible !== false) as SolidPaint | undefined;
+      const solidFill = fills.find((f) => f.type === 'SOLID' && f.visible !== false) as SolidPaint | undefined;
       if (!solidFill) {
         results.push({ nodeId: node.id, name: node.name, elementType, presetApplied: 'none' });
         continue;
@@ -639,7 +647,11 @@ export async function handleMakeInteractive(params: Record<string, unknown>): Pr
       for (const child of comp.children) {
         if (child.type === 'TEXT') {
           const fontName = (child as TextNode).fontName as FontName;
-          try { await figma.loadFontAsync(fontName); } catch { /* skip */ }
+          try {
+            await figma.loadFontAsync(fontName);
+          } catch {
+            /* skip */
+          }
         }
       }
 
@@ -686,7 +698,11 @@ export async function handleMakeInteractive(params: Record<string, unknown>): Pr
           for (const target of [hoverComp, pressedComp]) {
             const tn = figma.createText();
             const fontName = srcText.fontName as FontName;
-            try { await figma.loadFontAsync(fontName); } catch { await figma.loadFontAsync({ family: 'Inter', style: 'Regular' }); }
+            try {
+              await figma.loadFontAsync(fontName);
+            } catch {
+              await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
+            }
             tn.fontName = fontName;
             tn.characters = srcText.characters;
             tn.fontSize = srcText.fontSize as number;
@@ -723,25 +739,66 @@ export async function handleMakeInteractive(params: Record<string, unknown>): Pr
       componentSet.counterAxisSizingMode = 'AUTO';
 
       // Find variants
-      const defV = componentSet.children.find(c => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'default') as ComponentNode | undefined;
-      const hovV = componentSet.children.find(c => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'hover') as ComponentNode | undefined;
-      const preV = componentSet.children.find(c => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'pressed') as ComponentNode | undefined;
+      const defV = componentSet.children.find(
+        (c) => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'default'
+      ) as ComponentNode | undefined;
+      const hovV = componentSet.children.find(
+        (c) => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'hover'
+      ) as ComponentNode | undefined;
+      const preV = componentSet.children.find(
+        (c) => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'pressed'
+      ) as ComponentNode | undefined;
 
       if (defV && hovV && preV) {
         await defV.setReactionsAsync([
-          { trigger: { type: 'ON_HOVER' } as Trigger, actions: [{ type: 'NODE', destinationId: hovV.id, navigation: 'CHANGE_TO' as Navigation, transition: { type: 'SMART_ANIMATE', easing: { type: 'EASE_OUT' }, duration: 300 } as SimpleTransition, resetScrollPosition: false, resetInteractiveComponents: false } as Action] },
-          { trigger: { type: 'MOUSE_DOWN', delay: 0 } as Trigger, actions: [{ type: 'NODE', destinationId: preV.id, navigation: 'CHANGE_TO' as Navigation, transition: { type: 'SMART_ANIMATE', easing: { type: 'EASE_IN' }, duration: 80 } as SimpleTransition, resetScrollPosition: false, resetInteractiveComponents: false } as Action] },
-          { trigger: { type: 'MOUSE_UP', delay: 0 } as Trigger, actions: [{ type: 'NODE', destinationId: defV.id, navigation: 'CHANGE_TO' as Navigation, transition: { type: 'SMART_ANIMATE', easing: { type: 'EASE_OUT' }, duration: 120 } as SimpleTransition, resetScrollPosition: false, resetInteractiveComponents: false } as Action] },
+          {
+            trigger: { type: 'ON_HOVER' } as Trigger,
+            actions: [
+              {
+                type: 'NODE',
+                destinationId: hovV.id,
+                navigation: 'CHANGE_TO' as Navigation,
+                transition: { type: 'SMART_ANIMATE', easing: { type: 'EASE_OUT' }, duration: 300 } as SimpleTransition,
+                resetScrollPosition: false,
+                resetInteractiveComponents: false,
+              } as Action,
+            ],
+          },
+          {
+            trigger: { type: 'MOUSE_DOWN', delay: 0 } as Trigger,
+            actions: [
+              {
+                type: 'NODE',
+                destinationId: preV.id,
+                navigation: 'CHANGE_TO' as Navigation,
+                transition: { type: 'SMART_ANIMATE', easing: { type: 'EASE_IN' }, duration: 80 } as SimpleTransition,
+                resetScrollPosition: false,
+                resetInteractiveComponents: false,
+              } as Action,
+            ],
+          },
+          {
+            trigger: { type: 'MOUSE_UP', delay: 0 } as Trigger,
+            actions: [
+              {
+                type: 'NODE',
+                destinationId: defV.id,
+                navigation: 'CHANGE_TO' as Navigation,
+                transition: { type: 'SMART_ANIMATE', easing: { type: 'EASE_OUT' }, duration: 120 } as SimpleTransition,
+                resetScrollPosition: false,
+                resetInteractiveComponents: false,
+              } as Action,
+            ],
+          },
         ]);
       }
 
       results.push({ nodeId: componentSet.id, name: componentSet.name, elementType, presetApplied: 'button-full' });
-
     } else if (elementType === 'card') {
       // Card: hover variant only (shadow/lift via smart animate)
       const frame = node as FrameNode;
       const fills = frame.fills as ReadonlyArray<Paint>;
-      const solidFill = fills.find(f => f.type === 'SOLID' && f.visible !== false) as SolidPaint | undefined;
+      const solidFill = fills.find((f) => f.type === 'SOLID' && f.visible !== false) as SolidPaint | undefined;
 
       let comp: ComponentNode;
       if ((frame.type as string) === 'COMPONENT') {
@@ -754,7 +811,11 @@ export async function handleMakeInteractive(params: Record<string, unknown>): Pr
       // Load fonts
       for (const child of comp.children) {
         if (child.type === 'TEXT') {
-          try { await figma.loadFontAsync((child as TextNode).fontName as FontName); } catch { /* skip */ }
+          try {
+            await figma.loadFontAsync((child as TextNode).fontName as FontName);
+          } catch {
+            /* skip */
+          }
         }
       }
 
@@ -783,7 +844,15 @@ export async function handleMakeInteractive(params: Record<string, unknown>): Pr
 
       // Add elevation shadow to hover state
       hoverComp.effects = [
-        { type: 'DROP_SHADOW', visible: true, blendMode: 'NORMAL', color: { r: 0, g: 0, b: 0, a: 0.12 }, offset: { x: 0, y: 4 }, radius: 12, spread: 0 } as DropShadowEffect,
+        {
+          type: 'DROP_SHADOW',
+          visible: true,
+          blendMode: 'NORMAL',
+          color: { r: 0, g: 0, b: 0, a: 0.12 },
+          offset: { x: 0, y: 4 },
+          radius: 12,
+          spread: 0,
+        } as DropShadowEffect,
       ];
 
       // Clone text children
@@ -792,7 +861,11 @@ export async function handleMakeInteractive(params: Record<string, unknown>): Pr
           const srcText = child as TextNode;
           const tn = figma.createText();
           const fontName = srcText.fontName as FontName;
-          try { await figma.loadFontAsync(fontName); } catch { await figma.loadFontAsync({ family: 'Inter', style: 'Regular' }); }
+          try {
+            await figma.loadFontAsync(fontName);
+          } catch {
+            await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
+          }
           tn.fontName = fontName;
           tn.characters = srcText.characters;
           tn.fontSize = srcText.fontSize as number;
@@ -822,26 +895,50 @@ export async function handleMakeInteractive(params: Record<string, unknown>): Pr
       componentSet.primaryAxisSizingMode = 'AUTO';
       componentSet.counterAxisSizingMode = 'AUTO';
 
-      const defV = componentSet.children.find(c => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'default') as ComponentNode | undefined;
-      const hovV = componentSet.children.find(c => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'hover') as ComponentNode | undefined;
+      const defV = componentSet.children.find(
+        (c) => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'default'
+      ) as ComponentNode | undefined;
+      const hovV = componentSet.children.find(
+        (c) => c.type === 'COMPONENT' && (c as ComponentNode).variantProperties?.state === 'hover'
+      ) as ComponentNode | undefined;
 
       if (defV && hovV) {
         await defV.setReactionsAsync([
-          { trigger: { type: 'ON_HOVER' } as Trigger, actions: [{ type: 'NODE', destinationId: hovV.id, navigation: 'CHANGE_TO' as Navigation, transition: { type: 'SMART_ANIMATE', easing: { type: 'GENTLE' as Easing['type'] }, duration: 300 } as SimpleTransition, resetScrollPosition: false, resetInteractiveComponents: false } as Action] },
+          {
+            trigger: { type: 'ON_HOVER' } as Trigger,
+            actions: [
+              {
+                type: 'NODE',
+                destinationId: hovV.id,
+                navigation: 'CHANGE_TO' as Navigation,
+                transition: {
+                  type: 'SMART_ANIMATE',
+                  easing: { type: 'GENTLE' as Easing['type'] },
+                  duration: 300,
+                } as SimpleTransition,
+                resetScrollPosition: false,
+                resetInteractiveComponents: false,
+              } as Action,
+            ],
+          },
         ]);
       }
 
       results.push({ nodeId: componentSet.id, name: componentSet.name, elementType, presetApplied: 'card-hover' });
-
     } else if (elementType === 'nav-link') {
       // Nav links: just mark them — prototype flow generator (IC-12) wires actual navigation
-      results.push({ nodeId: node.id, name: node.name, elementType, presetApplied: 'none (wired by create_prototype_flow)' });
+      results.push({
+        nodeId: node.id,
+        name: node.name,
+        elementType,
+        presetApplied: 'none (wired by create_prototype_flow)',
+      });
     }
   }
 
   return {
-    processed: results.filter(r => !r.skipped).length,
-    skipped: results.filter(r => r.skipped).length,
+    processed: results.filter((r) => !r.skipped).length,
+    skipped: results.filter((r) => r.skipped).length,
     interactions: results,
   };
 }
@@ -858,8 +955,10 @@ function findClickableElements(frame: SceneNode): SceneNode[] {
     // Buttons: auto-layout frame with text + fill + corner radius
     if ('children' in node) {
       const f = node as FrameNode;
-      const hasText = f.children.some(c => c.type === 'TEXT');
-      const hasFill = Array.isArray(f.fills) && (f.fills as ReadonlyArray<Paint>).some(p => p.type === 'SOLID' && p.visible !== false);
+      const hasText = f.children.some((c) => c.type === 'TEXT');
+      const hasFill =
+        Array.isArray(f.fills) &&
+        (f.fills as ReadonlyArray<Paint>).some((p) => p.type === 'SOLID' && p.visible !== false);
       const hasRadius = typeof f.cornerRadius === 'number' && f.cornerRadius > 0;
       const isAutoLayout = f.layoutMode === 'HORIZONTAL' || f.layoutMode === 'VERTICAL';
 
@@ -873,8 +972,23 @@ function findClickableElements(frame: SceneNode): SceneNode[] {
     if (node.type === 'TEXT') {
       const name = node.name.toLowerCase();
       const text = (node as TextNode).characters.toLowerCase();
-      const ctaPatterns = ['cta', 'button', 'get started', 'sign up', 'learn more', 'buy', 'shop', 'next', 'continue', 'submit', 'back', 'previous', 'return', 'arrow'];
-      if (ctaPatterns.some(p => name.includes(p) || text.includes(p))) {
+      const ctaPatterns = [
+        'cta',
+        'button',
+        'get started',
+        'sign up',
+        'learn more',
+        'buy',
+        'shop',
+        'next',
+        'continue',
+        'submit',
+        'back',
+        'previous',
+        'return',
+        'arrow',
+      ];
+      if (ctaPatterns.some((p) => name.includes(p) || text.includes(p))) {
         clickables.push(node);
         return;
       }
@@ -899,11 +1013,11 @@ function isBackElement(node: SceneNode): boolean {
   if (node.type === 'TEXT') {
     text = (node as TextNode).characters.toLowerCase();
   } else if ('children' in node) {
-    const firstText = (node as FrameNode).children.find(c => c.type === 'TEXT');
+    const firstText = (node as FrameNode).children.find((c) => c.type === 'TEXT');
     if (firstText) text = (firstText as TextNode).characters.toLowerCase();
   }
   const backPatterns = ['back', 'previous', 'return', 'arrow-left', 'chevron-left', '←'];
-  return backPatterns.some(p => name.includes(p) || text.includes(p));
+  return backPatterns.some((p) => name.includes(p) || text.includes(p));
 }
 
 export async function handleCreatePrototypeFlow(params: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -935,14 +1049,21 @@ export async function handleCreatePrototypeFlow(params: Record<string, unknown>)
     const page = findPageForNode(firstFrame);
     if (page) {
       const existingFlows = page.flowStartingPoints || [];
-      const alreadyExists = existingFlows.some(f => f.nodeId === firstFrame.id);
+      const alreadyExists = existingFlows.some((f) => f.nodeId === firstFrame.id);
       if (!alreadyExists) {
         page.flowStartingPoints = [...existingFlows, { nodeId: firstFrame.id, name: flowName }];
       }
     }
   }
 
-  const connections: Array<{ from: string; fromName: string; to: string; toName: string; trigger: string; transition: string }> = [];
+  const connections: Array<{
+    from: string;
+    fromName: string;
+    to: string;
+    toName: string;
+    trigger: string;
+    transition: string;
+  }> = [];
 
   // Wire connections between consecutive frames
   for (let i = 0; i < frames.length; i++) {
@@ -961,10 +1082,12 @@ export async function handleCreatePrototypeFlow(params: Record<string, unknown>)
 
       if (isBackElement(clickable) && prevFrame) {
         // Wire back navigation
-        await (clickable as SceneNode & ReactionMixin).setReactionsAsync([{
-          trigger: { type: 'ON_CLICK' } as Trigger,
-          actions: [{ type: 'BACK' } as Action],
-        }]);
+        await (clickable as SceneNode & ReactionMixin).setReactionsAsync([
+          {
+            trigger: { type: 'ON_CLICK' } as Trigger,
+            actions: [{ type: 'BACK' } as Action],
+          },
+        ]);
         connections.push({
           from: clickable.id,
           fromName: clickable.name,
@@ -975,17 +1098,27 @@ export async function handleCreatePrototypeFlow(params: Record<string, unknown>)
         });
       } else if (nextFrame) {
         // Wire forward navigation with PUSH transition
-        await (clickable as SceneNode & ReactionMixin).setReactionsAsync([{
-          trigger: { type: 'ON_CLICK' } as Trigger,
-          actions: [{
-            type: 'NODE',
-            destinationId: nextFrame.id,
-            navigation: 'NAVIGATE' as Navigation,
-            transition: { type: 'PUSH', direction: 'LEFT', matchLayers: false, easing: { type: 'EASE_IN_AND_OUT' }, duration: 300 } as DirectionalTransition,
-            resetScrollPosition: false,
-            resetInteractiveComponents: false,
-          } as Action],
-        }]);
+        await (clickable as SceneNode & ReactionMixin).setReactionsAsync([
+          {
+            trigger: { type: 'ON_CLICK' } as Trigger,
+            actions: [
+              {
+                type: 'NODE',
+                destinationId: nextFrame.id,
+                navigation: 'NAVIGATE' as Navigation,
+                transition: {
+                  type: 'PUSH',
+                  direction: 'LEFT',
+                  matchLayers: false,
+                  easing: { type: 'EASE_IN_AND_OUT' },
+                  duration: 300,
+                } as DirectionalTransition,
+                resetScrollPosition: false,
+                resetInteractiveComponents: false,
+              } as Action,
+            ],
+          },
+        ]);
         connections.push({
           from: clickable.id,
           fromName: clickable.name,

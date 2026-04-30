@@ -293,15 +293,18 @@ export const renderQueueUI = (): void => {
     // Filename
     const nameEl = document.createElement('span');
     nameEl.textContent = item.fileName;
-    nameEl.style.cssText = 'flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-secondary);';
+    nameEl.style.cssText =
+      'flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-secondary);';
     row.appendChild(nameEl);
 
     // Status indicator
     const statusEl = document.createElement('span');
-    statusEl.style.cssText = 'flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 18px; height: 18px;';
+    statusEl.style.cssText =
+      'flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 18px; height: 18px;';
 
     if (item.status === 'pending') {
-      statusEl.innerHTML = '<span style="width: 8px; height: 8px; border-radius: 50%; background: var(--color-text-tertiary);"></span>';
+      statusEl.innerHTML =
+        '<span style="width: 8px; height: 8px; border-radius: 50%; background: var(--color-text-tertiary);"></span>';
       statusEl.title = 'Pending';
     } else if (item.status === 'processing') {
       statusEl.innerHTML =
