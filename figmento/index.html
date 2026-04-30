@@ -3549,46 +3549,70 @@
        PROMPT TEMPLATE CARDS (welcome state)
        ═══════════════════════════════════════════════════════════════ */
 
+    /* Welcome state — fills the chat area, hero centered, pills pinned bottom-left */
     .welcome-state {
       display: flex;
       flex-direction: column;
-      align-items: center;
-      flex: 0 0 auto;
-      padding: 56px var(--space-lg) var(--space-md);
+      flex: 1 1 auto;
+      min-height: 100%;
+      padding: var(--space-lg);
       gap: var(--space-md);
     }
 
+    .welcome-hero {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      text-align: center;
+    }
+
     .welcome-logo {
-      width: 44px;
-      height: 44px;
+      width: 48px;
+      height: 48px;
       background: var(--accent);
       border-radius: var(--radius-md);
       display: flex;
       align-items: center;
       justify-content: center;
       color: var(--accent-on);
-      font-size: 18px;
+      font-size: 20px;
       font-weight: var(--font-bold);
       letter-spacing: -0.02em;
-      box-shadow: 0 6px 18px var(--accent-dim);
+      box-shadow: 0 8px 24px var(--accent-dim);
+    }
+
+    .welcome-headline {
+      font-family: var(--font-display);
+      font-weight: 400;
+      font-size: 28px;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      margin-top: 4px;
+    }
+
+    .welcome-headline .accent-mark {
+      color: var(--accent);
     }
 
     .welcome-subtitle {
       font-size: var(--text-lg);
-      font-weight: var(--font-medium);
-      color: var(--text-primary);
-      text-align: center;
-      max-width: 280px;
+      font-weight: var(--font-normal);
+      color: var(--text-secondary);
+      max-width: 320px;
       letter-spacing: -0.01em;
+      line-height: 1.4;
     }
 
     .welcome-templates {
-      width: 100%;
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
       justify-content: center;
-      margin-top: 28px;
+      margin-top: auto;
     }
 
     .template-card {
@@ -3617,8 +3641,21 @@
     }
 
     .template-card-icon {
-      font-size: 12px;
-      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+    .template-card-icon svg {
+      width: 100%;
+      height: 100%;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .template-card-title {

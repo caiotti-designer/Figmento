@@ -721,24 +721,34 @@ interface ChatTemplate {
   prompt: string;
 }
 
+// Lucide icon SVG paths (https://lucide.dev) — inlined for plugin sandbox compat
+const ICON_INSTAGRAM =
+  '<svg viewBox="0 0 24 24"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>';
+const ICON_GLOBE =
+  '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>';
+const ICON_PRESENTATION =
+  '<svg viewBox="0 0 24 24"><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/></svg>';
+const ICON_YOUTUBE =
+  '<svg viewBox="0 0 24 24"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>';
+
 const CHAT_TEMPLATES: ChatTemplate[] = [
   {
-    icon: '📸',
+    icon: ICON_INSTAGRAM,
     label: 'Instagram post',
     prompt: 'Create an Instagram post (1080×1350) about {topic}. Style: {mood — minimal, editorial, vibrant}.',
   },
   {
-    icon: '🌐',
+    icon: ICON_GLOBE,
     label: 'Web hero',
     prompt: 'Create a web hero section (1440×800) for {product}. Style: {minimal, editorial, brutalist}.',
   },
   {
-    icon: '📊',
+    icon: ICON_PRESENTATION,
     label: 'Pitch slide',
     prompt: 'Create a pitch deck title slide (1920×1080) for {company}. Mood: {bold, dark, premium}.',
   },
   {
-    icon: '🎬',
+    icon: ICON_YOUTUBE,
     label: 'YouTube thumb',
     prompt: 'Create a YouTube thumbnail (1280×720) for a video on {topic}. Hook text: {hook}.',
   },
@@ -769,7 +779,10 @@ function renderChatTemplates(): void {
     container.appendChild(card);
   }
 
-  $('chat-messages').appendChild(container);
+  // Append into the welcome-state flex container so margin-top: auto pins the pills
+  // to the bottom and the hero stays centered. Falls back to chat-messages root.
+  const welcomeState = document.querySelector('.welcome-state');
+  (welcomeState ?? $('chat-messages')).appendChild(container);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2302,10 +2315,12 @@ function registerBuiltinQuickActions(): void {
 
 function addChatWelcome() {
   const messagesEl = $('chat-messages');
-  // Brand wordmark already shown in header + OS title bar — keep welcome compact.
   messagesEl.innerHTML = `<div class="welcome-state">
-    <div class="welcome-logo">F</div>
-    <div class="welcome-subtitle">Describe what you want to create.</div>
+    <div class="welcome-hero">
+      <div class="welcome-logo">F</div>
+      <div class="welcome-headline">Welcome to Figmento<span class="accent-mark">.</span></div>
+      <div class="welcome-subtitle">Your AI co-pilot in Figma.</div>
+    </div>
   </div>`;
   renderChatTemplates();
 }
