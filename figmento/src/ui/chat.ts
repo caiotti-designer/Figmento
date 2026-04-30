@@ -752,7 +752,8 @@ function renderChatTemplates(): void {
   for (const tpl of CHAT_TEMPLATES) {
     const card = document.createElement('button');
     card.className = 'template-card';
-    card.innerHTML = `<span class="template-card-icon">${tpl.icon}</span><div class="template-card-title">${tpl.label}</div><div class="template-card-desc">${tpl.prompt}</div>`;
+    card.innerHTML = `<span class="template-card-icon">${tpl.icon}</span><span class="template-card-title">${tpl.label}</span>`;
+    card.title = tpl.prompt;
     card.addEventListener('click', () => {
       chatInput.value = tpl.prompt;
       chatInput.focus();

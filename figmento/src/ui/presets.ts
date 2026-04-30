@@ -23,6 +23,9 @@ interface PresetFrame {
   cornerRadius?: number;
 }
 
+/** Deep tree node — opaque to the UI, just shuttled through for save. */
+type PresetNode = Record<string, unknown>;
+
 interface Preset {
   id: string;
   name: string;
@@ -31,6 +34,7 @@ interface Preset {
   scope: 'builtin' | 'user';
   createdAt?: number;
   frames: PresetFrame[];
+  nodes?: PresetNode[];
 }
 
 interface PresetListResult {
@@ -43,7 +47,8 @@ const post = (msg: unknown) => parent.postMessage({ pluginMessage: msg }, '*');
 
 let cachedBuiltin: Preset[] = [];
 let cachedUser: Preset[] = [];
-let pendingFrames: PresetFrame[] = []; // frames captured during Save flow, awaiting name
+let pendingFrames: PresetFrame[] = []; // frame summary captured during Save flow
+let pendingNodes: PresetNode[] = []; // deep tree captured during Save flow
 
 function $(id: string): HTMLElement | null {
   return document.getElementById(id);
@@ -160,15 +165,31 @@ function buildPresetRow(p: Preset, isUser: boolean): HTMLElement {
 // SAVE MODAL
 // ═══════════════════════════════════════════════════════════════
 
-function openSaveModal(frames: PresetFrame[]): void {
+function countLeafNodes(nodes: PresetNode[]): number {
+  let total = 0;
+  for (const n of nodes) {
+    total += 1;
+    const children = n.children;
+    if (Array.isArray(children) && children.length > 0) {
+      total += countLeafNodes(children as PresetNode[]);
+    }
+  }
+  return total;
+}
+
+function openSaveModal(frames: PresetFrame[], nodes: PresetNode[]): void {
   pendingFrames = frames;
+  pendingNodes = nodes;
   const modal = $('presetSaveModal');
   const hint = $('presetSaveHint');
   const input = $('presetSaveInput') as HTMLInputElement | null;
   const confirm = $('presetSaveConfirm') as HTMLButtonElement | null;
   if (!modal || !input || !confirm) return;
 
-  if (hint) hint.textContent = `Captured ${frames.length} frame${frames.length === 1 ? '' : 's'}`;
+  const frameCount = frames.length;
+  const nodeTotal = countLeafNodes(nodes);
+  const layerSummary = nodeTotal > frameCount ? ` · ${nodeTotal} layers` : '';
+  if (hint) hint.textContent = `Captured ${frameCount} frame${frameCount === 1 ? '' : 's'}${layerSummary}`;
   input.value = '';
   confirm.disabled = true;
   modal.classList.add('open');
@@ -178,6 +199,7 @@ function openSaveModal(frames: PresetFrame[]): void {
 function closeSaveModal(): void {
   $('presetSaveModal')?.classList.remove('open');
   pendingFrames = [];
+  pendingNodes = [];
 }
 
 function initSaveModal(): void {
@@ -210,7 +232,7 @@ function initSaveModal(): void {
   confirm.addEventListener('click', () => {
     const name = input.value.trim();
     if (!name || pendingFrames.length === 0) return;
-    post({ type: 'preset-save', name, frames: pendingFrames });
+    post({ type: 'preset-save', name, frames: pendingFrames, nodes: pendingNodes });
     closeSaveModal();
   });
 }
@@ -231,7 +253,7 @@ function handlePresetMessage(msg: any): void {
       break;
     }
     case 'preset-capture-result':
-      openSaveModal(msg.frames || []);
+      openSaveModal(msg.frames || [], msg.nodes || []);
       break;
     case 'preset-capture-error':
       alert(msg.message || 'Could not capture selection.');
