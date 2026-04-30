@@ -2,6 +2,19 @@
 
 Recreate any UI screenshot as an editable Figma design using the Plugin API.
 
+## Companion Skills (Auto-Load)
+
+When generating, also load these alongside:
+- `figmento-design-taste.md` — taste defaults (typography, color, layout
+  variance) when the screenshot's source design is weak or generic
+- `figmento-anti-patterns.md` — the named anti-slop patterns to avoid
+  amplifying mistakes from the source
+
+If the screenshot itself shows AI-generated slop (Lila Stain hero, 3
+equal cards, Inter on display, "John Doe" placeholders) — flag it,
+recreate the structure faithfully, but apply the taste-skill fixes
+before declaring done.
+
 ## Prerequisites
 
 - Claude Code with `use_figma` MCP tool connected

@@ -2,6 +2,19 @@
 
 Turn a text brief into a complete, polished Figma design using the Plugin API.
 
+## Companion Skills (Auto-Load)
+
+When generating from a text brief, ALWAYS load these alongside:
+- `figmento-design-taste.md` — taste defaults that override LLM biases
+  (typography, color, layout variance, content realism). MANDATORY when
+  the brief is open-ended or no design system cache is loaded.
+- `figmento-anti-patterns.md` — named anti-slop patterns to check before
+  generating
+
+Brief vague? ("Make it look modern and premium") → Default to Figmento's
+taste baselines: DESIGN_VARIANCE 7, MOTION_INTENSITY 5, VISUAL_DENSITY 4.
+Cabinet Grotesk + Geist. Single emerald or olive accent. Asymmetric hero.
+
 ## Prerequisites
 
 - Claude Code with `use_figma` MCP tool connected
