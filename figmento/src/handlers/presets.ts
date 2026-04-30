@@ -78,7 +78,7 @@ export interface PresetNode {
   opacity?: number;
   rotation?: number;
 
-  // Frame/Group auto-layout
+  // Frame/Group auto-layout (parent props)
   layoutMode?: 'NONE' | 'HORIZONTAL' | 'VERTICAL';
   primaryAxisAlignItems?: 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN';
   counterAxisAlignItems?: 'MIN' | 'CENTER' | 'MAX' | 'BASELINE';
@@ -88,6 +88,11 @@ export interface PresetNode {
   paddingBottom?: number;
   itemSpacing?: number;
   clipsContent?: boolean;
+
+  // Auto-layout child sizing (applies when parent has layoutMode HORIZONTAL/VERTICAL)
+  layoutSizingHorizontal?: 'FIXED' | 'HUG' | 'FILL';
+  layoutSizingVertical?: 'FIXED' | 'HUG' | 'FILL';
+  layoutGrow?: number;
 
   // Text-specific
   characters?: string;
@@ -326,6 +331,21 @@ function serializeNode(
   if ('opacity' in node && node.opacity < 1) base.opacity = node.opacity;
   if ('rotation' in node && node.rotation !== 0) base.rotation = node.rotation;
 
+  // Auto-layout child sizing — only meaningful when the parent has layoutMode set,
+  // but cheap to capture on every node and let instantiate apply selectively.
+  if ('layoutSizingHorizontal' in node) {
+    const h = (node as { layoutSizingHorizontal?: 'FIXED' | 'HUG' | 'FILL' }).layoutSizingHorizontal;
+    if (h && h !== 'FIXED') base.layoutSizingHorizontal = h;
+  }
+  if ('layoutSizingVertical' in node) {
+    const v = (node as { layoutSizingVertical?: 'FIXED' | 'HUG' | 'FILL' }).layoutSizingVertical;
+    if (v && v !== 'FIXED') base.layoutSizingVertical = v;
+  }
+  if ('layoutGrow' in node) {
+    const g = (node as { layoutGrow?: number }).layoutGrow;
+    if (typeof g === 'number' && g > 0) base.layoutGrow = g;
+  }
+
   if (node.type === 'TEXT') {
     base.type = 'TEXT';
     const t = node;
@@ -473,29 +493,90 @@ function collectFonts(node: PresetNode, set: Set<string>): void {
   }
 }
 
+/**
+ * Track which fonts loaded successfully + which families we substituted.
+ * Reset on every instantiate.
+ */
+const loadedFonts = new Set<string>();
+const substitutedFamilies = new Set<string>();
+
+/**
+ * Try to load each unique font from the saved tree. Always preload Inter at
+ * common weights so style-matching fallbacks have material to work with.
+ */
 async function loadAllFonts(nodes: PresetNode[]): Promise<void> {
+  loadedFonts.clear();
+  substitutedFamilies.clear();
+
   const fontKeys = new Set<string>();
   for (const n of nodes) collectFonts(n, fontKeys);
-  // Always have Inter Regular as a fallback
-  fontKeys.add('Inter|Regular');
 
-  const promises: Promise<void>[] = [];
+  // Preload Inter at common weights so the fallback can match style/weight
+  for (const style of ['Regular', 'Medium', 'SemiBold', 'Bold', 'Light', 'Thin', 'Italic', 'Bold Italic']) {
+    fontKeys.add(`Inter|${style}`);
+  }
+
+  const tasks: Promise<void>[] = [];
   for (const key of fontKeys) {
     const [family, style] = key.split('|');
-    promises.push(
-      figma.loadFontAsync({ family, style }).catch(() => {
-        // Swallow — we'll fall back to Inter Regular at write time
-      })
+    tasks.push(
+      figma.loadFontAsync({ family, style }).then(
+        () => {
+          loadedFonts.add(key);
+        },
+        () => {
+          /* font missing — tracked at write time */
+        }
+      )
     );
   }
-  await Promise.all(promises);
+  await Promise.all(tasks);
+
+  // Guarantee Inter Regular is loaded as the absolute last-ditch fallback.
+  if (!loadedFonts.has('Inter|Regular')) {
+    try {
+      await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
+      loadedFonts.add('Inter|Regular');
+    } catch {
+      // If even Inter Regular won't load, Figma is in a bad state — do nothing.
+    }
+  }
+}
+
+/**
+ * Pick the best loaded font for a captured fontName. Tries in order:
+ *   1. Exact match (family + style)
+ *   2. Same family, Regular style
+ *   3. Inter at the same style (e.g. SemiBold → Inter SemiBold)
+ *   4. Inter Regular
+ * Tracks substitutions so we can report at the end.
+ */
+function resolveFont(font: PresetFontName): PresetFontName {
+  const exact = `${font.family}|${font.style}`;
+  if (loadedFonts.has(exact)) return font;
+
+  const sameFamilyRegular = `${font.family}|Regular`;
+  if (loadedFonts.has(sameFamilyRegular)) {
+    substitutedFamilies.add(font.family);
+    return { family: font.family, style: 'Regular' };
+  }
+
+  const interSameStyle = `Inter|${font.style}`;
+  if (loadedFonts.has(interSameStyle)) {
+    substitutedFamilies.add(font.family);
+    return { family: 'Inter', style: font.style };
+  }
+
+  substitutedFamilies.add(font.family);
+  return { family: 'Inter', style: 'Regular' };
 }
 
 // ═══════════════════════════════════════════════════════════════
 // INSTANTIATE — deep tree → live nodes
 // ═══════════════════════════════════════════════════════════════
 
-const PLACEHOLDER_FILL: SolidPaint = { type: 'SOLID', color: { r: 0.85, g: 0.85, b: 0.85 } };
+// Mid warm-gray — readable on both light and dark surfaces, signals "fill me"
+const PLACEHOLDER_FILL: SolidPaint = { type: 'SOLID', color: { r: 0.56, g: 0.55, b: 0.51 } };
 
 function fillToPaint(fill: PresetFill): Paint | null {
   if (fill.type === 'SOLID' && fill.color) {
@@ -567,16 +648,12 @@ function applyAutoLayout(target: FrameNode | ComponentNode, n: PresetNode): void
 function instantiateText(n: PresetNode): TextNode {
   const t = figma.createText();
   // Set font BEFORE characters, else figma throws
-  let fontApplied: PresetFontName = { family: 'Inter', style: 'Regular' };
-  if (n.fontName) {
-    try {
-      t.fontName = n.fontName;
-      fontApplied = n.fontName;
-    } catch {
-      t.fontName = fontApplied;
-    }
-  } else {
-    t.fontName = fontApplied;
+  const targetFont = n.fontName ? resolveFont(n.fontName) : { family: 'Inter', style: 'Regular' };
+  try {
+    t.fontName = targetFont;
+  } catch {
+    // resolveFont guarantees a loaded font, but belt-and-suspenders
+    t.fontName = { family: 'Inter', style: 'Regular' };
   }
   if (typeof n.fontSize === 'number') t.fontSize = n.fontSize;
   if (typeof n.characters === 'string') t.characters = n.characters;
@@ -589,7 +666,7 @@ function instantiateText(n: PresetNode): TextNode {
   if (n.textAutoResize) t.textAutoResize = n.textAutoResize;
   if (n.fills) {
     const paints = n.fills.map(fillToPaint).filter((p): p is Paint => p !== null);
-    if (paints.length > 0) t.fills = paints;
+    t.fills = paints; // assign even if empty so default black isn't kept on captured-no-fill
   }
   // Resize after content so explicit size sticks (with NONE auto-resize)
   if (n.textAutoResize === 'NONE' || !n.textAutoResize) {
@@ -610,10 +687,8 @@ function instantiateNode(n: PresetNode): SceneNode | null {
     case 'RECTANGLE': {
       const r = figma.createRectangle();
       r.resize(n.width, n.height);
-      if (n.fills) {
-        const paints = n.fills.map(fillToPaint).filter((p): p is Paint => p !== null);
-        r.fills = paints.length > 0 ? paints : [];
-      }
+      // Always overwrite the default fill so transparent originals stay transparent.
+      r.fills = n.fills ? n.fills.map(fillToPaint).filter((p): p is Paint => p !== null) : [];
       if (n.strokes) r.strokes = n.strokes.map(strokeToPaint);
       if (typeof n.strokeWeight === 'number') r.strokeWeight = n.strokeWeight;
       applyCornerRadii(r, n);
@@ -623,10 +698,7 @@ function instantiateNode(n: PresetNode): SceneNode | null {
     case 'ELLIPSE': {
       const e = figma.createEllipse();
       e.resize(n.width, n.height);
-      if (n.fills) {
-        const paints = n.fills.map(fillToPaint).filter((p): p is Paint => p !== null);
-        e.fills = paints.length > 0 ? paints : [];
-      }
+      e.fills = n.fills ? n.fills.map(fillToPaint).filter((p): p is Paint => p !== null) : [];
       if (n.strokes) e.strokes = n.strokes.map(strokeToPaint);
       if (typeof n.strokeWeight === 'number') e.strokeWeight = n.strokeWeight;
       return e;
@@ -653,11 +725,12 @@ function instantiateNode(n: PresetNode): SceneNode | null {
     default: {
       const f = figma.createFrame();
       f.resize(n.width, n.height);
-      // Frame with no fills → set explicitly to [] to avoid the default white
-      if (n.fills) {
-        const paints = n.fills.map(fillToPaint).filter((p): p is Paint => p !== null);
-        f.fills = paints;
-      }
+      // Always clear Figma's default white fill BEFORE applying captured paints.
+      // If the original was transparent (no fill), we want transparent — not white.
+      const paints = n.fills
+        ? n.fills.map(fillToPaint).filter((p): p is Paint => p !== null)
+        : [];
+      f.fills = paints;
       if (n.strokes) f.strokes = n.strokes.map(strokeToPaint);
       if (typeof n.strokeWeight === 'number') f.strokeWeight = n.strokeWeight;
       applyCornerRadii(f, n);
@@ -667,6 +740,9 @@ function instantiateNode(n: PresetNode): SceneNode | null {
           const childNode = instantiateNode(child);
           if (childNode) {
             f.appendChild(childNode);
+            applyCommonProps(childNode, child);
+            // For non-auto-layout, x/y is meaningful. For auto-layout, Figma reflows
+            // anyway after applyAutoLayout — set them defensively.
             childNode.x = child.x;
             childNode.y = child.y;
           }
@@ -675,7 +751,42 @@ function instantiateNode(n: PresetNode): SceneNode | null {
       // Auto-layout AFTER children so positions are interpreted correctly
       applyAutoLayout(f, n);
       if (typeof n.clipsContent === 'boolean') f.clipsContent = n.clipsContent;
+      // Apply child layout sizing AFTER parent has its own layoutMode set,
+      // because layoutSizingHorizontal/Vertical only resolve in auto-layout context.
+      if (n.children && (n.layoutMode === 'HORIZONTAL' || n.layoutMode === 'VERTICAL')) {
+        const ch = f.children;
+        for (let i = 0; i < ch.length && i < n.children.length; i++) {
+          applyChildLayoutSizing(ch[i], n.children[i]);
+        }
+      }
       return f;
+    }
+  }
+}
+
+function applyChildLayoutSizing(node: SceneNode, n: PresetNode): void {
+  // These setters only work when the node is inside an auto-layout parent.
+  if (n.layoutSizingHorizontal && 'layoutSizingHorizontal' in node) {
+    try {
+      (node as { layoutSizingHorizontal: 'FIXED' | 'HUG' | 'FILL' }).layoutSizingHorizontal =
+        n.layoutSizingHorizontal;
+    } catch {
+      // HUG only works on text/auto-layout frames; FILL only when parent has matching primary axis
+    }
+  }
+  if (n.layoutSizingVertical && 'layoutSizingVertical' in node) {
+    try {
+      (node as { layoutSizingVertical: 'FIXED' | 'HUG' | 'FILL' }).layoutSizingVertical =
+        n.layoutSizingVertical;
+    } catch {
+      // ignore
+    }
+  }
+  if (typeof n.layoutGrow === 'number' && 'layoutGrow' in node) {
+    try {
+      (node as { layoutGrow: number }).layoutGrow = n.layoutGrow;
+    } catch {
+      // ignore
     }
   }
 }
@@ -717,6 +828,12 @@ async function instantiatePreset(preset: Preset): Promise<SceneNode[]> {
     if (created.length > 0) {
       figma.currentPage.selection = created;
       figma.viewport.scrollAndZoomIntoView(created);
+    }
+    // Surface font substitutions so the user knows what got swapped
+    if (substitutedFamilies.size > 0) {
+      const list = Array.from(substitutedFamilies).slice(0, 3).join(', ');
+      const more = substitutedFamilies.size > 3 ? ` +${substitutedFamilies.size - 3} more` : '';
+      figma.notify(`Substituted missing fonts: ${list}${more} (using Inter)`, { timeout: 6000 });
     }
     return created;
   }
