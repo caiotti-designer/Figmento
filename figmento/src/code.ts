@@ -20,6 +20,7 @@ import {
   applyTemplateImage,
 } from './handlers/templates';
 import { handleScanDesignSystem, getDesignSystemCache } from './handlers/design-system-discovery';
+import { handlePresetMessage } from './handlers/presets';
 
 // Safety net: strip figma.mixed (Symbol) and other non-cloneable values
 // before postMessage to prevent "Cannot unwrap symbol" structured-clone errors.
@@ -66,6 +67,8 @@ export default function () {
     if (await handleStorageMessage(msg)) return;
     // Delegate to settings handlers (API keys, validation, settings, memory, feedback)
     if (await handleSettingsMessage(msg)) return;
+    // Delegate to preset handlers (frame templates — list, save, instantiate, delete)
+    if (await handlePresetMessage(msg as never)) return;
 
     switch (msg.type) {
       case 'get-selection': {

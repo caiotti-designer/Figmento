@@ -45,6 +45,7 @@ import { initPreferencesPanel, reloadPreferencesPanel } from './preferences-pane
 import { designSystemState, dsToggleState } from './state';
 import { initSkillExport } from './skill-export';
 import { initImageStudio } from './image-studio';
+import { initPresets } from './presets';
 import type { DesignSystemCache } from '../types';
 
 // ═══════════════════════════════════════════════════════════════
@@ -161,12 +162,8 @@ function initDesignSystemPanel(): void {
  * Called after scan completes, toggle change, or initial load.
  */
 function updateDsToggleUI(): void {
-  const toggleRow = document.getElementById('ds-toggle-row');
-  const toggleInput = document.getElementById('ds-toggle') as HTMLInputElement | null;
-  const summary = document.getElementById('ds-toggle-summary');
-  const hint = document.getElementById('ds-toggle-hint');
-
-  if (!toggleRow || !toggleInput) return;
+  const pill = document.getElementById('ds-toggle-pill') as HTMLButtonElement | null;
+  if (!pill) return;
 
   const cache = designSystemState.cache;
   const hasCache =
@@ -179,61 +176,48 @@ function updateDsToggleUI(): void {
         0);
 
   if (!hasCache) {
-    // No DS scanned — hide the row entirely. Scanning lives in Settings → Design System.
-    toggleRow.style.display = 'none';
+    // No DS scanned — hide pill entirely. Scanning lives in Settings → Design System.
+    pill.style.display = 'none';
     return;
   }
 
-  // DS scanned — show the row
-  toggleRow.style.display = '';
-  if (hint) hint.style.display = 'none';
+  pill.style.display = '';
+
+  // Tooltip carries the count summary so the pill itself stays compact
+  const compCount = cache.components.length;
+  const varCount = cache.variables.length;
+  const styleCount =
+    (cache.paintStyles as unknown[]).length +
+    (cache.textStyles as unknown[]).length +
+    (cache.effectStyles as unknown[]).length;
+  const parts: string[] = [];
+  if (compCount > 0) parts.push(`${compCount} components`);
+  if (varCount > 0) parts.push(`${varCount} variables`);
+  if (styleCount > 0) parts.push(`${styleCount} styles`);
+  const summary = parts.length > 0 ? ` — ${parts.join(', ')}` : '';
 
   if (dsToggleState.enabled) {
-    toggleRow.classList.remove('disabled');
-    toggleRow.classList.add('active');
-    toggleInput.disabled = false;
-    toggleInput.checked = true;
-    if (summary) {
-      const compCount = cache.components.length;
-      const varCount = cache.variables.length;
-      const styleCount =
-        (cache.paintStyles as unknown[]).length +
-        (cache.textStyles as unknown[]).length +
-        (cache.effectStyles as unknown[]).length;
-      const parts: string[] = [];
-      if (compCount > 0) parts.push(`${compCount} components`);
-      if (varCount > 0) parts.push(`${varCount} variables`);
-      if (styleCount > 0) parts.push(`${styleCount} styles`);
-      summary.textContent = parts.length > 0 ? `(${parts.join(', ')})` : '';
-    }
+    pill.classList.add('active');
+    pill.setAttribute('aria-pressed', 'true');
+    pill.title = `Design System ON${summary}`;
   } else {
-    toggleRow.classList.remove('disabled');
-    toggleRow.classList.remove('active');
-    toggleInput.disabled = false;
-    toggleInput.checked = false;
-    if (summary) summary.textContent = '';
+    pill.classList.remove('active');
+    pill.setAttribute('aria-pressed', 'false');
+    pill.title = `Design System OFF${summary}`;
   }
 }
 
 function initDsToggle(): void {
-  const toggleInput = document.getElementById('ds-toggle') as HTMLInputElement | null;
-  const scanLink = document.getElementById('ds-toggle-scan-link');
+  const pill = document.getElementById('ds-toggle-pill') as HTMLButtonElement | null;
 
-  if (toggleInput) {
-    toggleInput.addEventListener('change', () => {
-      dsToggleState.enabled = toggleInput.checked;
+  if (pill) {
+    pill.addEventListener('click', () => {
+      dsToggleState.enabled = !dsToggleState.enabled;
       // Persist to clientStorage via sandbox
       postMessage({ type: 'save-ds-toggle', enabled: dsToggleState.enabled });
       // Sync variable binder setting
       postMessage({ type: 'set-auto-bind-variables', enabled: dsToggleState.enabled });
       updateDsToggleUI();
-    });
-  }
-
-  if (scanLink) {
-    scanLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      triggerDesignSystemScan();
     });
   }
 
@@ -558,6 +542,7 @@ function initializeApp(): void {
   initDsToggle();
   initSkillExport();
   initImageStudio();
+  initPresets();
 }
 
 /** Initialize the unified tab layout. */

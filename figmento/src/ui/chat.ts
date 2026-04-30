@@ -721,72 +721,26 @@ interface ChatTemplate {
   prompt: string;
 }
 
-interface PromptTemplate {
-  icon: string;
-  label: string;
-  prompt: string;
-  prefill?: boolean; // if true, prefills input instead of auto-sending
-}
-
 const CHAT_TEMPLATES: ChatTemplate[] = [
   {
     icon: '📸',
-    label: 'Instagram Ad',
-    prompt:
-      'Create an Instagram post (1080×1350) for a hippie coffee shop — warm earthy tones, vintage feel, include a CTA',
-  },
-  {
-    icon: '💼',
-    label: 'LinkedIn Post',
-    prompt: 'Create a LinkedIn post banner (1200×627) for a SaaS productivity tool — modern, clean, corporate blue',
-  },
-  {
-    icon: '🎬',
-    label: 'YouTube Thumb',
-    prompt: 'Create a YouTube thumbnail (1280×720) for a coding tutorial — dark background, bold text, tech feel',
+    label: 'Instagram post',
+    prompt: 'Create an Instagram post (1080×1350) about {topic}. Style: {mood — minimal, editorial, vibrant}.',
   },
   {
     icon: '🌐',
-    label: 'Web Hero',
-    prompt: 'Create a web hero section (1440×800) for a wellness app — soft greens, organic shapes, minimal',
+    label: 'Web hero',
+    prompt: 'Create a web hero section (1440×800) for {product}. Style: {minimal, editorial, brutalist}.',
   },
   {
     icon: '📊',
-    label: 'Slide Deck',
-    prompt: 'Create a presentation title slide (1920×1080) for a startup pitch — bold, modern, dark theme',
+    label: 'Pitch slide',
+    prompt: 'Create a pitch deck title slide (1920×1080) for {company}. Mood: {bold, dark, premium}.',
   },
   {
-    icon: '📄',
-    label: 'A4 Flyer',
-    prompt: 'Create an A4 flyer (2480×3508) for a summer music festival — vibrant, energetic, neon accents',
-  },
-];
-
-// CU-5: Prompt templates replacing killed tools (Text to Layout, Template Fill, Presentation, Hero Generator)
-const TOOL_REPLACEMENT_TEMPLATES: PromptTemplate[] = [
-  {
-    icon: '🎨',
-    label: 'Create a social post',
-    prompt: 'Create a {format: Instagram/Twitter/LinkedIn} post about {topic}. Style: {mood}. Font: {font or "auto"}.',
-    prefill: true,
-  },
-  {
-    icon: '📋',
-    label: 'Fill a template',
-    prompt: 'Scan the selected frame and fill all #-prefixed placeholders with content about {topic}.',
-    prefill: true,
-  },
-  {
-    icon: '📊',
-    label: 'Build a presentation',
-    prompt: 'Create a {count}-slide presentation about {topic}. Format: {16:9/A4}. Style: {minimal/vibrant/dark}.',
-    prefill: true,
-  },
-  {
-    icon: '🖼',
-    label: 'Generate a hero image',
-    prompt: 'Generate a hero image: {subject description}. Position: {center/left/right}. Quality: {2k/4k}.',
-    prefill: true,
+    icon: '🎬',
+    label: 'YouTube thumb',
+    prompt: 'Create a YouTube thumbnail (1280×720) for a video on {topic}. Hook text: {hook}.',
   },
 ];
 
@@ -795,55 +749,22 @@ function renderChatTemplates(): void {
   const container = document.createElement('div');
   container.className = 'welcome-templates';
 
-  const label = document.createElement('div');
-  label.className = 'welcome-templates-label';
-  label.textContent = 'Try these prompts:';
-  container.appendChild(label);
-
   for (const tpl of CHAT_TEMPLATES) {
     const card = document.createElement('button');
     card.className = 'template-card';
-    card.innerHTML = `<div class="template-card-title">${tpl.label}</div><div class="template-card-desc">${tpl.prompt}</div>`;
+    card.innerHTML = `<span class="template-card-icon">${tpl.icon}</span><div class="template-card-title">${tpl.label}</div><div class="template-card-desc">${tpl.prompt}</div>`;
     card.addEventListener('click', () => {
       chatInput.value = tpl.prompt;
       chatInput.focus();
-      sendMessage();
-    });
-    container.appendChild(card);
-  }
-
-  // CU-5: Tool replacement templates (prefill mode)
-  const toolLabel = document.createElement('div');
-  toolLabel.className = 'welcome-templates-label';
-  toolLabel.textContent = 'Design tools:';
-  toolLabel.style.marginTop = '12px';
-  container.appendChild(toolLabel);
-
-  for (const tpl of TOOL_REPLACEMENT_TEMPLATES) {
-    const card = document.createElement('button');
-    card.className = 'template-card template-card-tool';
-    card.innerHTML = `<span class="template-card-icon">${tpl.icon}</span><div class="template-card-title">${tpl.label}</div>`;
-    card.addEventListener('click', () => {
-      chatInput.value = tpl.prompt;
-      chatInput.focus();
-      // Select first {placeholder} for easy replacement
+      // Select the first {placeholder} so the user can start typing immediately
       const match = tpl.prompt.match(/\{[^}]+\}/);
       if (match) {
         const start = tpl.prompt.indexOf(match[0]);
         chatInput.setSelectionRange(start, start + match[0].length);
+      } else {
+        chatInput.setSelectionRange(chatInput.value.length, chatInput.value.length);
       }
     });
-    // CU-5 AC11: "Fill a template" needs selection context
-    if (tpl.label === 'Fill a template') {
-      card.addEventListener('click', () => {
-        if (currentSelection.nodes.length === 0) {
-          appendChatBubble(
-            'assistant',
-            '<span class="chat-warning">Select a frame with #-prefixed layers first, then use this template.</span>'
-          );
-        }
-      });
-    }
     container.appendChild(card);
   }
 
@@ -1625,6 +1546,7 @@ export function initChat() {
 
   setupDropdown('modelSelectorBtn', 'modelDropdown');
   setupDropdown('quickActionBtn', 'quickActionDropdown');
+  setupDropdown('templatesBtn', 'templatesDropdown');
 
   // ── Populate model dropdown from settings-model <select> ──────
   const modelDropdown = document.getElementById('modelDropdown');
@@ -1779,12 +1701,6 @@ export function initChat() {
       return;
     }
 
-    // Cmd+Shift+A → open Ad Analyzer quick action (fallback: Cmd+Alt+A)
-    if (isCmd && (e.shiftKey || e.altKey) && e.key.toLowerCase() === 'a') {
-      e.preventDefault();
-      activateQuickAction('ad-analyzer');
-      return;
-    }
   });
 
   // ── Textarea auto-grow ────────────────────────────────────────
@@ -2106,7 +2022,7 @@ function renderQuickActionCard(): void {
   const submitBtn = document.createElement('button');
   submitBtn.className = 'qa-card-submit';
   submitBtn.id = 'qa-card-submit';
-  submitBtn.textContent = action.id === 'ad-analyzer' ? 'Analyze' : 'Generate';
+  submitBtn.textContent = 'Generate';
   submitBtn.addEventListener('click', submitQuickAction);
   card.appendChild(submitBtn);
 
@@ -2381,59 +2297,6 @@ function registerBuiltinQuickActions(): void {
     },
   });
 
-  // CU-3: Ad Analyzer
-  registerQuickAction({
-    id: 'ad-analyzer',
-    label: 'Ad Analyzer',
-    icon: '🎯',
-    description: 'Analyze ads and build 3 redesigned variants',
-    fields: [
-      {
-        key: 'image',
-        label: 'Ad Image',
-        type: 'file',
-        required: true,
-        placeholder: 'Drop ad image here',
-        accept: '.png,.jpg,.jpeg,.webp',
-      },
-      {
-        key: 'product',
-        label: 'Product Name',
-        type: 'text',
-        required: true,
-        placeholder: 'e.g. Café Noir Premium Blend',
-      },
-      { key: 'category', label: 'Category', type: 'text', required: false, placeholder: 'e.g. Coffee, SaaS, Fashion' },
-      {
-        key: 'platform',
-        label: 'Platform',
-        type: 'select',
-        required: false,
-        options: [
-          { value: 'instagram-4x5', label: 'Instagram 4:5' },
-          { value: 'instagram-1x1', label: 'Instagram 1:1' },
-          { value: 'instagram-story', label: 'Instagram Story' },
-          { value: 'facebook-feed', label: 'Facebook Feed' },
-        ],
-      },
-      {
-        key: 'notes',
-        label: 'Notes',
-        type: 'textarea',
-        required: false,
-        placeholder: 'Additional context or requirements...',
-      },
-    ],
-    buildPrompt: (values) => {
-      const parts = [`Analyze this ad image and create 3 redesigned variants.`];
-      parts.push(`Product: ${values.product}`);
-      if (values.category) parts.push(`Category: ${values.category}`);
-      if (values.platform) parts.push(`Platform: ${values.platform}`);
-      if (values.notes) parts.push(`Notes: ${values.notes}`);
-      parts.push(`Use start_ad_analyzer to begin the analysis, then complete_ad_analyzer for each variant.`);
-      return parts.join('\n');
-    },
-  });
 }
 
 function addChatWelcome() {
