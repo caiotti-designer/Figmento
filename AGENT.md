@@ -1,6 +1,8 @@
-# Figmento — Claude Code Project Rules
+# AGENT.md — Figmento Project Rules (Universal Agent Spec)
 
-Caio is a designer who vibecodes. This file defines how Claude works on Figmento and how the Figmento design-agent behaves.
+Mirror of [.claude/CLAUDE.md](./.claude/CLAUDE.md) for non-Claude agents (Cursor, Codex, Cline, Aider, Continue, etc.). Same rules, neutral tooling references. **Keep both files in sync — when one changes, update the other.**
+
+Caio is a designer who vibecodes. This file defines how any AI agent should work on Figmento and how the Figmento design-agent behaves.
 
 ---
 
@@ -23,6 +25,8 @@ Bias toward caution over speed; for trivial tasks, use judgment. Source: [andrej
 - **Product/scope** → `@helm` · **Design/UX** → `@muse`/`@pixel` · **Cleanup/audit** → `@atlas` · **Agent building** → `@mason` (Jarvis squad)
 - **Dev-mode** → 4 slash personas: `@architect`, `@dev`, `@qa`, `@devops`
 
+These personas are Claude Code-native; non-Claude agents read them as role hints.
+
 ## Story Files (Optional)
 
 Track non-trivial features in `docs/stories/{ID}-{slug}.story.md` for cross-session context. No rituals. Archive Done stories to `docs/stories/_archived/`.
@@ -37,7 +41,7 @@ Conventional commits (`feat:`, `fix:`, `chore:`, `docs:`, `security:`, `refactor
 
 ## Tool Selection
 
-Grep > bash grep · Glob for files · Read tool · Edit > Write for existing files · Bash for commands · MCP rules in [.claude/rules/mcp-usage.md](./rules/mcp-usage.md).
+Use your agent's native filesystem/search primitives instead of shelling out: code search > bash grep · glob equivalent · file-read · edit/patch > full-file rewrite · shell only for commands. MCP rules in [.claude/rules/mcp-usage.md](./.claude/rules/mcp-usage.md).
 
 ## ws-relay (pm2)
 
@@ -63,7 +67,7 @@ Full reset: `pm2 kill && cd figmento-ws-relay && pm2 start dist/index.js --name 
 
 ## Post-Showcase Extension Discipline
 
-After `generate_design_system_in_figma` or `create_ds_showcase`. Traces to Coral de Dois bugs (2026-04-16); see [DQ-HF-1](../docs/stories/DQ-HF-1-design-agent-showcase-discipline.story.md).
+After `generate_design_system_in_figma` or `create_ds_showcase`. Traces to Coral de Dois bugs (2026-04-16); see [DQ-HF-1](./docs/stories/DQ-HF-1-design-agent-showcase-discipline.story.md).
 
 - **Contrast** — For new fill-backed panels, query `get_contrast_check(fill, textColor)` and iterate until ≥4.5:1. Never copy `on_surface` onto a non-surface fill — it's calibrated for `surface` only.
 - **Nesting** — Supplementary frames MUST nest in the showcase root: pass `parentId: <rootFrameId>` from `create_ds_showcase`, or call `append_child`. Never sibling at canvas root. If `create_frame` returns a `warning`, confirm nesting or explicitly acknowledge sibling intent.
@@ -173,9 +177,9 @@ Generic trap avoided : [bot version vs what you're doing instead]
 
 ## Design System Workflow
 
-**Starting any design** — Ask what brand. `get_design_system(name)`. If none, offer one of: (a) DESIGN.md upload → `import_design_system_from_md({path, previewInFigma:true, createVariables:true, overwrite:false})` (creates tokens.yaml + preview + Figma Variables in one shot — see [docs/guides/design-md-authoring.md](../docs/guides/design-md-authoring.md)); (b) PDF brief → `analyze_brief` → `create_design_system`; (c) URL → `generate_design_system_from_url`; (d) fallback `create_design_system(color+font, mood, preset)`. Then `get_format_rules(format)`. Use `create_component` for buttons/badges/cards — never build manually. All values from tokens — never hardcode when a system is loaded.
+**Starting any design** — Ask what brand. `get_design_system(name)`. If none, offer one of: (a) DESIGN.md upload → `import_design_system_from_md({path, previewInFigma:true, createVariables:true, overwrite:false})` (creates tokens.yaml + preview + Figma Variables in one shot — see [docs/guides/design-md-authoring.md](./docs/guides/design-md-authoring.md)); (b) PDF brief → `analyze_brief` → `create_design_system`; (c) URL → `generate_design_system_from_url`; (d) fallback `create_design_system(color+font, mood, preset)`. Then `get_format_rules(format)`. Use `create_component` for buttons/badges/cards — never build manually. All values from tokens — never hardcode when a system is loaded.
 
-**DESIGN.md** — Portable markdown spec, round-trips 1:1 with `tokens.yaml` across 9 sections. Spec: [docs/architecture/DESIGN-MD-SPEC.md](../docs/architecture/DESIGN-MD-SPEC.md).
+**DESIGN.md** — Portable markdown spec, round-trips 1:1 with `tokens.yaml` across 9 sections. Spec: [docs/architecture/DESIGN-MD-SPEC.md](./docs/architecture/DESIGN-MD-SPEC.md).
 - `validate_design_md({path})` — PASS/CONCERNS/FAIL lint
 - `import_design_system_from_md({path, name?, previewInFigma?, createVariables?, overwrite?})`
 - `export_design_system_to_md({name, path?})` — share with Cursor/Claude Desktop/Cline
@@ -191,4 +195,19 @@ Generic trap avoided : [bot version vs what you're doing instead]
 **Hidden tools (callable via `batch_execute`)** — 54 tools hidden from the visible list (109 → 55) for selection accuracy, still callable as `batch_execute` action names. Categories: scene-advanced (boolean ops, flatten, export-svg, constraints), intelligence-redundant (font pairing, contrast, palette gen), DS-pipeline internals, interactive components, brand/assets/storage, specialized flows (ad analyzer, references), low-usage utilities.
 
 ---
-*Figmento Claude Code Configuration — lean mode*
+
+## Project Map
+
+- **figmento-mcp-server/** — MCP server (stdio) — design tools for agents to control Figma
+- **figmento/** — Figma plugin — WebSocket-driven MCP design executor with AI vision
+- **figmento-ws-relay/** — Channel-based WebSocket relay (port 3055)
+- **packages/figmento-core/** — Shared types/utilities
+- **scripts/** — Utility scripts (HTML-to-PNG renderer)
+- **docs/** — Documentation, stories, architecture
+
+## Quality Gates
+
+`npm run lint` · `npm run typecheck` · `npm test` (in subprojects that support each) · `npm run build` in the subproject you touched.
+
+---
+*Figmento Universal Agent Configuration — kept in sync with .claude/CLAUDE.md*
