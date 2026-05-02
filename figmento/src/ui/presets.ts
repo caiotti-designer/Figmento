@@ -139,6 +139,18 @@ function buildPresetRow(p: Preset, isUser: boolean): HTMLElement {
   item.appendChild(body);
 
   if (isUser) {
+    // v2.5 debug — export JSON to clipboard for repro/sharing
+    const exp = document.createElement('button');
+    exp.type = 'button';
+    exp.className = 'preset-item-export';
+    exp.title = 'Copy template JSON (debug)';
+    exp.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+    exp.addEventListener('click', (e) => {
+      e.stopPropagation();
+      post({ type: 'preset-export-json', presetId: p.id, scope: p.scope });
+    });
+    item.appendChild(exp);
+
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'preset-item-delete';
@@ -269,7 +281,66 @@ function handlePresetMessage(msg: any): void {
     case 'preset-instantiate-error':
       alert(msg.message || 'Template error.');
       break;
+    case 'preset-export-json-result': {
+      const json = typeof msg.json === 'string' ? msg.json : null;
+      if (!json) {
+        alert('Template not found.');
+        break;
+      }
+      void copyToClipboard(json).then((ok) => {
+        if (ok) {
+          alert(`Template JSON copied to clipboard (${json.length.toLocaleString()} chars). Paste into a bug report or DM.`);
+        } else {
+          // Plugin iframe sometimes blocks navigator.clipboard — fall back to a textarea
+          showJsonModal(json);
+        }
+      });
+      break;
+    }
   }
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {/* falls through to legacy */}
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function showJsonModal(text: string): void {
+  // Minimal fallback — render a textarea the user can manually copy from
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;';
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.readOnly = true;
+  ta.style.cssText = 'width:100%;height:80%;font-family:ui-monospace,Menlo,monospace;font-size:11px;padding:12px;background:#1a1a1a;color:#e0e0e0;border:1px solid #444;border-radius:6px;';
+  const close = document.createElement('button');
+  close.textContent = 'Close';
+  close.style.cssText = 'margin-top:12px;padding:8px 16px;';
+  close.addEventListener('click', () => overlay.remove());
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;width:90%;max-width:720px;height:80%;';
+  wrap.appendChild(ta);
+  wrap.appendChild(close);
+  overlay.appendChild(wrap);
+  document.body.appendChild(overlay);
+  ta.select();
 }
 
 // ═══════════════════════════════════════════════════════════════

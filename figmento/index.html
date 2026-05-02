@@ -4132,7 +4132,8 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .preset-item-delete {
+    .preset-item-delete,
+    .preset-item-export {
       flex-shrink: 0;
       width: 22px;
       height: 22px;
@@ -4146,12 +4147,17 @@
       cursor: pointer;
       transition: background var(--transition-fast), color var(--transition-fast);
     }
-    .preset-item:hover .preset-item-delete {
+    .preset-item:hover .preset-item-delete,
+    .preset-item:hover .preset-item-export {
       display: flex;
     }
     .preset-item-delete:hover {
       background: var(--error-dim);
       color: var(--error);
+    }
+    .preset-item-export:hover {
+      background: var(--bg-hover, rgba(255,255,255,0.06));
+      color: var(--text-secondary);
     }
     .preset-item-empty {
       padding: 12px 10px;

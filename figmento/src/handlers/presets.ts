@@ -58,6 +58,40 @@ export interface PresetFontName {
   style: string;
 }
 
+/**
+ * v2.5: effects (drop shadow, inner shadow, layer/background blur).
+ * Stores the full effect payload — Figma accepts this shape directly via node.effects = [...].
+ */
+export interface PresetEffect {
+  type: 'DROP_SHADOW' | 'INNER_SHADOW' | 'LAYER_BLUR' | 'BACKGROUND_BLUR';
+  visible?: boolean;
+  // Shadow-only
+  color?: { r: number; g: number; b: number; a: number };
+  offset?: { x: number; y: number };
+  radius?: number;
+  spread?: number;
+  blendMode?: BlendMode;
+  showShadowBehindNode?: boolean;
+  // Blur-only — radius reused
+}
+
+/**
+ * v2.5: per-character text styling for mixed runs.
+ * When a TextNode has any mixed property (fontSize, fontName, fills, etc.),
+ * we walk character ranges and emit one entry per contiguous span.
+ */
+export interface PresetTextRange {
+  start: number;
+  end: number;
+  fontName?: PresetFontName;
+  fontSize?: number;
+  fills?: PresetFill[];
+  textCase?: 'ORIGINAL' | 'UPPER' | 'LOWER' | 'TITLE';
+  textDecoration?: 'NONE' | 'UNDERLINE' | 'STRIKETHROUGH';
+  letterSpacing?: { value: number; unit: 'PIXELS' | 'PERCENT' };
+  lineHeight?: { value: number; unit: 'PIXELS' | 'PERCENT' } | { unit: 'AUTO' };
+}
+
 export interface PresetNode {
   type: 'FRAME' | 'TEXT' | 'RECTANGLE' | 'ELLIPSE' | 'GROUP' | 'IMAGE_PLACEHOLDER' | 'LINE';
   name: string;
@@ -70,6 +104,14 @@ export interface PresetNode {
   fills?: PresetFill[];
   strokes?: PresetStroke[];
   strokeWeight?: number;
+  /** v2.5 */
+  strokeAlign?: 'CENTER' | 'INSIDE' | 'OUTSIDE';
+  /** v2.5 — uses Figma's StrokeCap union (including newer values like DIAMOND_FILLED) minus figma.mixed */
+  strokeCap?: Exclude<StrokeCap, typeof figma.mixed>;
+  /** v2.5 */
+  strokeJoin?: Exclude<StrokeJoin, typeof figma.mixed>;
+  /** v2.5 */
+  dashPattern?: number[];
   cornerRadius?: number;
   topLeftRadius?: number;
   topRightRadius?: number;
@@ -77,6 +119,16 @@ export interface PresetNode {
   bottomRightRadius?: number;
   opacity?: number;
   rotation?: number;
+  /** v2.5 */
+  blendMode?: BlendMode;
+  /** v2.5 */
+  effects?: PresetEffect[];
+
+  /** v2.5 — Style references. Best-effort: applied if the style exists in the destination file, otherwise falls back to the raw values above. */
+  fillStyleId?: string;
+  strokeStyleId?: string;
+  effectStyleId?: string;
+  textStyleId?: string;
 
   // Frame/Group auto-layout (parent props)
   layoutMode?: 'NONE' | 'HORIZONTAL' | 'VERTICAL';
@@ -105,6 +157,11 @@ export interface PresetNode {
   textCase?: 'ORIGINAL' | 'UPPER' | 'LOWER' | 'TITLE';
   textDecoration?: 'NONE' | 'UNDERLINE' | 'STRIKETHROUGH';
   textAutoResize?: 'NONE' | 'WIDTH_AND_HEIGHT' | 'HEIGHT' | 'TRUNCATE';
+  /** v2.5 — present when the source TextNode had any mixed property (different fonts/sizes/colors per character). */
+  textRanges?: PresetTextRange[];
+
+  /** v2.5 — forward-compat hook for future component-instance preservation. Captured but not currently restored. */
+  instanceOf?: { id: string; name: string; key?: string };
 
   // Children (FRAME/GROUP)
   children?: PresetNode[];
@@ -290,6 +347,143 @@ function serializeStrokes(strokes: readonly Paint[] | typeof figma.mixed): Prese
   return out.length > 0 ? out : undefined;
 }
 
+function serializeEffects(effects: readonly Effect[] | typeof figma.mixed): PresetEffect[] | undefined {
+  if (effects === figma.mixed) return undefined;
+  if (!Array.isArray(effects) || effects.length === 0) return undefined;
+  const out: PresetEffect[] = [];
+  for (const e of effects) {
+    if (e.type === 'DROP_SHADOW' || e.type === 'INNER_SHADOW') {
+      out.push({
+        type: e.type,
+        visible: e.visible !== false,
+        color: { r: e.color.r, g: e.color.g, b: e.color.b, a: e.color.a },
+        offset: { x: e.offset.x, y: e.offset.y },
+        radius: e.radius,
+        spread: 'spread' in e ? e.spread : undefined,
+        blendMode: e.blendMode,
+        showShadowBehindNode: 'showShadowBehindNode' in e ? e.showShadowBehindNode : undefined,
+      });
+    } else if (e.type === 'LAYER_BLUR' || e.type === 'BACKGROUND_BLUR') {
+      out.push({ type: e.type, visible: e.visible !== false, radius: e.radius });
+    }
+    // NOISE/TEXTURE effects (newer additions) silently dropped — rare in templates.
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+/**
+ * Walk a TextNode's characters and emit one PresetTextRange per contiguous
+ * span where every captured property is identical. Only called when at least
+ * one property reports figma.mixed.
+ */
+function serializeTextRanges(t: TextNode): PresetTextRange[] | undefined {
+  const len = t.characters.length;
+  if (len === 0) return undefined;
+
+  const at = (i: number): Omit<PresetTextRange, 'start' | 'end'> => {
+    const out: Omit<PresetTextRange, 'start' | 'end'> = {};
+    try {
+      const fn = t.getRangeFontName(i, i + 1);
+      if (fn !== figma.mixed) out.fontName = fn as PresetFontName;
+    } catch {/* ignore */}
+    try {
+      const fs = t.getRangeFontSize(i, i + 1);
+      if (typeof fs === 'number') out.fontSize = fs;
+    } catch {/* ignore */}
+    try {
+      const fills = t.getRangeFills(i, i + 1);
+      if (fills !== figma.mixed) {
+        const serialized = serializeFills(fills as readonly Paint[]);
+        if (serialized) out.fills = serialized;
+      }
+    } catch {/* ignore */}
+    try {
+      const tc = t.getRangeTextCase(i, i + 1);
+      if (tc !== figma.mixed) out.textCase = tc as PresetTextRange['textCase'];
+    } catch {/* ignore */}
+    try {
+      const td = t.getRangeTextDecoration(i, i + 1);
+      if (td !== figma.mixed) out.textDecoration = td as PresetTextRange['textDecoration'];
+    } catch {/* ignore */}
+    try {
+      const ls = t.getRangeLetterSpacing(i, i + 1);
+      if (ls !== figma.mixed) out.letterSpacing = ls as PresetTextRange['letterSpacing'];
+    } catch {/* ignore */}
+    try {
+      const lh = t.getRangeLineHeight(i, i + 1);
+      if (lh !== figma.mixed) out.lineHeight = lh as PresetTextRange['lineHeight'];
+    } catch {/* ignore */}
+    return out;
+  };
+
+  const eq = (a: Omit<PresetTextRange, 'start' | 'end'>, b: Omit<PresetTextRange, 'start' | 'end'>): boolean =>
+    JSON.stringify(a) === JSON.stringify(b);
+
+  const ranges: PresetTextRange[] = [];
+  let spanStart = 0;
+  let spanProps = at(0);
+  for (let i = 1; i < len; i++) {
+    const here = at(i);
+    if (!eq(here, spanProps)) {
+      ranges.push({ start: spanStart, end: i, ...spanProps });
+      spanStart = i;
+      spanProps = here;
+    }
+  }
+  ranges.push({ start: spanStart, end: len, ...spanProps });
+  return ranges.length > 0 ? ranges : undefined;
+}
+
+function isTextMixed(t: TextNode): boolean {
+  return (
+    t.fontSize === figma.mixed ||
+    t.fontName === figma.mixed ||
+    t.fills === figma.mixed ||
+    t.textCase === figma.mixed ||
+    t.textDecoration === figma.mixed ||
+    t.letterSpacing === figma.mixed ||
+    t.lineHeight === figma.mixed
+  );
+}
+
+/**
+ * v2.5: capture all stroke-related properties onto the base PresetNode.
+ * Mutates base in place to keep call sites tight.
+ */
+function captureStrokeProps(base: PresetNode, node: SceneNode): void {
+  // Cast through unknown — most node types have these props but the SceneNode union
+  // doesn't expose them directly. Each guarded with 'in' + runtime checks below.
+  const n = node as unknown as {
+    strokes?: readonly Paint[] | typeof figma.mixed;
+    strokeWeight?: number | typeof figma.mixed;
+    strokeAlign?: 'CENTER' | 'INSIDE' | 'OUTSIDE';
+    strokeCap?: StrokeCap | typeof figma.mixed;
+    strokeJoin?: StrokeJoin | typeof figma.mixed;
+    dashPattern?: readonly number[];
+    strokeStyleId?: string;
+  };
+  if ('strokes' in node && n.strokes) {
+    const strokes = serializeStrokes(n.strokes);
+    if (strokes) base.strokes = strokes;
+  }
+  if ('strokeWeight' in node && n.strokeWeight !== undefined && n.strokeWeight !== figma.mixed && (n.strokeWeight as number) > 0) {
+    base.strokeWeight = n.strokeWeight as number;
+  }
+  if ('strokeAlign' in node && n.strokeAlign) base.strokeAlign = n.strokeAlign;
+  if ('strokeCap' in node && n.strokeCap && n.strokeCap !== figma.mixed) {
+    base.strokeCap = n.strokeCap as PresetNode['strokeCap'];
+  }
+  if ('strokeJoin' in node && n.strokeJoin && n.strokeJoin !== figma.mixed) {
+    base.strokeJoin = n.strokeJoin as PresetNode['strokeJoin'];
+  }
+  if ('dashPattern' in node && Array.isArray(n.dashPattern) && n.dashPattern.length > 0) {
+    base.dashPattern = Array.from(n.dashPattern);
+  }
+  if ('strokeStyleId' in node && typeof n.strokeStyleId === 'string' && n.strokeStyleId) {
+    base.strokeStyleId = n.strokeStyleId;
+  }
+}
+
 function captureCornerRadii(
   node: FrameNode | ComponentNode | InstanceNode | RectangleNode | EllipseNode
 ): Pick<PresetNode, 'cornerRadius' | 'topLeftRadius' | 'topRightRadius' | 'bottomLeftRadius' | 'bottomRightRadius'> {
@@ -330,6 +524,17 @@ function serializeNode(
 
   if ('opacity' in node && node.opacity < 1) base.opacity = node.opacity;
   if ('rotation' in node && node.rotation !== 0) base.rotation = node.rotation;
+  if ('blendMode' in node && node.blendMode && node.blendMode !== 'PASS_THROUGH' && node.blendMode !== 'NORMAL') {
+    base.blendMode = node.blendMode;
+  }
+  if ('effects' in node) {
+    const eff = serializeEffects((node as { effects: readonly Effect[] | typeof figma.mixed }).effects);
+    if (eff) base.effects = eff;
+  }
+  if ('effectStyleId' in node) {
+    const id = (node as { effectStyleId: string | typeof figma.mixed }).effectStyleId;
+    if (typeof id === 'string' && id) base.effectStyleId = id;
+  }
 
   // Auto-layout child sizing — only meaningful when the parent has layoutMode set,
   // but cheap to capture on every node and let instantiate apply selectively.
@@ -350,31 +555,37 @@ function serializeNode(
     base.type = 'TEXT';
     const t = node;
     base.characters = t.characters;
-    if (t.fontSize !== figma.mixed) base.fontSize = t.fontSize as number;
-    if (t.fontName !== figma.mixed) base.fontName = t.fontName as PresetFontName;
     base.textAlignHorizontal = t.textAlignHorizontal;
     base.textAlignVertical = t.textAlignVertical;
     base.textAutoResize = t.textAutoResize;
+    if (typeof t.textStyleId === 'string' && t.textStyleId) base.textStyleId = t.textStyleId;
+    if (typeof t.fillStyleId === 'string' && t.fillStyleId) base.fillStyleId = t.fillStyleId;
+
+    // Uniform fast path
+    if (t.fontSize !== figma.mixed) base.fontSize = t.fontSize as number;
+    if (t.fontName !== figma.mixed) base.fontName = t.fontName as PresetFontName;
     if (t.letterSpacing !== figma.mixed) {
       base.letterSpacing = t.letterSpacing as { value: number; unit: 'PIXELS' | 'PERCENT' };
     }
     if (t.lineHeight !== figma.mixed) {
-      const lh = t.lineHeight as PresetNode['lineHeight'];
-      base.lineHeight = lh;
+      base.lineHeight = t.lineHeight as PresetNode['lineHeight'];
     }
     if (t.textCase !== figma.mixed) base.textCase = t.textCase as PresetNode['textCase'];
     if (t.textDecoration !== figma.mixed) base.textDecoration = t.textDecoration as PresetNode['textDecoration'];
-    base.fills = serializeFills(t.fills);
+    if (t.fills !== figma.mixed) base.fills = serializeFills(t.fills);
+
+    // Mixed slow path — walk character ranges
+    if (isTextMixed(t)) {
+      base.textRanges = serializeTextRanges(t);
+    }
     return base;
   }
 
   if (node.type === 'RECTANGLE') {
     base.type = 'RECTANGLE';
     base.fills = serializeFills(node.fills);
-    base.strokes = serializeStrokes(node.strokes);
-    if (node.strokeWeight !== figma.mixed && (node.strokeWeight as number) > 0) {
-      base.strokeWeight = node.strokeWeight as number;
-    }
+    captureStrokeProps(base, node);
+    if (typeof node.fillStyleId === 'string' && node.fillStyleId) base.fillStyleId = node.fillStyleId;
     Object.assign(base, captureCornerRadii(node));
     return base;
   }
@@ -382,19 +593,14 @@ function serializeNode(
   if (node.type === 'ELLIPSE') {
     base.type = 'ELLIPSE';
     base.fills = serializeFills(node.fills);
-    base.strokes = serializeStrokes(node.strokes);
-    if (node.strokeWeight !== figma.mixed && (node.strokeWeight as number) > 0) {
-      base.strokeWeight = node.strokeWeight as number;
-    }
+    captureStrokeProps(base, node);
+    if (typeof node.fillStyleId === 'string' && node.fillStyleId) base.fillStyleId = node.fillStyleId;
     return base;
   }
 
   if (node.type === 'LINE') {
     base.type = 'LINE';
-    base.strokes = serializeStrokes(node.strokes);
-    if (node.strokeWeight !== figma.mixed && (node.strokeWeight as number) > 0) {
-      base.strokeWeight = node.strokeWeight as number;
-    }
+    captureStrokeProps(base, node);
     return base;
   }
 
@@ -407,9 +613,13 @@ function serializeNode(
   if (node.type === 'FRAME' || node.type === 'COMPONENT' || node.type === 'INSTANCE') {
     base.type = 'FRAME';
     base.fills = serializeFills(node.fills);
-    base.strokes = serializeStrokes(node.strokes);
-    if (node.strokeWeight !== figma.mixed && (node.strokeWeight as number) > 0) {
-      base.strokeWeight = node.strokeWeight as number;
+    captureStrokeProps(base, node);
+    if (typeof node.fillStyleId === 'string' && node.fillStyleId) base.fillStyleId = node.fillStyleId;
+    if (node.type === 'INSTANCE') {
+      try {
+        const main = node.mainComponent;
+        if (main) base.instanceOf = { id: main.id, name: main.name, key: main.key };
+      } catch {/* main component may be unavailable for remote/lost instances */}
     }
     Object.assign(base, captureCornerRadii(node));
     // Treat GRID layoutMode as NONE for v1 (we don't support grid yet)
@@ -617,6 +827,143 @@ function strokeToPaint(stroke: PresetStroke): SolidPaint {
   };
 }
 
+/** v2.5: PresetEffect → Figma Effect. Returns null on unrecognized. */
+function effectToFigma(e: PresetEffect): Effect | null {
+  if (e.type === 'DROP_SHADOW' || e.type === 'INNER_SHADOW') {
+    if (!e.color || !e.offset || typeof e.radius !== 'number') return null;
+    const out: DropShadowEffect | InnerShadowEffect = {
+      type: e.type,
+      color: e.color,
+      offset: e.offset,
+      radius: e.radius,
+      spread: e.spread,
+      visible: e.visible !== false,
+      blendMode: e.blendMode ?? 'NORMAL',
+      ...(e.type === 'DROP_SHADOW' && typeof e.showShadowBehindNode === 'boolean'
+        ? { showShadowBehindNode: e.showShadowBehindNode }
+        : {}),
+    } as DropShadowEffect | InnerShadowEffect;
+    return out;
+  }
+  if (e.type === 'LAYER_BLUR' || e.type === 'BACKGROUND_BLUR') {
+    if (typeof e.radius !== 'number') return null;
+    return { type: e.type, radius: e.radius, visible: e.visible !== false } as BlurEffect;
+  }
+  return null;
+}
+
+/** v2.5: apply effects + blendMode + effectStyleId. Mutates target. */
+function applyEffectsAndBlend(target: SceneNode, n: PresetNode): void {
+  if (n.effects && 'effects' in target) {
+    const out: Effect[] = [];
+    for (const e of n.effects) {
+      const f = effectToFigma(e);
+      if (f) out.push(f);
+    }
+    try { (target as { effects: readonly Effect[] }).effects = out; } catch {/* node type may reject */}
+  }
+  if (n.blendMode && 'blendMode' in target) {
+    try { (target as { blendMode: BlendMode }).blendMode = n.blendMode; } catch {/* ignore */}
+  }
+  if (n.effectStyleId && 'effectStyleId' in target) {
+    void tryApplyStyleId(target as unknown as { effectStyleId: string }, 'effectStyleId', n.effectStyleId);
+  }
+}
+
+/**
+ * v2.5: apply stroke geometry props captured by captureStrokeProps. Strokes
+ * (paints) are still applied per-node-type by the existing instantiate code;
+ * this only handles align/cap/join/dashPattern/strokeStyleId.
+ */
+function applyStrokeGeometry(target: SceneNode, n: PresetNode): void {
+  if (n.strokeAlign && 'strokeAlign' in target) {
+    try { (target as { strokeAlign: 'CENTER' | 'INSIDE' | 'OUTSIDE' }).strokeAlign = n.strokeAlign; } catch {/* ignore */}
+  }
+  if (n.strokeCap && 'strokeCap' in target) {
+    try { (target as { strokeCap: PresetNode['strokeCap'] }).strokeCap = n.strokeCap; } catch {/* ignore */}
+  }
+  if (n.strokeJoin && 'strokeJoin' in target) {
+    try { (target as { strokeJoin: PresetNode['strokeJoin'] }).strokeJoin = n.strokeJoin; } catch {/* ignore */}
+  }
+  if (n.dashPattern && 'dashPattern' in target) {
+    try { (target as { dashPattern: readonly number[] }).dashPattern = n.dashPattern; } catch {/* ignore */}
+  }
+  if (n.strokeStyleId && 'strokeStyleId' in target) {
+    void tryApplyStyleId(target as unknown as { strokeStyleId: string }, 'strokeStyleId', n.strokeStyleId);
+  }
+}
+
+/**
+ * v2.5: apply a captured style id only if a style with that id resolves in the
+ * destination file. Best-effort — silently no-ops on cross-file mismatch.
+ */
+async function tryApplyStyleId<T extends Record<string, string>, K extends keyof T & string>(
+  target: T,
+  key: K,
+  id: string
+): Promise<void> {
+  try {
+    const style = await figma.getStyleByIdAsync(id);
+    if (style) {
+      target[key] = id as T[K];
+    }
+  } catch {
+    // wrong file or stale id — leave raw values in place
+  }
+}
+
+/**
+ * v2.5: apply per-character ranges to a TextNode that had mixed properties.
+ * Loads any fonts referenced in ranges before applying.
+ */
+async function applyTextRanges(t: TextNode, n: PresetNode): Promise<void> {
+  if (!n.textRanges || n.textRanges.length === 0) return;
+  // Ensure every range font is loaded; loadAllFonts only sees the top-level n.fontName
+  const fontKeys = new Set<string>();
+  for (const r of n.textRanges) {
+    if (r.fontName) fontKeys.add(`${r.fontName.family}|${r.fontName.style}`);
+  }
+  const loadTasks: Promise<void>[] = [];
+  for (const key of fontKeys) {
+    if (loadedFonts.has(key)) continue;
+    const [family, style] = key.split('|');
+    loadTasks.push(figma.loadFontAsync({ family, style }).then(
+      () => { loadedFonts.add(key); },
+      () => {/* track at apply time */}
+    ));
+  }
+  await Promise.all(loadTasks);
+
+  for (const r of n.textRanges) {
+    const start = Math.max(0, r.start);
+    const end = Math.min(t.characters.length, r.end);
+    if (end <= start) continue;
+    if (r.fontName) {
+      const font = resolveFont(r.fontName);
+      try { t.setRangeFontName(start, end, font); } catch {/* font load may have failed */}
+    }
+    if (typeof r.fontSize === 'number') {
+      try { t.setRangeFontSize(start, end, r.fontSize); } catch {/* ignore */}
+    }
+    if (r.fills) {
+      const paints = r.fills.map(fillToPaint).filter((p): p is Paint => p !== null);
+      try { t.setRangeFills(start, end, paints); } catch {/* ignore */}
+    }
+    if (r.textCase) {
+      try { t.setRangeTextCase(start, end, r.textCase); } catch {/* ignore */}
+    }
+    if (r.textDecoration) {
+      try { t.setRangeTextDecoration(start, end, r.textDecoration); } catch {/* ignore */}
+    }
+    if (r.letterSpacing) {
+      try { t.setRangeLetterSpacing(start, end, r.letterSpacing); } catch {/* ignore */}
+    }
+    if (r.lineHeight) {
+      try { t.setRangeLineHeight(start, end, r.lineHeight as LineHeight); } catch {/* ignore */}
+    }
+  }
+}
+
 function applyCornerRadii(target: FrameNode | RectangleNode | ComponentNode, n: PresetNode): void {
   if (typeof n.cornerRadius === 'number') {
     target.cornerRadius = n.cornerRadius;
@@ -668,6 +1015,9 @@ function instantiateText(n: PresetNode): TextNode {
     const paints = n.fills.map(fillToPaint).filter((p): p is Paint => p !== null);
     t.fills = paints; // assign even if empty so default black isn't kept on captured-no-fill
   }
+  // v2.5 — try to relink to original text/fill styles if they exist in this file
+  if (n.textStyleId) void tryApplyStyleId(t as unknown as { textStyleId: string }, 'textStyleId', n.textStyleId);
+  if (n.fillStyleId) void tryApplyStyleId(t as unknown as { fillStyleId: string }, 'fillStyleId', n.fillStyleId);
   // Resize after content so explicit size sticks (with NONE auto-resize)
   if (n.textAutoResize === 'NONE' || !n.textAutoResize) {
     try {
@@ -675,6 +1025,10 @@ function instantiateText(n: PresetNode): TextNode {
     } catch {
       // Some text states refuse resize — best-effort
     }
+  }
+  // v2.5 — apply per-character ranges last so they override the uniform values above
+  if (n.textRanges && n.textRanges.length > 0) {
+    void applyTextRanges(t, n);
   }
   return t;
 }
@@ -795,6 +1149,12 @@ function applyCommonProps(node: SceneNode, n: PresetNode): void {
   node.name = n.name;
   if (typeof n.opacity === 'number' && 'opacity' in node) (node as { opacity: number }).opacity = n.opacity;
   if (typeof n.rotation === 'number' && 'rotation' in node) (node as { rotation: number }).rotation = n.rotation;
+  // v2.5 — effects/blendMode/effectStyleId apply uniformly across every visible node type
+  applyEffectsAndBlend(node, n);
+  // v2.5 — stroke geometry (align/cap/join/dashPattern/strokeStyleId) applies after the
+  // per-type instantiate sets stroke paints + weight. Safe to call on nodes that don't
+  // support strokes (try/catch internally).
+  applyStrokeGeometry(node, n);
 }
 
 function instantiateNodeWithProps(n: PresetNode): SceneNode | null {
@@ -988,6 +1348,24 @@ export async function handlePresetMessage(msg: PresetMessage): Promise<boolean> 
       const next = userPresets.filter((p) => p.id !== msg.presetId);
       await saveUserPresets(next);
       figma.ui.postMessage({ type: 'preset-deleted', presetId: msg.presetId });
+      return true;
+    }
+
+    /** v2.5 — debug: ship a saved preset's full JSON back to the UI for repro/sharing. */
+    case 'preset-export-json': {
+      if (!msg.presetId) return true;
+      let preset: Preset | undefined;
+      if (msg.scope === 'builtin') {
+        preset = BUILTIN_PRESETS.find((p) => p.id === msg.presetId);
+      } else {
+        const userPresets = await loadUserPresets();
+        preset = userPresets.find((p) => p.id === msg.presetId);
+      }
+      figma.ui.postMessage({
+        type: 'preset-export-json-result',
+        presetId: msg.presetId,
+        json: preset ? JSON.stringify(preset, null, 2) : null,
+      });
       return true;
     }
   }
