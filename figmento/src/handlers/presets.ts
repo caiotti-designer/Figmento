@@ -698,6 +698,13 @@ function collectFonts(node: PresetNode, set: Set<string>): void {
   if (node.fontName) {
     set.add(`${node.fontName.family}|${node.fontName.style}`);
   }
+  // v2.5 — also collect fonts referenced inside per-character textRanges so
+  // they're pre-loaded by loadAllFonts() and applyTextRanges can run synchronously.
+  if (node.textRanges) {
+    for (const r of node.textRanges) {
+      if (r.fontName) set.add(`${r.fontName.family}|${r.fontName.style}`);
+    }
+  }
   if (node.children) {
     for (const c of node.children) collectFonts(c, set);
   }
@@ -914,26 +921,14 @@ async function tryApplyStyleId<T extends Record<string, string>, K extends keyof
 
 /**
  * v2.5: apply per-character ranges to a TextNode that had mixed properties.
- * Loads any fonts referenced in ranges before applying.
+ * SYNCHRONOUS — relies on loadAllFonts() (called before any instantiate) having
+ * already loaded every font referenced by ranges. Running async here introduces
+ * a race: text would be appended in Inter Regular, auto-layout would reflow
+ * with the wrong widths, then ranges would set the real fonts AFTER layout
+ * was already locked in. Result: clipped headlines, wrong wrap points.
  */
-async function applyTextRanges(t: TextNode, n: PresetNode): Promise<void> {
+function applyTextRanges(t: TextNode, n: PresetNode): void {
   if (!n.textRanges || n.textRanges.length === 0) return;
-  // Ensure every range font is loaded; loadAllFonts only sees the top-level n.fontName
-  const fontKeys = new Set<string>();
-  for (const r of n.textRanges) {
-    if (r.fontName) fontKeys.add(`${r.fontName.family}|${r.fontName.style}`);
-  }
-  const loadTasks: Promise<void>[] = [];
-  for (const key of fontKeys) {
-    if (loadedFonts.has(key)) continue;
-    const [family, style] = key.split('|');
-    loadTasks.push(figma.loadFontAsync({ family, style }).then(
-      () => { loadedFonts.add(key); },
-      () => {/* track at apply time */}
-    ));
-  }
-  await Promise.all(loadTasks);
-
   for (const r of n.textRanges) {
     const start = Math.max(0, r.start);
     const end = Math.min(t.characters.length, r.end);
@@ -1026,10 +1021,11 @@ function instantiateText(n: PresetNode): TextNode {
       // Some text states refuse resize — best-effort
     }
   }
-  // v2.5 — apply per-character ranges last so they override the uniform values above
-  if (n.textRanges && n.textRanges.length > 0) {
-    void applyTextRanges(t, n);
-  }
+  // v2.5 — apply per-character ranges last so they override the uniform values above.
+  // Synchronous; range fonts are pre-loaded by loadAllFonts() so no await needed.
+  // This MUST happen before the parent appendChild + auto-layout reflow, otherwise
+  // the layout engine computes widths against the fallback font.
+  applyTextRanges(t, n);
   return t;
 }
 
