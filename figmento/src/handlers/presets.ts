@@ -1013,18 +1013,22 @@ function instantiateText(n: PresetNode): TextNode {
   // v2.5 — try to relink to original text/fill styles if they exist in this file
   if (n.textStyleId) void tryApplyStyleId(t as unknown as { textStyleId: string }, 'textStyleId', n.textStyleId);
   if (n.fillStyleId) void tryApplyStyleId(t as unknown as { fillStyleId: string }, 'fillStyleId', n.fillStyleId);
-  // Resize after content so explicit size sticks (with NONE auto-resize)
-  if (n.textAutoResize === 'NONE' || !n.textAutoResize) {
+  // v2.5 — Resize for ALL non-W_AND_H modes. The previous version only resized
+  // for `NONE` and skipped `HEIGHT` / `TRUNCATE`, which left the text node at
+  // its content-fit width based on the Inter Regular fallback (often 3-4× the
+  // source width). Once textAutoResize was switched to HEIGHT, that wrong
+  // width got locked in — text overflowed parents wildly and headlines started
+  // mid-word. WIDTH_AND_HEIGHT is the only mode where resize() throws.
+  if (n.textAutoResize !== 'WIDTH_AND_HEIGHT') {
     try {
       t.resize(n.width, n.height);
     } catch {
-      // Some text states refuse resize — best-effort
+      // edge: zero-size, mid-mixed-font transition, etc — best-effort
     }
   }
   // v2.5 — apply per-character ranges last so they override the uniform values above.
   // Synchronous; range fonts are pre-loaded by loadAllFonts() so no await needed.
-  // This MUST happen before the parent appendChild + auto-layout reflow, otherwise
-  // the layout engine computes widths against the fallback font.
+  // Runs AFTER resize so per-char reflow happens within the correct width.
   applyTextRanges(t, n);
   return t;
 }
