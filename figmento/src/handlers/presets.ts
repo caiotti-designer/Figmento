@@ -732,6 +732,13 @@ async function loadAllFonts(nodes: PresetNode[]): Promise<void> {
   for (const style of ['Regular', 'Medium', 'SemiBold', 'Bold', 'Light', 'Thin', 'Italic', 'Bold Italic']) {
     fontKeys.add(`Inter|${style}`);
   }
+  // v2.5b — preload Barlow Condensed for display heading fallback. Inter is
+  // generic for big headlines; Barlow Condensed (Google Font, available on
+  // demand in Figma) preserves the condensed/heavy intent of source fonts
+  // like Fixture Condensed when those source fonts aren't installed.
+  for (const style of ['Light', 'Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black']) {
+    fontKeys.add(`Barlow Condensed|${style}`);
+  }
 
   const tasks: Promise<void>[] = [];
   for (const key of fontKeys) {
@@ -761,14 +768,31 @@ async function loadAllFonts(nodes: PresetNode[]): Promise<void> {
 }
 
 /**
+ * Map a captured style string to the closest Barlow Condensed weight.
+ * Strips "Condensed " prefix (e.g., "Condensed Light" → "Light") and
+ * normalizes weights that don't exist in Barlow Condensed (Heavy → Black).
+ */
+function mapToBarlowStyle(style: string): string {
+  const stripped = style.replace(/^Condensed\s+/i, '');
+  if (/^heavy$/i.test(stripped)) return 'Black';
+  if (/^heavy italic$/i.test(stripped)) return 'Black Italic';
+  return stripped;
+}
+
+/**
  * Pick the best loaded font for a captured fontName. Tries in order:
  *   1. Exact match (family + style)
  *   2. Same family, Regular style
- *   3. Inter at the same style (e.g. SemiBold → Inter SemiBold)
- *   4. Inter Regular
+ *   3. (NEW) For headings ≥48px → Barlow Condensed at matched weight
+ *   4. Inter at the same style (e.g. SemiBold → Inter SemiBold)
+ *   5. Inter Regular
  * Tracks substitutions so we can report at the end.
+ *
+ * The fontSize hint routes display headlines to a condensed fallback that
+ * preserves the original style intent. Body-sized text falls through to the
+ * Inter chain because Inter is excellent for body and broadly available.
  */
-function resolveFont(font: PresetFontName): PresetFontName {
+function resolveFont(font: PresetFontName, fontSize?: number): PresetFontName {
   const exact = `${font.family}|${font.style}`;
   if (loadedFonts.has(exact)) return font;
 
@@ -776,6 +800,22 @@ function resolveFont(font: PresetFontName): PresetFontName {
   if (loadedFonts.has(sameFamilyRegular)) {
     substitutedFamilies.add(font.family);
     return { family: font.family, style: 'Regular' };
+  }
+
+  // v2.5b — heading-aware fallback: ≥48px headlines look generic in Inter.
+  // Barlow Condensed Bold/Black/etc. preserves the display intent of source
+  // condensed/heavy fonts (Fixture Condensed Light/Bold/ExtraBold/Black).
+  if (typeof fontSize === 'number' && fontSize >= 48) {
+    const barlowStyle = mapToBarlowStyle(font.style);
+    if (loadedFonts.has(`Barlow Condensed|${barlowStyle}`)) {
+      substitutedFamilies.add(font.family);
+      return { family: 'Barlow Condensed', style: barlowStyle };
+    }
+    // Last-ditch heading fallback — Bold is the best general-purpose display weight
+    if (loadedFonts.has(`Barlow Condensed|Bold`)) {
+      substitutedFamilies.add(font.family);
+      return { family: 'Barlow Condensed', style: 'Bold' };
+    }
   }
 
   const interSameStyle = `Inter|${font.style}`;
@@ -934,7 +974,9 @@ function applyTextRanges(t: TextNode, n: PresetNode): void {
     const end = Math.min(t.characters.length, r.end);
     if (end <= start) continue;
     if (r.fontName) {
-      const font = resolveFont(r.fontName);
+      // v2.5b — pass per-range fontSize so headings get the condensed fallback
+      const sizeHint = typeof r.fontSize === 'number' ? r.fontSize : n.fontSize;
+      const font = resolveFont(r.fontName, sizeHint);
       try { t.setRangeFontName(start, end, font); } catch {/* font load may have failed */}
     }
     if (typeof r.fontSize === 'number') {
@@ -990,7 +1032,7 @@ function applyAutoLayout(target: FrameNode | ComponentNode, n: PresetNode): void
 function instantiateText(n: PresetNode): TextNode {
   const t = figma.createText();
   // Set font BEFORE characters, else figma throws
-  const targetFont = n.fontName ? resolveFont(n.fontName) : { family: 'Inter', style: 'Regular' };
+  const targetFont = n.fontName ? resolveFont(n.fontName, n.fontSize) : { family: 'Inter', style: 'Regular' };
   try {
     t.fontName = targetFont;
   } catch {
