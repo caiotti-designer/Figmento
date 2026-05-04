@@ -1088,6 +1088,17 @@ function instantiateNode(n: PresetNode): SceneNode | null {
       if (n.strokes) f.strokes = n.strokes.map(strokeToPaint);
       if (typeof n.strokeWeight === 'number') f.strokeWeight = n.strokeWeight;
       applyCornerRadii(f, n);
+      // GROUPs in Figma have NO coordinate system — their children's x/y are
+      // expressed in the GROUP's PARENT coord space (groups are visually
+      // transparent). When we represent a captured GROUP as a FRAME on
+      // instantiate, the new FRAME *does* have its own coord space, so we
+      // must translate child x/y by subtracting the GROUP's own position.
+      // Without this, a Group at (62,675) containing a child at (62,675)
+      // ends up placing that child at absolute (124, 1350) — off-screen for
+      // most tile content. Affects every tile whose text is wrapped in a Group.
+      const isGroup = n.type === 'GROUP';
+      const childDx = isGroup ? n.x : 0;
+      const childDy = isGroup ? n.y : 0;
       // Children FIRST so layoutMode resize doesn't fight initial size
       if (n.children) {
         for (const child of n.children) {
@@ -1097,8 +1108,8 @@ function instantiateNode(n: PresetNode): SceneNode | null {
             applyCommonProps(childNode, child);
             // For non-auto-layout, x/y is meaningful. For auto-layout, Figma reflows
             // anyway after applyAutoLayout — set them defensively.
-            childNode.x = child.x;
-            childNode.y = child.y;
+            childNode.x = child.x - childDx;
+            childNode.y = child.y - childDy;
           }
         }
       }
