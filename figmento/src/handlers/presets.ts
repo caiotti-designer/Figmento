@@ -20,6 +20,9 @@
  */
 
 const STORAGE_KEY_USER_PRESETS = 'figmento-user-presets';
+/** v2.5c — image bytes cached per content-hash, separate from preset JSON,
+ * so individual entries stay well under figma.clientStorage's 5MB-per-key cap. */
+const STORAGE_KEY_IMAGE_CACHE_PREFIX = 'figmento-image-cache-';
 const PRESET_GAP = 100; // px gap when instantiating multi-frame presets
 const PRESET_VERSION = 2;
 
@@ -34,7 +37,7 @@ export interface PresetColor {
 }
 
 export interface PresetFill {
-  type: 'SOLID' | 'GRADIENT_LINEAR' | 'GRADIENT_RADIAL' | 'IMAGE_PLACEHOLDER';
+  type: 'SOLID' | 'GRADIENT_LINEAR' | 'GRADIENT_RADIAL' | 'IMAGE' | 'IMAGE_PLACEHOLDER';
   visible?: boolean;
   opacity?: number;
   // SOLID
@@ -42,8 +45,12 @@ export interface PresetFill {
   // GRADIENT
   gradientStops?: { position: number; color: { r: number; g: number; b: number; a: number } }[];
   gradientTransform?: number[][];
-  // IMAGE_PLACEHOLDER
+  // IMAGE / IMAGE_PLACEHOLDER
   scaleMode?: 'FILL' | 'FIT' | 'CROP' | 'TILE';
+  /** v2.5c — content-addressed hash for IMAGE fills. Bytes are cached separately
+   * in clientStorage under STORAGE_KEY_IMAGE_CACHE_PREFIX + hash. IMAGE_PLACEHOLDER
+   * stays as the legacy/cache-miss fallback that renders mid-gray. */
+  imageHash?: string;
 }
 
 export interface PresetStroke {
@@ -280,6 +287,119 @@ async function saveUserPresets(presets: Preset[]): Promise<void> {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// IMAGE BYTE CACHE (v2.5c)
+// ═══════════════════════════════════════════════════════════════
+//
+// Image fills in Figma are content-addressed by SHA-1 hash. We cache the raw
+// bytes per hash in clientStorage so templates round-trip with their original
+// photos intact. Same image referenced by multiple templates = stored once.
+//
+// Storage shape: each hash gets its own clientStorage key, base64-encoded so
+// JSON.stringify (which clientStorage uses internally) doesn't mangle the
+// typed array. Keys are independent, so a single oversized image doesn't
+// fail the whole save.
+
+/** Chunked base64 encode — avoids call-stack blowup on multi-MB images. */
+function bytesToBase64(bytes: Uint8Array): string {
+  const CHUNK = 0x8000;
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    parts.push(String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK))));
+  }
+  return btoa(parts.join(''));
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const s = atob(b64);
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out;
+}
+
+async function cacheImageBytes(hash: string, bytes: Uint8Array): Promise<boolean> {
+  try {
+    await figma.clientStorage.setAsync(`${STORAGE_KEY_IMAGE_CACHE_PREFIX}${hash}`, bytesToBase64(bytes));
+    return true;
+  } catch {
+    // Quota exceeded or oversize image — caller will note the failure
+    return false;
+  }
+}
+
+async function getCachedImageBytes(hash: string): Promise<Uint8Array | null> {
+  try {
+    const b64 = await figma.clientStorage.getAsync(`${STORAGE_KEY_IMAGE_CACHE_PREFIX}${hash}`);
+    if (typeof b64 !== 'string' || b64.length === 0) return null;
+    return base64ToBytes(b64);
+  } catch {
+    return null;
+  }
+}
+
+/** Walk a captured tree and return every unique IMAGE fill hash. */
+function collectImageHashes(nodes: PresetNode[]): Set<string> {
+  const hashes = new Set<string>();
+  const walk = (n: PresetNode): void => {
+    if (n.fills) {
+      for (const f of n.fills) {
+        if (f.type === 'IMAGE' && typeof f.imageHash === 'string' && f.imageHash) {
+          hashes.add(f.imageHash);
+        }
+      }
+    }
+    if (n.children) {
+      for (const c of n.children) walk(c);
+    }
+  };
+  for (const n of nodes) walk(n);
+  return hashes;
+}
+
+/** Capture-side: pull bytes from Figma's image bank and stash them. */
+async function cacheImagesForPreset(nodes: PresetNode[]): Promise<{ cached: number; failed: number }> {
+  const hashes = collectImageHashes(nodes);
+  let cached = 0;
+  let failed = 0;
+  for (const hash of hashes) {
+    try {
+      const img = figma.getImageByHash(hash);
+      if (!img) { failed++; continue; }
+      const bytes = await img.getBytesAsync();
+      if (await cacheImageBytes(hash, bytes)) cached++;
+      else failed++;
+    } catch {
+      failed++;
+    }
+  }
+  return { cached, failed };
+}
+
+/**
+ * Restore-side: read cached bytes for every IMAGE fill referenced in the
+ * preset and re-register them into the current Figma file's image bank.
+ * Tracks which hashes successfully restored so fillToPaint can fall back to
+ * the gray IMAGE_PLACEHOLDER for any cache miss.
+ */
+const restoredImageHashes = new Set<string>();
+
+async function restoreImagesForPreset(nodes: PresetNode[]): Promise<void> {
+  restoredImageHashes.clear();
+  const hashes = collectImageHashes(nodes);
+  for (const hash of hashes) {
+    const bytes = await getCachedImageBytes(hash);
+    if (!bytes) continue; // cache miss — fillToPaint falls back to placeholder
+    try {
+      // figma.createImage is idempotent on byte content; the returned hash
+      // matches the source for any image already content-addressed by SHA-1.
+      figma.createImage(bytes);
+      restoredImageHashes.add(hash);
+    } catch {
+      // image creation failed — fall back to placeholder via fillToPaint
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // DEEP CAPTURE — recursive serialization
 // ═══════════════════════════════════════════════════════════════
 
@@ -306,12 +426,16 @@ function serializeFills(fills: readonly Paint[] | typeof figma.mixed): PresetFil
         color: { r: fill.color.r, g: fill.color.g, b: fill.color.b },
       });
     } else if (fill.type === 'IMAGE') {
-      // Lossy: drop the imageHash, mark as placeholder.
+      // v2.5c — emit IMAGE with the content hash. Bytes are cached
+      // separately on save (see cacheImagesForPreset) and restored on
+      // instantiate. If caching fails or the cache misses on restore,
+      // fillToPaint falls back to the mid-gray IMAGE_PLACEHOLDER paint.
       out.push({
-        type: 'IMAGE_PLACEHOLDER',
+        type: 'IMAGE',
         visible: fill.visible !== false,
         opacity: fill.opacity ?? 1,
         scaleMode: fill.scaleMode,
+        imageHash: typeof fill.imageHash === 'string' ? fill.imageHash : undefined,
       });
     } else if (fill.type === 'GRADIENT_LINEAR' || fill.type === 'GRADIENT_RADIAL') {
       const gradient = fill as GradientPaint;
@@ -845,8 +969,26 @@ function fillToPaint(fill: PresetFill): Paint | null {
     };
     return p;
   }
+  if (fill.type === 'IMAGE') {
+    // v2.5c — only emit a real ImagePaint if the bytes were successfully
+    // restored (figma.createImage was called and didn't throw). Cache miss
+    // or restore failure falls through to the gray placeholder so the
+    // layout intent still reads.
+    if (fill.imageHash && restoredImageHashes.has(fill.imageHash)) {
+      return {
+        type: 'IMAGE',
+        imageHash: fill.imageHash,
+        scaleMode: fill.scaleMode ?? 'FILL',
+        opacity: fill.opacity,
+        visible: fill.visible,
+      } as ImagePaint;
+    }
+    // hash missing or not restored — fall back to mid-gray placeholder
+    return { ...PLACEHOLDER_FILL, opacity: fill.opacity ?? 1 };
+  }
   if (fill.type === 'IMAGE_PLACEHOLDER') {
-    // Render as a mid-gray placeholder so the layout intent reads
+    // Legacy: pre-v2.5c saves used IMAGE_PLACEHOLDER as the only image type.
+    // Render as mid-gray placeholder so the layout intent reads.
     return { ...PLACEHOLDER_FILL, opacity: fill.opacity ?? 1 };
   }
   if (fill.type === 'GRADIENT_LINEAR' || fill.type === 'GRADIENT_RADIAL') {
@@ -1223,6 +1365,10 @@ async function instantiatePreset(preset: Preset): Promise<SceneNode[]> {
   // Prefer v2 deep nodes when present, fall back to v1 frames-only
   if (preset.nodes && preset.nodes.length > 0) {
     await loadAllFonts(preset.nodes);
+    // v2.5c — re-register cached image bytes into this file's image bank
+    // before instantiate. Cache misses fall back to mid-gray placeholder
+    // via fillToPaint's restoredImageHashes check.
+    await restoreImagesForPreset(preset.nodes);
 
     const maxX = Math.max(...preset.nodes.map((n) => n.x + n.width));
     const maxY = Math.max(...preset.nodes.map((n) => n.y + n.height));
@@ -1348,6 +1494,16 @@ export async function handlePresetMessage(msg: PresetMessage): Promise<boolean> 
         figma.ui.postMessage({ type: 'preset-save-error', message: 'Missing name or content.' });
         return true;
       }
+
+      // v2.5c — cache image bytes BEFORE persisting the preset. Each unique
+      // hash gets its own clientStorage key. Failures are non-fatal: the
+      // preset still saves, and on instantiate any cache-miss falls back to
+      // the mid-gray placeholder.
+      let imageReport = { cached: 0, failed: 0 };
+      if (msg.nodes) {
+        imageReport = await cacheImagesForPreset(msg.nodes);
+      }
+
       const userPresets = await loadUserPresets();
       const preset: Preset = {
         id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -1363,7 +1519,13 @@ export async function handlePresetMessage(msg: PresetMessage): Promise<boolean> 
       userPresets.unshift(preset);
       await saveUserPresets(userPresets);
       figma.ui.postMessage({ type: 'preset-saved', preset });
-      figma.notify(`Saved "${preset.name}"`);
+      const failNote = imageReport.failed > 0
+        ? ` · ${imageReport.failed} image${imageReport.failed === 1 ? '' : 's'} couldn’t be cached`
+        : '';
+      const cachedNote = imageReport.cached > 0
+        ? ` (${imageReport.cached} image${imageReport.cached === 1 ? '' : 's'} cached${failNote})`
+        : failNote ? ` (${failNote.trim().replace(/^·\s*/, '')})` : '';
+      figma.notify(`Saved "${preset.name}"${cachedNote}`);
       return true;
     }
 
