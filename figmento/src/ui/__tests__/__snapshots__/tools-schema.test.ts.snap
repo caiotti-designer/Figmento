@@ -4,7 +4,7 @@ exports[`FIGMENTO_TOOLS structural fingerprint matches snapshot 1`] = `
 [
   {
     "name": "create_frame",
-    "propCount": 20,
+    "propCount": 21,
     "required": [
       "width",
       "height",
@@ -19,7 +19,7 @@ exports[`FIGMENTO_TOOLS structural fingerprint matches snapshot 1`] = `
   },
   {
     "name": "create_rectangle",
-    "propCount": 9,
+    "propCount": 10,
     "required": [
       "width",
       "height",
@@ -35,7 +35,7 @@ exports[`FIGMENTO_TOOLS structural fingerprint matches snapshot 1`] = `
   },
   {
     "name": "create_image",
-    "propCount": 9,
+    "propCount": 10,
     "required": [
       "imageData",
     ],
@@ -64,10 +64,9 @@ exports[`FIGMENTO_TOOLS structural fingerprint matches snapshot 1`] = `
   },
   {
     "name": "set_corner_radius",
-    "propCount": 2,
+    "propCount": 3,
     "required": [
       "nodeId",
-      "radius",
     ],
   },
   {

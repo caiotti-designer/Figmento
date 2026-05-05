@@ -1,5 +1,5 @@
 import { FIGMENTO_TOOLS } from '../tools-schema';
-import { convertSchemaToGemini, convertSchemaToOpenAI } from '../tool-use-loop';
+import { convertSchemaToGemini, convertSchemaToOpenAI } from '../schema-converters';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Structural fingerprint snapshot
@@ -45,9 +45,9 @@ describe('create_frame spot check', () => {
 
   it('exists', () => expect(tool).toBeDefined());
 
-  it('has propCount 20', () => {
+  it('has propCount 21', () => {
     const props = (tool.input_schema as Record<string, unknown>).properties as Record<string, unknown>;
-    expect(Object.keys(props)).toHaveLength(20);
+    expect(Object.keys(props)).toHaveLength(21);
   });
 
   it("required includes 'width' and 'height'", () => {

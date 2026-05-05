@@ -322,7 +322,7 @@ export function registerOrchestrationTools(server: McpServer, sendDesignCommand:
             seed,
             analysis: analysis ? { tags: analysis.tags, palette: analysis.palette, layout: analysis.layout } : null,
             variations,
-            instructions: 'For each variation frameId, call generate_design_image with the variation prompt, referenceImagePath, awaitImage=true, and skipPreview=true to place the background image. Then add text, CTA, and overlay elements.',
+            instructions: 'For each variation frameId, call generate_design_image with the variation prompt, referenceImagePath, skipPreview=true, and omit awaitImage so image placement runs asynchronously. Then add text, CTA, and overlay elements while the image fills in.',
           }),
         }],
       };

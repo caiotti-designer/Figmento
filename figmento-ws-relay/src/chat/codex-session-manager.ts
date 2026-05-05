@@ -20,15 +20,18 @@ import { detectBrief } from './brief-detector';
 import type { ClaudeCodeTurnResult, ClaudeCodeTurnError } from './claude-code-handler';
 import { withSessionContext, materializeDesignPromptWorkspace } from './figmento-design-prompt';
 import {
-  type AgentSessionManager,
   type ProgressCallback,
+  type BaseSessionState,
+  BaseSessionManager,
   HARD_TIMEOUT_MS,
   STALE_ACTIVITY_MS,
   TOOL_BUDGETS,
   STALE_CHECK_INTERVAL_MS,
   THINKING_TIMEOUT_MS,
-  IDLE_TIMEOUT_MS,
   FIGMENTO_DISABLED_TOOLS,
+  makeBaseSessionState,
+  stageTurnState,
+  buildTurnResult,
 } from './agent-session-manager';
 
 const MCP_SERVER_PATH = path.resolve(__dirname, '../../../figmento-mcp-server/dist/index.js');
@@ -115,50 +118,32 @@ function toCodexModel(displayModel: string | undefined): string | undefined {
   return displayModel;
 }
 
-/** Pick a reasoning effort. Default to "high" for design quality. */
-function toReasoningEffort(model: string | undefined): ModelReasoningEffort {
+/** Pick a reasoning effort. Default to "medium" for faster local design turns. */
+function toReasoningEffort(): ModelReasoningEffort {
   // Allow opt-in via env for users who want speed over quality
   const envEffort = process.env.FIGMENTO_CODEX_REASONING_EFFORT?.toLowerCase();
   if (envEffort === 'minimal' || envEffort === 'low' || envEffort === 'medium' || envEffort === 'high' || envEffort === 'xhigh') {
     return envEffort as ModelReasoningEffort;
   }
-  return 'high';
+  return 'medium';
 }
 
-interface PendingTurn {
-  resolve: (r: ClaudeCodeTurnResult) => void;
-  reject: (e: Error) => void;
-}
-
-interface CodexSession {
+/** Codex-specific session: base lifecycle fields + the persistent thread. */
+interface CodexSession extends BaseSessionState {
   thread: Thread;
   /** AbortController for the current turn's runStreamed call. */
   turnAbort: AbortController | null;
-  pendingTurn: PendingTurn | null;
-  /** Accumulated assistant text for the current turn (latest agent_message wins). */
-  accumText: string;
-  /** Accumulated tool calls for the current turn. */
-  accumToolCalls: Array<{ name: string; success: boolean }>;
-  /** Conversation history as it was at the START of the current turn. */
-  turnHistory: Array<{ role: string; content: string }>;
-  /** User message text for the current turn (used to extend history on result). */
-  turnMessage: string;
-  /** True while a turn is in-flight — concurrency guard. */
-  inFlight: boolean;
-  idleTimer: ReturnType<typeof setTimeout> | null;
-  turnTimer: ReturnType<typeof setTimeout> | null;
-  staleChecker: ReturnType<typeof setInterval> | null;
-  lastActivity: number;
-  hasCalledTool: boolean;
-  activeToolName: string | null;
-  activeToolStartTime: number;
-  onProgress: ProgressCallback | null;
   /** True after the design preamble has been delivered (first turn only). */
   preambleSent: boolean;
 }
 
-export class CodexSessionManager implements AgentSessionManager {
-  private readonly sessions = new Map<string, CodexSession>();
+export class CodexSessionManager extends BaseSessionManager<CodexSession> {
+  protected readonly logPrefix = 'Figmento Codex';
+
+  /** Engine-specific teardown: abort the in-flight thread.runStreamed call. */
+  protected teardownEngine(session: CodexSession): void {
+    session.turnAbort?.abort();
+  }
 
   async turn(
     channel: string,
@@ -171,36 +156,16 @@ export class CodexSessionManager implements AgentSessionManager {
     fileAttachments?: Array<{ name: string; type: string; dataUri: string }>,
     onProgress?: ProgressCallback,
   ): Promise<ClaudeCodeTurnResult | ClaudeCodeTurnError> {
+    const guard = this.guardConcurrencyAndCancelIdle(channel, 'Codex');
+    if (guard) return guard;
+
     let session = this.sessions.get(channel);
-
-    if (session?.inFlight) {
-      return {
-        type: 'claude-code-turn-result',
-        channel,
-        error: 'A Codex turn is already in progress on this channel.',
-      };
-    }
-
-    if (session?.idleTimer) {
-      clearTimeout(session.idleTimer);
-      session.idleTimer = null;
-    }
-
     if (!session) {
-      console.log(`[Figmento Codex] Booting new session channel=${channel} model=${model ?? 'default'}`);
+      console.log(`[${this.logPrefix}] Booting new session channel=${channel} model=${model ?? 'default'}`);
       session = await this.startSession(channel, model);
     }
 
-    session.inFlight = true;
-    session.turnMessage = message;
-    session.turnHistory = history;
-    session.accumText = '';
-    session.accumToolCalls = [];
-    session.lastActivity = Date.now();
-    session.hasCalledTool = false;
-    session.activeToolName = null;
-    session.activeToolStartTime = 0;
-    session.onProgress = onProgress || null;
+    stageTurnState(session, message, history, onProgress);
 
     const abortController = new AbortController();
     session.turnAbort = abortController;
@@ -288,42 +253,24 @@ export class CodexSessionManager implements AgentSessionManager {
       session.pendingTurn = null;
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       console.error(`[Figmento Codex] Turn error channel=${channel}:`, errorMessage);
+      // Mirror Claude Code: tear down the session on any turn error so the next
+      // turn starts fresh. Without this, the next turn reuses a possibly-corrupt
+      // thread (preambleSent=true but the Codex thread errored mid-flight) and
+      // the user sees a permanent "in progress" rejection until manual restart.
+      this.destroy(channel);
       return { type: 'claude-code-turn-result', channel, error: errorMessage };
     }
   }
 
-  destroy(channel: string): void {
-    const session = this.sessions.get(channel);
-    if (!session) return;
-
-    console.log(`[Figmento Codex] Destroying session channel="${channel}"`);
-
-    if (session.idleTimer) { clearTimeout(session.idleTimer); session.idleTimer = null; }
-    if (session.turnTimer) { clearTimeout(session.turnTimer); session.turnTimer = null; }
-    if (session.staleChecker) { clearInterval(session.staleChecker); session.staleChecker = null; }
-
-    session.turnAbort?.abort();
-    this.sessions.delete(channel);
-  }
-
-  activeChannels(): string[] {
-    return [...this.sessions.keys()];
-  }
-
-  activeCount(): number {
-    let count = 0;
-    for (const s of this.sessions.values()) {
-      if (s.inFlight) count++;
-    }
-    return count;
-  }
+  // destroy(), activeChannels(), activeCount() are inherited from BaseSessionManager.
+  // The base's destroy() calls our teardownEngine() to abort the in-flight thread.
 
   // ─── PRIVATE ────────────────────────────────────────────────
 
   private async startSession(channel: string, model?: string): Promise<CodexSession> {
     const projectRoot = path.resolve(__dirname, '../../..');
     const codexModel = toCodexModel(model);
-    const reasoningEffort = toReasoningEffort(model);
+    const reasoningEffort = toReasoningEffort();
 
     // Materialize design rules to disk as AGENTS.md + CLAUDE.md.
     // Codex auto-loads AGENTS.md from cwd as project doc — no per-turn token cost.
@@ -427,22 +374,9 @@ export class CodexSessionManager implements AgentSessionManager {
     });
 
     const session: CodexSession = {
+      ...makeBaseSessionState(),
       thread,
       turnAbort: null,
-      pendingTurn: null,
-      accumText: '',
-      accumToolCalls: [],
-      turnHistory: [],
-      turnMessage: '',
-      inFlight: false,
-      idleTimer: null,
-      turnTimer: null,
-      staleChecker: null,
-      lastActivity: Date.now(),
-      hasCalledTool: false,
-      activeToolName: null,
-      activeToolStartTime: 0,
-      onProgress: null,
       preambleSent: false,
     };
 
@@ -588,23 +522,10 @@ export class CodexSessionManager implements AgentSessionManager {
     if (session.turnTimer) { clearTimeout(session.turnTimer); session.turnTimer = null; }
     if (session.staleChecker) { clearInterval(session.staleChecker); session.staleChecker = null; }
 
-    const updatedHistory = [
-      ...session.turnHistory,
-      { role: 'user', content: session.turnMessage },
-      { role: 'assistant', content: session.accumText },
-    ];
-
-    const result: ClaudeCodeTurnResult = {
-      type: 'claude-code-turn-result',
-      channel,
-      text: session.accumText,
-      toolCalls: session.accumToolCalls,
-      history: updatedHistory,
-      completedCleanly,
-    };
+    const result = buildTurnResult(session, channel, completedCleanly);
 
     console.log(
-      `[Figmento Codex] Turn complete channel=${channel} ` +
+      `[${this.logPrefix}] Turn complete channel=${channel} ` +
       `threadId=${session.thread.id ?? 'pending'} toolCalls=${result.toolCalls.length} ` +
       `text=${result.text.length}c`,
     );
@@ -615,10 +536,7 @@ export class CodexSessionManager implements AgentSessionManager {
     session.accumText = '';
     session.accumToolCalls = [];
 
-    session.idleTimer = setTimeout(() => {
-      console.log(`[Figmento Codex] Idle timeout channel="${channel}" — destroying session`);
-      this.destroy(channel);
-    }, IDLE_TIMEOUT_MS);
+    this.scheduleIdleTeardown(channel, session);
   }
 }
 

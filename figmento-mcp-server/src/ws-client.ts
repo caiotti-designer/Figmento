@@ -47,6 +47,8 @@ export class FigmentoWSClient {
 
   // S-06: Heartbeat
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private pongTimer: ReturnType<typeof setTimeout> | null = null;
+  private pongListener: (() => void) | null = null;
   private static readonly HEARTBEAT_INTERVAL_MS = 15000;
   private static readonly HEARTBEAT_TIMEOUT_MS = 5000;
 
@@ -206,6 +208,10 @@ export class FigmentoWSClient {
 
       const timer = setTimeout(() => {
         this.pendingCommands.delete(id);
+        // Also drop from the replay queue — otherwise a timed-out command stays
+        // there and gets re-executed on the next reconnect, double-applying an
+        // action the caller already gave up on.
+        this.replayQueue.delete(id);
         reject(new Error(`Command timeout after ${timeoutMs}ms: ${action}`));
       }, timeoutMs);
 
@@ -339,17 +345,36 @@ export class FigmentoWSClient {
   private startHeartbeat(): void {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.ping();
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
-        const pongTimer = setTimeout(() => {
-          console.error('[WS] Heartbeat timeout — no pong received. Forcing reconnect.');
-          this.ws?.terminate();
-        }, FigmentoWSClient.HEARTBEAT_TIMEOUT_MS);
+      // Clear any pong machinery from the previous tick before arming a new one.
+      // Without this, every interval added a fresh setTimeout + a fresh
+      // ws.once('pong', ...) — both leaked when the socket closed before the
+      // pong arrived (Node warns at >10 listeners).
+      this.clearPongTracking();
 
-        this.ws.once('pong', () => clearTimeout(pongTimer));
-      }
+      this.ws.ping();
+
+      this.pongTimer = setTimeout(() => {
+        console.error('[WS] Heartbeat timeout — no pong received. Forcing reconnect.');
+        this.ws?.terminate();
+        this.pongTimer = null;
+      }, FigmentoWSClient.HEARTBEAT_TIMEOUT_MS);
+
+      this.pongListener = () => {
+        if (this.pongTimer) { clearTimeout(this.pongTimer); this.pongTimer = null; }
+        this.pongListener = null;
+      };
+      this.ws.once('pong', this.pongListener);
     }, FigmentoWSClient.HEARTBEAT_INTERVAL_MS);
+  }
+
+  private clearPongTracking(): void {
+    if (this.pongTimer) { clearTimeout(this.pongTimer); this.pongTimer = null; }
+    if (this.pongListener && this.ws) {
+      this.ws.removeListener('pong', this.pongListener);
+    }
+    this.pongListener = null;
   }
 
   private stopHeartbeat(): void {
@@ -357,5 +382,6 @@ export class FigmentoWSClient {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
     }
+    this.clearPongTracking();
   }
 }

@@ -50,14 +50,15 @@ You have access to Figmento tools for creating designs in Figma. Use them with e
 - fontWeight: ONLY use 400 (Regular) or 700 (Bold). NEVER use 600 — it causes Inter fallback on non-Inter fonts.
 - lineHeight: ALWAYS pass in PIXELS (fontSize × multiplier). NEVER pass a raw multiplier like 1.5.
 - Give every element a descriptive layer name. Never leave "Rectangle" or "Text" defaults.
-- Create exactly ONE root frame per design. Never create duplicates.
+- Create exactly ONE root frame for the requested design. Existing user frames elsewhere on the canvas are NOT duplicates and must not be deleted as cleanup.
 - ALWAYS end your response with a clear completion summary. NEVER end on "Now let me..." without completing the action.
 
 ### Execution Budget Rules (CRITICAL — prevents timeouts and API errors)
-- You have a HARD LIMIT of 25 tool call rounds. Plan accordingly.
+- You have a HARD LIMIT of 18 tool call rounds. Plan accordingly.
 - ALWAYS use batch_execute to bundle multiple operations into ONE round. This is the #1 way to avoid timeouts.
 - NEVER call more than 3 tools in parallel in a single response.
 - For COMPLEX requests (full pages, multi-section designs): use batch_execute aggressively — a single batch can hold up to 50 commands.
+- For simple hero/section requests, target 6-10 total tool rounds and skip extra design-intelligence lookups when the user already supplied dimensions/style.
 - Keep your final text response SHORT (2-3 sentences max). Do NOT write long summaries.
 
 ### batch_execute Usage (CRITICAL for performance)

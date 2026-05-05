@@ -1,6 +1,6 @@
 # Figmento — Project Status (Agent Quick-Reference)
 
-> **Last synced:** 2026-04-28 — **Workspace clean, pushed to origin/master.** CDX-1 (Codex agentic engine) shipped + HTML-1 (interpretive HTML import) shipped — both in commits `51ac77a` + `0e2886b`. HTML-2 (pixel-perfect HTML import) drafted. Codex now reaches full tool/instruction parity with Claude Code; "taste" of the model is the only remaining engine difference. All three packages build clean; typecheck across MCP/relay/plugin = green.
+> **Last synced:** 2026-05-05 — Local agent audit/fix pass. `AGENTS.md` is now the shared instruction source; `.claude/CLAUDE.md` and `figmento/CLAUDE.md` import it instead of carrying divergent rules. Plugin Jest ESM/schema tests repaired. Global `npm` was repaired by moving a corrupted user-level npm package aside; standard `npm run typecheck` works again.
 > **Purpose:** Single source of truth for "what's active, what's parked, what's shipped"
 > so any agent (@pm, @po, @sm, @dev, @qa, @architect) can orient in one read.
 > **Update this file** whenever a story lands, gets blocked, or changes priority.
@@ -9,6 +9,8 @@
 
 ## TL;DR
 
+- **Local agent instructions — Fixed 2026-05-05.** `AGENTS.md` is the canonical shared rule file for Codex/non-Claude agents. Claude Code imports it from `.claude/CLAUDE.md`; plugin-local Claude notes import it from `figmento/CLAUDE.md`. Exact Windows `node_modules/.bin` fallback commands are documented for machines where global `npm` fails.
+- **Global npm — Repaired 2026-05-05.** A corrupted `%APPDATA%\npm\node_modules\npm` package made `npm` resolve to an unreadable user-level CLI. That folder was moved aside, so the Node-bundled npm at `C:\Program Files\nodejs` is used again.
 - **CDX-1 — Done.** Codex CLI agentic engine alongside Claude Code, shipped 2026-04-28 (`51ac77a` + `0e2886b`). Full parity with Claude Code: same MCP toolset (~55 curated), same FIGMENTO_DESIGN_PROMPT design rules (delivered via AGENTS.md for Codex, systemPrompt for Claude), same lifecycle. Mid-conversation engine switch supported. Codex schema-incompat tools (5 with `z.union`) refactored to non-union split fields — re-enabled for both engines. Legacy in-process Codex provider gated behind `chatSettings.legacyCodexProvider` flag.
 - **HTML-1 — Done.** Interpretive HTML import V1 in same commit. Drop a `.html` file in chat, agent recreates the layout in Figma using the existing canvas tools. Works on both engines. Ships with explicit "this is interpretive, not pixel-perfect" caveat.
 - **HTML-2 — Drafted.** Pixel-perfect HTML import via Puppeteer computed-style extraction. New MCP tool `import_html_layout`, 1:1 fidelity with rendered DOM. ~3-5 days work, queued for when needed.
@@ -89,7 +91,7 @@ These are things that exist but shouldn't be touched without a reason.
 
 - **Memory directory:** `C:/Users/Caio/.claude/projects/c--Users-Caio-Projects-Figmento/memory/` — 5 files (user profile, execution style, verify-status feedback, silent-@dev pattern, story workflow reference).
 - **Silent @dev pattern:** @dev (solo developer Caio) regularly ships work without going through @sm draft → @po validate → @dev develop → @qa gate. Documented instances now include HOTFIX-2026-04-12, CS-1..4, TC-1/2/4, AE-1/2, MF-1..5, SU-2.2, SU-2.3, most of SU-2.1 (18 of 26 files). Every ~2-4 weeks, run a reconciliation audit by grepping for story AC markers in code before trusting any Ready/Draft status.
-- **Build / test invariants:** `npm run build` clean for figmento, figmento-mcp-server, figmento-ws-relay. `cd figmento && npm test` passes 388/388. Snapshot baseline at [figmento/src/ui/\_\_tests\_\_/\_\_snapshots\_\_/tools-schema.test.ts.snap](../../figmento/src/ui/__tests__/__snapshots__/tools-schema.test.ts.snap) is intentionally committed (regression guard — `.gitignore` has an exception under line 40).
+- **Build / test invariants:** As of 2026-05-05, plugin-local gates pass: `npm run typecheck`, `jest` 388/388, `biome lint` exit 0 with existing warnings/infos, and `plugma build --mode production`. Snapshot baseline at [figmento/src/ui/\_\_tests\_\_/\_\_snapshots\_\_/tools-schema.test.ts.snap](../../figmento/src/ui/__tests__/__snapshots__/tools-schema.test.ts.snap) is intentionally committed (regression guard — `.gitignore` has an exception under line 40). `AGENTS.md` keeps local-binary fallback commands for future npm/path breakage.
 
 ---
 

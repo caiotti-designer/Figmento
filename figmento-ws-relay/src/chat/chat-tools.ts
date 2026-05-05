@@ -436,7 +436,7 @@ export const FIGMENTO_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'delete_node',
-    description: 'Delete a node from the canvas.',
+    description: 'Delete a node from the canvas. Use only for nodes created in the current failed attempt or nodes the user explicitly asked to remove. Never delete pre-existing user frames as generic cleanup.',
     input_schema: {
       type: 'object',
       properties: { nodeId: { type: 'string' } },

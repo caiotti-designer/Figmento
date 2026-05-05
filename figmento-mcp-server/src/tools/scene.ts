@@ -157,7 +157,7 @@ export function registerSceneTools(server: McpServer, sendDesignCommand: SendDes
 
   server.tool(
     'delete_node',
-    'Delete a node from the canvas.',
+    'Delete a node from the canvas. Use only for nodes created in the current failed attempt or nodes the user explicitly asked to remove. Never delete pre-existing user frames as generic cleanup.',
     deleteNodeSchema,
     async (params) => {
       const data = await sendDesignCommand('delete_node', params);

@@ -43,14 +43,37 @@ export function registerGetScreenshotTool(server: McpServer, sendDesignCommand: 
       const data = await sendDesignCommand('get_screenshot', { nodeId: params.nodeId, scale });
 
       const base64 = data.base64 as string;
-      if (!base64) throw new Error('get_screenshot returned no image data');
+      // Plugin may return only metadata + error if every scale exceeded its size cap.
+      if (!base64) {
+        const err = (data.error as string) || 'get_screenshot returned no image data';
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                nodeId: data.nodeId,
+                name: data.name,
+                width: data.width,
+                height: data.height,
+                error: err,
+              }),
+            },
+          ],
+        };
+      }
+
+      // Forward the plugin's actual format — the ladder prefers JPG, but PNG is
+      // a fallback. Hardcoding image/png caused the SDK to hand the model a
+      // mislabeled blob it couldn't decode.
+      const format = (data.format as string)?.toUpperCase() === 'JPG' ? 'JPG' : 'PNG';
+      const mimeType = format === 'JPG' ? 'image/jpeg' as const : 'image/png' as const;
 
       return {
         content: [
           {
             type: 'image' as const,
             data: base64,
-            mimeType: 'image/png' as const,
+            mimeType,
           },
           {
             type: 'text' as const,
@@ -59,7 +82,8 @@ export function registerGetScreenshotTool(server: McpServer, sendDesignCommand: 
               name: data.name,
               width: data.width,
               height: data.height,
-              scale,
+              scale: data.scale ?? scale,
+              format,
             }),
           },
         ],

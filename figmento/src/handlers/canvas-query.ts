@@ -30,8 +30,11 @@ export async function handleExportNode(params: Record<string, unknown>): Promise
   };
 }
 
-// Max base64 size for API compatibility (Claude limit is 5MB, keep under 4MB for safety)
-const MAX_BASE64_BYTES = 4 * 1024 * 1024;
+// Max base64 size for inline image content. Anthropic's per-message size limit
+// for image-bearing tool_results is ~4MB on paper, but in practice the SDK hangs
+// on requests ≥1MB once you add scan tree + history + system prompt. 500KB keeps
+// headroom and is more than enough resolution for visual self-review.
+const MAX_BASE64_BYTES = 500 * 1024;
 
 export async function handleGetScreenshot(params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const nodeId = params.nodeId as string;
@@ -44,13 +47,18 @@ export async function handleGetScreenshot(params: Record<string, unknown>): Prom
   const requestedScale = Math.min(Math.max((params.scale as number) || 1, 0.1), 3);
   const sceneNode = node as SceneNode;
 
-  // Try progressively lower scales until under the size limit
-  const scales = [requestedScale, 0.75, 0.5, 0.35, 0.25];
-  // Also try JPG as last resort (much smaller for photos/complex designs)
+  // Try a tight ladder. JPG is preferred — for design screenshots it's typically
+  // 5-10× smaller than PNG with no perceptible quality loss at these resolutions,
+  // and the model just needs to recognize layout/colors, not pixel-perfect detail.
+  // PNG only at very low scale as a final fallback (kept in case a node export
+  // fails on JPG for some reason).
   const attempts: Array<{ scale: number; format: 'PNG' | 'JPG' }> = [
-    ...scales.map((s) => ({ scale: s, format: 'PNG' as const })),
+    { scale: requestedScale, format: 'JPG' as const },
+    { scale: 0.75, format: 'JPG' as const },
     { scale: 0.5, format: 'JPG' as const },
+    { scale: 0.35, format: 'JPG' as const },
     { scale: 0.25, format: 'JPG' as const },
+    { scale: 0.25, format: 'PNG' as const },
   ];
 
   for (const { scale, format } of attempts) {

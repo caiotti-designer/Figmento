@@ -111,6 +111,23 @@ interface ReferenceImage {
   mimeType: string; // e.g. "image/jpeg"
 }
 
+const IMAGE_GENERATION_TIMEOUT_MS = Number(process.env.FIGMENTO_IMAGE_TIMEOUT_MS || 75_000);
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function loadReferenceImage(filePath: string): ReferenceImage | null {
   try {
     if (!fs.existsSync(filePath)) {
@@ -456,7 +473,16 @@ async function placeImageInBackground(
 
   // Helper: generate image and convert to base64
   async function generateAndEncode(size: string): Promise<string> {
-    const imageBuffer = await callGemini(geminiPrompt, apiKey, { aspectRatio, imageSize: size, referenceImages: referenceImages?.length ? referenceImages : undefined, model: imageModel });
+    const imageBuffer = await withTimeout(
+      callGemini(geminiPrompt, apiKey, {
+        aspectRatio,
+        imageSize: size,
+        referenceImages: referenceImages?.length ? referenceImages : undefined,
+        model: imageModel,
+      }),
+      IMAGE_GENERATION_TIMEOUT_MS,
+      `Image generation (${size})`,
+    );
     const outPath = nodePath.join(IMAGE_OUTPUT_DIR, `figmento-generated-${Date.now()}.png`);
     fs.writeFileSync(outPath, imageBuffer);
     return `data:image/png;base64,${imageBuffer.toString('base64')}`;
@@ -532,7 +558,7 @@ export const generateDesignImageSchema = {
   name: z.string().optional().describe('Frame name when a new frame is created. Defaults to the brief truncated to 40 characters.'),
   referenceImagePath: z.string().optional().describe('Path to a reference image file (PNG, JPG, WEBP). The generated image will inherit the style, composition, and mood of this reference. Accepts absolute paths or paths within temp/imports/ or brand-assets/.'),
   model: z.string().optional().describe('Image generation model. Gemini: "gemini-3.1-flash-image-preview" (fast, default), "gemini-3.1-pro-preview" (quality). Venice: "grok-imagine-image-pro" (requires VENICE_API_KEY). OpenAI: "gpt-image-2" (requires OPENAI_API_KEY, billed at platform rates).'),
-  awaitImage: z.boolean().optional().describe('If true, block until image is fully generated and placed (legacy sequential mode). Default false — returns frameId immediately.'),
+  awaitImage: z.boolean().optional().describe('Legacy blocking mode. Ignored unless FIGMENTO_ALLOW_BLOCKING_IMAGE=1 is set. Default chat-safe behavior returns frameId immediately and fills image asynchronously.'),
   skipPreview: z.boolean().optional().describe('If true, skip the fast 512px preview and generate at target resolution directly. Default false — two-phase (preview + high-res).'),
   asFill: z.boolean().optional().describe('If true (DEFAULT), apply the generated image directly as the frame\'s IMAGE fill instead of creating a child node. Set to false ONLY if you specifically need a separate child image node (rare — keeps the frame fill clean and avoids orphan nodes outside the parent frame).'),
 };
@@ -542,7 +568,7 @@ export const generateDesignImageSchema = {
 export function registerImageGenTools(server: McpServer, sendDesignCommand: SendDesignCommand): void {
   server.tool(
     'generate_design_image',
-    'Generate a background image with Gemini and place it in a Figma frame. Returns frameId immediately while image generates in background. Use awaitImage=true to block until placed.',
+    'Generate a background image and place it in a Figma frame. Default async mode returns frameId immediately while image generation continues in the background. Normal chat agents should omit awaitImage; blocking mode has a 75s timeout and fallback.',
     generateDesignImageSchema,
     async (params) => {
       // Fail fast if API key missing — branch on model family
@@ -607,8 +633,14 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
       const aspectRatio = formatKey ? getAspectRatioForFormat(formatKey) : '1:1';
       const skipPreview = params.skipPreview ?? false;
       const asFill = params.asFill ?? true;
+      const allowBlockingImage = process.env.FIGMENTO_ALLOW_BLOCKING_IMAGE === '1';
+      const shouldAwaitImage = params.awaitImage === true && allowBlockingImage;
 
-      if (params.awaitImage) {
+      if (params.awaitImage && !allowBlockingImage) {
+        process.stderr.write('[Figmento ImageGen] awaitImage ignored in chat-safe mode; set FIGMENTO_ALLOW_BLOCKING_IMAGE=1 to allow blocking image generation.\n');
+      }
+
+      if (shouldAwaitImage) {
         // ─── Legacy sequential mode: block until image is placed ───
         const IMAGE_OUTPUT_DIR = process.env.IMAGE_OUTPUT_DIR || nodePath.join(process.cwd(), 'output');
         fs.mkdirSync(IMAGE_OUTPUT_DIR, { recursive: true });
@@ -617,7 +649,16 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
         let fallbackUsed = false;
 
         try {
-          const imageBuffer = await callGemini(geminiPrompt, apiKey, { aspectRatio, imageSize, referenceImages: referenceImages.length > 0 ? referenceImages : undefined, model: params.model });
+          const imageBuffer = await withTimeout(
+            callGemini(geminiPrompt, apiKey, {
+              aspectRatio,
+              imageSize,
+              referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
+              model: params.model,
+            }),
+            IMAGE_GENERATION_TIMEOUT_MS,
+            'Image generation',
+          );
           const outPath = nodePath.join(IMAGE_OUTPUT_DIR, `figmento-generated-${Date.now()}.png`);
           fs.writeFileSync(outPath, imageBuffer);
           imageBase64 = `data:image/png;base64,${imageBuffer.toString('base64')}`;

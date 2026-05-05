@@ -20,15 +20,18 @@ import { detectBrief } from './brief-detector';
 import type { ClaudeCodeTurnResult, ClaudeCodeTurnError } from './claude-code-handler';
 import { FIGMENTO_DESIGN_PROMPT, withSessionContext } from './figmento-design-prompt';
 import {
-  type AgentSessionManager,
   type ProgressCallback,
+  type BaseSessionState,
+  BaseSessionManager,
   HARD_TIMEOUT_MS,
   STALE_ACTIVITY_MS,
   TOOL_BUDGETS,
   STALE_CHECK_INTERVAL_MS,
   THINKING_TIMEOUT_MS,
-  IDLE_TIMEOUT_MS,
   FIGMENTO_DISABLED_TOOLS,
+  makeBaseSessionState,
+  stageTurnState,
+  buildTurnResult,
 } from './agent-session-manager';
 
 // ═══════════════════════════════════════════════════════════════
@@ -68,6 +71,16 @@ const MCP_SERVER_PATH = path.resolve(
   __dirname,
   '../../../figmento-mcp-server/dist/index.js',
 );
+
+/**
+ * Embedded Claude Code runs inside Figmento, not as the user's general CLI.
+ *
+ * Keep it isolated from global Claude settings/plugins/MCP servers; otherwise
+ * Claude can defer Figmento MCP tools behind its internal ToolSearch and stall
+ * before the design turn starts.
+ */
+const CLAUDE_SETTING_SOURCES: NonNullable<Options['settingSources']> = [];
+const CLAUDE_BUILTIN_TOOLS: NonNullable<Options['tools']> = [];
 
 
 // ═══════════════════════════════════════════════════════════════
@@ -187,63 +200,40 @@ function makeUserMessage(
 }
 
 // ═══════════════════════════════════════════════════════════════
-// SESSION SHAPE (P2-2)
+// SESSION SHAPE
 // ═══════════════════════════════════════════════════════════════
 
-interface PendingTurn {
-  resolve: (r: ClaudeCodeTurnResult) => void;
-  reject: (e: Error) => void;
-}
-
-// ProgressCallback is imported from agent-session-manager.ts (shared by both engines).
+// ProgressCallback + BaseSessionState are imported from
+// agent-session-manager.ts so both engines stay in lock-step.
 // Re-export so existing handler import paths keep working.
 export type { ProgressCallback } from './agent-session-manager';
 
-interface ClaudeCodeSession {
+/** Claude Code-specific session: base lifecycle fields + the long-running SDK handles. */
+interface ClaudeCodeSession extends BaseSessionState {
   /** Message queue fed into the long-running query(). */
   queue: AsyncQueue<SDKUserMessage>;
   /** The live SDK query object — used for interrupt() on teardown. */
   queryObj: Query;
   /** AbortController for graceful cancellation. */
   abortController: AbortController;
-  /** Resolves / rejects when the current turn's `type === 'result'` fires. */
-  pendingTurn: PendingTurn | null;
-  /** Accumulated assistant text for the current turn. */
-  accumText: string;
-  /** Accumulated tool calls for the current turn. */
-  accumToolCalls: Array<{ name: string; success: boolean }>;
-  /** Conversation history as it was at the START of the current turn. */
-  turnHistory: Array<{ role: string; content: string }>;
-  /** User message text for the current turn (used to extend history on result). */
-  turnMessage: string;
   /** Last session_id captured from a result message — used on next push. */
   lastSessionId: string;
-  /** True while a turn is in-flight — concurrency guard. */
-  inFlight: boolean;
-  /** Idle-teardown timer (10 min after last result). */
-  idleTimer: ReturnType<typeof setTimeout> | null;
-  /** Per-turn hard-timeout timer. */
-  turnTimer: ReturnType<typeof setTimeout> | null;
-  /** Stale activity checker interval. */
-  staleChecker: ReturnType<typeof setInterval> | null;
-  /** Timestamp of last SDK event received during current turn. */
-  lastActivity: number;
-  /** True after the first tool_use event — stale detection only activates after this. */
-  hasCalledTool: boolean;
-  /** Currently-active tool name (set on tool_use event, cleared when next tool starts or turn ends). */
-  activeToolName: string | null;
-  /** Timestamp when the active tool started — used to enforce per-tool budget. */
-  activeToolStartTime: number;
-  /** Optional callback to stream progress events to the UI. */
-  onProgress: ProgressCallback | null;
 }
 
 // ═══════════════════════════════════════════════════════════════
 // SESSION MANAGER
 // ═══════════════════════════════════════════════════════════════
 
-export class ClaudeCodeSessionManager implements AgentSessionManager {
-  private readonly sessions = new Map<string, ClaudeCodeSession>();
+export class ClaudeCodeSessionManager extends BaseSessionManager<ClaudeCodeSession> {
+  protected readonly logPrefix = 'Figmento Claude Code';
+
+  /** Engine-specific teardown beyond timer cleanup (queue close + abort + interrupt). */
+  protected teardownEngine(session: ClaudeCodeSession): void {
+    session.abortController.abort();
+    session.queue.close();
+    // Interrupt the running query for a faster teardown
+    session.queryObj.interrupt().catch(() => { /* ignore — process may already be dead */ });
+  }
 
   // ─── PUBLIC: turn() ─────────────────────────────────────────
 
@@ -266,40 +256,19 @@ export class ClaudeCodeSessionManager implements AgentSessionManager {
     fileAttachments?: Array<{ name: string; type: string; dataUri: string }>,
     onProgress?: ProgressCallback,
   ): Promise<ClaudeCodeTurnResult | ClaudeCodeTurnError> {
+    const guard = this.guardConcurrencyAndCancelIdle(channel, 'Claude Code');
+    if (guard) return guard;
+
     let session = this.sessions.get(channel);
-
-    // Concurrency guard
-    if (session?.inFlight) {
-      return {
-        type: 'claude-code-turn-result',
-        channel,
-        error: 'A Claude Code turn is already in progress on this channel.',
-      };
-    }
-
-    // Cancel idle timer when a new turn arrives
-    if (session?.idleTimer) {
-      clearTimeout(session.idleTimer);
-      session.idleTimer = null;
-    }
 
     // Boot a fresh session if none exists
     if (!session) {
-      console.log(`[Figmento Claude Code] Booting new session channel=${channel} model=${model ?? 'default'}`);
+      console.log(`[${this.logPrefix}] Booting new session channel=${channel} model=${model ?? 'default'}`);
       session = this.startSession(channel, history, memory, model, imageModel);
     }
 
     // Stage turn context before pushing (drain loop reads these fields)
-    session.inFlight = true;
-    session.turnMessage = message;
-    session.turnHistory = history;
-    session.accumText = '';
-    session.accumToolCalls = [];
-    session.lastActivity = Date.now();
-    session.hasCalledTool = false;
-    session.activeToolName = null;
-    session.activeToolStartTime = 0;
-    session.onProgress = onProgress || null;
+    stageTurnState(session, message, history, onProgress);
 
     // Promise that resolves when drainLoop fires type === 'result'
     const resultPromise = new Promise<ClaudeCodeTurnResult>((resolve, reject) => {
@@ -310,6 +279,12 @@ export class ClaudeCodeSessionManager implements AgentSessionManager {
     const staleChecker = setInterval(() => {
       const s = this.sessions.get(channel);
       if (!s?.pendingTurn) { clearInterval(staleChecker); return; }
+
+      // Anthropic rate-limit pause: while the SDK is waiting out a rate-limit
+      // window, it emits no events. Skip the watchdog entirely until the bucket
+      // resets (with a generous 30s fudge for retry roundtrip after reset).
+      if (s.rateLimitedUntil > Date.now()) return;
+
       const elapsed = Date.now() - s.lastActivity;
 
       // Phase 1: Thinking (no tools called yet) — 2 min timeout
@@ -338,8 +313,11 @@ export class ClaudeCodeSessionManager implements AgentSessionManager {
           console.error(`[Figmento Claude Code] Stale turn detected channel=${channel} ${toolLabel} — no SDK activity for ${Math.round(elapsed / 1000)}s (budget ${Math.round(activeBudget / 1000)}s). Aborting.`);
           clearInterval(staleChecker);
           s.abortController.abort();
+          const hint = s.activeToolName
+            ? `The model went silent while processing the tool result — retry the request.`
+            : `The model paused between tool calls — retry the request.`;
           s.pendingTurn.reject(
-            new Error(`Claude Code turn stalled ${toolLabel} — no activity for ${Math.round(elapsed / 1000)}s. Try a simpler request.`),
+            new Error(`Claude Code turn stalled ${toolLabel} — no activity for ${Math.round(elapsed / 1000)}s. ${hint}`),
           );
           s.pendingTurn = null;
           s.inFlight = false;
@@ -385,28 +363,70 @@ export class ClaudeCodeSessionManager implements AgentSessionManager {
       // Destroy and retry once with a fresh session.
       const isOrphanedToolUse = errorMessage.includes('tool_use ids were found without tool_result');
       if (isOrphanedToolUse) {
-        console.log(`[Figmento Claude Code] Orphaned tool_use detected channel=${channel} — destroying session and retrying`);
+        console.log(`[${this.logPrefix}] Orphaned tool_use detected channel=${channel} — destroying session and retrying`);
         this.destroy(channel);
 
         // Retry with a fresh session — pass history so context is preserved in system prompt
         const freshSession = this.startSession(channel, history, memory, model, imageModel);
-        freshSession.inFlight = true;
-        freshSession.turnMessage = message;
-        freshSession.turnHistory = history;
-        freshSession.lastActivity = Date.now();
-        freshSession.onProgress = onProgress || null;
+        stageTurnState(freshSession, message, history, onProgress);
 
         const retryPromise = new Promise<ClaudeCodeTurnResult>((resolve, reject) => {
           freshSession.pendingTurn = { resolve, reject };
         });
+
+        // Re-arm the watchdogs on the fresh session — without these, if the
+        // retry hangs (likely the same root cause that triggered the orphan),
+        // the channel is held forever with no abort path.
+        const retryStaleChecker = setInterval(() => {
+          const s = this.sessions.get(channel);
+          if (!s?.pendingTurn) { clearInterval(retryStaleChecker); return; }
+          if (s.rateLimitedUntil > Date.now()) return;
+          const elapsed = Date.now() - s.lastActivity;
+          if (!s.hasCalledTool && elapsed >= THINKING_TIMEOUT_MS) {
+            clearInterval(retryStaleChecker);
+            s.abortController.abort();
+            s.pendingTurn.reject(new Error(`Retry timed out during thinking (${Math.round(THINKING_TIMEOUT_MS / 1000)}s).`));
+            s.pendingTurn = null;
+            s.inFlight = false;
+            this.destroy(channel);
+            return;
+          }
+          if (s.hasCalledTool) {
+            const budget = s.activeToolName ? (TOOL_BUDGETS[s.activeToolName] ?? STALE_ACTIVITY_MS) : STALE_ACTIVITY_MS;
+            if (elapsed >= budget) {
+              clearInterval(retryStaleChecker);
+              s.abortController.abort();
+              s.pendingTurn.reject(new Error(`Retry stalled — no SDK activity for ${Math.round(elapsed / 1000)}s.`));
+              s.pendingTurn = null;
+              s.inFlight = false;
+              this.destroy(channel);
+            }
+          }
+        }, STALE_CHECK_INTERVAL_MS);
+        freshSession.staleChecker = retryStaleChecker;
+
+        const retryHardTimer = setTimeout(() => {
+          const s = this.sessions.get(channel);
+          if (s?.pendingTurn) {
+            s.pendingTurn.reject(new Error(`Retry timed out after ${HARD_TIMEOUT_MS / 1000} seconds.`));
+            s.pendingTurn = null;
+            s.inFlight = false;
+          }
+          this.destroy(channel);
+        }, HARD_TIMEOUT_MS);
+        freshSession.turnTimer = retryHardTimer;
 
         freshSession.queue.push(makeUserMessage(message, '', attachmentBase64, fileAttachments));
         console.log(`[Figmento Claude Code] Retry pushed channel=${channel} (fresh session)`);
 
         try {
           const retryResult = await retryPromise;
+          clearInterval(retryStaleChecker);
+          clearTimeout(retryHardTimer);
           return retryResult;
         } catch (retryErr) {
+          clearInterval(retryStaleChecker);
+          clearTimeout(retryHardTimer);
           const retryMsg = retryErr instanceof Error ? retryErr.message : 'Unknown error on retry';
           return { type: 'claude-code-turn-result', channel, error: retryMsg };
         }
@@ -416,48 +436,8 @@ export class ClaudeCodeSessionManager implements AgentSessionManager {
     }
   }
 
-  // ─── PUBLIC: destroy() ──────────────────────────────────────
-
-  /**
-   * Tear down the session for `channel`.
-   * Called by relay.ts when the channel drops to zero clients, or on error/timeout.
-   */
-  destroy(channel: string): void {
-    const session = this.sessions.get(channel);
-    if (!session) return;
-
-    console.log(`[Figmento Claude Code] Destroying session channel="${channel}"`);
-
-    // Clear timers
-    if (session.idleTimer) { clearTimeout(session.idleTimer); session.idleTimer = null; }
-    if (session.turnTimer) { clearTimeout(session.turnTimer); session.turnTimer = null; }
-    if (session.staleChecker) { clearInterval(session.staleChecker); session.staleChecker = null; }
-
-    // Abort via controller (signals the SDK to stop)
-    session.abortController.abort();
-
-    // Close the queue — ends streamInput loop → daemon gets EOF → exits
-    session.queue.close();
-
-    // Interrupt the running query for a faster teardown
-    session.queryObj.interrupt().catch(() => { /* ignore — process may already be dead */ });
-
-    this.sessions.delete(channel);
-  }
-
-  /** List channels with active sessions. */
-  activeChannels(): string[] {
-    return [...this.sessions.keys()];
-  }
-
-  /** Count of currently in-flight turns (for /health endpoint). */
-  activeCount(): number {
-    let count = 0;
-    for (const s of this.sessions.values()) {
-      if (s.inFlight) count++;
-    }
-    return count;
-  }
+  // destroy(), activeChannels(), activeCount() are inherited from BaseSessionManager.
+  // The base's destroy() calls our teardownEngine() to abort + close queue + interrupt.
 
   // ─── PRIVATE: startSession() ────────────────────────────────
 
@@ -485,7 +465,8 @@ export class ClaudeCodeSessionManager implements AgentSessionManager {
     const basePrompt = buildSystemPrompt(brief, memory);
     const systemPrompt = withSessionContext(basePrompt, history, imageModel);
 
-    // Resolve project root so the SDK reads .claude/settings.json (deniedMcpServers etc.)
+    // Resolve project root for stable paths. settingSources=[] below keeps this
+    // embedded session isolated from the user's global/project Claude settings.
     const projectRoot = path.resolve(__dirname, '../../..');
 
     console.log(`[Figmento Claude Code] MCP server path: ${MCP_SERVER_PATH}`);
@@ -497,11 +478,15 @@ export class ClaudeCodeSessionManager implements AgentSessionManager {
       // SDK 2.x consolidated customSystemPrompt + appendSystemPrompt into a single systemPrompt field.
       // Concatenate manually to preserve previous behavior (custom prompt + design rules appended).
       systemPrompt: systemPrompt + '\n\n' + FIGMENTO_DESIGN_PROMPT,
-      maxTurns: 25,
-      // SDK 2.x: maxThinkingTokens is deprecated. Use thinking config instead.
-      // 'enabled' with fixed budget = predictable thinking cost; 'adaptive' = model decides per turn.
-      thinking: { type: 'enabled', budgetTokens: 12288 },
+      maxTurns: 18,
+      // Design generation is tool-heavy. Extended thinking increases the silent
+      // pre-tool window and has been the main source of Claude stalls locally.
+      thinking: { type: 'disabled' },
+      effort: 'low',
+      settingSources: CLAUDE_SETTING_SOURCES,
+      tools: CLAUDE_BUILTIN_TOOLS,
       permissionMode: 'bypassPermissions',
+      allowDangerouslySkipPermissions: true,
       model: model || 'claude-sonnet-4-6',
       // Tool surface reduction: 109 → 55 visible tools (109 figmento + 6 SDK file tools).
       // The shared FIGMENTO_DISABLED_TOOLS list keeps Codex and Claude Code aligned.
@@ -509,6 +494,8 @@ export class ClaudeCodeSessionManager implements AgentSessionManager {
       disallowedTools: [
         // File system tools — design sessions don't need local file ops
         'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
+        // Claude SDK deferred MCP discovery; Figmento loads its MCP tools eagerly below.
+        'mcp__figmento__ToolSearch',
         // Figmento-specific MCP tools (shared with Codex)
         ...FIGMENTO_DISABLED_TOOLS.map((t) => `mcp__figmento__${t}`),
       ],
@@ -520,6 +507,7 @@ export class ClaudeCodeSessionManager implements AgentSessionManager {
         figmento: {
           command: 'node',
           args: [MCP_SERVER_PATH],
+          alwaysLoad: true,
           env: Object.fromEntries(
             Object.entries({
               FIGMENTO_CHANNEL: channel,
@@ -545,24 +533,12 @@ export class ClaudeCodeSessionManager implements AgentSessionManager {
     const queryObj = query({ prompt: queue as unknown as AsyncIterable<SDKUserMessage>, options });
 
     const session: ClaudeCodeSession = {
+      ...makeBaseSessionState(),
+      turnHistory: history,
       queue,
       queryObj,
       abortController,
-      pendingTurn: null,
-      accumText: '',
-      accumToolCalls: [],
-      turnHistory: history,
-      turnMessage: '',
       lastSessionId: '',
-      inFlight: false,
-      idleTimer: null,
-      turnTimer: null,
-      staleChecker: null,
-      lastActivity: Date.now(),
-      hasCalledTool: false,
-      activeToolName: null,
-      activeToolStartTime: 0,
-      onProgress: null,
     };
 
     this.sessions.set(channel, session);
@@ -601,6 +577,30 @@ export class ClaudeCodeSessionManager implements AgentSessionManager {
         }
 
         if (msg.type === 'assistant') {
+          // SDK marks assistant turns that errored with one of:
+          // 'authentication_failed' | 'billing_error' | 'rate_limit' | 'invalid_request'
+          // | 'server_error' | 'unknown' | 'max_output_tokens'. Reject the pending
+          // turn cleanly with a meaningful message instead of letting it stall.
+          const assistantErr = (msg as any).error as string | undefined;
+          if (assistantErr) {
+            const message = assistantErr === 'rate_limit'
+              ? `Anthropic rate-limited the request. Wait a few minutes or switch engine to Codex (OpenAI).`
+              : assistantErr === 'authentication_failed'
+                ? `Claude Code auth failed — re-authenticate via 'claude' CLI.`
+                : assistantErr === 'max_output_tokens'
+                  ? `Model hit the max output token limit. Ask it to be more concise or split the task.`
+                  : `Model error: ${assistantErr}.`;
+            console.error(`[Figmento Claude Code] Assistant error channel=${channel}: ${assistantErr}`);
+            if (session.pendingTurn) {
+              session.pendingTurn.reject(new Error(message));
+              session.pendingTurn = null;
+              session.inFlight = false;
+            }
+            if (session.staleChecker) { clearInterval(session.staleChecker); session.staleChecker = null; }
+            if (session.turnTimer) { clearTimeout(session.turnTimer); session.turnTimer = null; }
+            this.destroy(channel);
+            return;
+          }
           const content = (msg as any).message?.content;
           if (Array.isArray(content)) {
             for (const block of content) {
@@ -653,6 +653,51 @@ export class ClaudeCodeSessionManager implements AgentSessionManager {
               });
             } catch { /* non-critical */ }
           }
+        } else if (msg.type === 'rate_limit_event') {
+          // Anthropic emits this when the user's plan rate-limit state changes
+          // (status='allowed' / 'allowed_warning' / 'rejected'). On 'rejected'
+          // the SDK silently waits until `resetsAt` before retrying, with no
+          // intermediate events — that's what makes the watchdog kill turns
+          // mid-wait. Push the watchdog out until reset and surface to UI.
+          const rlMsg = msg as { rate_limit_info?: {
+            status?: 'allowed' | 'allowed_warning' | 'rejected';
+            resetsAt?: number;
+            rateLimitType?: string;
+            utilization?: number;
+          }};
+          const info = rlMsg.rate_limit_info ?? {};
+          const status = info.status ?? 'allowed';
+          // resetsAt is epoch SECONDS in the SDK; convert to ms.
+          const resetsAtMs = typeof info.resetsAt === 'number' ? info.resetsAt * 1000 : 0;
+          // Cap the watchdog pause at +10 min so a buggy resetsAt can't strand a session.
+          const MAX_PAUSE_MS = 10 * 60 * 1000;
+          const now = Date.now();
+          if (status === 'rejected' || status === 'allowed_warning') {
+            const pauseUntil = resetsAtMs > now
+              ? Math.min(resetsAtMs + 30_000, now + MAX_PAUSE_MS)
+              : now + 60_000; // no resetsAt → assume 60s wait
+            session.rateLimitedUntil = pauseUntil;
+            console.warn(
+              `[Figmento Claude Code] Anthropic rate-limit ${status} channel=${channel} ` +
+              `type=${info.rateLimitType ?? '?'} utilization=${info.utilization ?? '?'} ` +
+              `resetsAt=${resetsAtMs ? new Date(resetsAtMs).toISOString() : '?'} ` +
+              `watchdog paused for ${Math.round((pauseUntil - now) / 1000)}s`,
+            );
+          } else {
+            // 'allowed' — clear any prior pause.
+            session.rateLimitedUntil = 0;
+          }
+          if (session.onProgress) {
+            try {
+              session.onProgress({
+                type: 'rate_limit',
+                rateLimitStatus: status,
+                rateLimitResetsAt: resetsAtMs || undefined,
+                rateLimitType: info.rateLimitType,
+                rateLimitUtilization: info.utilization,
+              });
+            } catch { /* non-critical */ }
+          }
         } else if (msg.type === 'result') {
           const resultMsg = msg as any;
           if (resultMsg.subtype === 'success' && resultMsg.result) {
@@ -662,32 +707,16 @@ export class ClaudeCodeSessionManager implements AgentSessionManager {
           // Capture session_id for the next message push
           if (resultMsg.session_id) session.lastSessionId = resultMsg.session_id;
 
-          // Clear active tool tracking (turn done)
+          // Clear active tool tracking + per-turn timers (idleTimer stays — set below)
           session.activeToolName = null;
           session.activeToolStartTime = 0;
-
-          // Clear per-turn timers
           if (session.turnTimer) { clearTimeout(session.turnTimer); session.turnTimer = null; }
           if (session.staleChecker) { clearInterval(session.staleChecker); session.staleChecker = null; }
 
-          // Build updated history
-          const updatedHistory = [
-            ...session.turnHistory,
-            { role: 'user', content: session.turnMessage },
-            { role: 'assistant', content: session.accumText },
-          ];
-
-          const result: ClaudeCodeTurnResult = {
-            type: 'claude-code-turn-result',
-            channel,
-            text: session.accumText,
-            toolCalls: session.accumToolCalls,
-            history: updatedHistory,
-            completedCleanly: !resultMsg.is_error,
-          };
+          const result = buildTurnResult(session, channel, !resultMsg.is_error);
 
           console.log(
-            `[Figmento Claude Code] Turn complete channel=${channel} ` +
+            `[${this.logPrefix}] Turn complete channel=${channel} ` +
             `sessionId=${session.lastSessionId} toolCalls=${result.toolCalls.length} ` +
             `text=${result.text.length}c`,
           );
@@ -702,10 +731,7 @@ export class ClaudeCodeSessionManager implements AgentSessionManager {
           session.accumToolCalls = [];
 
           // Start idle timer — destroy after 10 min of inactivity (AC11)
-          session.idleTimer = setTimeout(() => {
-            console.log(`[Figmento Claude Code] Idle timeout channel="${channel}" — destroying session`);
-            this.destroy(channel);
-          }, IDLE_TIMEOUT_MS);
+          this.scheduleIdleTeardown(channel, session);
         }
       }
 
