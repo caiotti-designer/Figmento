@@ -178,6 +178,23 @@ const updateCharCount = (): void => {
 };
 
 export const setupDesignSettingsListeners = (): void => {
+  const brandKitRemixBtn = document.getElementById('brand-kit-remix-btn') as HTMLButtonElement | null;
+  if (brandKitRemixBtn) {
+    brandKitRemixBtn.addEventListener('click', () => {
+      const input = document.getElementById('chat-input') as HTMLTextAreaElement | null;
+      if (!input) return;
+      input.value =
+        'Create/update a brand kit remix from my selected carousel frames. Brand: @Carmelus\\n' +
+        'Role for selected frame(s): cover | body | image_body | quote | cta | closing\\n' +
+        'Image style prompt: ';
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+      document.getElementById('settingsSheet')?.classList.remove('open');
+      document.getElementById('sheetBackdrop')?.classList.remove('open');
+      showToast('Describe the brand kit remix assets in chat, then send.', 'success');
+    });
+  }
+
   // Toggle design overrides on/off
   const designSettingsToggle = document.getElementById('designSettingsToggle') as HTMLInputElement;
   const designSettingsSwitch = designSettingsToggle ? (designSettingsToggle.nextElementSibling as HTMLElement) : null;

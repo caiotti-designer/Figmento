@@ -4,6 +4,7 @@ import * as yaml from 'js-yaml';
 import * as fs from 'fs';
 import * as nodePath from 'path';
 import { execFile } from 'child_process';
+import { listBrandKits, loadBrandKit } from './brand-kit-remix-core';
 
 // Knowledge base loader with lazy caching
 const knowledgeCache = new Map<string, unknown>();
@@ -356,25 +357,20 @@ export function registerIntelligenceTools(server: McpServer): void {
     'Load a saved brand kit by name. Returns colors, fonts, logo paths, and brand guidelines.',
     getBrandKitSchema,
     async (params) => {
-      const safeName = params.name.replace(/[^a-z0-9-]/gi, '');
-      const filePath = nodePath.join(BRAND_KITS_DIR, `${safeName}.yaml`);
-
-      if (!fs.existsSync(filePath)) {
-        // List available brand kits
-        let available: string[] = [];
-        if (fs.existsSync(BRAND_KITS_DIR)) {
-          available = fs.readdirSync(BRAND_KITS_DIR)
-            .filter(f => f.endsWith('.yaml'))
-            .map(f => f.replace('.yaml', ''));
-        }
+      try {
+        const loaded = loadBrandKit(params.name, BRAND_KITS_DIR);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ ...loaded.kit, _storage: loaded.storage, _path: loaded.path }, null, 2),
+          }],
+        };
+      } catch {
+        const available = listBrandKits(BRAND_KITS_DIR).map(k => k.id);
         throw new Error(
-          `Brand kit not found: ${safeName}. Available: ${available.length > 0 ? available.join(', ') : '(none saved yet)'}`
+          `Brand kit not found: ${params.name}. Available: ${available.length > 0 ? available.join(', ') : '(none saved yet)'}`
         );
       }
-
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const kit = yaml.load(content);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(kit, null, 2) }] };
     }
   );
 

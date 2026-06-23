@@ -557,6 +557,7 @@ export const generateDesignImageSchema = {
   frameId: z.string().optional().describe('Target frame nodeId. If omitted, auto-resolved from current Figma selection or a new frame is created using the format dimensions.'),
   name: z.string().optional().describe('Frame name when a new frame is created. Defaults to the brief truncated to 40 characters.'),
   referenceImagePath: z.string().optional().describe('Path to a reference image file (PNG, JPG, WEBP). The generated image will inherit the style, composition, and mood of this reference. Accepts absolute paths or paths within temp/imports/ or brand-assets/.'),
+  referenceImagePaths: z.array(z.string()).optional().describe('Up to 3 reference image file paths. When provided, replaces referenceImagePath and treats all files as style references.'),
   model: z.string().optional().describe('Image generation model. Gemini: "gemini-3.1-flash-image-preview" (fast, default), "gemini-3.1-pro-preview" (quality). Venice: "grok-imagine-image-pro" (requires VENICE_API_KEY). OpenAI: "gpt-image-2" (requires OPENAI_API_KEY, billed at platform rates).'),
   awaitImage: z.boolean().optional().describe('Legacy blocking mode. Ignored unless FIGMENTO_ALLOW_BLOCKING_IMAGE=1 is set. Default chat-safe behavior returns frameId immediately and fills image asynchronously.'),
   skipPreview: z.boolean().optional().describe('If true, skip the fast 512px preview and generate at target resolution directly. Default false — two-phase (preview + high-res).'),
@@ -617,14 +618,19 @@ export function registerImageGenTools(server: McpServer, sendDesignCommand: Send
       const textZone = params.textZone ?? inferredTextZone;
 
       // Build composition-aware Gemini prompt
-      const hasReference = !!params.referenceImagePath;
+      const referencePaths = Array.isArray(params.referenceImagePaths) && params.referenceImagePaths.length > 0
+        ? params.referenceImagePaths.slice(0, 3)
+        : params.referenceImagePath
+          ? [params.referenceImagePath]
+          : [];
+      const hasReference = referencePaths.length > 0;
       const promptPrefix = hasReference ? 'Generate an image inspired by this reference style: ' : '';
       const geminiPrompt = promptPrefix + buildGeminiPrompt(params.brief, params.mood, textZone);
 
       // Load reference image if provided (graceful fallback — null means text-only)
       const referenceImages: ReferenceImage[] = [];
-      if (params.referenceImagePath) {
-        const ref = loadReferenceImage(params.referenceImagePath);
+      for (const referenceImagePath of referencePaths) {
+        const ref = loadReferenceImage(referenceImagePath);
         if (ref) referenceImages.push(ref);
       }
 

@@ -1,0 +1,135 @@
+{
+  "id": "body-mpeeabp3",
+  "role": "body",
+  "order": 1,
+  "enabled": true,
+  "nodes": [
+    {
+      "type": "FRAME",
+      "name": "1",
+      "x": 0,
+      "y": 0,
+      "width": 1080,
+      "height": 1350,
+      "fills": [
+        {
+          "type": "SOLID",
+          "visible": true,
+          "opacity": 1,
+          "color": {
+            "r": 0.9372549057006836,
+            "g": 0.9176470637321472,
+            "b": 0.8941176533699036
+          }
+        }
+      ],
+      "strokeWeight": 1,
+      "strokeAlign": "INSIDE",
+      "strokeCap": "NONE",
+      "strokeJoin": "MITER",
+      "clipsContent": true,
+      "children": [
+        {
+          "type": "FRAME",
+          "name": "Frame 351",
+          "x": 324,
+          "y": 392,
+          "width": 432,
+          "height": 566,
+          "layoutSizingVertical": "HUG",
+          "strokeWeight": 1,
+          "strokeAlign": "INSIDE",
+          "strokeCap": "NONE",
+          "strokeJoin": "MITER",
+          "layoutMode": "VERTICAL",
+          "primaryAxisAlignItems": "CENTER",
+          "counterAxisAlignItems": "CENTER",
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "paddingBottom": 0,
+          "itemSpacing": 24,
+          "clipsContent": false,
+          "children": [
+            {
+              "type": "RECTANGLE",
+              "name": "Vector 2",
+              "x": 155,
+              "y": 0,
+              "width": 123,
+              "height": 2,
+              "rotation": 0.1740868174946458
+            },
+            {
+              "type": "FRAME",
+              "name": "Frame 350",
+              "x": 0,
+              "y": 26,
+              "width": 432,
+              "height": 540,
+              "layoutSizingHorizontal": "FILL",
+              "layoutSizingVertical": "HUG",
+              "strokeWeight": 1,
+              "strokeAlign": "INSIDE",
+              "strokeCap": "NONE",
+              "strokeJoin": "MITER",
+              "layoutMode": "VERTICAL",
+              "primaryAxisAlignItems": "MIN",
+              "counterAxisAlignItems": "MIN",
+              "paddingLeft": 0,
+              "paddingRight": 0,
+              "paddingTop": 0,
+              "paddingBottom": 0,
+              "itemSpacing": 46,
+              "clipsContent": false,
+              "children": [
+                {
+                  "type": "TEXT",
+                  "name": "#body",
+                  "x": 0,
+                  "y": 0,
+                  "width": 432,
+                  "height": 540,
+                  "layoutSizingHorizontal": "FILL",
+                  "layoutSizingVertical": "HUG",
+                  "characters": "Rita nasceu na Itália, em uma família simples e de fé profunda.\n\nDesde menina desejava o convento, mas foi dada em casamento e viveu um matrimônio duro, com um marido agressivo e violento.\nNo meio dessa dor, ela escolheu amar, rezar e não retribuir o mal com mais mal.",
+                  "textAlignHorizontal": "CENTER",
+                  "textAlignVertical": "TOP",
+                  "textAutoResize": "HEIGHT",
+                  "fontSize": 32,
+                  "fontName": {
+                    "family": "Plus Jakarta Sans",
+                    "style": "Medium"
+                  },
+                  "letterSpacing": {
+                    "unit": "PERCENT",
+                    "value": 0
+                  },
+                  "lineHeight": {
+                    "unit": "PERCENT",
+                    "value": 139.9999976158142
+                  },
+                  "textCase": "ORIGINAL",
+                  "textDecoration": "NONE",
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "presetVersion": "2.5c"
+}

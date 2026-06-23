@@ -137,6 +137,10 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
         // Load from unified storage and map to chat-settings flat format
         const keys = (await figma.clientStorage.getAsync(API_KEYS_STORAGE_KEY)) || {};
         const chatModel = (await figma.clientStorage.getAsync('figmento-chat-model')) || '';
+        const geminiModel = (await figma.clientStorage.getAsync('figmento-chat-gemini-model')) || '';
+        const anthropicModel = (await figma.clientStorage.getAsync('figmento-chat-anthropic-model')) || '';
+        const openaiModel = (await figma.clientStorage.getAsync('figmento-chat-openai-model')) || '';
+        const codexModel = (await figma.clientStorage.getAsync('figmento-chat-codex-model')) || '';
 
         // Migration: check for old figmento-plugin/ flat keys
         await migrateOldSettings(keys);
@@ -154,6 +158,7 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
         const customBaseUrl = (await figma.clientStorage.getAsync('figmento-chat-custom-base-url')) || '';
         const customModel = (await figma.clientStorage.getAsync('figmento-chat-custom-model')) || '';
         const customApiKey = (await figma.clientStorage.getAsync('figmento-chat-custom-api-key')) || '';
+        const veniceModel = (await figma.clientStorage.getAsync('figmento-chat-venice-model')) || '';
 
         console.log('[Figmento Sandbox] get-settings relay:', {
           enabled: chatRelayEnabled,
@@ -168,7 +173,13 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
             anthropicApiKey: keys['claude'] || '',
             geminiApiKey: keys['gemini'] || '',
             openaiApiKey: keys['openai'] || '',
+            veniceApiKey: keys['venice'] || '',
             model: chatModel,
+            geminiModel: geminiModel,
+            anthropicModel: anthropicModel,
+            openaiModel: openaiModel,
+            codexModel: codexModel,
+            veniceModel: veniceModel,
             claudeCodeModel: claudeCodeModel,
             chatRelayEnabled: chatRelayEnabled,
             chatRelayUrl: chatRelayUrl,
@@ -202,6 +213,7 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
         if (s.geminiApiKey) keys['gemini'] = s.geminiApiKey;
         if (s.anthropicApiKey) keys['claude'] = s.anthropicApiKey;
         if (s.openaiApiKey) keys['openai'] = s.openaiApiKey;
+        if (s.veniceApiKey) keys['venice'] = s.veniceApiKey;
         await figma.clientStorage.setAsync(API_KEYS_STORAGE_KEY, keys);
 
         // Store chat model preference separately
@@ -212,6 +224,21 @@ export async function handleSettingsMessage(msg: PluginMessage): Promise<boolean
         // Store Claude Code sub-model preference
         if (s.claudeCodeModel) {
           await figma.clientStorage.setAsync('figmento-chat-cc-model', s.claudeCodeModel);
+        }
+        if (s.geminiModel) {
+          await figma.clientStorage.setAsync('figmento-chat-gemini-model', s.geminiModel);
+        }
+        if (s.anthropicModel) {
+          await figma.clientStorage.setAsync('figmento-chat-anthropic-model', s.anthropicModel);
+        }
+        if (s.openaiModel) {
+          await figma.clientStorage.setAsync('figmento-chat-openai-model', s.openaiModel);
+        }
+        if (s.codexModel) {
+          await figma.clientStorage.setAsync('figmento-chat-codex-model', s.codexModel);
+        }
+        if (s.veniceModel) {
+          await figma.clientStorage.setAsync('figmento-chat-venice-model', s.veniceModel);
         }
 
         // Store relay settings

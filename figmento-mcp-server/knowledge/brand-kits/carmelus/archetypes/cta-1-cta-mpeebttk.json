@@ -1,0 +1,831 @@
+{
+  "id": "cta-mpeebttk",
+  "role": "cta",
+  "order": 1,
+  "enabled": true,
+  "nodes": [
+    {
+      "type": "FRAME",
+      "name": "6",
+      "x": 0,
+      "y": 0,
+      "width": 1080,
+      "height": 1350,
+      "fills": [
+        {
+          "type": "SOLID",
+          "visible": true,
+          "opacity": 1,
+          "color": {
+            "r": 0.9372549057006836,
+            "g": 0.9176470637321472,
+            "b": 0.8941176533699036
+          }
+        }
+      ],
+      "strokeWeight": 1,
+      "strokeAlign": "INSIDE",
+      "strokeCap": "NONE",
+      "strokeJoin": "MITER",
+      "clipsContent": true,
+      "children": [
+        {
+          "type": "GROUP",
+          "name": "#image_alt",
+          "x": 108,
+          "y": 2,
+          "width": 1288,
+          "height": 1498,
+          "children": [
+            {
+              "type": "RECTANGLE",
+              "name": "Vector",
+              "x": 417,
+              "y": 983,
+              "width": 979,
+              "height": 380,
+              "fills": [
+                {
+                  "type": "SOLID",
+                  "visible": true,
+                  "opacity": 0.03999999910593033,
+                  "color": {
+                    "r": 0.1921568661928177,
+                    "g": 0.239215686917305,
+                    "b": 0.3960784375667572
+                  }
+                }
+              ]
+            },
+            {
+              "type": "RECTANGLE",
+              "name": "Vector",
+              "x": 108,
+              "y": 2,
+              "width": 1238,
+              "height": 1498,
+              "fills": [
+                {
+                  "type": "SOLID",
+                  "visible": true,
+                  "opacity": 0.03999999910593033,
+                  "color": {
+                    "r": 0.1921568661928177,
+                    "g": 0.239215686917305,
+                    "b": 0.3960784375667572
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "TEXT",
+          "name": "#body",
+          "x": 273,
+          "y": 549,
+          "width": 535,
+          "height": 180,
+          "characters": "Se você carrega alguma causa difícil, uma ferida antiga ou uma situação que parece trancada,\nreze essa novena com a Carmelus.",
+          "textAlignHorizontal": "CENTER",
+          "textAlignVertical": "TOP",
+          "textAutoResize": "HEIGHT",
+          "fontSize": 32,
+          "fontName": {
+            "family": "Plus Jakarta Sans",
+            "style": "Medium"
+          },
+          "letterSpacing": {
+            "unit": "PERCENT",
+            "value": 0
+          },
+          "lineHeight": {
+            "unit": "PERCENT",
+            "value": 139.9999976158142
+          },
+          "textCase": "ORIGINAL",
+          "textDecoration": "NONE",
+          "fills": [
+            {
+              "type": "SOLID",
+              "visible": true,
+              "opacity": 1,
+              "color": {
+                "r": 0.1921568661928177,
+                "g": 0.239215686917305,
+                "b": 0.3960784375667572
+              }
+            }
+          ]
+        },
+        {
+          "type": "TEXT",
+          "name": "#cta",
+          "x": 273,
+          "y": 802,
+          "width": 535,
+          "height": 90,
+          "characters": "Na legenda, te mostramos como rezar a novena, passo a passo.",
+          "textAlignHorizontal": "CENTER",
+          "textAlignVertical": "TOP",
+          "textAutoResize": "HEIGHT",
+          "fontSize": 32,
+          "fontName": {
+            "family": "Plus Jakarta Sans",
+            "style": "Medium"
+          },
+          "letterSpacing": {
+            "unit": "PERCENT",
+            "value": 0
+          },
+          "lineHeight": {
+            "unit": "PERCENT",
+            "value": 139.9999976158142
+          },
+          "textCase": "ORIGINAL",
+          "textDecoration": "NONE",
+          "fills": [
+            {
+              "type": "SOLID",
+              "visible": true,
+              "opacity": 1,
+              "color": {
+                "r": 0.1921568661928177,
+                "g": 0.239215686917305,
+                "b": 0.3960784375667572
+              }
+            }
+          ]
+        },
+        {
+          "type": "RECTANGLE",
+          "name": "Vector 1",
+          "x": 479,
+          "y": 474,
+          "width": 123,
+          "height": 2,
+          "rotation": 0.1740868174946458
+        },
+        {
+          "type": "TEXT",
+          "name": "#title",
+          "x": 298,
+          "y": 252,
+          "width": 485,
+          "height": 128,
+          "characters": "Novena de Santa Rita de Cássia",
+          "textAlignHorizontal": "CENTER",
+          "textAlignVertical": "TOP",
+          "textAutoResize": "HEIGHT",
+          "fontSize": 64,
+          "fontName": {
+            "family": "The Seasons",
+            "style": "Bold"
+          },
+          "letterSpacing": {
+            "unit": "PERCENT",
+            "value": -2
+          },
+          "lineHeight": {
+            "unit": "PERCENT",
+            "value": 100
+          },
+          "textCase": "ORIGINAL",
+          "textDecoration": "NONE",
+          "fills": [
+            {
+              "type": "SOLID",
+              "visible": true,
+              "opacity": 1,
+              "color": {
+                "r": 0.1921568661928177,
+                "g": 0.239215686917305,
+                "b": 0.3960784375667572
+              }
+            }
+          ]
+        },
+        {
+          "type": "FRAME",
+          "name": "Frame 299",
+          "x": 418,
+          "y": 1173,
+          "width": 243,
+          "height": 59,
+          "layoutSizingVertical": "HUG",
+          "strokeWeight": 0.5286498069763184,
+          "strokeAlign": "INSIDE",
+          "strokeCap": "NONE",
+          "strokeJoin": "MITER",
+          "layoutMode": "VERTICAL",
+          "primaryAxisAlignItems": "MIN",
+          "counterAxisAlignItems": "CENTER",
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "paddingBottom": 0,
+          "itemSpacing": 12.68759536743164,
+          "clipsContent": false,
+          "children": [
+            {
+              "type": "FRAME",
+              "name": "Layer_1",
+              "x": 14,
+              "y": 0,
+              "width": 216,
+              "height": 40,
+              "fills": [
+                {
+                  "type": "SOLID",
+                  "visible": false,
+                  "opacity": 1,
+                  "color": {
+                    "r": 1,
+                    "g": 1,
+                    "b": 1
+                  }
+                }
+              ],
+              "strokeWeight": 0.6875054240226746,
+              "strokeAlign": "INSIDE",
+              "strokeCap": "NONE",
+              "strokeJoin": "MITER",
+              "clipsContent": true,
+              "children": [
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 28,
+                  "y": 13,
+                  "width": 23,
+                  "height": 27,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 0,
+                  "y": 13,
+                  "width": 26,
+                  "height": 27,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 197,
+                  "y": 13,
+                  "width": 20,
+                  "height": 27,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 52,
+                  "y": 13,
+                  "width": 22,
+                  "height": 27,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 76,
+                  "y": 13,
+                  "width": 46,
+                  "height": 27,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 152,
+                  "y": 0,
+                  "width": 11,
+                  "height": 40,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 165,
+                  "y": 11,
+                  "width": 30,
+                  "height": 27,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 123,
+                  "y": 13,
+                  "width": 27,
+                  "height": 27,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "FRAME",
+              "name": "Layer_1",
+              "x": 30,
+              "y": 53,
+              "width": 184,
+              "height": 6,
+              "fills": [
+                {
+                  "type": "SOLID",
+                  "visible": false,
+                  "opacity": 1,
+                  "color": {
+                    "r": 1,
+                    "g": 1,
+                    "b": 1
+                  }
+                }
+              ],
+              "strokeWeight": 0.7152320742607117,
+              "strokeAlign": "INSIDE",
+              "strokeCap": "NONE",
+              "strokeJoin": "MITER",
+              "clipsContent": true,
+              "children": [
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 0,
+                  "y": 0,
+                  "width": 8,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 13,
+                  "y": 0,
+                  "width": 7,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 23,
+                  "y": 0,
+                  "width": 6,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 34,
+                  "y": 0,
+                  "width": 1,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 40,
+                  "y": 0,
+                  "width": 7,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 53,
+                  "y": 0,
+                  "width": 8,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 66,
+                  "y": 0,
+                  "width": 6,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 83,
+                  "y": 0,
+                  "width": 7,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 95,
+                  "y": 0,
+                  "width": 6,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 106,
+                  "y": 0,
+                  "width": 5,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 116,
+                  "y": 0,
+                  "width": 1,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 122,
+                  "y": 0,
+                  "width": 7,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 135,
+                  "y": 0,
+                  "width": 1,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 140,
+                  "y": 0,
+                  "width": 8,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 153,
+                  "y": 0,
+                  "width": 6,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 164,
+                  "y": 0,
+                  "width": 8,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "RECTANGLE",
+                  "name": "Vector",
+                  "x": 177,
+                  "y": 0,
+                  "width": 6,
+                  "height": 6,
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "FRAME",
+          "name": "Frame 352",
+          "x": 479,
+          "y": 1016,
+          "width": 121,
+          "height": 57,
+          "layoutSizingHorizontal": "HUG",
+          "layoutSizingVertical": "HUG",
+          "strokeWeight": 2.590909004211426,
+          "strokeAlign": "INSIDE",
+          "strokeCap": "NONE",
+          "strokeJoin": "MITER",
+          "layoutMode": "HORIZONTAL",
+          "primaryAxisAlignItems": "CENTER",
+          "counterAxisAlignItems": "CENTER",
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "paddingBottom": 0,
+          "itemSpacing": 24,
+          "clipsContent": false,
+          "children": [
+            {
+              "type": "RECTANGLE",
+              "name": "Share icon",
+              "x": 0,
+              "y": 7,
+              "width": 51,
+              "height": 43
+            },
+            {
+              "type": "RECTANGLE",
+              "name": "Bookmark",
+              "x": 75,
+              "y": 0,
+              "width": 47,
+              "height": 57
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "presetVersion": "2.5c"
+}

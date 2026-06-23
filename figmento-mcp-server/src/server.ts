@@ -28,6 +28,7 @@ import { registerDSPipelineTools } from './tools/ds-pipeline';
 import { registerInteractiveComponentTools } from './tools/components';
 import { registerCodegenTools } from './tools/codegen';
 import { registerSkillsTools } from './tools/skills';
+import { registerBrandKitRemixTools } from './tools/brand-kit-remix';
 
 /**
  * Creates and configures the Figmento MCP server with all design tools.
@@ -83,6 +84,22 @@ Explicit format requests override this default:
   • "Build a landing page for Aurelia" → landing page workflow
   • "Create a design system for Aurelia" / "build a brand kit" → design-system skill
   • Ambiguous brand brief with no format verb → ASK or default to design-system skill
+
+═══════════════════════════════════════════════════════════
+BRAND KIT REMIX CAROUSELS
+═══════════════════════════════════════════════════════════
+
+When the user asks for a new carousel using @Brand (example: "New instagram carrossel, use @Carmelus with this copy"), use the Brand Kit Remix tools:
+
+  1. Call list_brand_kits if the brand id is unknown or suggestions are needed.
+  2. Call remix_brand_kit_carousel with the pasted markdown/text. Default is create-new.
+  3. For each returned imageTask, call generate_design_image with frameId=nodeId, brief, referenceImagePaths, and asFill=true.
+
+Only overwrite existing carousel frames when frames are selected AND the request includes an explicit overwrite keyword:
+  EN: overwrite, replace selected, update this, replace this
+  PT-BR: sobrescrever, substituir selecionado, atualizar esse, trocar esse
+
+To save remix assets for a client, capture selected carousel frames with capture_brand_kit_archetype and store image style/reference metadata with save_brand_kit_remix.
 
 ═══════════════════════════════════════════════════════════
 Skill Execution Rules (non-negotiable)
@@ -174,6 +191,7 @@ export function createFigmentoServer(): FigmentoServerResult {
   registerInteractiveComponentTools(server, sendDesignCommand);
   registerCodegenTools(server);
   registerSkillsTools(server);
+  registerBrandKitRemixTools(server, sendDesignCommand);
 
   // SP-7: Pre-warm knowledge cache (fire-and-forget, non-blocking)
   preWarmKnowledgeCache();

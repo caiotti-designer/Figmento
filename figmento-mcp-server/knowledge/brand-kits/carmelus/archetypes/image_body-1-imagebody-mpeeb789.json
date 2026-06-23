@@ -1,0 +1,246 @@
+{
+  "id": "imagebody-mpeeb789",
+  "role": "image_body",
+  "order": 1,
+  "enabled": true,
+  "nodes": [
+    {
+      "type": "FRAME",
+      "name": "2",
+      "x": 0,
+      "y": 0,
+      "width": 1080,
+      "height": 1350,
+      "fills": [
+        {
+          "type": "SOLID",
+          "visible": true,
+          "opacity": 1,
+          "color": {
+            "r": 0.9372549057006836,
+            "g": 0.9176470637321472,
+            "b": 0.8941176533699036
+          }
+        }
+      ],
+      "strokeWeight": 1,
+      "strokeAlign": "INSIDE",
+      "strokeCap": "NONE",
+      "strokeJoin": "MITER",
+      "clipsContent": true,
+      "children": [
+        {
+          "type": "RECTANGLE",
+          "name": "#image",
+          "x": 0,
+          "y": 326,
+          "width": 1157,
+          "height": 1002,
+          "blendMode": "DARKEN",
+          "fills": [
+            {
+              "type": "IMAGE",
+              "visible": true,
+              "opacity": 1,
+              "scaleMode": "FILL",
+              "imageHash": "821c0db35cf31e840eaab816436cb8b52d1eaf4e"
+            },
+            {
+              "type": "GRADIENT_LINEAR",
+              "visible": false,
+              "opacity": 1,
+              "gradientStops": [
+                {
+                  "position": 0,
+                  "color": {
+                    "r": 0.9372549057006836,
+                    "g": 0.9176470637321472,
+                    "b": 0.8941176533699036,
+                    "a": 0
+                  }
+                },
+                {
+                  "position": 1,
+                  "color": {
+                    "r": 0.9372549057006836,
+                    "g": 0.9176470637321472,
+                    "b": 0.8941176533699036,
+                    "a": 1
+                  }
+                }
+              ],
+              "gradientTransform": [
+                [
+                  -6.055010270955563e-9,
+                  1.7075406312942505,
+                  -0.6388643980026245
+                ],
+                [
+                  -1.7075406312942505,
+                  5.551115123125783e-17,
+                  1.35377037525177
+                ]
+              ]
+            }
+          ],
+          "strokeWeight": 1,
+          "strokeAlign": "INSIDE",
+          "strokeCap": "NONE",
+          "strokeJoin": "MITER"
+        },
+        {
+          "type": "RECTANGLE",
+          "name": "Vector 1",
+          "x": 158,
+          "y": 989,
+          "width": 123,
+          "height": 2,
+          "rotation": 0.1740868174946458,
+          "strokeWeight": 1,
+          "strokeAlign": "INSIDE",
+          "strokeCap": "NONE",
+          "strokeJoin": "MITER"
+        },
+        {
+          "type": "FRAME",
+          "name": "Frame 351",
+          "x": 561,
+          "y": 295,
+          "width": 411,
+          "height": 656,
+          "layoutSizingVertical": "HUG",
+          "strokeWeight": 1,
+          "strokeAlign": "INSIDE",
+          "strokeCap": "NONE",
+          "strokeJoin": "MITER",
+          "layoutMode": "VERTICAL",
+          "primaryAxisAlignItems": "MIN",
+          "counterAxisAlignItems": "MIN",
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "paddingBottom": 0,
+          "itemSpacing": 24,
+          "clipsContent": false,
+          "children": [
+            {
+              "type": "RECTANGLE",
+              "name": "Vector 2",
+              "x": 0,
+              "y": 0,
+              "width": 123,
+              "height": 2,
+              "rotation": 0.1740868174946458
+            },
+            {
+              "type": "FRAME",
+              "name": "Frame 350",
+              "x": 0,
+              "y": 26,
+              "width": 411,
+              "height": 630,
+              "layoutSizingHorizontal": "FILL",
+              "layoutSizingVertical": "HUG",
+              "strokeWeight": 1,
+              "strokeAlign": "INSIDE",
+              "strokeCap": "NONE",
+              "strokeJoin": "MITER",
+              "layoutMode": "VERTICAL",
+              "primaryAxisAlignItems": "MIN",
+              "counterAxisAlignItems": "MIN",
+              "paddingLeft": 0,
+              "paddingRight": 0,
+              "paddingTop": 0,
+              "paddingBottom": 0,
+              "itemSpacing": 46,
+              "clipsContent": false,
+              "children": [
+                {
+                  "type": "TEXT",
+                  "name": "#body",
+                  "x": 0,
+                  "y": 0,
+                  "width": 411,
+                  "height": 630,
+                  "layoutSizingHorizontal": "FILL",
+                  "layoutSizingVertical": "HUG",
+                  "characters": "Com o tempo, o marido de Rita se converteu, mas foi assassinado por vingança.\nSeus dois filhos quiseram revidar a morte do pai.\nRita então fez uma oração radical: pediu a Deus que os guardasse do pecado, mesmo que isso custasse a vida deles.\nOs dois adoeceram, morreram na graça de Deus, e Rita ficou sozinha, sustentada apenas pela fé.",
+                  "textAlignHorizontal": "LEFT",
+                  "textAlignVertical": "TOP",
+                  "textAutoResize": "HEIGHT",
+                  "fontSize": 32,
+                  "fontName": {
+                    "family": "Plus Jakarta Sans",
+                    "style": "Medium"
+                  },
+                  "letterSpacing": {
+                    "unit": "PERCENT",
+                    "value": 0
+                  },
+                  "lineHeight": {
+                    "unit": "PERCENT",
+                    "value": 139.9999976158142
+                  },
+                  "textCase": "ORIGINAL",
+                  "textDecoration": "NONE",
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "visible": true,
+                      "opacity": 1,
+                      "color": {
+                        "r": 0.1921568661928177,
+                        "g": 0.239215686917305,
+                        "b": 0.3960784375667572
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "TEXT",
+          "name": "#title",
+          "x": 561,
+          "y": 143,
+          "width": 428,
+          "height": 96,
+          "characters": "Dor, fé e transformação",
+          "textAlignHorizontal": "LEFT",
+          "textAlignVertical": "TOP",
+          "textAutoResize": "HEIGHT",
+          "fontSize": 48,
+          "fontName": {
+            "family": "The Seasons",
+            "style": "Bold"
+          },
+          "letterSpacing": {
+            "unit": "PERCENT",
+            "value": -2
+          },
+          "lineHeight": {
+            "unit": "PERCENT",
+            "value": 100
+          },
+          "textCase": "ORIGINAL",
+          "textDecoration": "NONE",
+          "fills": [
+            {
+              "type": "SOLID",
+              "visible": true,
+              "opacity": 1,
+              "color": {
+                "r": 0.1921568661928177,
+                "g": 0.239215686917305,
+                "b": 0.3960784375667572
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "presetVersion": "2.5c"
+}

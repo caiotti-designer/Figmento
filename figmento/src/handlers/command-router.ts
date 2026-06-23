@@ -68,6 +68,8 @@ import {
   handleScanTemplateCmd,
   handleApplyTemplateTextCmd,
   handleApplyTemplateImageCmd,
+  handleCapturePresetNodesCmd,
+  handleInstantiatePresetNodesCmd,
   runRefinementCheck,
 } from './canvas-batch';
 import { handleCreateDSShowcase } from './ds-showcase';
@@ -230,6 +232,12 @@ export async function executeCommand(cmd: WSCommand): Promise<WSResponse> {
         break;
       case 'apply_template_image':
         data = await handleApplyTemplateImageCmd(cmd.params);
+        break;
+      case 'capture_preset_nodes':
+        data = await handleCapturePresetNodesCmd();
+        break;
+      case 'instantiate_preset_nodes':
+        data = await handleInstantiatePresetNodesCmd(cmd.params);
         break;
       case 'batch_execute':
         data = await handleBatchExecute(cmd.params);

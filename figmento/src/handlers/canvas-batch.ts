@@ -76,6 +76,12 @@ import {
   handleMakeInteractive,
   handleCreatePrototypeFlow,
 } from './canvas-components';
+import {
+  captureSelectionAsNodes,
+  instantiatePresetNodesAt,
+  nodesToFramesSummary,
+  type PresetNode,
+} from './presets';
 import type { DesignSystemCache } from '../types';
 
 // ═══════════════════════════════════════════════════════════════
@@ -647,6 +653,10 @@ export async function executeSingleAction(
       return await handleCreateDSComponents(params);
     case 'scan_frame_structure':
       return await handleScanFrameStructure(params);
+    case 'capture_preset_nodes':
+      return await handleCapturePresetNodesCmd();
+    case 'instantiate_preset_nodes':
+      return await handleInstantiatePresetNodesCmd(params);
     case 'run_refinement_check':
       return await runRefinementCheck(String(params.nodeId));
     // IC-1/2/3: Component actions
@@ -672,6 +682,31 @@ export async function executeSingleAction(
     default:
       throw new Error(`Unknown action in batch: ${action}`);
   }
+}
+
+export async function handleCapturePresetNodesCmd(): Promise<Record<string, unknown>> {
+  const result = captureSelectionAsNodes();
+  if ('error' in result) throw new Error(result.error);
+  return {
+    nodes: result,
+    frames: nodesToFramesSummary(result),
+  };
+}
+
+export async function handleInstantiatePresetNodesCmd(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const nodes = params.nodes as PresetNode[] | undefined;
+  if (!Array.isArray(nodes) || nodes.length === 0) throw new Error('nodes is required');
+  const x = typeof params.x === 'number' ? params.x : 0;
+  const y = typeof params.y === 'number' ? params.y : 0;
+  const created = await instantiatePresetNodesAt(nodes, x, y);
+  const width = created.length > 0 ? Math.max(...created.map(n => n.x + ('width' in n ? n.width : 0))) - Math.min(...created.map(n => n.x)) : 0;
+  const height = created.length > 0 ? Math.max(...created.map(n => n.y + ('height' in n ? n.height : 0))) - Math.min(...created.map(n => n.y)) : 0;
+  return {
+    nodeIds: created.map(n => n.id),
+    count: created.length,
+    width,
+    height,
+  };
 }
 
 /** Command-router version of create_design (takes design JSON) */

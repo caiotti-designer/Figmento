@@ -1,0 +1,98 @@
+name: figmento-project
+created: '2026-05-31T22:20:00.000Z'
+preset_used: custom
+mood:
+  - event
+  - institutional
+  - green
+  - modern
+voice: >-
+  Design system extracted from the current Landing Page frame. It preserves the existing green event palette and
+  condensed headline typography without changing any canvas node.
+colors:
+  primary: '#7AB61F'
+  primary_light: '#7AB61F'
+  primary_dark: '#285D60'
+  secondary: '#285D60'
+  accent: '#0E2325'
+  surface: '#F1F5F9'
+  background: '#EEF5F4'
+  border: '#D9D9D9'
+  on_primary: '#0E2325'
+  on_surface: '#475569'
+  on_surface_muted: '#475569'
+  success: '#16A34A'
+  warning: '#EAB308'
+  error: '#DC2626'
+  info: '#285D60'
+typography:
+  heading:
+    family: Special Gothic Expanded One
+    fallback: Arial Black, Impact, sans-serif
+    weights:
+      - 400
+  body:
+    family: Bricolage Grotesque
+    fallback: Inter, system-ui, sans-serif
+    weights:
+      - 400
+  scale:
+    display: 96
+    h1: 64
+    h2: 48
+    h3: 32
+    heading: 48
+    body_lg: 24
+    body: 18
+    body_sm: 14
+    caption: 14
+spacing:
+  unit: 8
+  xs: 4
+  sm: 8
+  md: 16
+  lg: 24
+  xl: 32
+  2xl: 48
+  3xl: 64
+radius:
+  none: 0
+  sm: 4
+  md: 8
+  lg: 16
+  xl: 16
+  full: 9999
+shadows:
+  sm:
+    x: 0
+    'y': 0
+    blur: 0
+    spread: 0
+    color: '#0E2325'
+    opacity: 0
+  md:
+    x: 0
+    'y': 0
+    blur: 0
+    spread: 0
+    color: '#0E2325'
+    opacity: 0
+  lg:
+    x: 0
+    'y': 0
+    blur: 0
+    spread: 0
+    color: '#0E2325'
+    opacity: 0
+gradients:
+  enabled: false
+constraints:
+  do:
+    - Use `Special Gothic Expanded One` for display, section titles, and CTAs.
+    - Use `Bricolage Grotesque` for navigation and body text.
+    - Keep lime `#7AB61F` as the action/accent color.
+    - Keep deep teal `#0E2325` for dark section backgrounds.
+  dont:
+    - Do not introduce new font weights beyond 400 unless the design is intentionally revised.
+    - Do not replace the current mint, teal, lime, and slate palette.
+    - Do not generate a showcase frame for this DS-only setup.

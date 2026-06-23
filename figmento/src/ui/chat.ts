@@ -69,6 +69,11 @@ export interface ChatSettings {
   openaiApiKey: string;
   veniceApiKey: string;
   model: string;
+  geminiModel: string;
+  anthropicModel: string;
+  openaiModel: string;
+  veniceModel: string;
+  codexModel: string;
   claudeCodeModel: string;
   chatRelayEnabled: boolean;
   chatRelayUrl: string;
@@ -113,7 +118,7 @@ let chatSessions: ChatSession[] = [];
 let activeSessionId: string | null = null;
 let pendingSessionsRestore: ChatSession[] | null = null;
 // MF-1: Multi-file attachment queue (replaces single pendingAttachment)
-interface AttachmentFile {
+export interface AttachmentFile {
   id: string;
   name: string;
   type: string;
@@ -262,7 +267,12 @@ let chatSettings: ChatSettings = {
   geminiApiKey: '',
   openaiApiKey: '',
   veniceApiKey: '',
-  model: 'gemini-3.1-flash',
+  model: 'gemini',
+  geminiModel: 'gemini-3.1-flash',
+  anthropicModel: 'claude-sonnet-4-6',
+  openaiModel: 'gpt-5.4',
+  veniceModel: 'zai-org-glm-5',
+  codexModel: 'gpt-5.5-codex',
   claudeCodeModel: 'claude-sonnet-4-6',
   chatRelayEnabled: false,
   chatRelayUrl: CLOUD_RELAY_URL,
@@ -287,20 +297,41 @@ function postToSandbox(msg: Record<string, unknown>) {
 }
 
 function isGeminiModel(model: string): boolean {
-  return model.startsWith('gemini-');
+  return model === 'gemini' || model.startsWith('gemini-');
 }
 
 function isCodexModel(model: string): boolean {
-  return model.includes('-codex');
+  return model === 'codex' || model.includes('-codex');
 }
 
 function isOpenAIModel(model: string): boolean {
   // DM-3: Exclude codex models — they match gpt-* but use a different provider
-  return !isCodexModel(model) && (model.startsWith('gpt-') || model.startsWith('o'));
+  return model === 'openai' || (!isCodexModel(model) && (model.startsWith('gpt-') || model.startsWith('o')));
 }
 
 function isVeniceModel(model: string): boolean {
-  return model.startsWith('qwen3-') || model.startsWith('zai-org-') || model.startsWith('deepseek-');
+  return model === 'venice' || model.startsWith('venice:');
+}
+
+function getVeniceModelId(): string {
+  if (chatSettings.model.startsWith('venice:')) return chatSettings.model.slice('venice:'.length);
+  return chatSettings.veniceModel || 'zai-org-glm-5';
+}
+
+function getGeminiModelId(): string {
+  return chatSettings.model.startsWith('gemini-') ? chatSettings.model : chatSettings.geminiModel || 'gemini-3.1-flash';
+}
+
+function getOpenAIModelId(): string {
+  return chatSettings.model === 'openai' ? chatSettings.openaiModel || 'gpt-5.4' : chatSettings.model;
+}
+
+function getAnthropicModelId(): string {
+  return chatSettings.model === 'anthropic' ? chatSettings.anthropicModel || 'claude-sonnet-4-6' : chatSettings.model;
+}
+
+function getCodexModelId(): string {
+  return chatSettings.model === 'codex' ? chatSettings.codexModel || 'gpt-5.5-codex' : chatSettings.model;
 }
 
 function isClaudeCodeModel(model: string): boolean {
@@ -325,6 +356,7 @@ function getActiveProvider(): ChatSession['provider'] {
   if (isGeminiModel(m)) return 'gemini';
   if (isOpenAIModel(m)) return 'openai';
   if (isVeniceModel(m)) return 'venice';
+  if (m === 'anthropic') return 'claude';
   return 'claude';
 }
 
@@ -1009,6 +1041,18 @@ function addAttachment(name: string, type: string, dataUri: string, size: number
   return true;
 }
 
+export function seedChatDraft(text: string, attachments: Array<Omit<AttachmentFile, 'id'>> = []): void {
+  const input = document.getElementById('chat-input') as HTMLTextAreaElement | null;
+  if (input) {
+    input.value = text;
+    input.focus();
+  }
+
+  for (const file of attachments) {
+    addAttachment(file.name, file.type, file.dataUri, file.size);
+  }
+}
+
 function removeAttachment(id: string): void {
   pendingAttachments = pendingAttachments.filter((f) => f.id !== id);
   const firstImage = pendingAttachments.find((f) => f.type.startsWith('image/'));
@@ -1602,6 +1646,7 @@ export function initChat() {
   }
 
   populateModelDropdown();
+  window.addEventListener('figmento-model-options-changed', populateModelDropdown);
 
   // ── Model dropdown item click → update settings model ─────────
   modelDropdown?.addEventListener('click', (e) => {
@@ -2496,6 +2541,7 @@ async function sendMessage() {
         .split('\n\n[EXTRACTED FILE CONTENT]')[0]
         .split('\n\n[ATTACHED IMAGES]')[0]
         .split('\n\n[ATTACHED FILES]')[0]
+        .split('\n\n[REMIX REFERENCE IMAGE DATA]')[0]
         .split('\n\n[FIGMA SELECTION')[0]
     ) + badgeHtml;
   appendChatBubble('user', userHtml);
@@ -2719,7 +2765,17 @@ async function runRelayTurn(
     provider,
     apiKey,
     // MA-1: for custom provider, send the user's customModel name instead of the dropdown sentinel "custom".
-    model: useCustom ? chatSettings.customModel || '' : chatSettings.model,
+    model: useCustom
+      ? chatSettings.customModel || ''
+      : useVenice
+        ? getVeniceModelId()
+        : useGemini
+          ? getGeminiModelId()
+          : useOpenAI
+            ? getOpenAIModelId()
+            : useCodex
+              ? getCodexModelId()
+              : getAnthropicModelId(),
     history,
     memory: memoryEntries,
     preferences: learnedPreferences,
@@ -2819,10 +2875,10 @@ async function runClaudeCodeTurn(
   // session for this channel and boots fresh — history travels via the request payload.
   const isCodex = engine === 'codex';
   const modelForEngine = isCodex
-    ? chatSettings.model && isCodexModel(chatSettings.model)
-      ? chatSettings.model
-      : 'gpt-5.4-codex'
-    : chatSettings.claudeCodeModel || undefined;
+    ? getCodexModelId()
+    : chatSettings.claudeCodeModel && chatSettings.claudeCodeModel !== 'default'
+      ? chatSettings.claudeCodeModel
+      : undefined;
   const sent = sendBridgeMessage({
     type: 'claude-code-turn',
     channel: channelId,
@@ -2924,7 +2980,8 @@ async function runDirectLoop(
     }
     await runGeminiLoop();
   } else if (useOpenAI) {
-    if (attachment && (chatSettings.model.startsWith('gpt-4') || chatSettings.model.includes('gpt-4o'))) {
+    const openaiModel = getOpenAIModelId();
+    if (attachment && (openaiModel.startsWith('gpt-4') || openaiModel.includes('gpt-4o'))) {
       openaiHistory.push({
         role: 'user',
         content: [
@@ -2996,7 +3053,7 @@ async function runAnthropicLoop(): Promise<void> {
   await runToolUseLoop({
     provider: 'claude',
     apiKey: chatSettings.anthropicApiKey,
-    model: chatSettings.model,
+    model: getAnthropicModelId(),
     systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences, getEffectiveDsCache()),
     tools: chatToolResolver(),
     messages: conversationHistory,
@@ -3013,7 +3070,7 @@ async function runGeminiLoop(): Promise<void> {
   await runToolUseLoop({
     provider: 'gemini',
     apiKey: chatSettings.geminiApiKey,
-    model: chatSettings.model,
+    model: getGeminiModelId(),
     systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences, getEffectiveDsCache()),
     tools: chatToolResolver(),
     messages: geminiHistory,
@@ -3030,7 +3087,7 @@ async function runOpenAILoop(): Promise<void> {
   await runToolUseLoop({
     provider: 'openai',
     apiKey: chatSettings.openaiApiKey,
-    model: chatSettings.model,
+    model: getOpenAIModelId(),
     systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences, getEffectiveDsCache()),
     tools: chatToolResolver(),
     messages: openaiHistory,
@@ -3047,7 +3104,7 @@ async function runVeniceLoop(): Promise<void> {
   await runToolUseLoop({
     provider: 'venice',
     apiKey: chatSettings.veniceApiKey,
-    model: chatSettings.model,
+    model: getVeniceModelId(),
     systemPrompt: buildSystemPrompt(currentBrief, memoryEntries, learnedPreferences, getEffectiveDsCache()),
     tools: chatToolResolver(),
     messages: openaiHistory,
@@ -3123,7 +3180,7 @@ function buildToolCallHandler(): (name: string, args: Record<string, unknown>) =
 // CHAT — SANDBOX BRIDGE
 // ═══════════════════════════════════════════════════════════════
 
-function sendCommandToSandbox(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+export function sendCommandToSandbox(action: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const cmdId = `chat-${++chatCommandCounter}-${Date.now()}`;
 

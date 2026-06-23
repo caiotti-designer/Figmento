@@ -1,0 +1,128 @@
+name: lado-a
+created: '2026-05-11T00:00:00.000Z'
+preset_used: null
+source: DESIGN.md — LADO A
+mood: []
+voice: >-
+  Editorial, sem ser frio. Archivo como base institucional com Fraunces serif itálica em pontos cirúrgicos para calor
+  humano. Pattern como ativo estrutural, royal como cor líder, forest como apoio institucional, cream como base quente,
+  motion biofílica.
+
+
+  **Mood**:
+colors:
+  primary: '#1A2E8C'
+  primary_light: '#6FA89F'
+  primary_dark: '#131F66'
+  secondary: '#1F4D45'
+  accent: '#B9D4CE'
+  surface: '#FFFFFF'
+  background: '#FAF7F0'
+  border: rgba(26, 26, 26, 0.08)
+  on_primary: '#FFFFFF'
+  on_surface: '#1A1A1A'
+  on_surface_muted: '#4A4A4A'
+  success: '#6FA89F'
+  warning: '#C9B996'
+  error: '#8C1A2E'
+  info: '#EAE9F2'
+  royal: '#1A2E8C'
+  royal_deep: '#131F66'
+  forest: '#1F4D45'
+  forest_deep: '#143630'
+  jade: '#6FA89F'
+  jade_soft: '#B9D4CE'
+  sand: '#E8E0CC'
+  sand_deep: '#C9B996'
+  mist: '#EAE9F2'
+  cream: '#FAF7F0'
+  paper: '#FFFFFF'
+  ink: '#1A1A1A'
+  ink_soft: '#4A4A4A'
+  ink_muted: '#8B8B8B'
+  hairline: rgba(26, 26, 26, 0.08)
+  hairline_paper: rgba(255, 255, 255, 0.16)
+typography:
+  heading:
+    family: Archivo
+    fallback: Arial, sans-serif
+    figma_fallback: Arial
+    weights:
+      - 400
+      - 700
+  body:
+    family: Archivo
+    fallback: Arial, sans-serif
+    figma_fallback: Arial
+    weights:
+      - 400
+      - 700
+  mono:
+    family: JetBrains Mono
+    fallback: monospace
+    figma_fallback: Courier New
+    weights:
+      - 400
+      - 700
+  scale:
+    display: 88
+    h1: 48
+    h2: 32
+    h3: 22
+    heading: 64
+    body_lg: 19
+    body: 16
+    body_sm: 14
+    caption: 12
+    label: 12
+  letter_spacing:
+    display: '-3.08px'
+    h1: '-0.96px'
+    h2: '-0.48px'
+    h3: normal
+    heading: '-1.6px'
+    body_lg: normal
+    body: normal
+    body_sm: normal
+    caption: 1.8px
+    label: 1.8px
+spacing:
+  unit: 8
+  xs: 4
+  sm: 8
+  md: 16
+  lg: 24
+  xl: 32
+  2xl: 64
+  3xl: 96
+radius:
+  none: 0
+  sm: 6
+  md: 12
+  lg: 20
+  xl: 24
+  full: 9999
+shadows:
+  sm:
+    x: 0
+    'y': 1
+    blur: 2
+    spread: 0
+    color: '#1A1A1A'
+    opacity: 0.04
+  md:
+    x: 0
+    'y': 12
+    blur: 24
+    spread: -12
+    color: '#1A2E8C'
+    opacity: 0.12
+  lg:
+    x: 0
+    'y': 24
+    blur: 48
+    spread: -16
+    color: '#1A2E8C'
+    opacity: 0.18
+gradients:
+  enabled: false

@@ -6,10 +6,8 @@
 // IS-7: Generation History Panel
 // IS-8: Send to Canvas Integration
 
-import { compressImage } from './utils';
+import { compressImage, fetchWithRetry } from './utils';
 import { apiState } from './state';
-import { getBridgeConnected, getBridgeChannelId } from './bridge';
-import { getChatSettings } from './chat';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -36,6 +34,7 @@ const MAX_CHARACTER = 4;
 const MAX_STYLE_CONTENT = 10;
 const THUMB_SIZE = 48;
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+const IMAGE_GENERATION_TIMEOUT_MS = 45_000;
 
 let references: ImageReference[] = [];
 let nameCounter = 0;
@@ -653,15 +652,6 @@ async function callImageGeneration(
     throw new Error('Gemini API key not set. Configure in Settings → Image Generation.');
   }
 
-  // Try relay first if connected, otherwise call Gemini REST API directly
-  if (getBridgeConnected() && getChannel()) {
-    try {
-      return await callViaRelay(prompt, refs, aspectRatio, resolution, geminiKey);
-    } catch {
-      // Relay failed — fall through to direct API
-    }
-  }
-
   return await callGeminiDirect(prompt, refs, aspectRatio, resolution, geminiKey);
 }
 
@@ -673,8 +663,8 @@ async function callGeminiDirect(
   resolution: string,
   apiKey: string
 ): Promise<{ imageBase64: string; mimeType: string } | null> {
-  const geminiModel = 'gemini-3.1-flash-image-preview'; // TODO: accept from caller when Image Studio gets model selector
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
+  const geminiModel = 'gemini-2.5-flash-image';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`;
 
   // Build parts: reference images (labeled) + prompt text
   const parts: any[] = [];
@@ -686,17 +676,14 @@ async function callGeminiDirect(
 
   const body = {
     contents: [{ parts }],
-    generationConfig: {
-      responseModalities: ['IMAGE', 'TEXT'],
-      ...(aspectRatio && { imageConfig: { aspectRatio } }),
-    },
+    generationConfig: buildImageGenerationConfig(geminiModel, aspectRatio, resolution),
   };
 
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify(body),
-  });
+  }, 1, IMAGE_GENERATION_TIMEOUT_MS);
 
   if (!response.ok) {
     const errText = await response.text();
@@ -729,39 +716,30 @@ async function callGeminiDirect(
   return null;
 }
 
-/** Relay-based generation (original path) */
-async function callViaRelay(
-  prompt: string,
-  refs: ImageReference[],
+function buildImageGenerationConfig(
+  model: string,
   aspectRatio: string,
-  resolution: string,
-  apiKey: string
-): Promise<{ imageBase64: string; mimeType: string } | null> {
-  const relayUrl = getRelayUrl();
-  const channel = getChannel();
-  const referenceImages = refs.map((ref) => ({ data: ref.data, mimeType: ref.mimeType }));
+  resolution: string
+): Record<string, unknown> | undefined {
+  const imageConfig: Record<string, string> = {};
+  if (aspectRatio) imageConfig.aspectRatio = aspectRatio;
 
-  const response = await fetch(`${relayUrl}/api/chat/turn`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      channel,
-      provider: 'gemini',
-      model: 'gemini-3.1-flash-image-preview',
-      mode: 'image-studio',
-      message: prompt,
-      referenceImages,
-      imageConfig: { aspectRatio, imageSize: resolution },
-      geminiKey: apiKey,
-    }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Relay error: ${text.slice(0, 200)}`);
+  // Gemini 3.1 Flash Image currently returns reliably without imageConfig,
+  // but can hang with imageSize/aspectRatio on the REST path. Keep controls
+  // active for models that support them cleanly; prefer a real image over a
+  // frozen Studio panel for the Flash preview model.
+  if (model.includes('pro-image') && resolution) {
+    imageConfig.imageSize = resolution;
   }
 
-  return await response.json();
+  if (Object.keys(imageConfig).length === 0 || model === 'gemini-3.1-flash-image-preview') {
+    return undefined;
+  }
+
+  return {
+    responseModalities: ['TEXT', 'IMAGE'],
+    imageConfig,
+  };
 }
 
 function clearPreview(): void {
@@ -791,6 +769,17 @@ function showGenerationResult(base64: string, mimeType: string): void {
     </div>
   `;
   preview.style.display = 'block';
+
+  const img = preview.querySelector('img');
+  const meta = preview.querySelector('.is-preview-meta');
+  if (img && meta) {
+    img.addEventListener('load', () => {
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        lastGenDimensions = { width: img.naturalWidth, height: img.naturalHeight };
+        meta.textContent = `${currentAspectRatio} · ${currentResolution} · ${img.naturalWidth}×${img.naturalHeight}`;
+      }
+    });
+  }
 
   // Wire Send to Canvas button
   document.getElementById('is-preview-canvas')?.addEventListener('click', () => {
@@ -1664,17 +1653,8 @@ async function sendToCanvas(imageBase64: string, mimeType: string, promptText: s
 // Send to Canvas button is now wired directly in showGenerationResult
 
 // ═══════════════════════════════════════════════════════════════
-// HELPERS (relay connection info — reads from existing state)
+// HELPERS
 // ═══════════════════════════════════════════════════════════════
-
-function getRelayUrl(): string {
-  const cs = getChatSettings();
-  return (cs.chatRelayUrl || 'https://figmento-ws-relay.fly.dev').replace(/\/+$/, '');
-}
-
-function getChannel(): string | null {
-  return getBridgeChannelId();
-}
 
 function getGeminiKey(): string | null {
   return apiState.savedApiKeys['gemini'] || null;

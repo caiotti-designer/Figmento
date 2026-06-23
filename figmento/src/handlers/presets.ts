@@ -791,7 +791,7 @@ function serializeChildren(
   return out;
 }
 
-function captureSelectionAsNodes(): PresetNode[] | { error: string } {
+export function captureSelectionAsNodes(): PresetNode[] | { error: string } {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
     return { error: 'Select one or more frames first.' };
@@ -1422,11 +1422,40 @@ async function instantiatePreset(preset: Preset): Promise<SceneNode[]> {
   return created;
 }
 
+export async function instantiatePresetNodesAt(
+  nodes: PresetNode[],
+  startX: number,
+  startY: number
+): Promise<SceneNode[]> {
+  await loadAllFonts(nodes);
+  await restoreImagesForPreset(nodes);
+
+  const created: SceneNode[] = [];
+  for (const n of nodes) {
+    const node = instantiateNodeWithProps(n);
+    if (!node) continue;
+    figma.currentPage.appendChild(node);
+    node.x = startX + n.x;
+    node.y = startY + n.y;
+    created.push(node);
+  }
+  if (created.length > 0) {
+    figma.currentPage.selection = created;
+    figma.viewport.scrollAndZoomIntoView(created);
+  }
+  if (substitutedFamilies.size > 0) {
+    const list = Array.from(substitutedFamilies).slice(0, 3).join(', ');
+    const more = substitutedFamilies.size > 3 ? ` +${substitutedFamilies.size - 3} more` : '';
+    figma.notify(`Substituted missing fonts: ${list}${more} (using Inter)`, { timeout: 6000 });
+  }
+  return created;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // UTILS — derive a v1 frames[] skeleton from v2 nodes[] for backward UI compat
 // ═══════════════════════════════════════════════════════════════
 
-function nodesToFramesSummary(nodes: PresetNode[]): PresetFrame[] {
+export function nodesToFramesSummary(nodes: PresetNode[]): PresetFrame[] {
   return nodes.map((n) => {
     const frame: PresetFrame = {
       name: n.name,

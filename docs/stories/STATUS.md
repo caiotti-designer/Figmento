@@ -1,6 +1,6 @@
 # Figmento — Project Status (Agent Quick-Reference)
 
-> **Last synced:** 2026-05-05 — Local agent audit/fix pass. `AGENTS.md` is now the shared instruction source; `.claude/CLAUDE.md` and `figmento/CLAUDE.md` import it instead of carrying divergent rules. Plugin Jest ESM/schema tests repaired. Global `npm` was repaired by moving a corrupted user-level npm package aside; standard `npm run typecheck` works again.
+> **Last synced:** 2026-05-20 — BKR-2 Remix tab implemented. Plugin gates pass; Remix tab now manages style refs and selected-frame previews for Brand Kit Remix testing.
 > **Purpose:** Single source of truth for "what's active, what's parked, what's shipped"
 > so any agent (@pm, @po, @sm, @dev, @qa, @architect) can orient in one read.
 > **Update this file** whenever a story lands, gets blocked, or changes priority.
@@ -14,6 +14,8 @@
 - **CDX-1 — Done.** Codex CLI agentic engine alongside Claude Code, shipped 2026-04-28 (`51ac77a` + `0e2886b`). Full parity with Claude Code: same MCP toolset (~55 curated), same FIGMENTO_DESIGN_PROMPT design rules (delivered via AGENTS.md for Codex, systemPrompt for Claude), same lifecycle. Mid-conversation engine switch supported. Codex schema-incompat tools (5 with `z.union`) refactored to non-union split fields — re-enabled for both engines. Legacy in-process Codex provider gated behind `chatSettings.legacyCodexProvider` flag.
 - **HTML-1 — Done.** Interpretive HTML import V1 in same commit. Drop a `.html` file in chat, agent recreates the layout in Figma using the existing canvas tools. Works on both engines. Ships with explicit "this is interpretive, not pixel-perfect" caveat.
 - **HTML-2 — Drafted.** Pixel-perfect HTML import via Puppeteer computed-style extraction. New MCP tool `import_html_layout`, 1:1 fidelity with rendered DOM. ~3-5 days work, queued for when needed.
+- **BKR-1 — Implemented.** Brand kits now support folder remix storage, reference images, PresetNode archetypes, copy parsing, deterministic role selection, and `@Brand` carousel remix tooling. Automated gates pass; live Carmelus smoke is pending.
+- **BKR-2 — Done.** Added Remix tab for brand style references and output previews. Style refs can be sent into Chat as a save-remix prompt; selected generated frames can be captured as slide thumbnails.
 - **epic-DMD — CLOSED.** Phase A (DMD-1..5) + Phase B (DMD-6..7) all shipped. 7 seeded systems with canonical DESIGN.md files, round-trip PASS, 86/86 ds-md tests green, plugin drag-drop works, CLAUDE.md + authoring guide published at `docs/guides/design-md-authoring.md`.
 - **DQ-HF-1 — Done.** Post-showcase contrast + nesting discipline shipped 2026-04-22. CLAUDE.md rules added; `create_frame` now emits a soft warning when a sibling of a recent showcase is created without `parentId`; 12 regression tests + fixture + manual regression note.
 - **Skills MCP infrastructure — shipped** (`4208cec`). New tools `list_skills` + `load_skill` expose markdown recipes (with YAML frontmatter) to any MCP client. First recipe: `design-system.md`. Server instructions block added so agents default to the skills-first workflow instead of drifting to Instagram-post output on brand briefs.
@@ -41,6 +43,8 @@ If you want to unblock something, see `## Parked / On-Standby` below for externa
 | [CDX-1 — Codex agentic engine](CDX-1-codex-agentic-engine.story.md) | **Done** | Shipped 2026-04-28 — `51ac77a` (schema refactor) + `0e2886b` (engine + HTML-1 + cleanup discipline). Codex full parity with Claude Code. | @dev (shipped) |
 | [HTML-1 — Interpretive HTML import V1](#) | **Done** | Shipped 2026-04-28 in `0e2886b`. No standalone story file — bundled with CDX-1. Drop `.html` → directive injection → agent recreates via existing canvas tools. | @dev (shipped) |
 | [HTML-2 — Pixel-perfect HTML import](HTML-2-pixel-perfect-html-import.story.md) | **Draft** | Awaiting prioritization. Spec ready: Puppeteer computed-style extractor + new MCP tool `import_html_layout`. ~3-5 days. | unassigned |
+| [BKR-1 — Brand Kit Remix Carousel](BKR-1-brand-kit-remix-carousel.story.md) | **Implemented** | Live Carmelus/Figma smoke pending | @dev |
+| [BKR-2 — Remix Tab Preview and Style References](BKR-2-remix-tab-preview-and-style-refs.story.md) | **Done** | Explicit selected-frame capture; auto-result preview can follow later | @dev |
 | [DM-2 — Anthropic OAuth](DM-2-oauth-login.story.md) | **Scaffolded** | External (OAuth app registration + callback page hosting) | @dev |
 
 **DM-2 activation requires:**

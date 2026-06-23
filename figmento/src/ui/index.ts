@@ -45,6 +45,7 @@ import { initPreferencesPanel, reloadPreferencesPanel } from './preferences-pane
 import { designSystemState, dsToggleState } from './state';
 import { initSkillExport } from './skill-export';
 import { initImageStudio } from './image-studio';
+import { initRemixStudio } from './remix-studio';
 import { initPresets } from './presets';
 import type { DesignSystemCache } from '../types';
 
@@ -542,6 +543,7 @@ function initializeApp(): void {
   initDsToggle();
   initSkillExport();
   initImageStudio();
+  initRemixStudio();
   initPresets();
 }
 
@@ -563,13 +565,14 @@ function initUnifiedTabs() {
   });
 }
 
-/** IS-1: Initialize main tab switching (Chat ↔ Image Studio) */
+/** IS-1/BKR-2: Initialize main tab switching (Chat ↔ Image Studio ↔ Remix) */
 function initMainTabs(): void {
   const tabBtns = document.querySelectorAll<HTMLButtonElement>('.tab-bar-btn');
   const chatPanel = document.querySelector<HTMLElement>('.chat-surface');
   const studioPanel = document.getElementById('image-studio-panel');
+  const remixPanel = document.getElementById('remix-panel');
 
-  if (!chatPanel || !studioPanel) return;
+  if (!chatPanel || !studioPanel || !remixPanel) return;
 
   // Store chat scroll position for restoration
   let chatScrollTop = 0;
@@ -587,6 +590,7 @@ function initMainTabs(): void {
       if (tab === 'chat') {
         chatPanel.style.display = '';
         studioPanel.classList.remove('active');
+        remixPanel.classList.remove('active');
         // Restore chat scroll position
         if (chatMessages) chatMessages.scrollTop = chatScrollTop;
       } else if (tab === 'image-studio') {
@@ -594,6 +598,12 @@ function initMainTabs(): void {
         if (chatMessages) chatScrollTop = chatMessages.scrollTop;
         chatPanel.style.display = 'none';
         studioPanel.classList.add('active');
+        remixPanel.classList.remove('active');
+      } else if (tab === 'remix') {
+        if (chatMessages) chatScrollTop = chatMessages.scrollTop;
+        chatPanel.style.display = 'none';
+        studioPanel.classList.remove('active');
+        remixPanel.classList.add('active');
       }
     });
   });

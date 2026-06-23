@@ -1,0 +1,92 @@
+name: momment-coworking
+created: '2026-04-28T00:00:00.000Z'
+preset_used: null
+mood: []
+voice: null
+colors:
+  primary: '#FF7262'
+  primary_hover: '#E85A4A'
+  primary_tint: '#FFD9D2'
+  secondary: '#D7BAFD'
+  secondary_tint: '#EFE3FF'
+  background: '#FFF6F2'
+  surface: '#FFFFFF'
+  surface_elevated: '#F5E7DF'
+  on_surface: '#101010'
+  on_surface_variant: '#2A2522'
+  outline: '#D9D0CA'
+  outline_variant: '#E8DFD9'
+  muted: '#BFB4AE'
+  success: '#2F8F6B'
+  success_container: '#DDEEE5'
+  warning: '#C9892B'
+  warning_container: '#F8ECD3'
+  error: '#C0392B'
+  error_container: '#F6DAD4'
+  info: '#6B5BB3'
+  info_container: '#EFE3FF'
+  focus_ring: '#FF7262'
+typography:
+  heading:
+    family: The Seasons
+    fallback: Fraunces, Georgia, serif
+    weights:
+      - 400
+      - 700
+  body:
+    family: All Round Gothic
+    fallback: Nunito, system-ui, sans-serif
+    weights:
+      - 400
+      - 700
+  scale:
+    display: 88
+    h1: 60
+    h2: 44
+    h3: 28
+    h4: 22
+    body-lg: 18
+    body: 16
+    caption: 14
+    label: 13
+    button: 16
+spacing:
+  unit: 8
+  xs: 4
+  sm: 8
+  md: 16
+  lg: 24
+  xl: 32
+  2xl: 48
+  3xl: 64
+radius:
+  none: 0
+  sm: 4
+  md: 8
+  lg: 12
+  xl: 16
+  full: 9999
+shadows:
+  sm:
+    x: 0
+    'y': 0
+    blur: 0
+    spread: 0
+    color: rgba(0,0,0,0)
+    opacity: 0
+  md:
+    x: 0
+    'y': 0
+    blur: 0
+    spread: 0
+    color: rgba(0,0,0,0)
+    opacity: 0
+  lg:
+    x: 0
+    'y': 0
+    blur: 0
+    spread: 0
+    color: rgba(0,0,0,0)
+    opacity: 0
+gradients:
+  enabled: false

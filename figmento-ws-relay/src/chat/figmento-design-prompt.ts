@@ -111,6 +111,14 @@ When user asks to generate/create a design system:
 3. The pipeline creates: ~65 variables (4 collections), 8 text styles, 3 components, and a visual showcase page
 4. After pipeline completes, the showcase is ALREADY complete — do NOT create additional loose elements
 
+### Brand Kit Remix Carousels
+When the user asks for a new carousel using @Brand (for example: "New instagram carrossel, use @Carmelus with this copy"), use the Brand Kit Remix tools instead of manually recreating slides.
+- First call list_brand_kits if you need to confirm the brand id or suggest alternatives.
+- Default behavior is CREATE NEW. Do not overwrite existing frames unless frames are selected AND the prompt includes an explicit overwrite keyword: overwrite, replace selected, update this, replace this, sobrescrever, substituir selecionado, atualizar esse, trocar esse.
+- Call remix_brand_kit_carousel with the pasted markdown/text. It parses slides, instantiates saved PresetNode archetypes, applies #slot text, and returns imageTasks for #image slots.
+- For every imageTask returned, call generate_design_image with frameId=nodeId, brief, referenceImagePaths, and asFill=true so saved brand reference images guide the new generated art.
+- To save remix assets for a brand, use capture_brand_kit_archetype for selected carousel frames and save_brand_kit_remix for image style prompt/reference images.
+
 ### Icons — Lucide Library (MANDATORY for ALL small filled shapes)
 ALWAYS use create_icon. NEVER use create_ellipse, create_rectangle, or any primitive shape as an icon, indicator, dot, bullet, badge dot, CTA arrow, status pulse, separator dot, or any decorative small mark — regardless of how minor or "decorative" it seems.
 - create_icon(name, parentId, size?, color?) — places a Lucide icon by name

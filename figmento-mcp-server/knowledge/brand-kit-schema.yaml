@@ -146,6 +146,58 @@ schema:
           type: string
           description: "Social media handle"
 
+    design_system:
+      type: object
+      required: false
+      description: "Link to the canonical Figmento DESIGN.md/tokens.yaml source for this brand kit"
+      fields:
+        name:
+          type: string
+          description: "Design system id under knowledge/design-systems/{name}"
+        design_md_path:
+          type: string
+          description: "Path to the source DESIGN.md when imported"
+
+    remix:
+      type: object
+      required: false
+      description: "Reusable remix assets for fast on-brand content generation"
+      fields:
+        image_style:
+          type: object
+          required: false
+          fields:
+            prompt_prefix:
+              type: string
+              description: "Style language appended to every generated image prompt"
+            negative_prompt:
+              type: string
+              description: "Things image generation should avoid"
+            reference_images:
+              type: string[]
+              description: "Up to 3 reference image paths, normally under brand-kits/{brand_id}/references/"
+        carousel:
+          type: object
+          required: false
+          fields:
+            archetypes:
+              type: object[]
+              description: "Saved carousel archetype manifests. Full PresetNode payloads live in archetypes/*.json"
+              item_fields:
+                id:
+                  type: string
+                role:
+                  type: string
+                  enum: [cover, body, image_body, quote, cta, closing]
+                order:
+                  type: number
+                enabled:
+                  type: boolean
+                path:
+                  type: string
+                presetVersion:
+                  type: string
+
 # ═══════════════════════════════════════════════════════════════
 # Example Brand Kit — Café Noir
 # ═══════════════════════════════════════════════════════════════

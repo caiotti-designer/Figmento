@@ -12,6 +12,10 @@ Caio is a designer who vibecodes. Keep answers practical, concrete, and oriented
 2. **Simplicity first** - Make the minimum change that solves the actual problem. Do not add speculative flexibility.
 3. **Surgical changes** - Touch only what the task requires. Mention unrelated dead code or drift, but do not clean it up in the same pass unless asked.
 4. **Goal-driven execution** - Define what success looks like, then verify it with the smallest meaningful checks.
+5. **Token budgets** - Long agent/design loops can spiral. If a task balloons past a reasonable budget, summarize state and restart fresh instead of pushing through a degrading context.
+6. **Surface conflicts, don't average** - This is a monorepo (figmento, mcp-server, ws-relay, core). If two subprojects contradict a pattern, pick one, say why, flag the other - never blend them into code that satisfies both.
+7. **Tests verify intent** - When you touch a tested subproject, a test must encode why the behavior matters, not just that a value returns. A test that can't fail when the logic changes is wrong.
+8. **Checkpoint multi-step work** - For monorepo builds, schema/tool-schema regen, and relay/agent sessions: after each significant step, state what's done, what's verified, what's left. Don't continue from a state you can't describe back.
 
 ## Story Files
 
